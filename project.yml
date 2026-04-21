@@ -25,5 +25,9 @@ targets:
     type: bundle.unit-test
     platform: macOS
     sources: [GroqTalkTests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
     dependencies:
       - target: GroqTalk

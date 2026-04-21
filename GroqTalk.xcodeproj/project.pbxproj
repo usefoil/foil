@@ -7,9 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		622E3C2DBDF873482EA14316 /* PlaceholderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04C069FEA3FC6C805C5284F6 /* PlaceholderTests.swift */; };
 		7D8E0B807298CAECDFCE311E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1F5AA67E138E2CA7C5849E3 /* Assets.xcassets */; };
+		93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */; };
 		F34BB165ADDE82F7DA185B8D /* GroqTalkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */; };
+		F3820A5D8729E73D296EC059 /* KeychainHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -24,10 +25,11 @@
 
 /* Begin PBXFileReference section */
 		02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqTalkApp.swift; sourceTree = "<group>"; };
-		04C069FEA3FC6C805C5284F6 /* PlaceholderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderTests.swift; sourceTree = "<group>"; };
+		03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelperTests.swift; sourceTree = "<group>"; };
 		43A2E33CA96A9F02E59C910A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		47F67C46D628784D812AC1C1 /* GroqTalk.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GroqTalk.entitlements; sourceTree = "<group>"; };
 		72069E1D0553D8A1FE1540F1 /* GroqTalkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GroqTalkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		B1F5AA67E138E2CA7C5849E3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C64A6F82CCC4912E445F25A4 /* GroqTalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GroqTalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -45,7 +47,7 @@
 		4F8AC894D29988B22EFFC224 /* GroqTalkTests */ = {
 			isa = PBXGroup;
 			children = (
-				04C069FEA3FC6C805C5284F6 /* PlaceholderTests.swift */,
+				03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */,
 			);
 			path = GroqTalkTests;
 			sourceTree = "<group>";
@@ -66,6 +68,7 @@
 				47F67C46D628784D812AC1C1 /* GroqTalk.entitlements */,
 				02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */,
 				43A2E33CA96A9F02E59C910A /* Info.plist */,
+				86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */,
 			);
 			path = GroqTalk;
 			sourceTree = "<group>";
@@ -157,6 +160,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F34BB165ADDE82F7DA185B8D /* GroqTalkApp.swift in Sources */,
+				93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -164,7 +168,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				622E3C2DBDF873482EA14316 /* PlaceholderTests.swift in Sources */,
+				F3820A5D8729E73D296EC059 /* KeychainHelperTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -183,7 +187,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -358,7 +364,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
