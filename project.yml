@@ -1,0 +1,29 @@
+name: GroqTalk
+options:
+  bundleIdPrefix: com.neonwatty
+  deploymentTarget:
+    macOS: "14.0"
+  minimumXcodeGenVersion: "2.0"
+targets:
+  GroqTalk:
+    type: application
+    platform: macOS
+    sources: [GroqTalk]
+    settings:
+      base:
+        ENABLE_HARDENED_RUNTIME: YES
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        CODE_SIGN_ENTITLEMENTS: GroqTalk/GroqTalk.entitlements
+        CODE_SIGN_IDENTITY: "-"
+    info:
+      path: GroqTalk/Info.plist
+      properties:
+        LSUIElement: true
+        NSMicrophoneUsageDescription: "GroqTalk needs microphone access to record audio for speech-to-text."
+  GroqTalkTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [GroqTalkTests]
+    dependencies:
+      - target: GroqTalk
