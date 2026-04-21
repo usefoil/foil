@@ -10,6 +10,7 @@
 		0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */; };
 		2B38B3440F7EDF7EE3E32329 /* TextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61B277DF7657903E9ED14B1 /* TextInserter.swift */; };
 		2F82960B56006370D0F90FCC /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D5510A5B46F677D2AE854D /* TranscriptionService.swift */; };
+		44A052BE79DB88DAD67DC34E /* HotkeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */; };
 		68CA2C950FA6990F920B6F0E /* SoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0224008DA333B2B45AA9B3 /* SoundPlayer.swift */; };
 		7D8E0B807298CAECDFCE311E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1F5AA67E138E2CA7C5849E3 /* Assets.xcassets */; };
 		93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */; };
@@ -40,6 +41,7 @@
 		75751BABD8DCE7F43A5AC08F /* TranscriptionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionServiceTests.swift; sourceTree = "<group>"; };
 		78D5510A5B46F677D2AE854D /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
 		86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitor.swift; sourceTree = "<group>"; };
 		AE0224008DA333B2B45AA9B3 /* SoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundPlayer.swift; sourceTree = "<group>"; };
 		B1F5AA67E138E2CA7C5849E3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C64A6F82CCC4912E445F25A4 /* GroqTalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GroqTalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -85,6 +87,7 @@
 				583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */,
 				47F67C46D628784D812AC1C1 /* GroqTalk.entitlements */,
 				02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */,
+				9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */,
 				43A2E33CA96A9F02E59C910A /* Info.plist */,
 				86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */,
 				AE0224008DA333B2B45AA9B3 /* SoundPlayer.swift */,
@@ -183,6 +186,7 @@
 				9C5F3BE1ADFE9F40B0DD40A5 /* AppState.swift in Sources */,
 				0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */,
 				F34BB165ADDE82F7DA185B8D /* GroqTalkApp.swift in Sources */,
+				44A052BE79DB88DAD67DC34E /* HotkeyMonitor.swift in Sources */,
 				93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */,
 				68CA2C950FA6990F920B6F0E /* SoundPlayer.swift in Sources */,
 				2B38B3440F7EDF7EE3E32329 /* TextInserter.swift in Sources */,
