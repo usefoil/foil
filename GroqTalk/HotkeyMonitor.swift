@@ -1,83 +1,106 @@
-import Foundation
-import IOKit
-import IOKit.hid
+import Cocoa
+import CoreGraphics
 
 final class HotkeyMonitor {
     var onRecordingStarted: (() -> Void)?
     var onRecordingStopped: (() -> Void)?
     var onRecordingCancelled: (() -> Void)?
 
-    private var manager: IOHIDManager?
-    private var fnKeyDown = false
-    private var otherKeysDuringFn = false
-    private var fnPressTime: Date?
+    private var eventTap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
+    private var rightOptionDown = false
+    private var otherKeysDuringHold = false
+    private var pressTime: Date?
     private let debounceInterval: TimeInterval = 0.2
 
+    // Right Option virtual key code
+    private static let rightOptionKeyCode: Int64 = 0x3D
+
     func start() {
-        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
-        self.manager = manager
+        let eventMask = (1 << CGEventType.flagsChanged.rawValue)
+            | (1 << CGEventType.keyDown.rawValue)
 
-        // Match Apple Vendor Top Case — this is where the Fn/Globe key lives
-        // Page 0x00FF = kHIDPage_AppleVendorTopCase
-        // Usage 0x0001 = kHIDUsage_AppleVendorTopCase_Keyboard
-        let matching: [String: Any] = [
-            kIOHIDDeviceUsagePageKey: 0x00FF,
-            kIOHIDDeviceUsageKey: 0x0001
-        ]
-        IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
-
-        let callback: IOHIDValueCallback = { context, _, _, value in
-            guard let context else { return }
-            let monitor = Unmanaged<HotkeyMonitor>.fromOpaque(context).takeUnretainedValue()
-            monitor.handleHIDValue(value)
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(eventMask),
+            callback: { _, type, event, refcon -> Unmanaged<CGEvent>? in
+                guard let refcon else { return Unmanaged.passUnretained(event) }
+                let monitor = Unmanaged<HotkeyMonitor>.fromOpaque(refcon).takeUnretainedValue()
+                return monitor.handleEvent(type: type, event: event)
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else {
+            print("HotkeyMonitor: failed to create event tap — is Accessibility enabled?")
+            return
         }
 
-        let context = Unmanaged.passUnretained(self).toOpaque()
-        IOHIDManagerRegisterInputValueCallback(manager, callback, context)
-        IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
-        IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        eventTap = tap
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        runLoopSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
     }
 
     func stop() {
-        guard let manager else { return }
-        IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
-        self.manager = nil
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            if let source = runLoopSource {
+                CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+            }
+        }
+        eventTap = nil
+        runLoopSource = nil
     }
 
-    private func handleHIDValue(_ value: IOHIDValue) {
-        let element = IOHIDValueGetElement(value)
-        let usage = IOHIDElementGetUsage(element)
-        let pressed = IOHIDValueGetIntegerValue(value) == 1
+    private func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        // Re-enable tap if macOS disabled it due to slow callback
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let tap = eventTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+        }
 
-        // 0x0003 = kHIDUsage_AppleVendorTopCase_KeyboardFn (Globe/Fn key)
-        if usage == 0x0003 {
-            if pressed {
-                fnKeyDown = true
-                otherKeysDuringFn = false
-                fnPressTime = Date()
-                onRecordingStarted?()
-            } else {
-                let wasSoloPress = !otherKeysDuringFn
-                let longEnough = fnPressTime.map {
-                    Date().timeIntervalSince($0) >= debounceInterval
-                } ?? false
+        if type == .flagsChanged {
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
 
-                fnKeyDown = false
-                otherKeysDuringFn = false
-                fnPressTime = nil
+            if keyCode == Self.rightOptionKeyCode {
+                let optionPressed = event.flags.contains(.maskAlternate)
 
-                if wasSoloPress && longEnough {
-                    onRecordingStopped?()
-                } else {
-                    onRecordingCancelled?()
+                if optionPressed && !rightOptionDown {
+                    // Right Option pressed down
+                    rightOptionDown = true
+                    otherKeysDuringHold = false
+                    pressTime = Date()
+                    onRecordingStarted?()
+                } else if !optionPressed && rightOptionDown {
+                    // Right Option released
+                    let wasSoloPress = !otherKeysDuringHold
+                    let longEnough = pressTime.map {
+                        Date().timeIntervalSince($0) >= debounceInterval
+                    } ?? false
+
+                    rightOptionDown = false
+                    otherKeysDuringHold = false
+                    pressTime = nil
+
+                    if wasSoloPress && longEnough {
+                        onRecordingStopped?()
+                    } else {
+                        onRecordingCancelled?()
+                    }
                 }
             }
-        } else if fnKeyDown {
-            // Another key pressed while Fn held — Fn is being used as modifier
-            if !otherKeysDuringFn {
-                otherKeysDuringFn = true
+        } else if type == .keyDown && rightOptionDown {
+            // A regular key pressed while Right Option held — cancel recording
+            if !otherKeysDuringHold {
+                otherKeysDuringHold = true
                 onRecordingCancelled?()
             }
         }
+
+        return Unmanaged.passUnretained(event)
     }
 }
