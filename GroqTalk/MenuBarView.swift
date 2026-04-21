@@ -6,7 +6,7 @@ struct MenuBarView: View {
 
     var body: some View {
         Text(appState.statusText)
-            .foregroundStyle(appState.status == .error("") ? .red : .secondary)
+            .foregroundStyle(appState.isError ? .red : .secondary)
 
         Divider()
 

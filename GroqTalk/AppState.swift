@@ -24,6 +24,11 @@ final class AppState {
 
     var hasApiKey: Bool { KeychainHelper.readApiKey() != nil }
 
+    var isError: Bool {
+        if case .error = status { return true }
+        return false
+    }
+
     var menuBarIcon: String {
         switch status {
         case .idle: "mic.fill"
