@@ -4,47 +4,48 @@ import Foundation
 final class AudioRecorder {
     private var audioEngine: AVAudioEngine?
     private var buffers: [AVAudioPCMBuffer] = []
+    private let bufferQueue = DispatchQueue(label: "com.neonwatty.groqtalk.audiobuffers")
 
-    func startRecording() {
+    func startRecording() throws {
+        cancelRecording()
+
         let engine = AVAudioEngine()
         audioEngine = engine
-        buffers = []
+        bufferQueue.sync { buffers = [] }
 
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
 
         inputNode.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, _ in
-            self?.buffers.append(buffer)
+            self?.bufferQueue.sync { self?.buffers.append(buffer) }
         }
 
-        do {
-            try engine.start()
-        } catch {
-            print("AudioRecorder: failed to start — \(error)")
-        }
+        try engine.start()
     }
 
-    func stopRecording() async -> URL? {
+    func stopRecording() -> URL? {
         guard let engine = audioEngine else { return nil }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         audioEngine = nil
 
-        guard !buffers.isEmpty, let format = buffers.first?.format else { return nil }
+        let captured = bufferQueue.sync { () -> [AVAudioPCMBuffer] in
+            let b = buffers; buffers = []; return b
+        }
+
+        guard !captured.isEmpty, let format = captured.first?.format else { return nil }
 
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("groqtalk-\(UUID().uuidString).wav")
 
         do {
             let file = try AVAudioFile(forWriting: tempURL, settings: format.settings)
-            for buffer in buffers {
+            for buffer in captured {
                 try file.write(from: buffer)
             }
-            buffers = []
             return tempURL
         } catch {
             print("AudioRecorder: failed to write WAV — \(error)")
-            buffers = []
             return nil
         }
     }
@@ -54,6 +55,6 @@ final class AudioRecorder {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         audioEngine = nil
-        buffers = []
+        bufferQueue.sync { buffers = [] }
     }
 }

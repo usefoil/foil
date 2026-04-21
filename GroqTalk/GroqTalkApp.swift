@@ -32,23 +32,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Check accessibility permission
         if !AXIsProcessTrusted() {
-            let options = [kAXTrustedCheckOptionPrompt.takeRetainedValue(): true] as CFDictionary
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
             AXIsProcessTrustedWithOptions(options)
         }
 
         // Wire hotkey monitor
         hotkeyMonitor.onRecordingStarted = { [weak self] in
             guard let self else { return }
-            DispatchQueue.main.async {
-                self.appState.setStatus(.recording)
-                self.soundPlayer.playStartSound()
-                self.audioRecorder.startRecording()
+            Task { @MainActor in
+                do {
+                    try self.audioRecorder.startRecording()
+                    self.appState.setStatus(.recording)
+                    self.soundPlayer.playStartSound()
+                } catch {
+                    self.appState.showError("Microphone unavailable")
+                }
             }
         }
         hotkeyMonitor.onRecordingStopped = { [weak self] in
             guard let self else { return }
             Task { @MainActor in
-                guard let url = await self.audioRecorder.stopRecording() else {
+                guard let url = self.audioRecorder.stopRecording() else {
                     self.appState.setStatus(.idle)
                     return
                 }
@@ -68,6 +72,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.appState.setStatus(.idle)
                 } catch TranscriptionService.TranscriptionError.invalidApiKey {
                     self.appState.showError("Invalid API key")
+                } catch TranscriptionService.TranscriptionError.fileTooLarge {
+                    self.appState.showError("Recording too long")
+                } catch TranscriptionService.TranscriptionError.apiError(let code, _) {
+                    self.appState.showError("API error (\(code))")
+                } catch let error as URLError where error.code == .notConnectedToInternet {
+                    self.appState.showError("No internet connection")
                 } catch {
                     self.appState.showError("Transcription failed")
                 }
@@ -77,7 +87,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotkeyMonitor.onRecordingCancelled = { [weak self] in
             guard let self else { return }
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self.audioRecorder.cancelRecording()
                 self.appState.setStatus(.idle)
             }

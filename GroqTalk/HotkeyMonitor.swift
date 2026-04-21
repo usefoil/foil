@@ -17,7 +17,10 @@ final class HotkeyMonitor {
     // These distinguish left vs right modifier keys in the raw flags
     private static let rightCommandDeviceFlag: UInt64 = 0x10  // NX_DEVICERCMDKEYMASK
 
+    deinit { stop() }
+
     func start() {
+        guard eventTap == nil else { return }
         let eventMask = (1 << CGEventType.flagsChanged.rawValue)
             | (1 << CGEventType.keyDown.rawValue)
 
@@ -42,7 +45,6 @@ final class HotkeyMonitor {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        print("HotkeyMonitor: event tap created and enabled")
     }
 
     func stop() {
@@ -54,6 +56,9 @@ final class HotkeyMonitor {
         }
         eventTap = nil
         runLoopSource = nil
+        rightCommandDown = false
+        otherKeysDuringHold = false
+        pressTime = nil
     }
 
     private func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
