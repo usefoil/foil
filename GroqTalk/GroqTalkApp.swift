@@ -117,39 +117,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Retry
 
     func retryLast() {
-        guard let record = history.retryableRecord,
-              let audioURL = record.audioFileURL else { return }
-
-        appState.clearError()
-        appState.setStatus(.transcribing)
-        startTranscribingAnimation()
-
-        Task {
-            guard let apiKey = KeychainHelper.readApiKey() else {
-                stopTranscribingAnimation()
-                appState.showError("No API key")
-                return
-            }
-
-            do {
-                let text = try await transcriptionService.transcribe(
-                    audioFileURL: audioURL,
-                    apiKey: apiKey,
-                    model: appState.selectedModel,
-                    format: appState.selectedAudioFormat,
-                    language: appState.selectedLanguage
-                )
-                stopTranscribingAnimation()
-                history.resolveRetry(id: record.id, text: text)
-                await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
-                appState.setStatus(.idle)
-            } catch {
-                stopTranscribingAnimation()
-                let errorMsg = errorMessage(from: error)
-                history.resolveRetryFailure(id: record.id, error: errorMsg)
-                appState.showError(errorMsg)
-            }
-        }
+        guard let record = history.retryableRecord else { return }
+        retryRecord(record)
     }
 
     // MARK: - Wiring
@@ -286,7 +255,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popoverObserver = NotificationCenter.default.addObserver(
             forName: .showHistoryPopover, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.toggleHistoryPopover()
+            Task { @MainActor in
+                self?.toggleHistoryPopover()
+            }
         }
     }
 
@@ -310,7 +281,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Find the menu bar button to anchor the popover
         if let button = NSApp.windows
             .compactMap({ $0.contentView?.subviews.first as? NSStatusBarButton })
-            .first ?? NSStatusBar.system.statusItem(withLength: 0).button {
+            .first {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         }
 
