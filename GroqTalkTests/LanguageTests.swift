@@ -5,7 +5,17 @@ final class LanguageTests: XCTestCase {
     func testLanguageRawValues() {
         XCTAssertEqual(Language.auto.rawValue, "auto")
         XCTAssertEqual(Language.en.rawValue, "en")
+        XCTAssertEqual(Language.es.rawValue, "es")
+        XCTAssertEqual(Language.fr.rawValue, "fr")
+        XCTAssertEqual(Language.de.rawValue, "de")
+        XCTAssertEqual(Language.pt.rawValue, "pt")
+        XCTAssertEqual(Language.it.rawValue, "it")
         XCTAssertEqual(Language.ja.rawValue, "ja")
+        XCTAssertEqual(Language.zh.rawValue, "zh")
+        XCTAssertEqual(Language.ko.rawValue, "ko")
+        XCTAssertEqual(Language.hi.rawValue, "hi")
+        XCTAssertEqual(Language.ar.rawValue, "ar")
+        XCTAssertEqual(Language.ru.rawValue, "ru")
     }
 
     func testLanguageDisplayNames() {
