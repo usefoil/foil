@@ -27,6 +27,8 @@
 		F171EFD9BB5E02DA075979FB /* TranscriptionHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C23DDB33DDC6E657B8221CA /* TranscriptionHistory.swift */; };
 		F34BB165ADDE82F7DA185B8D /* GroqTalkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */; };
 		F3820A5D8729E73D296EC059 /* KeychainHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */; };
+		A7B3D1E4F92C58A0E1D6F43B /* HistoryPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E1C8A93D47B2F06A8E7C150 /* HistoryPopoverView.swift */; };
+		B9E4F2A17C83D6E5F0A2B81D /* HistoryPopoverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D7A0E6BC91F48D2A5C3E790 /* HistoryPopoverTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +66,8 @@
 		E38DF89D2274A959CCAD06AD /* TranscriptionHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistoryTests.swift; sourceTree = "<group>"; };
 		F2C48CEFD0EA9409C15CBFB0 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		F61B277DF7657903E9ED14B1 /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
+		5E1C8A93D47B2F06A8E7C150 /* HistoryPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverView.swift; sourceTree = "<group>"; };
+		3D7A0E6BC91F48D2A5C3E790 /* HistoryPopoverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -81,6 +85,7 @@
 			children = (
 				DF970AE548B49F2AD02AE742 /* AppStateTests.swift */,
 				B6B0DA7F2F73D239BFCA2B39 /* AudioRecorderTests.swift */,
+				3D7A0E6BC91F48D2A5C3E790 /* HistoryPopoverTests.swift */,
 				BCEF01B35A4285F2AE32E990 /* HotkeyMonitorTests.swift */,
 				A1F05D2E8C93B4A70E6D1F82 /* IntegrationTests.swift */,
 				03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */,
@@ -109,6 +114,7 @@
 				583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */,
 				47F67C46D628784D812AC1C1 /* GroqTalk.entitlements */,
 				02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */,
+				5E1C8A93D47B2F06A8E7C150 /* HistoryPopoverView.swift */,
 				9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */,
 				43A2E33CA96A9F02E59C910A /* Info.plist */,
 				86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */,
@@ -211,6 +217,7 @@
 				9C5F3BE1ADFE9F40B0DD40A5 /* AppState.swift in Sources */,
 				0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */,
 				F34BB165ADDE82F7DA185B8D /* GroqTalkApp.swift in Sources */,
+				A7B3D1E4F92C58A0E1D6F43B /* HistoryPopoverView.swift in Sources */,
 				44A052BE79DB88DAD67DC34E /* HotkeyMonitor.swift in Sources */,
 				93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */,
 				4EC94F8FD46EA59C1D29DBAA /* MenuBarView.swift in Sources */,
@@ -227,6 +234,7 @@
 			files = (
 				A02E3739EF61ABCCE34BF29F /* AppStateTests.swift in Sources */,
 				A415CE9E58748D266755EEFC /* AudioRecorderTests.swift in Sources */,
+				B9E4F2A17C83D6E5F0A2B81D /* HistoryPopoverTests.swift in Sources */,
 				E353F7E3CFB6FC1E8DE25C7E /* HotkeyMonitorTests.swift in Sources */,
 				C7E19A3B4F82D5E91A0BC7D3 /* IntegrationTests.swift in Sources */,
 				F3820A5D8729E73D296EC059 /* KeychainHelperTests.swift in Sources */,

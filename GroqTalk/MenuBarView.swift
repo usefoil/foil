@@ -93,32 +93,8 @@ struct MenuBarView: View {
 
         Divider()
 
-        Menu("Recent Transcriptions") {
-            if history.records.isEmpty {
-                Text("No transcriptions yet")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(history.records) { record in
-                    Button {
-                        if let text = record.text {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(text, forType: .string)
-                        }
-                    } label: {
-                        HStack {
-                            if record.isFailure {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.red)
-                            }
-                            Text(record.previewText)
-                            Spacer()
-                            Text(record.relativeTimestamp)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .disabled(record.text == nil)
-                }
-            }
+        Button("Show History...") {
+            NotificationCenter.default.post(name: .showHistoryPopover, object: nil)
         }
 
         if history.retryableRecord != nil {
@@ -139,4 +115,8 @@ struct MenuBarView: View {
             NSApplication.shared.terminate(nil)
         }
     }
+}
+
+extension Notification.Name {
+    static let showHistoryPopover = Notification.Name("showHistoryPopover")
 }

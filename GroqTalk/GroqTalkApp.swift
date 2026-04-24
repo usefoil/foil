@@ -37,6 +37,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var recordingTimer: Timer?
     private var transcribingTimer: Timer?
+    private var historyPopover: NSPopover?
+    private var popoverObserver: Any?
 
     // MARK: - Menu bar label
 
@@ -62,6 +64,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         wireHotkeyMonitor()
         applyHotkeyConfig()
         startHotkeyMonitorWithRetry()
+        setupHistoryPopover()
     }
 
     // MARK: - Hotkey configuration
@@ -273,6 +276,79 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState.setStatus(.idle)
             } else {
                 appState.showError("Failed to start — try restarting GroqTalk")
+            }
+        }
+    }
+
+    // MARK: - History popover
+
+    private func setupHistoryPopover() {
+        popoverObserver = NotificationCenter.default.addObserver(
+            forName: .showHistoryPopover, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.toggleHistoryPopover()
+        }
+    }
+
+    private func toggleHistoryPopover() {
+        if let popover = historyPopover, popover.isShown {
+            popover.performClose(nil)
+            return
+        }
+
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = NSHostingController(
+            rootView: HistoryPopoverView(
+                history: history,
+                onRetry: { [weak self] record in
+                    self?.retryRecord(record)
+                }
+            )
+        )
+
+        // Find the menu bar button to anchor the popover
+        if let button = NSApp.windows
+            .compactMap({ $0.contentView?.subviews.first as? NSStatusBarButton })
+            .first ?? NSStatusBar.system.statusItem(withLength: 0).button {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+
+        self.historyPopover = popover
+    }
+
+    private func retryRecord(_ record: TranscriptionRecord) {
+        guard let audioURL = record.audioFileURL else { return }
+        historyPopover?.performClose(nil)
+
+        appState.clearError()
+        appState.setStatus(.transcribing)
+        startTranscribingAnimation()
+
+        Task {
+            guard let apiKey = KeychainHelper.readApiKey() else {
+                stopTranscribingAnimation()
+                appState.showError("No API key")
+                return
+            }
+
+            do {
+                let text = try await transcriptionService.transcribe(
+                    audioFileURL: audioURL,
+                    apiKey: apiKey,
+                    model: appState.selectedModel,
+                    format: appState.selectedAudioFormat,
+                    language: appState.selectedLanguage
+                )
+                stopTranscribingAnimation()
+                history.resolveRetry(id: record.id, text: text)
+                await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
+                appState.setStatus(.idle)
+            } catch {
+                stopTranscribingAnimation()
+                let errorMsg = errorMessage(from: error)
+                history.resolveRetryFailure(id: record.id, error: errorMsg)
+                appState.showError(errorMsg)
             }
         }
     }
