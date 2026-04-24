@@ -44,4 +44,56 @@ final class LanguageTests: XCTestCase {
         let decoded = try JSONDecoder().decode(Language.self, from: data)
         XCTAssertEqual(decoded, original)
     }
+
+    func testMultipartBodyOmitsLanguageWhenAuto() throws {
+        let service = TranscriptionService()
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-lang.wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let body = try service.buildMultipartBody(
+            audioFileURL: tempURL, model: "m", format: .wav,
+            language: .auto, boundary: "b"
+        )
+        let bodyString = String(data: body, encoding: .utf8)!
+        XCTAssertFalse(bodyString.contains("name=\"language\""),
+                       "Auto-detect should not include language field")
+    }
+
+    func testMultipartBodyIncludesLanguageWhenSet() throws {
+        let service = TranscriptionService()
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-lang2.wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let body = try service.buildMultipartBody(
+            audioFileURL: tempURL, model: "m", format: .wav,
+            language: .ja, boundary: "b"
+        )
+        let bodyString = String(data: body, encoding: .utf8)!
+        XCTAssertTrue(bodyString.contains("name=\"language\"\r\n\r\nja"),
+                      "Japanese should send language=ja")
+    }
+
+    func testMultipartBodyLanguageFieldPerLanguage() throws {
+        let service = TranscriptionService()
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-lang3.wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        for lang in Language.allCases where lang != .auto {
+            let body = try service.buildMultipartBody(
+                audioFileURL: tempURL, model: "m", format: .wav,
+                language: lang, boundary: "b"
+            )
+            let bodyString = String(data: body, encoding: .utf8)!
+            XCTAssertTrue(
+                bodyString.contains("name=\"language\"\r\n\r\n\(lang.rawValue)"),
+                "\(lang.displayName) should send language=\(lang.rawValue)"
+            )
+        }
+    }
 }

@@ -3,14 +3,14 @@ import Foundation
 struct TranscriptionService {
     private let endpoint = URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
 
-    func transcribe(audioFileURL: URL, apiKey: String, model: String, format: AudioFormat = .wav) async throws -> String {
+    func transcribe(audioFileURL: URL, apiKey: String, model: String, format: AudioFormat = .wav, language: Language = .auto) async throws -> String {
         let boundary = UUID().uuidString
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = try buildMultipartBody(
-            audioFileURL: audioFileURL, model: model, format: format, boundary: boundary
+            audioFileURL: audioFileURL, model: model, format: format, language: language, boundary: boundary
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -34,7 +34,7 @@ struct TranscriptionService {
         }
     }
 
-    func buildMultipartBody(audioFileURL: URL, model: String, format: AudioFormat, boundary: String) throws -> Data {
+    func buildMultipartBody(audioFileURL: URL, model: String, format: AudioFormat, language: Language = .auto, boundary: String) throws -> Data {
         let audioData = try Data(contentsOf: audioFileURL)
         var body = Data()
 
@@ -45,6 +45,12 @@ struct TranscriptionService {
         body.appendString("--\(boundary)\r\n")
         body.appendString("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n")
         body.appendString("text\r\n")
+
+        if language != .auto {
+            body.appendString("--\(boundary)\r\n")
+            body.appendString("Content-Disposition: form-data; name=\"language\"\r\n\r\n")
+            body.appendString("\(language.rawValue)\r\n")
+        }
 
         body.appendString("--\(boundary)\r\n")
         body.appendString("Content-Disposition: form-data; name=\"file\"; filename=\"\(format.filename)\"\r\n")
