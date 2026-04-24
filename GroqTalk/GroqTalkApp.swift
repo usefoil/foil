@@ -79,8 +79,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState.recordingStartTime = Date()
         appState.recordingDuration = 0
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self, let start = self.appState.recordingStartTime else { return }
             Task { @MainActor in
+                guard let self, let start = self.appState.recordingStartTime else { return }
                 self.appState.recordingDuration = Date().timeIntervalSince(start)
             }
         }
