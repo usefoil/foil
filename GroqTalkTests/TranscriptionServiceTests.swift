@@ -14,6 +14,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let body = try service.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3-turbo",
+            format: "wav",
             boundary: boundary
         )
         let bodyString = String(data: body, encoding: .utf8)!
@@ -24,6 +25,47 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(bodyString.contains("name=\"file\"; filename=\"audio.wav\""))
         XCTAssertTrue(bodyString.contains("Content-Type: audio/wav"))
         XCTAssertTrue(bodyString.contains("--test-boundary-123--"))
+    }
+
+    func testMultipartBodyM4AFormat() throws {
+        let service = TranscriptionService()
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-audio.m4a")
+        try Data([0x00, 0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let body = try service.buildMultipartBody(
+            audioFileURL: tempURL,
+            model: "whisper-large-v3",
+            format: "m4a",
+            boundary: "b"
+        )
+        let bodyString = String(data: body, encoding: .utf8)!
+
+        XCTAssertTrue(bodyString.contains("filename=\"audio.m4a\""))
+        XCTAssertTrue(bodyString.contains("Content-Type: audio/mp4"))
+    }
+
+    func testMultipartBodyMP3Format() throws {
+        let service = TranscriptionService()
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-audio.mp3")
+        try Data([0xFF, 0xFB]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let body = try service.buildMultipartBody(
+            audioFileURL: tempURL,
+            model: "whisper-large-v3",
+            format: "mp3",
+            boundary: "b"
+        )
+        // Use latin1 (lossless for arbitrary bytes) since body contains binary audio data
+        let bodyString = String(data: body, encoding: .isoLatin1)!
+
+        XCTAssertTrue(bodyString.contains("filename=\"audio.mp3\""))
+        XCTAssertTrue(bodyString.contains("Content-Type: audio/mpeg"))
     }
 
     func testMultipartBodyIncludesAudioData() throws {
@@ -38,6 +80,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let body = try service.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3",
+            format: "wav",
             boundary: "b"
         )
 

@@ -3,14 +3,14 @@ import Foundation
 struct TranscriptionService {
     private let endpoint = URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
 
-    func transcribe(audioFileURL: URL, apiKey: String, model: String) async throws -> String {
+    func transcribe(audioFileURL: URL, apiKey: String, model: String, format: String = "wav") async throws -> String {
         let boundary = UUID().uuidString
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = try buildMultipartBody(
-            audioFileURL: audioFileURL, model: model, boundary: boundary
+            audioFileURL: audioFileURL, model: model, format: format, boundary: boundary
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -34,8 +34,9 @@ struct TranscriptionService {
         }
     }
 
-    func buildMultipartBody(audioFileURL: URL, model: String, boundary: String) throws -> Data {
+    func buildMultipartBody(audioFileURL: URL, model: String, format: String, boundary: String) throws -> Data {
         let audioData = try Data(contentsOf: audioFileURL)
+        let (filename, contentType) = fileMetadata(for: format)
         var body = Data()
 
         body.appendString("--\(boundary)\r\n")
@@ -47,13 +48,21 @@ struct TranscriptionService {
         body.appendString("text\r\n")
 
         body.appendString("--\(boundary)\r\n")
-        body.appendString("Content-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\n")
-        body.appendString("Content-Type: audio/wav\r\n\r\n")
+        body.appendString("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n")
+        body.appendString("Content-Type: \(contentType)\r\n\r\n")
         body.append(audioData)
         body.appendString("\r\n")
 
         body.appendString("--\(boundary)--\r\n")
         return body
+    }
+
+    private func fileMetadata(for format: String) -> (filename: String, contentType: String) {
+        switch format {
+        case "m4a": ("audio.m4a", "audio/mp4")
+        case "mp3": ("audio.mp3", "audio/mpeg")
+        default:    ("audio.wav", "audio/wav")
+        }
     }
 
     enum TranscriptionError: Error, Equatable {
