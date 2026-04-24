@@ -8,6 +8,7 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "keepOnClipboard")
         UserDefaults.standard.removeObject(forKey: "recordingMode")
         UserDefaults.standard.removeObject(forKey: "hotkeyChoice")
+        UserDefaults.standard.removeObject(forKey: "language")
     }
 
     func testInitialStatusIsIdle() {

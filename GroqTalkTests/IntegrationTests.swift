@@ -164,4 +164,38 @@ final class IntegrationTests: XCTestCase {
             )
         }
     }
+
+    func testMultipartBodyIncludesLanguageField() throws {
+        let buffer = makeSineBuffer()
+        let url = track(try recorder.writeWAV(buffers: [buffer]))
+
+        let service = TranscriptionService()
+        let body = try service.buildMultipartBody(
+            audioFileURL: url, model: "whisper-large-v3-turbo",
+            format: .wav, language: .es, boundary: "test-boundary"
+        )
+        let bodyString = String(data: body, encoding: .isoLatin1)!
+
+        XCTAssertTrue(
+            bodyString.contains("name=\"language\"\r\n\r\nes"),
+            "Spanish language hint should be in multipart body"
+        )
+    }
+
+    func testMultipartBodyOmitsLanguageForAuto() throws {
+        let buffer = makeSineBuffer()
+        let url = track(try recorder.writeWAV(buffers: [buffer]))
+
+        let service = TranscriptionService()
+        let body = try service.buildMultipartBody(
+            audioFileURL: url, model: "whisper-large-v3-turbo",
+            format: .wav, language: .auto, boundary: "test-boundary"
+        )
+        let bodyString = String(data: body, encoding: .isoLatin1)!
+
+        XCTAssertFalse(
+            bodyString.contains("name=\"language\""),
+            "Auto-detect should not include language field"
+        )
+    }
 }
