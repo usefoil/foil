@@ -19,7 +19,7 @@ final class HotkeyMonitor {
             switch self {
             case .rightCommand: 0x10   // NX_DEVICERCMDKEYMASK
             case .rightOption:  0x40   // NX_DEVICERALTKEYMASK
-            case .globeFn:      0      // handled by IOKit HID, not CGEvent flags
+            case .globeFn:      0      // Not used — Globe/Fn uses IOKit HID, never CGEvent tap
             }
         }
 
@@ -54,6 +54,8 @@ final class HotkeyMonitor {
     private var keyDown = false
     private var otherKeysDuringHold = false
     private var pressTime: Date?
+    /// Quick-release threshold: releases shorter than this cancel the recording
+    /// to prevent accidental single-key-tap transcriptions.
     private let debounceInterval: TimeInterval = 0.2
 
     // Toggle mode: tracks whether we are currently in an active recording
@@ -161,8 +163,8 @@ final class HotkeyMonitor {
         self.hidManager = manager
 
         let matching: [String: Any] = [
-            kIOHIDDeviceUsagePageKey: 0x00FF,
-            kIOHIDDeviceUsageKey: 0x0001
+            kIOHIDDeviceUsagePageKey: 0x00FF,  // Apple Vendor Top Case (undocumented usage page)
+            kIOHIDDeviceUsageKey: 0x0001        // Keyboard
         ]
         IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
 
@@ -191,8 +193,7 @@ final class HotkeyMonitor {
         let usage = IOHIDElementGetUsage(element)
         let pressed = IOHIDValueGetIntegerValue(value) == 1
 
-        if usage == 0x0003 {
-            // Globe/Fn key
+        if usage == 0x0003 {  // Globe/Fn key on Apple Vendor Top Case page
             handleKeyStateChange(pressed: pressed)
         } else if keyDown {
             if !otherKeysDuringHold {
@@ -205,6 +206,7 @@ final class HotkeyMonitor {
 
     // MARK: - Shared state machine
 
+    /// Internal for testing — called by handleCGEvent and handleHIDValue.
     func handleKeyStateChange(pressed: Bool) {
         if pressed && !keyDown {
             keyDown = true

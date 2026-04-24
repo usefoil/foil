@@ -3,7 +3,7 @@ import Foundation
 struct TranscriptionService {
     private let endpoint = URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
 
-    func transcribe(audioFileURL: URL, apiKey: String, model: String, format: String = "wav") async throws -> String {
+    func transcribe(audioFileURL: URL, apiKey: String, model: String, format: AudioFormat = .wav) async throws -> String {
         let boundary = UUID().uuidString
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -34,9 +34,8 @@ struct TranscriptionService {
         }
     }
 
-    func buildMultipartBody(audioFileURL: URL, model: String, format: String, boundary: String) throws -> Data {
+    func buildMultipartBody(audioFileURL: URL, model: String, format: AudioFormat, boundary: String) throws -> Data {
         let audioData = try Data(contentsOf: audioFileURL)
-        let (filename, contentType) = fileMetadata(for: format)
         var body = Data()
 
         body.appendString("--\(boundary)\r\n")
@@ -48,21 +47,13 @@ struct TranscriptionService {
         body.appendString("text\r\n")
 
         body.appendString("--\(boundary)\r\n")
-        body.appendString("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n")
-        body.appendString("Content-Type: \(contentType)\r\n\r\n")
+        body.appendString("Content-Disposition: form-data; name=\"file\"; filename=\"\(format.filename)\"\r\n")
+        body.appendString("Content-Type: \(format.contentType)\r\n\r\n")
         body.append(audioData)
         body.appendString("\r\n")
 
         body.appendString("--\(boundary)--\r\n")
         return body
-    }
-
-    private func fileMetadata(for format: String) -> (filename: String, contentType: String) {
-        switch format {
-        case "m4a":  ("audio.m4a", "audio/mp4")
-        case "flac": ("audio.flac", "audio/flac")
-        default:     ("audio.wav", "audio/wav")
-        }
     }
 
     enum TranscriptionError: Error, Equatable {

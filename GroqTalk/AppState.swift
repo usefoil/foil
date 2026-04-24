@@ -30,9 +30,9 @@ final class AppState {
         set { UserDefaults.standard.set(newValue, forKey: "whisperModel") }
     }
 
-    var selectedAudioFormat: String {
-        get { UserDefaults.standard.string(forKey: "audioFormat") ?? "m4a" }
-        set { UserDefaults.standard.set(newValue, forKey: "audioFormat") }
+    var selectedAudioFormat: AudioFormat {
+        get { AudioFormat(rawValue: UserDefaults.standard.string(forKey: "audioFormat") ?? "") ?? .m4a }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "audioFormat") }
     }
 
     var keepOnClipboard: Bool {
@@ -40,14 +40,14 @@ final class AppState {
         set { UserDefaults.standard.set(newValue, forKey: "keepOnClipboard") }
     }
 
-    var recordingMode: String {
-        get { UserDefaults.standard.string(forKey: "recordingMode") ?? "hold" }
-        set { UserDefaults.standard.set(newValue, forKey: "recordingMode") }
+    var recordingMode: HotkeyMonitor.RecordingMode {
+        get { HotkeyMonitor.RecordingMode(rawValue: UserDefaults.standard.string(forKey: "recordingMode") ?? "") ?? .hold }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "recordingMode") }
     }
 
-    var hotkeyChoice: String {
-        get { UserDefaults.standard.string(forKey: "hotkeyChoice") ?? "rightCommand" }
-        set { UserDefaults.standard.set(newValue, forKey: "hotkeyChoice") }
+    var hotkeyChoice: HotkeyMonitor.HotkeyChoice {
+        get { HotkeyMonitor.HotkeyChoice(rawValue: UserDefaults.standard.string(forKey: "hotkeyChoice") ?? "") ?? .rightCommand }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "hotkeyChoice") }
     }
 
     var hasApiKey: Bool { KeychainHelper.readApiKey() != nil }

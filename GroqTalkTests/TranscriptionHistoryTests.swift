@@ -1,6 +1,7 @@
 import XCTest
 @testable import GroqTalk
 
+@MainActor
 final class TranscriptionHistoryTests: XCTestCase {
     private var history: TranscriptionHistory!
     private var testDir: URL!
@@ -246,5 +247,51 @@ final class TranscriptionHistoryTests: XCTestCase {
         history.addSuccess(text: "now")
         let ts = history.records.first!.relativeTimestamp
         XCTAssertEqual(ts, "just now")
+    }
+
+    // MARK: - Outcome enum
+
+    func testSuccessRecordHasNoAudioFile() {
+        history.addSuccess(text: "test")
+        XCTAssertNil(history.records.first?.audioFileURL)
+        XCTAssertFalse(history.records.first!.isFailure)
+    }
+
+    func testFailureRecordHasNoText() {
+        history.addFailure(error: "err", audioFileURL: nil)
+        XCTAssertNil(history.records.first?.text)
+        XCTAssertTrue(history.records.first!.isFailure)
+    }
+
+    func testResolveRetryFailurePreservesAudioFile() {
+        let audioURL = testDir.appendingPathComponent("preserve.wav")
+        FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
+        history.addFailure(error: "first error", audioFileURL: audioURL)
+        let recordID = history.records.first!.id
+
+        history.resolveRetryFailure(id: recordID, error: "second error")
+
+        XCTAssertEqual(history.records.first?.error, "second error")
+        XCTAssertEqual(history.records.first?.audioFileURL, audioURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+    }
+
+    // MARK: - Corrupted JSON resilience
+
+    func testCorruptedJSONLoadsAsEmpty() {
+        let historyFile = testDir.appendingPathComponent("history.json")
+        try! Data("not valid json {{{}".utf8).write(to: historyFile)
+
+        let history2 = TranscriptionHistory(storageDirectory: testDir)
+        XCTAssertTrue(history2.records.isEmpty,
+                      "Corrupted JSON should result in empty records, not a crash")
+    }
+
+    func testEmptyFileLoadsAsEmpty() {
+        let historyFile = testDir.appendingPathComponent("history.json")
+        try! Data().write(to: historyFile)
+
+        let history2 = TranscriptionHistory(storageDirectory: testDir)
+        XCTAssertTrue(history2.records.isEmpty)
     }
 }

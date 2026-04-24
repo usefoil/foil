@@ -67,9 +67,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Hotkey configuration
 
     func applyHotkeyConfig() {
-        let choice = HotkeyMonitor.HotkeyChoice(rawValue: appState.hotkeyChoice) ?? .rightCommand
-        let mode = HotkeyMonitor.RecordingMode(rawValue: appState.recordingMode) ?? .hold
-        hotkeyMonitor.configure(hotkeyChoice: choice, recordingMode: mode)
+        hotkeyMonitor.configure(
+            hotkeyChoice: appState.hotkeyChoice,
+            recordingMode: appState.recordingMode
+        )
     }
 
     // MARK: - Recording timer
@@ -168,19 +169,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             Task { @MainActor in
                 self.stopRecordingTimer()
-                guard let url = self.audioRecorder.stopRecording(
-                    format: self.appState.selectedAudioFormat
-                ) else {
-                    self.appState.setStatus(.idle)
+
+                let url: URL
+                do {
+                    guard let recordedURL = try self.audioRecorder.stopRecording(
+                        format: self.appState.selectedAudioFormat
+                    ) else {
+                        self.appState.setStatus(.idle)
+                        return
+                    }
+                    url = recordedURL
+                } catch {
+                    self.appState.showError("Failed to save recording")
                     return
                 }
+
                 self.soundPlayer.playStopSound()
                 self.appState.setStatus(.transcribing)
                 self.startTranscribingAnimation()
 
                 guard let apiKey = KeychainHelper.readApiKey() else {
                     self.stopTranscribingAnimation()
-                    self.appState.showError("No API key")
+                    self.history.addFailure(error: "No API key", audioFileURL: url)
+                    self.appState.showError("No API key — set one via the menu")
                     return
                 }
 
@@ -228,8 +239,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "API error (\(code))"
         case let urlError as URLError where urlError.code == .notConnectedToInternet:
             "No internet connection"
+        case let urlError as URLError where urlError.code == .timedOut:
+            "Request timed out"
+        case let urlError as URLError where urlError.code == .cannotConnectToHost
+            || urlError.code == .cannotFindHost:
+            "Cannot reach server"
         default:
-            "Transcription failed"
+            "Transcription failed: \(error.localizedDescription)"
         }
     }
 

@@ -2,12 +2,33 @@ import Foundation
 
 struct TranscriptionRecord: Codable, Identifiable {
     let id: UUID
-    var text: String?
-    var error: String?
     let timestamp: Date
-    var audioFileURL: URL?
+    var outcome: Outcome
 
-    var isFailure: Bool { error != nil }
+    enum Outcome: Codable {
+        case success(text: String)
+        case failure(error: String, audioFileURL: URL?)
+    }
+
+    var text: String? {
+        if case .success(let t) = outcome { return t }
+        return nil
+    }
+
+    var error: String? {
+        if case .failure(let e, _) = outcome { return e }
+        return nil
+    }
+
+    var audioFileURL: URL? {
+        if case .failure(_, let url) = outcome { return url }
+        return nil
+    }
+
+    var isFailure: Bool {
+        if case .failure = outcome { return true }
+        return false
+    }
 
     var previewText: String {
         let source = text ?? error ?? ""
@@ -24,10 +45,13 @@ struct TranscriptionRecord: Codable, Identifiable {
     }
 }
 
+@MainActor
 final class TranscriptionHistory {
     private static let maxRecords = 20
 
-    private(set) var records: [TranscriptionRecord] = []  // newest first
+    /// Transcription records, sorted newest-first.
+    /// Insertion order is load-bearing for retry logic.
+    private(set) var records: [TranscriptionRecord] = []
     private let historyFileURL: URL
 
     init(storageDirectory: URL) {
@@ -47,16 +71,14 @@ final class TranscriptionHistory {
 
     func addSuccess(text: String) {
         let record = TranscriptionRecord(
-            id: UUID(), text: text, error: nil,
-            timestamp: Date(), audioFileURL: nil
+            id: UUID(), timestamp: Date(), outcome: .success(text: text)
         )
         insert(record)
     }
 
     func addFailure(error: String, audioFileURL: URL?) {
         let record = TranscriptionRecord(
-            id: UUID(), text: nil, error: error,
-            timestamp: Date(), audioFileURL: audioFileURL
+            id: UUID(), timestamp: Date(), outcome: .failure(error: error, audioFileURL: audioFileURL)
         )
         insert(record)
     }
@@ -67,15 +89,14 @@ final class TranscriptionHistory {
         if let audioURL = records[index].audioFileURL {
             try? FileManager.default.removeItem(at: audioURL)
         }
-        records[index].text = text
-        records[index].error = nil
-        records[index].audioFileURL = nil
+        records[index].outcome = .success(text: text)
         save()
     }
 
     func resolveRetryFailure(id: UUID, error: String) {
         guard let index = records.firstIndex(where: { $0.id == id }) else { return }
-        records[index].error = error
+        let audioURL = records[index].audioFileURL
+        records[index].outcome = .failure(error: error, audioFileURL: audioURL)
         save()
     }
 
@@ -106,14 +127,24 @@ final class TranscriptionHistory {
     private func save() {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(records) else { return }
-        try? data.write(to: historyFileURL, options: .atomic)
+        do {
+            let data = try encoder.encode(records)
+            try data.write(to: historyFileURL, options: .atomic)
+        } catch {
+            print("TranscriptionHistory: failed to save — \(error)")
+        }
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: historyFileURL) else { return }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        records = (try? decoder.decode([TranscriptionRecord].self, from: data)) ?? []
+        guard FileManager.default.fileExists(atPath: historyFileURL.path) else { return }
+        do {
+            let data = try Data(contentsOf: historyFileURL)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            records = try decoder.decode([TranscriptionRecord].self, from: data)
+        } catch {
+            print("TranscriptionHistory: failed to load — \(error)")
+            records = []
+        }
     }
 }

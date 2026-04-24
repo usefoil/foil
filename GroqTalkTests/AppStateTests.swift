@@ -57,13 +57,19 @@ final class AppStateTests: XCTestCase {
 
     func testDefaultAudioFormat() {
         let state = AppState()
-        XCTAssertEqual(state.selectedAudioFormat, "m4a")
+        XCTAssertEqual(state.selectedAudioFormat, .m4a)
     }
 
     func testSetAudioFormat() {
         let state = AppState()
-        state.selectedAudioFormat = "wav"
-        XCTAssertEqual(state.selectedAudioFormat, "wav")
+        state.selectedAudioFormat = .wav
+        XCTAssertEqual(state.selectedAudioFormat, .wav)
+    }
+
+    func testInvalidAudioFormatStringDefaultsToM4A() {
+        UserDefaults.standard.set("ogg", forKey: "audioFormat")
+        let state = AppState()
+        XCTAssertEqual(state.selectedAudioFormat, .m4a)
     }
 
     // MARK: - Keep on clipboard
@@ -83,26 +89,38 @@ final class AppStateTests: XCTestCase {
 
     func testDefaultRecordingMode() {
         let state = AppState()
-        XCTAssertEqual(state.recordingMode, "hold")
+        XCTAssertEqual(state.recordingMode, .hold)
     }
 
     func testSetRecordingMode() {
         let state = AppState()
-        state.recordingMode = "toggle"
-        XCTAssertEqual(state.recordingMode, "toggle")
+        state.recordingMode = .toggle
+        XCTAssertEqual(state.recordingMode, .toggle)
+    }
+
+    func testInvalidRecordingModeStringDefaultsToHold() {
+        UserDefaults.standard.set("invalid", forKey: "recordingMode")
+        let state = AppState()
+        XCTAssertEqual(state.recordingMode, .hold)
     }
 
     // MARK: - Hotkey choice
 
     func testDefaultHotkeyChoice() {
         let state = AppState()
-        XCTAssertEqual(state.hotkeyChoice, "rightCommand")
+        XCTAssertEqual(state.hotkeyChoice, .rightCommand)
     }
 
     func testSetHotkeyChoice() {
         let state = AppState()
-        state.hotkeyChoice = "rightOption"
-        XCTAssertEqual(state.hotkeyChoice, "rightOption")
+        state.hotkeyChoice = .rightOption
+        XCTAssertEqual(state.hotkeyChoice, .rightOption)
+    }
+
+    func testInvalidHotkeyChoiceStringDefaultsToRightCommand() {
+        UserDefaults.standard.set("leftShift", forKey: "hotkeyChoice")
+        let state = AppState()
+        XCTAssertEqual(state.hotkeyChoice, .rightCommand)
     }
 
     // MARK: - Recording timer
@@ -115,6 +133,57 @@ final class AppStateTests: XCTestCase {
     func testRecordingStartTimeNilWhenIdle() {
         let state = AppState()
         XCTAssertNil(state.recordingStartTime)
+    }
+
+    // MARK: - Formatted recording duration
+
+    func testFormattedDurationZero() {
+        let state = AppState()
+        state.recordingDuration = 0
+        XCTAssertEqual(state.formattedRecordingDuration, "0:00")
+    }
+
+    func testFormattedDurationSeconds() {
+        let state = AppState()
+        state.recordingDuration = 5
+        XCTAssertEqual(state.formattedRecordingDuration, "0:05")
+    }
+
+    func testFormattedDurationMinutesAndSeconds() {
+        let state = AppState()
+        state.recordingDuration = 125
+        XCTAssertEqual(state.formattedRecordingDuration, "2:05")
+    }
+
+    func testFormattedDurationFractionalTruncates() {
+        let state = AppState()
+        state.recordingDuration = 3.7
+        XCTAssertEqual(state.formattedRecordingDuration, "0:03")
+    }
+
+    // MARK: - Status text
+
+    func testStatusTextIdle() {
+        let state = AppState()
+        XCTAssertEqual(state.statusText, "Ready")
+    }
+
+    func testStatusTextRecording() {
+        let state = AppState()
+        state.setStatus(.recording)
+        XCTAssertEqual(state.statusText, "Recording...")
+    }
+
+    func testStatusTextTranscribing() {
+        let state = AppState()
+        state.setStatus(.transcribing)
+        XCTAssertEqual(state.statusText, "Transcribing...")
+    }
+
+    func testStatusTextError() {
+        let state = AppState()
+        state.showError("Network timeout")
+        XCTAssertEqual(state.statusText, "Network timeout")
     }
 
     // MARK: - Menu bar icon
@@ -143,5 +212,25 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         state.showError("fail")
         XCTAssertEqual(state.menuBarIcon, "exclamationmark.triangle.fill")
+    }
+
+    // MARK: - isError
+
+    func testIsErrorFalseWhenIdle() {
+        let state = AppState()
+        XCTAssertFalse(state.isError)
+    }
+
+    func testIsErrorTrueWhenError() {
+        let state = AppState()
+        state.showError("fail")
+        XCTAssertTrue(state.isError)
+    }
+
+    func testIsErrorFalseAfterClear() {
+        let state = AppState()
+        state.showError("fail")
+        state.clearError()
+        XCTAssertFalse(state.isError)
     }
 }
