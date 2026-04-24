@@ -123,4 +123,128 @@ final class TranscriptionHistoryTests: XCTestCase {
         let record = history.records.first!
         XCTAssertTrue(record.previewText.count <= 43) // 40 chars + "..."
     }
+
+    // MARK: - Additional edge cases
+
+    func testPreviewTextShortStringNotTruncated() {
+        history.addSuccess(text: "short")
+        XCTAssertEqual(history.records.first?.previewText, "short")
+    }
+
+    func testPreviewTextExactly40CharsNotTruncated() {
+        let text = String(repeating: "a", count: 40)
+        history.addSuccess(text: text)
+        XCTAssertEqual(history.records.first?.previewText, text)
+    }
+
+    func testPreviewTextForFailedRecordShowsError() {
+        history.addFailure(error: "API error (429)", audioFileURL: nil)
+        XCTAssertEqual(history.records.first?.previewText, "API error (429)")
+    }
+
+    func testNewestRecordIsFirst() {
+        history.addSuccess(text: "first")
+        history.addSuccess(text: "second")
+        history.addSuccess(text: "third")
+        XCTAssertEqual(history.records[0].text, "third")
+        XCTAssertEqual(history.records[1].text, "second")
+        XCTAssertEqual(history.records[2].text, "first")
+    }
+
+    func testRetryableRecordNilWhenNoAudioFile() {
+        history.addFailure(error: "fail", audioFileURL: nil)
+        XCTAssertNil(history.retryableRecord, "Should not be retryable without audio file")
+    }
+
+    func testRetryableRecordNilWhenAudioFileDeleted() {
+        let audioURL = testDir.appendingPathComponent("deleted.wav")
+        FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
+        history.addFailure(error: "fail", audioFileURL: audioURL)
+
+        // Delete the file externally
+        try? FileManager.default.removeItem(at: audioURL)
+
+        XCTAssertNil(history.retryableRecord, "Should not be retryable when file is gone")
+    }
+
+    func testRetryableRecordOnlyChecksNewest() {
+        // Old failure with audio
+        let oldAudio = testDir.appendingPathComponent("old.wav")
+        FileManager.default.createFile(atPath: oldAudio.path, contents: Data([0x00]))
+        history.addFailure(error: "old fail", audioFileURL: oldAudio)
+
+        // Newer success
+        history.addSuccess(text: "ok")
+
+        // Most recent is success — no retryable, even though older failure has audio
+        XCTAssertNil(history.retryableRecord)
+    }
+
+    func testResolveRetryPreservesTimestamp() {
+        let audioURL = testDir.appendingPathComponent("ts.wav")
+        FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
+        history.addFailure(error: "fail", audioFileURL: audioURL)
+
+        let originalTimestamp = history.records.first!.timestamp
+        let recordID = history.records.first!.id
+
+        // Small delay to ensure timestamps would differ
+        Thread.sleep(forTimeInterval: 0.01)
+        history.resolveRetry(id: recordID, text: "fixed")
+
+        XCTAssertEqual(history.records.first?.timestamp, originalTimestamp,
+                       "Retry should preserve the original timestamp")
+    }
+
+    func testResolveRetryPreservesID() {
+        let audioURL = testDir.appendingPathComponent("id.wav")
+        FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
+        history.addFailure(error: "fail", audioFileURL: audioURL)
+
+        let originalID = history.records.first!.id
+        history.resolveRetry(id: originalID, text: "fixed")
+        XCTAssertEqual(history.records.first?.id, originalID)
+    }
+
+    func testResolveRetryWithInvalidIDDoesNothing() {
+        history.addSuccess(text: "original")
+        history.resolveRetry(id: UUID(), text: "ghost")
+        XCTAssertEqual(history.records.count, 1)
+        XCTAssertEqual(history.records.first?.text, "original")
+    }
+
+    func testPersistencePreservesOrder() {
+        history.addSuccess(text: "A")
+        history.addSuccess(text: "B")
+        history.addSuccess(text: "C")
+
+        let history2 = TranscriptionHistory(storageDirectory: testDir)
+        XCTAssertEqual(history2.records.count, 3)
+        XCTAssertEqual(history2.records[0].text, "C")
+        XCTAssertEqual(history2.records[1].text, "B")
+        XCTAssertEqual(history2.records[2].text, "A")
+    }
+
+    func testPersistencePreservesFailureState() {
+        history.addFailure(error: "timeout", audioFileURL: nil)
+
+        let history2 = TranscriptionHistory(storageDirectory: testDir)
+        XCTAssertEqual(history2.records.first?.error, "timeout")
+        XCTAssertTrue(history2.records.first!.isFailure)
+        XCTAssertNil(history2.records.first?.text)
+    }
+
+    func testIsFailureProperty() {
+        history.addSuccess(text: "ok")
+        XCTAssertFalse(history.records.first!.isFailure)
+
+        history.addFailure(error: "fail", audioFileURL: nil)
+        XCTAssertTrue(history.records.first!.isFailure)
+    }
+
+    func testRelativeTimestampJustNow() {
+        history.addSuccess(text: "now")
+        let ts = history.records.first!.relativeTimestamp
+        XCTAssertEqual(ts, "just now")
+    }
 }

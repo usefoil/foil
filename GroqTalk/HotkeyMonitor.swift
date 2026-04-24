@@ -205,7 +205,7 @@ final class HotkeyMonitor {
 
     // MARK: - Shared state machine
 
-    private func handleKeyStateChange(pressed: Bool) {
+    func handleKeyStateChange(pressed: Bool) {
         if pressed && !keyDown {
             keyDown = true
             otherKeysDuringHold = false

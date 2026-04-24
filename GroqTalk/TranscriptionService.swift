@@ -59,9 +59,9 @@ struct TranscriptionService {
 
     private func fileMetadata(for format: String) -> (filename: String, contentType: String) {
         switch format {
-        case "m4a": ("audio.m4a", "audio/mp4")
-        case "mp3": ("audio.mp3", "audio/mpeg")
-        default:    ("audio.wav", "audio/wav")
+        case "m4a":  ("audio.m4a", "audio/mp4")
+        case "flac": ("audio.flac", "audio/flac")
+        default:     ("audio.wav", "audio/wav")
         }
     }
 

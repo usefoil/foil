@@ -1,4 +1,3 @@
-import AudioToolbox
 import AVFAudio
 import Foundation
 
@@ -68,9 +67,9 @@ final class AudioRecorder {
         guard !captured.isEmpty else { return nil }
 
         switch format {
-        case "m4a": return writeM4A(buffers: captured)
-        case "mp3": return writeMP3(buffers: captured)
-        default:    return writeWAV(buffers: captured)
+        case "m4a":  return writeM4A(buffers: captured)
+        case "flac": return writeFLAC(buffers: captured)
+        default:     return writeWAV(buffers: captured)
         }
     }
 
@@ -84,7 +83,7 @@ final class AudioRecorder {
 
     // MARK: - WAV output
 
-    private func writeWAV(buffers: [AVAudioPCMBuffer]) -> URL? {
+    func writeWAV(buffers: [AVAudioPCMBuffer]) -> URL? {
         let url = tempURL(extension: "wav")
         // Write as 16-bit PCM WAV for smallest lossless size
         let int16Format = AVAudioFormat(
@@ -107,13 +106,12 @@ final class AudioRecorder {
 
     // MARK: - M4A/AAC output
 
-    private func writeM4A(buffers: [AVAudioPCMBuffer]) -> URL? {
+    func writeM4A(buffers: [AVAudioPCMBuffer]) -> URL? {
         let url = tempURL(extension: "m4a")
         let aacSettings: [String: Any] = [
             AVFormatIDKey: kAudioFormatMPEG4AAC,
             AVSampleRateKey: Self.targetSampleRate,
             AVNumberOfChannelsKey: Self.targetChannels,
-            AVEncoderBitRateKey: 64000
         ]
         do {
             let file = try AVAudioFile(forWriting: url, settings: aacSettings)
@@ -127,106 +125,24 @@ final class AudioRecorder {
         }
     }
 
-    // MARK: - MP3 output
+    // MARK: - FLAC output
 
-    private func writeMP3(buffers: [AVAudioPCMBuffer]) -> URL? {
-        // First write to WAV, then convert to MP3 via AudioToolbox
-        guard let wavURL = writeWAV(buffers: buffers) else { return nil }
-        defer { try? FileManager.default.removeItem(at: wavURL) }
-
-        let mp3URL = tempURL(extension: "mp3")
-
+    func writeFLAC(buffers: [AVAudioPCMBuffer]) -> URL? {
+        let url = tempURL(extension: "flac")
+        let flacSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatFLAC,
+            AVSampleRateKey: Self.targetSampleRate,
+            AVNumberOfChannelsKey: Self.targetChannels,
+        ]
         do {
-            try convertWAVToMP3(inputURL: wavURL, outputURL: mp3URL)
-            return mp3URL
+            let file = try AVAudioFile(forWriting: url, settings: flacSettings)
+            for buffer in buffers {
+                try file.write(from: buffer)
+            }
+            return url
         } catch {
-            print("AudioRecorder: failed to write MP3 — \(error)")
+            print("AudioRecorder: failed to write FLAC — \(error)")
             return nil
-        }
-    }
-
-    private func convertWAVToMP3(inputURL: URL, outputURL: URL) throws {
-        var inputFile: ExtAudioFileRef?
-        var status = ExtAudioFileOpenURL(inputURL as CFURL, &inputFile)
-        guard status == noErr, let srcFile = inputFile else {
-            throw RecordingError.formatConversionFailed
-        }
-        defer { ExtAudioFileDispose(srcFile) }
-
-        var outputDesc = AudioStreamBasicDescription(
-            mSampleRate: Self.targetSampleRate,
-            mFormatID: kAudioFormatMPEGLayer3,
-            mFormatFlags: 0,
-            mBytesPerPacket: 0,
-            mFramesPerPacket: 1152,
-            mBytesPerFrame: 0,
-            mChannelsPerFrame: UInt32(Self.targetChannels),
-            mBitsPerChannel: 0,
-            mReserved: 0
-        )
-
-        var outputFile: ExtAudioFileRef?
-        status = ExtAudioFileCreateWithURL(
-            outputURL as CFURL,
-            kAudioFileMP3Type,
-            &outputDesc,
-            nil,
-            AudioFileFlags.eraseFile.rawValue,
-            &outputFile
-        )
-        guard status == noErr, let dstFile = outputFile else {
-            throw RecordingError.formatConversionFailed
-        }
-        defer { ExtAudioFileDispose(dstFile) }
-
-        // Set client format to match our PCM
-        var clientFormat = AudioStreamBasicDescription(
-            mSampleRate: Self.targetSampleRate,
-            mFormatID: kAudioFormatLinearPCM,
-            mFormatFlags: kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked,
-            mBytesPerPacket: 2,
-            mFramesPerPacket: 1,
-            mBytesPerFrame: 2,
-            mChannelsPerFrame: UInt32(Self.targetChannels),
-            mBitsPerChannel: 16,
-            mReserved: 0
-        )
-        status = ExtAudioFileSetProperty(
-            srcFile,
-            kExtAudioFileProperty_ClientDataFormat,
-            UInt32(MemoryLayout<AudioStreamBasicDescription>.size),
-            &clientFormat
-        )
-        guard status == noErr else { throw RecordingError.formatConversionFailed }
-
-        status = ExtAudioFileSetProperty(
-            dstFile,
-            kExtAudioFileProperty_ClientDataFormat,
-            UInt32(MemoryLayout<AudioStreamBasicDescription>.size),
-            &clientFormat
-        )
-        guard status == noErr else { throw RecordingError.formatConversionFailed }
-
-        let bufferFrames: UInt32 = 4096
-        let bufferSize = bufferFrames * 2 // 16-bit mono = 2 bytes per frame
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: Int(bufferSize))
-        defer { buffer.deallocate() }
-
-        while true {
-            var bufferList = AudioBufferList(
-                mNumberBuffers: 1,
-                mBuffers: AudioBuffer(
-                    mNumberChannels: UInt32(Self.targetChannels),
-                    mDataByteSize: bufferSize,
-                    mData: buffer
-                )
-            )
-            var frameCount = bufferFrames
-            status = ExtAudioFileRead(srcFile, &frameCount, &bufferList)
-            guard status == noErr else { throw RecordingError.formatConversionFailed }
-            if frameCount == 0 { break }
-            status = ExtAudioFileWrite(dstFile, frameCount, &bufferList)
-            guard status == noErr else { throw RecordingError.formatConversionFailed }
         }
     }
 

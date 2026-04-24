@@ -31,7 +31,7 @@ struct MenuBarView: View {
         Picker("Audio Format", selection: $appState.selectedAudioFormat) {
             Text("M4A (smaller)").tag("m4a")
             Text("WAV (lossless)").tag("wav")
-            Text("MP3 (smallest)").tag("mp3")
+            Text("FLAC (lossless, smaller)").tag("flac")
         }
 
         // Hotkey submenu

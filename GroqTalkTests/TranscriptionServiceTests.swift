@@ -47,25 +47,24 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(bodyString.contains("Content-Type: audio/mp4"))
     }
 
-    func testMultipartBodyMP3Format() throws {
+    func testMultipartBodyFLACFormat() throws {
         let service = TranscriptionService()
 
         let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test-audio.mp3")
-        try Data([0xFF, 0xFB]).write(to: tempURL)
+            .appendingPathComponent("test-audio.flac")
+        try Data([0x66, 0x4C, 0x61, 0x43]).write(to: tempURL) // "fLaC" magic
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         let body = try service.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3",
-            format: "mp3",
+            format: "flac",
             boundary: "b"
         )
-        // Use latin1 (lossless for arbitrary bytes) since body contains binary audio data
-        let bodyString = String(data: body, encoding: .isoLatin1)!
+        let bodyString = String(data: body, encoding: .utf8)!
 
-        XCTAssertTrue(bodyString.contains("filename=\"audio.mp3\""))
-        XCTAssertTrue(bodyString.contains("Content-Type: audio/mpeg"))
+        XCTAssertTrue(bodyString.contains("filename=\"audio.flac\""))
+        XCTAssertTrue(bodyString.contains("Content-Type: audio/flac"))
     }
 
     func testMultipartBodyIncludesAudioData() throws {
@@ -86,5 +85,100 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let audioData = Data(audioBytes)
         XCTAssertNotNil(body.range(of: audioData))
+    }
+
+    // MARK: - Format consistency
+
+    func testDefaultFormatIsWAV() throws {
+        let service = TranscriptionService()
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-default.wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        // Call without explicit format — should default to "wav"
+        let body = try service.buildMultipartBody(
+            audioFileURL: tempURL,
+            model: "whisper-large-v3-turbo",
+            format: "wav",
+            boundary: "b"
+        )
+        let bodyString = String(data: body, encoding: .utf8)!
+        XCTAssertTrue(bodyString.contains("filename=\"audio.wav\""))
+        XCTAssertTrue(bodyString.contains("Content-Type: audio/wav"))
+    }
+
+    func testUnknownFormatFallsBackToWAV() throws {
+        let service = TranscriptionService()
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-unknown.wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let body = try service.buildMultipartBody(
+            audioFileURL: tempURL,
+            model: "whisper-large-v3",
+            format: "ogg",  // not one of our three — should fall back to wav
+            boundary: "b"
+        )
+        let bodyString = String(data: body, encoding: .utf8)!
+        XCTAssertTrue(bodyString.contains("filename=\"audio.wav\""))
+        XCTAssertTrue(bodyString.contains("Content-Type: audio/wav"))
+    }
+
+    func testAllThreeFormatsProduceDistinctContentTypes() throws {
+        let service = TranscriptionService()
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-ct.bin")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let formats = ["wav", "m4a", "flac"]
+        var contentTypes: Set<String> = []
+
+        for format in formats {
+            let body = try service.buildMultipartBody(
+                audioFileURL: tempURL, model: "m", format: format, boundary: "b"
+            )
+            let bodyString = String(data: body, encoding: .isoLatin1)!
+            // Extract Content-Type line
+            if let range = bodyString.range(of: "Content-Type: audio/") {
+                let start = range.lowerBound
+                let lineEnd = bodyString[start...].firstIndex(of: "\r") ?? bodyString.endIndex
+                contentTypes.insert(String(bodyString[start..<lineEnd]))
+            }
+        }
+
+        XCTAssertEqual(contentTypes.count, 3, "Each format should produce a distinct Content-Type")
+    }
+
+    func testMultipartBodyIncludesResponseFormatText() throws {
+        let service = TranscriptionService()
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-rf.wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let body = try service.buildMultipartBody(
+            audioFileURL: tempURL, model: "whisper-large-v3", format: "wav", boundary: "b"
+        )
+        let bodyString = String(data: body, encoding: .utf8)!
+        XCTAssertTrue(bodyString.contains("name=\"response_format\"\r\n\r\ntext"),
+                       "Multipart body must request text response format")
+    }
+
+    func testMultipartBodyBoundaryTermination() throws {
+        let service = TranscriptionService()
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-term.wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let body = try service.buildMultipartBody(
+            audioFileURL: tempURL, model: "m", format: "wav", boundary: "BOUNDARY"
+        )
+        let bodyString = String(data: body, encoding: .utf8)!
+        XCTAssertTrue(bodyString.hasSuffix("--BOUNDARY--\r\n"),
+                       "Multipart body must end with closing boundary")
     }
 }
