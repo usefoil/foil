@@ -5,3 +5,4 @@ DerivedData/
 
 # Build artifacts
 *.profraw
+.superpowers/
