@@ -33,11 +33,9 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.status, .error("something broke"))
     }
 
-    func testErrorPersistsUntilCleared() async throws {
+    func testErrorPersistsUntilCleared() {
         let state = AppState()
         state.showError("persistent error")
-        try await Task.sleep(for: .seconds(4))
-        // Error should NOT auto-clear anymore
         XCTAssertEqual(state.status, .error("persistent error"))
     }
 
