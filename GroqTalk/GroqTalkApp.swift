@@ -140,7 +140,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 : nil
             Task { @MainActor in
                 self.pendingTarget = capturedTarget
-                print("[GroqTalk] Captured target: \(String(describing: capturedTarget))")
                 self.appState.clearError()
                 do {
                     try self.audioRecorder.startRecording()
@@ -202,25 +201,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.history.addSuccess(text: text)
                     self.appState.setStatus(.idle)
 
-                    let asyncEnabled = self.appState.asyncPasteEnabled
-                    let hasTarget = self.pendingTarget != nil
-                    print("[GroqTalk] asyncEnabled=\(asyncEnabled) hasTarget=\(hasTarget) pendingTarget=\(String(describing: self.pendingTarget))")
-
-                    if asyncEnabled, let target = self.pendingTarget {
+                    if self.appState.asyncPasteEnabled, let target = self.pendingTarget {
                         self.pendingTarget = nil
-                        print("[GroqTalk] ASYNC PATH: pasting into \(target.appName) (pid \(target.pid))")
                         await self.pasteQueue.enqueue(
                             text: text, target: target,
                             keepOnClipboard: self.appState.keepOnClipboard
                         )
-                        print("[GroqTalk] ASYNC PATH: paste complete")
                     } else {
-                        print("[GroqTalk] SYNC PATH: pasting into current app")
                         await self.textInserter.insert(
                             text: text,
                             keepOnClipboard: self.appState.keepOnClipboard
                         )
-                        print("[GroqTalk] SYNC PATH: paste complete")
                     }
                     try? FileManager.default.removeItem(at: url)
                 } catch {

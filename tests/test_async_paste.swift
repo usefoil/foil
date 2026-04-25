@@ -85,7 +85,7 @@ print("Step 1: Opening two TextEdit windows...")
 // Close existing TextEdit
 let ws = NSWorkspace.shared
 _ = Process.launchedProcess(launchPath: "/usr/bin/pkill", arguments: ["-x", "TextEdit"])
-Thread.sleep(forTimeInterval: 1)
+Thread.sleep(forTimeInterval: 2)
 
 // Create two temp files
 let fileA = FileManager.default.temporaryDirectory.appendingPathComponent("AsyncPasteTestA.txt")
@@ -95,9 +95,9 @@ try! "Window B - user is here\n".write(to: fileB, atomically: true, encoding: .u
 
 // Open both
 ws.open(fileA)
-Thread.sleep(forTimeInterval: 1.5)
+Thread.sleep(forTimeInterval: 2)
 ws.open(fileB)
-Thread.sleep(forTimeInterval: 1.5)
+Thread.sleep(forTimeInterval: 2)
 
 print("✓ Two TextEdit windows open")
 
