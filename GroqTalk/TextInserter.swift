@@ -26,19 +26,15 @@ struct TextInserter {
     func insertAtTarget(text: String, target: PasteTarget, keepOnClipboard: Bool) async {
         // 1. Remember where the user is right now
         let currentApp = NSWorkspace.shared.frontmostApplication
-        print("[GroqTalk] insertAtTarget: current=\(currentApp?.localizedName ?? "nil") target=\(target.appName) pid=\(target.pid)")
 
         // 2. Activate the target app and raise the specific window
         guard let targetApp = NSRunningApplication(processIdentifier: target.pid),
               targetApp.isTerminated == false else {
             // Target app is gone — fall back to clipboard only
-            print("[GroqTalk] insertAtTarget: target app GONE, clipboard-only fallback")
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
             return
         }
-
-        print("[GroqTalk] insertAtTarget: activating \(target.appName)")
 
         // Raise the specific window first, then activate the app.
         // This order ensures macOS brings the correct window to front
