@@ -5,7 +5,7 @@ CONFIG := Debug
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: build run start stop restart install uninstall clean test
+.PHONY: build run start stop restart install uninstall clean test qa
 
 build:
 	xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' build 2>&1 | tail -3
@@ -37,6 +37,14 @@ uninstall:
 
 test:
 	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' 2>&1 | tail -5
+
+qa:
+	@echo "=== Unit tests ==="
+	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' 2>&1 | grep -E "Executed|TEST (SUCCEEDED|FAILED)"
+	@echo ""
+	@echo "=== Async paste integration test ==="
+	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
+	swift tests/test_async_paste.swift
 
 clean:
 	xcodebuild -scheme $(SCHEME) clean 2>&1 | tail -3

@@ -133,16 +133,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func wireHotkeyMonitor() {
         hotkeyMonitor.onRecordingStarted = { [weak self] in
             guard let self else { return }
+            // Capture the paste target SYNCHRONOUSLY in the CGEvent callback,
+            // before any Task dispatch or UI updates that could shift focus.
+            let capturedTarget: PasteTarget? = self.appState.asyncPasteEnabled
+                ? PasteTarget.captureCurrentTarget()
+                : nil
             Task { @MainActor in
+                self.pendingTarget = capturedTarget
+                print("[GroqTalk] Captured target: \(String(describing: capturedTarget))")
                 self.appState.clearError()
                 do {
                     try self.audioRecorder.startRecording()
                     self.appState.setStatus(.recording)
                     self.startRecordingTimer()
                     self.soundPlayer.playStartSound()
-                    if self.appState.asyncPasteEnabled {
-                        self.pendingTarget = PasteTarget.captureCurrentTarget()
-                    }
                 } catch {
                     self.appState.showError("Microphone unavailable")
                 }
@@ -198,17 +202,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.history.addSuccess(text: text)
                     self.appState.setStatus(.idle)
 
-                    if self.appState.asyncPasteEnabled, let target = self.pendingTarget {
+                    let asyncEnabled = self.appState.asyncPasteEnabled
+                    let hasTarget = self.pendingTarget != nil
+                    print("[GroqTalk] asyncEnabled=\(asyncEnabled) hasTarget=\(hasTarget) pendingTarget=\(String(describing: self.pendingTarget))")
+
+                    if asyncEnabled, let target = self.pendingTarget {
                         self.pendingTarget = nil
+                        print("[GroqTalk] ASYNC PATH: pasting into \(target.appName) (pid \(target.pid))")
                         await self.pasteQueue.enqueue(
                             text: text, target: target,
                             keepOnClipboard: self.appState.keepOnClipboard
                         )
+                        print("[GroqTalk] ASYNC PATH: paste complete")
                     } else {
+                        print("[GroqTalk] SYNC PATH: pasting into current app")
                         await self.textInserter.insert(
                             text: text,
                             keepOnClipboard: self.appState.keepOnClipboard
                         )
+                        print("[GroqTalk] SYNC PATH: paste complete")
                     }
                     try? FileManager.default.removeItem(at: url)
                 } catch {
