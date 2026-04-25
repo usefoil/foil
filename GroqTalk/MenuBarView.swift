@@ -16,6 +16,7 @@ struct MenuBarView: View {
 
         Toggle("Sound Effects", isOn: $appState.soundEffectsEnabled)
         Toggle("Keep on Clipboard", isOn: $appState.keepOnClipboard)
+        Toggle("Async Paste (experimental)", isOn: $appState.asyncPasteEnabled)
 
         Divider()
 

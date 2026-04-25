@@ -35,6 +35,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let textInserter = TextInserter()
     private let soundPlayer = SoundPlayer()
 
+    private var pendingTarget: PasteTarget?
+    private var pasteQueue: PasteQueue!
+
     private var recordingTimer: Timer?
     private var transcribingTimer: Timer?
     private var historyPopover: NSPopover?
@@ -61,6 +64,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - App lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        pasteQueue = PasteQueue { [weak self] text, target, keepOnClipboard in
+            guard let self else { return }
+            await self.textInserter.insertAtTarget(text: text, target: target, keepOnClipboard: keepOnClipboard)
+        }
         wireHotkeyMonitor()
         applyHotkeyConfig()
         startHotkeyMonitorWithRetry()
@@ -126,7 +133,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func wireHotkeyMonitor() {
         hotkeyMonitor.onRecordingStarted = { [weak self] in
             guard let self else { return }
+            // Capture the paste target SYNCHRONOUSLY in the CGEvent callback,
+            // before any Task dispatch or UI updates that could shift focus.
+            let capturedTarget: PasteTarget? = self.appState.asyncPasteEnabled
+                ? PasteTarget.captureCurrentTarget()
+                : nil
             Task { @MainActor in
+                self.pendingTarget = capturedTarget
+                print("[GroqTalk] Captured target: \(String(describing: capturedTarget))")
                 self.appState.clearError()
                 do {
                     try self.audioRecorder.startRecording()
@@ -161,28 +175,53 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.appState.setStatus(.transcribing)
                 self.startTranscribingAnimation()
 
+                #if !MOCK_TRANSCRIPTION
                 guard let apiKey = KeychainHelper.readApiKey() else {
                     self.stopTranscribingAnimation()
                     self.history.addFailure(error: "No API key", audioFileURL: url)
                     self.appState.showError("No API key — set one via the menu")
                     return
                 }
+                #endif
 
                 do {
-                    let text = try await self.transcriptionService.transcribe(
+                    let text: String
+                    #if MOCK_TRANSCRIPTION
+                    try await Task.sleep(for: .seconds(2))
+                    text = "Mock transcription at \(Date().formatted(date: .omitted, time: .standard))"
+                    #else
+                    text = try await self.transcriptionService.transcribe(
                         audioFileURL: url,
                         apiKey: apiKey,
                         model: self.appState.selectedModel,
                         format: self.appState.selectedAudioFormat,
                         language: self.appState.selectedLanguage
                     )
+                    #endif
                     self.stopTranscribingAnimation()
                     self.history.addSuccess(text: text)
-                    await self.textInserter.insert(
-                        text: text,
-                        keepOnClipboard: self.appState.keepOnClipboard
-                    )
                     self.appState.setStatus(.idle)
+
+                    let asyncEnabled = self.appState.asyncPasteEnabled
+                    let hasTarget = self.pendingTarget != nil
+                    print("[GroqTalk] asyncEnabled=\(asyncEnabled) hasTarget=\(hasTarget) pendingTarget=\(String(describing: self.pendingTarget))")
+
+                    if asyncEnabled, let target = self.pendingTarget {
+                        self.pendingTarget = nil
+                        print("[GroqTalk] ASYNC PATH: pasting into \(target.appName) (pid \(target.pid))")
+                        await self.pasteQueue.enqueue(
+                            text: text, target: target,
+                            keepOnClipboard: self.appState.keepOnClipboard
+                        )
+                        print("[GroqTalk] ASYNC PATH: paste complete")
+                    } else {
+                        print("[GroqTalk] SYNC PATH: pasting into current app")
+                        await self.textInserter.insert(
+                            text: text,
+                            keepOnClipboard: self.appState.keepOnClipboard
+                        )
+                        print("[GroqTalk] SYNC PATH: paste complete")
+                    }
                     try? FileManager.default.removeItem(at: url)
                 } catch {
                     self.stopTranscribingAnimation()
@@ -199,6 +238,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.stopRecordingTimer()
                 self.audioRecorder.cancelRecording()
                 self.appState.setStatus(.idle)
+                self.pendingTarget = nil
             }
         }
     }

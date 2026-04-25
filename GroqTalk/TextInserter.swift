@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 
 struct TextInserter {
@@ -16,6 +17,50 @@ struct TextInserter {
         if !keepOnClipboard {
             restorePasteboardContents(pasteboard, saved: saved)
         }
+    }
+
+    /// Paste text into a previously captured target window, then return focus
+    /// to wherever the user is currently working.
+    ///
+    /// Flow: snapshot current app → activate target → paste → reactivate current app.
+    func insertAtTarget(text: String, target: PasteTarget, keepOnClipboard: Bool) async {
+        // 1. Remember where the user is right now
+        let currentApp = NSWorkspace.shared.frontmostApplication
+        print("[GroqTalk] insertAtTarget: current=\(currentApp?.localizedName ?? "nil") target=\(target.appName) pid=\(target.pid)")
+
+        // 2. Activate the target app and raise the specific window
+        guard let targetApp = NSRunningApplication(processIdentifier: target.pid),
+              targetApp.isTerminated == false else {
+            // Target app is gone — fall back to clipboard only
+            print("[GroqTalk] insertAtTarget: target app GONE, clipboard-only fallback")
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            return
+        }
+
+        print("[GroqTalk] insertAtTarget: activating \(target.appName)")
+
+        // Raise the specific window first, then activate the app.
+        // This order ensures macOS brings the correct window to front
+        // (not just any window of the target app).
+        if let window = target.windowElement {
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        }
+        targetApp.activate()
+
+        // 3. Wait for activation to settle — 200ms gives macOS enough time
+        //    to complete the window server focus switch, especially for
+        //    heavyweight apps like terminals and browsers.
+        try? await Task.sleep(for: .milliseconds(200))
+
+        // 4. Paste using the existing mechanism
+        await insert(text: text, keepOnClipboard: keepOnClipboard)
+
+        // 5. Wait for paste to land
+        try? await Task.sleep(for: .milliseconds(150))
+
+        // 6. Return focus to where the user was
+        currentApp?.activate()
     }
 
     private func savePasteboardContents(_ pb: NSPasteboard) -> [(NSPasteboard.PasteboardType, Data)] {

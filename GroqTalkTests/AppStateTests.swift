@@ -9,6 +9,7 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "recordingMode")
         UserDefaults.standard.removeObject(forKey: "hotkeyChoice")
         UserDefaults.standard.removeObject(forKey: "language")
+        UserDefaults.standard.removeObject(forKey: "asyncPasteEnabled")
     }
 
     func testInitialStatusIsIdle() {
@@ -213,6 +214,19 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         state.showError("fail")
         XCTAssertEqual(state.menuBarIcon, "exclamationmark.triangle.fill")
+    }
+
+    // MARK: - Async paste
+
+    func testDefaultAsyncPasteDisabled() {
+        let state = AppState()
+        XCTAssertFalse(state.asyncPasteEnabled)
+    }
+
+    func testSetAsyncPaste() {
+        let state = AppState()
+        state.asyncPasteEnabled = true
+        XCTAssertTrue(state.asyncPasteEnabled)
     }
 
     // MARK: - isError
