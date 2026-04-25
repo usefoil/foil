@@ -45,6 +45,11 @@ final class AppState {
         set { UserDefaults.standard.set(newValue, forKey: "keepOnClipboard") }
     }
 
+    var asyncPasteEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "asyncPasteEnabled") }
+        set { UserDefaults.standard.set(newValue, forKey: "asyncPasteEnabled") }
+    }
+
     var recordingMode: HotkeyMonitor.RecordingMode {
         get { HotkeyMonitor.RecordingMode(rawValue: UserDefaults.standard.string(forKey: "recordingMode") ?? "") ?? .hold }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "recordingMode") }
@@ -92,6 +97,7 @@ final class AppState {
             "whisperModel": "whisper-large-v3-turbo",
             "audioFormat": "m4a",
             "keepOnClipboard": false,
+            "asyncPasteEnabled": false,
             "recordingMode": "hold",
             "hotkeyChoice": "rightCommand",
             "language": "auto"
