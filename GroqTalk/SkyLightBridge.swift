@@ -21,43 +21,48 @@ enum SkyLightBridge {
 
     // MARK: - Resolved symbols
 
-    // swiftlint:disable identifier_name
-    private static let _postEventRecordToFn: PostEventRecordToFn? = {
+    private static let skyLightHandle: UnsafeMutableRawPointer? = {
+        dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
+    }()
+
+    private static let postEventRecordToFn: PostEventRecordToFn? = {
+        _ = skyLightHandle
         guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "SLPSPostEventRecordTo") else { return nil }
         return unsafeBitCast(sym, to: PostEventRecordToFn.self)
     }()
 
-    private static let _getFrontProcessFn: GetFrontProcessFn? = {
+    private static let getFrontProcessFn: GetFrontProcessFn? = {
+        _ = skyLightHandle
         guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "_SLPSGetFrontProcess") else { return nil }
         return unsafeBitCast(sym, to: GetFrontProcessFn.self)
     }()
 
-    private static let _getProcessForPIDFn: GetProcessForPIDFn? = {
+    private static let getProcessForPIDFn: GetProcessForPIDFn? = {
+        _ = skyLightHandle
         guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "GetProcessForPID") else { return nil }
         return unsafeBitCast(sym, to: GetProcessForPIDFn.self)
     }()
 
-    private static let _axGetWindowFn: AXGetWindowFn? = {
+    private static let axGetWindowFn: AXGetWindowFn? = {
         guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "_AXUIElementGetWindow") else { return nil }
         return unsafeBitCast(sym, to: AXGetWindowFn.self)
     }()
-    // swiftlint:enable identifier_name
 
     // MARK: - Public API
 
     /// True when all three core SkyLight SPIs resolved.
     static var isAvailable: Bool {
-        _postEventRecordToFn != nil
-            && _getFrontProcessFn != nil
-            && _getProcessForPIDFn != nil
+        postEventRecordToFn != nil
+            && getFrontProcessFn != nil
+            && getProcessForPIDFn != nil
     }
 
     /// Focus a window without raising it (SkyLight event injection).
     /// Returns true on success.
     static func focusWithoutRaise(targetPid: pid_t, targetWindowID: CGWindowID) -> Bool {
-        guard let postEvent = _postEventRecordToFn,
-              let getFront = _getFrontProcessFn,
-              let getForPID = _getProcessForPIDFn else { return false }
+        guard let postEvent = postEventRecordToFn,
+              let getFront = getFrontProcessFn,
+              let getForPID = getProcessForPIDFn else { return false }
 
         // Get current frontmost PSN (8 bytes)
         var prevPSN = [UInt8](repeating: 0, count: 8)
@@ -102,7 +107,7 @@ enum SkyLightBridge {
 
     /// Extract the CGWindowID from an AXUIElement, if possible.
     static func windowID(from element: AXUIElement) -> CGWindowID? {
-        guard let axGetWindow = _axGetWindowFn else { return nil }
+        guard let axGetWindow = axGetWindowFn else { return nil }
         var wid: UInt32 = 0
         let result = axGetWindow(element, &wid)
         guard result == 0, wid != 0 else { return nil }

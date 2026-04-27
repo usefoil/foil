@@ -3,8 +3,8 @@ import XCTest
 
 final class SkyLightBridgeTests: XCTestCase {
     func testIsAvailableReturnsBool() {
-        let available = SkyLightBridge.isAvailable
-        XCTAssertTrue(available is Bool)
+        // Smoke test: must not crash. On a dev machine with SkyLight, this is true.
+        _ = SkyLightBridge.isAvailable
     }
 
     func testFocusWithoutRaiseReturnsFalseForInvalidPid() {
