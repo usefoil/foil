@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0688D1A2C3E4F5B7A9E01234 /* DiagnosticLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0688D1A2C3E4F5B7A9E05678 /* DiagnosticLog.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* SkyLightBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F3 /* SkyLightBridge.swift */; };
+		A1B2C3D4E5F6A7B8C9D0E1F4 /* SkyLightBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F5 /* SkyLightBridgeTests.swift */; };
 		0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */; };
 		121D10BF8497F29D1F847353 /* LanguageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2945E0F6027C3F4835BBE8C1 /* LanguageTests.swift */; };
 		2B38B3440F7EDF7EE3E32329 /* TextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61B277DF7657903E9ED14B1 /* TextInserter.swift */; };
@@ -55,6 +58,9 @@
 		2C23DDB33DDC6E657B8221CA /* TranscriptionHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistory.swift; sourceTree = "<group>"; };
 		43A2E33CA96A9F02E59C910A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		47F67C46D628784D812AC1C1 /* GroqTalk.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GroqTalk.entitlements; sourceTree = "<group>"; };
+		0688D1A2C3E4F5B7A9E05678 /* DiagnosticLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLog.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F3 /* SkyLightBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLightBridge.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F5 /* SkyLightBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLightBridgeTests.swift; sourceTree = "<group>"; };
 		583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		5DA6DFA9E20871913651ECEB /* HistoryPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverView.swift; sourceTree = "<group>"; };
 		70A2013D32CCECA48976685C /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTests.swift; sourceTree = "<group>"; };
@@ -100,6 +106,7 @@
 				2945E0F6027C3F4835BBE8C1 /* LanguageTests.swift */,
 				141E73C78BEF8A8E08F3B838 /* PasteQueueTests.swift */,
 				E00ED9617CF428F8BF2444B9 /* PasteTargetTests.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F5 /* SkyLightBridgeTests.swift */,
 				E38DF89D2274A959CCAD06AD /* TranscriptionHistoryTests.swift */,
 				75751BABD8DCE7F43A5AC08F /* TranscriptionServiceTests.swift */,
 			);
@@ -122,6 +129,7 @@
 				F2C48CEFD0EA9409C15CBFB0 /* AppState.swift */,
 				B1F5AA67E138E2CA7C5849E3 /* Assets.xcassets */,
 				583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */,
+				0688D1A2C3E4F5B7A9E05678 /* DiagnosticLog.swift */,
 				47F67C46D628784D812AC1C1 /* GroqTalk.entitlements */,
 				02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */,
 				5DA6DFA9E20871913651ECEB /* HistoryPopoverView.swift */,
@@ -131,6 +139,7 @@
 				8C04ACF5F04D33BF75D666AD /* MenuBarView.swift */,
 				A44A246EE288E9AD76808556 /* PasteQueue.swift */,
 				B56ED3D31CEFA11C4EBCD441 /* PasteTarget.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F3 /* SkyLightBridge.swift */,
 				AE0224008DA333B2B45AA9B3 /* SoundPlayer.swift */,
 				F61B277DF7657903E9ED14B1 /* TextInserter.swift */,
 				2C23DDB33DDC6E657B8221CA /* TranscriptionHistory.swift */,
@@ -226,6 +235,7 @@
 				4D4F7C37344F8C343E5D09A1 /* ApiKeySetupView.swift in Sources */,
 				9C5F3BE1ADFE9F40B0DD40A5 /* AppState.swift in Sources */,
 				0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */,
+				0688D1A2C3E4F5B7A9E01234 /* DiagnosticLog.swift in Sources */,
 				F34BB165ADDE82F7DA185B8D /* GroqTalkApp.swift in Sources */,
 				C0482BD31D4BE0179B102CAC /* HistoryPopoverView.swift in Sources */,
 				44A052BE79DB88DAD67DC34E /* HotkeyMonitor.swift in Sources */,
@@ -233,6 +243,7 @@
 				4EC94F8FD46EA59C1D29DBAA /* MenuBarView.swift in Sources */,
 				AA57A1978B56733EAF2BC491 /* PasteQueue.swift in Sources */,
 				FA64A4E97D3B14107794AA3E /* PasteTarget.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* SkyLightBridge.swift in Sources */,
 				68CA2C950FA6990F920B6F0E /* SoundPlayer.swift in Sources */,
 				2B38B3440F7EDF7EE3E32329 /* TextInserter.swift in Sources */,
 				F171EFD9BB5E02DA075979FB /* TranscriptionHistory.swift in Sources */,
@@ -253,6 +264,7 @@
 				121D10BF8497F29D1F847353 /* LanguageTests.swift in Sources */,
 				733A1997297A35618D3AEA16 /* PasteQueueTests.swift in Sources */,
 				F29F5E45235D5E76726E3154 /* PasteTargetTests.swift in Sources */,
+				A1B2C3D4E5F6A7B8C9D0E1F4 /* SkyLightBridgeTests.swift in Sources */,
 				D5CEEFD92523C69C8E9AE87D /* TranscriptionHistoryTests.swift in Sources */,
 				D159A8B80B1638CBDCE1C5D6 /* TranscriptionServiceTests.swift in Sources */,
 			);
@@ -372,6 +384,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.GroqTalk;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG MOCK_TRANSCRIPTION";
 			};
 			name = Debug;
 		};
