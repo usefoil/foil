@@ -9,8 +9,8 @@ final class PasteQueueTests: XCTestCase {
             pastedTexts.append(text)
         }
 
-        await queue.enqueue(text: "hello", target: PasteTarget(windowElement: nil, pid: 1, appName: "A"), keepOnClipboard: false)
-        await queue.enqueue(text: "world", target: PasteTarget(windowElement: nil, pid: 2, appName: "B"), keepOnClipboard: false)
+        await queue.enqueue(text: "hello", target: PasteTarget(windowElement: nil, windowID: nil, pid: 1, appName: "A"), keepOnClipboard: false)
+        await queue.enqueue(text: "world", target: PasteTarget(windowElement: nil, windowID: nil, pid: 2, appName: "B"), keepOnClipboard: false)
 
         XCTAssertEqual(pastedTexts, ["hello", "world"])
     }
@@ -30,9 +30,9 @@ final class PasteQueueTests: XCTestCase {
 
         // Enqueue sequentially — each must execute in the order submitted
         // (serialization prevents the shortest-sleep item from winning the race).
-        await queue.enqueue(text: "1", target: PasteTarget(windowElement: nil, pid: 1, appName: "A"), keepOnClipboard: false)
-        await queue.enqueue(text: "2", target: PasteTarget(windowElement: nil, pid: 1, appName: "A"), keepOnClipboard: false)
-        await queue.enqueue(text: "3", target: PasteTarget(windowElement: nil, pid: 1, appName: "A"), keepOnClipboard: false)
+        await queue.enqueue(text: "1", target: PasteTarget(windowElement: nil, windowID: nil, pid: 1, appName: "A"), keepOnClipboard: false)
+        await queue.enqueue(text: "2", target: PasteTarget(windowElement: nil, windowID: nil, pid: 1, appName: "A"), keepOnClipboard: false)
+        await queue.enqueue(text: "3", target: PasteTarget(windowElement: nil, windowID: nil, pid: 1, appName: "A"), keepOnClipboard: false)
 
         await fulfillment(of: [expectation], timeout: 5)
         XCTAssertEqual(order, [1, 2, 3])
@@ -45,7 +45,7 @@ final class PasteQueueTests: XCTestCase {
             called = true
         }
 
-        let invalidTarget = PasteTarget(windowElement: nil, pid: 0, appName: "")
+        let invalidTarget = PasteTarget(windowElement: nil, windowID: nil, pid: 0, appName: "")
         await queue.enqueue(text: "skip me", target: invalidTarget, keepOnClipboard: false)
 
         XCTAssertFalse(called)
