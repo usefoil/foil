@@ -45,14 +45,18 @@ struct BackgroundPaste {
         // Let AppKit state settle
         try? await Task.sleep(for: .milliseconds(50))
 
-        // Send CMD+V to the target PID
+        // Send CMD+V to the target PID (prefer SkyLight auth-signed path)
         let source = CGEventSource(stateID: .hidSystemState)
         if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
            let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) {
             keyDown.flags = .maskCommand
             keyUp.flags = .maskCommand
-            keyDown.postToPid(target.pid)
-            keyUp.postToPid(target.pid)
+            if !SkyLightBridge.postKeyEventViaSkyLight(to: target.pid, event: keyDown) {
+                keyDown.postToPid(target.pid)
+            }
+            if !SkyLightBridge.postKeyEventViaSkyLight(to: target.pid, event: keyUp) {
+                keyUp.postToPid(target.pid)
+            }
         }
 
         // Let paste land

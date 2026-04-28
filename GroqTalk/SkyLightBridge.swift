@@ -48,6 +48,50 @@ enum SkyLightBridge {
         return unsafeBitCast(sym, to: AXGetWindowFn.self)
     }()
 
+    // MARK: - SLEventPostToPid (auth-signed event posting)
+
+    /// void SLEventPostToPid(pid_t, CGEventRef)
+    private typealias SLPostToPidFn = @convention(c) (pid_t, CGEvent) -> Void
+
+    /// void SLEventSetAuthenticationMessage(CGEventRef, id)
+    private typealias SetAuthMessageFn = @convention(c) (CGEvent, AnyObject) -> Void
+
+    /// objc_msgSend for +[SLSEventAuthenticationMessage messageWithEventRecord:pid:version:]
+    private typealias FactoryMsgSendFn = @convention(c) (
+        AnyObject, Selector, UnsafeMutableRawPointer, Int32, UInt32
+    ) -> AnyObject?
+
+    private static let slPostToPidFn: SLPostToPidFn? = {
+        _ = skyLightHandle
+        guard let p = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "SLEventPostToPid")
+        else { return nil }
+        return unsafeBitCast(p, to: SLPostToPidFn.self)
+    }()
+
+    private static let setAuthMessageFn: SetAuthMessageFn? = {
+        _ = skyLightHandle
+        guard let p = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "SLEventSetAuthenticationMessage")
+        else { return nil }
+        return unsafeBitCast(p, to: SetAuthMessageFn.self)
+    }()
+
+    private static let authMessageClass: AnyClass? = {
+        _ = skyLightHandle
+        return NSClassFromString("SLSEventAuthenticationMessage")
+    }()
+
+    private static let factoryMsgSendFn: FactoryMsgSendFn? = {
+        guard let p = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "objc_msgSend")
+        else { return nil }
+        return unsafeBitCast(p, to: FactoryMsgSendFn.self)
+    }()
+
+    /// True when the auth-signed event post path is available.
+    static var isAuthPostAvailable: Bool {
+        slPostToPidFn != nil && setAuthMessageFn != nil
+            && authMessageClass != nil && factoryMsgSendFn != nil
+    }
+
     // MARK: - Public API
 
     /// True when all three core SkyLight SPIs resolved.
@@ -133,5 +177,40 @@ enum SkyLightBridge {
         let axWindow = windowElement as! AXUIElement // swiftlint:disable:this force_cast
         guard let wid = windowID(from: axWindow) else { return nil }
         return (pid: pid, windowID: wid)
+    }
+
+    /// Post a keyboard CGEvent to a specific PID via SLEventPostToPid
+    /// with an SLSEventAuthenticationMessage attached. This is the
+    /// trusted channel that Chrome/Electron accept.
+    /// Falls back to CGEvent.postToPid if auth envelope can't be built.
+    static func postKeyEventViaSkyLight(to pid: pid_t, event: CGEvent) -> Bool {
+        guard let postFn = slPostToPidFn else { return false }
+
+        // Attach auth message if available
+        if let setAuth = setAuthMessageFn,
+           let msgClass = authMessageClass,
+           let msgSend = factoryMsgSendFn,
+           let record = extractEventRecord(from: event) {
+            let selector = NSSelectorFromString("messageWithEventRecord:pid:version:")
+            if let msg = msgSend(msgClass as AnyObject, selector, record, pid, 0) {
+                setAuth(event, msg)
+            }
+        }
+
+        postFn(pid, event)
+        return true
+    }
+
+    /// Extract the SLSEventRecord pointer embedded in a CGEvent.
+    /// Layout: {CFRuntimeBase(16), uint32(4), padding(4), SLSEventRecord*}
+    /// → pointer at offset 24. Probe adjacent offsets for resilience.
+    private static func extractEventRecord(from event: CGEvent) -> UnsafeMutableRawPointer? {
+        let base = Unmanaged.passUnretained(event).toOpaque()
+        for offset in [24, 32, 16] {
+            let slot = base.advanced(by: offset)
+                .assumingMemoryBound(to: UnsafeMutableRawPointer?.self)
+            if let p = slot.pointee { return p }
+        }
+        return nil
     }
 }

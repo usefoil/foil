@@ -35,6 +35,17 @@ private let slGetFrontProcess = resolve("_SLPSGetFrontProcess", as: GetFrontProc
 private let slGetProcessForPID = resolve("GetProcessForPID", as: GetProcessForPIDFn.self)
 private let axGetWindow = resolve("_AXUIElementGetWindow", as: AXGetWindowFn.self)
 
+private typealias SLPostToPidFn = @convention(c) (pid_t, CGEvent) -> Void
+private typealias SetAuthMessageFn = @convention(c) (CGEvent, AnyObject) -> Void
+private typealias FactoryMsgSendFn = @convention(c) (
+    AnyObject, Selector, UnsafeMutableRawPointer, Int32, UInt32
+) -> AnyObject?
+
+private let slPostToPid = resolve("SLEventPostToPid", as: SLPostToPidFn.self)
+private let slSetAuthMessage = resolve("SLEventSetAuthenticationMessage", as: SetAuthMessageFn.self)
+private let authMsgClass: AnyClass? = NSClassFromString("SLSEventAuthenticationMessage")
+private let factoryMsgSend = resolve("objc_msgSend", as: FactoryMsgSendFn.self)
+
 var skyLightAvailable: Bool {
     slPostEventRecord != nil && slGetFrontProcess != nil && slGetProcessForPID != nil
 }
@@ -83,6 +94,31 @@ func focusWithoutRaise(targetPid: pid_t, targetWindowID: CGWindowID) -> Bool {
     }
 
     return true
+}
+
+func postKeyViaSkyLight(to pid: pid_t, event: CGEvent) {
+    guard let postFn = slPostToPid else {
+        event.postToPid(pid)
+        return
+    }
+    // Attach auth message if available
+    if let setAuth = slSetAuthMessage,
+       let msgClass = authMsgClass,
+       let msgSend = factoryMsgSend {
+        let base = Unmanaged.passUnretained(event).toOpaque()
+        for offset in [24, 32, 16] {
+            let slot = base.advanced(by: offset)
+                .assumingMemoryBound(to: UnsafeMutableRawPointer?.self)
+            if let record = slot.pointee {
+                let selector = NSSelectorFromString("messageWithEventRecord:pid:version:")
+                if let msg = msgSend(msgClass as AnyObject, selector, record, pid, 0) {
+                    setAuth(event, msg)
+                }
+                break
+            }
+        }
+    }
+    postFn(pid, event)
 }
 
 // MARK: - Helpers
@@ -239,8 +275,8 @@ if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown:
    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) {
     keyDown.flags = .maskCommand
     keyUp.flags = .maskCommand
-    keyDown.postToPid(textEditPid)
-    keyUp.postToPid(textEditPid)
+    postKeyViaSkyLight(to: textEditPid, event: keyDown)
+    postKeyViaSkyLight(to: textEditPid, event: keyUp)
     print("  CMD+V posted to pid \(textEditPid)")
 }
 Thread.sleep(forTimeInterval: 0.15)
