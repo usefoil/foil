@@ -45,6 +45,9 @@ qa:
 	@echo "=== Async paste integration test ==="
 	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
 	swift tests/test_async_paste.swift
+	@echo ""
+	@echo "=== SkyLight background paste test ==="
+	swift tests/test_skylight_paste.swift
 
 clean:
 	xcodebuild -scheme $(SCHEME) clean 2>&1 | tail -3
