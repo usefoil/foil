@@ -1,9 +1,17 @@
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
-/// Tier 1 async paste: invisible background paste via SkyLight APIs.
-/// Attempts focus-without-raise → CMD+V → restore focus.
+/// Tier 1 async paste: invisible background text insertion.
+///
+/// Two approaches, tried in order:
+/// 1. **AX text insertion** — directly sets the text value of the target
+///    text area via Accessibility API. Works for native Cocoa apps without
+///    any focus change. No clipboard involvement.
+/// 2. **SkyLight CMD+V** — focus-without-raise + keyboard event injection.
+///    Requires SkyLight SPIs and auth-signed event posting.
+///
 /// Returns true on success, false if unavailable or failed (caller
 /// should fall back to Tier 2: window choreography).
 struct BackgroundPaste {
@@ -12,40 +20,120 @@ struct BackgroundPaste {
         target: PasteTarget,
         keepOnClipboard: Bool
     ) async -> Bool {
-        // Gate: need SkyLight SPIs and a valid window ID
-        guard SkyLightBridge.isAvailable,
-              let targetWindowID = target.windowID,
-              target.isValid
-        else { return false }
+        guard target.isValid else { return false }
 
         // Gate: target process must still be running
         guard let targetApp = NSRunningApplication(processIdentifier: target.pid),
               !targetApp.isTerminated
         else { return false }
 
-        // Snapshot where the user is now (to restore after paste)
+        // --- Approach 1: AX text insertion ---
+        if let window = target.windowElement,
+           let textArea = findTextArea(in: window) {
+            if insertViaAX(text: text, into: textArea) {
+                if keepOnClipboard {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                }
+                DiagnosticLog.write("BackgroundPaste: AX insertion succeeded for \(target.appName)")
+                return true
+            }
+        }
+
+        // --- Approach 2: SkyLight focusWithoutRaise + CMD+V ---
+        if SkyLightBridge.isAvailable,
+           let targetWindowID = target.windowID {
+            let success = await attemptSkyLightPaste(
+                text: text, target: target,
+                targetWindowID: targetWindowID,
+                keepOnClipboard: keepOnClipboard
+            )
+            if success {
+                DiagnosticLog.write("BackgroundPaste: SkyLight CMD+V succeeded for \(target.appName)")
+                return true
+            }
+        }
+
+        DiagnosticLog.write("BackgroundPaste: both approaches failed for \(target.appName)")
+        return false
+    }
+
+    // MARK: - AX text insertion
+
+    /// Insert text at the cursor position via AX API.
+    /// Tries AXSelectedText first (insert at cursor), falls back to
+    /// AXValue append.
+    private static func insertViaAX(text: String, into textArea: AXUIElement) -> Bool {
+        // Try 1: Replace selected text (inserts at cursor if no selection)
+        let selectedResult = AXUIElementSetAttributeValue(
+            textArea, kAXSelectedTextAttribute as CFString, text as CFTypeRef
+        )
+        if selectedResult == .success { return true }
+
+        // Try 2: Append to existing value
+        var valueRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(textArea, kAXValueAttribute as CFString, &valueRef)
+        let currentText = (valueRef as? String) ?? ""
+        let newText = currentText + text
+        let valueResult = AXUIElementSetAttributeValue(
+            textArea, kAXValueAttribute as CFString, newText as CFTypeRef
+        )
+        return valueResult == .success
+    }
+
+    /// Find a text area or text field within a window's AX tree.
+    private static func findTextArea(in element: AXUIElement) -> AXUIElement? {
+        var roleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
+        let role = roleRef as? String ?? ""
+        if role == "AXTextArea" || role == "AXTextField" { return element }
+
+        var childrenRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
+        if let children = childrenRef as? [AXUIElement] {
+            for child in children {
+                if let found = findTextArea(in: child) { return found }
+            }
+        }
+        return nil
+    }
+
+    // MARK: - SkyLight CMD+V
+
+    private static func attemptSkyLightPaste(
+        text: String,
+        target: PasteTarget,
+        targetWindowID: CGWindowID,
+        keepOnClipboard: Bool
+    ) async -> Bool {
         guard let current = SkyLightBridge.currentFocus() else { return false }
 
-        // Prepare clipboard
         let pasteboard = NSPasteboard.general
         let saved = keepOnClipboard ? [] : savePasteboardContents(pasteboard)
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        // Focus target without raising
         let focused = SkyLightBridge.focusWithoutRaise(
             targetPid: target.pid, targetWindowID: targetWindowID
         )
         guard focused else {
-            // Restore clipboard and bail
             if !keepOnClipboard { restorePasteboardContents(pasteboard, saved: saved) }
             return false
         }
 
-        // Let AppKit state settle
+        // AX synthetic focus — sync AppKit's internal input routing
+        if let window = target.windowElement {
+            AXUIElementSetAttributeValue(
+                window, kAXMainAttribute as CFString, true as CFTypeRef
+            )
+            AXUIElementSetAttributeValue(
+                window, kAXFocusedAttribute as CFString, true as CFTypeRef
+            )
+        }
+
         try? await Task.sleep(for: .milliseconds(50))
 
-        // Send CMD+V to the target PID (prefer SkyLight auth-signed path)
+        // Send CMD+V via auth-signed SkyLight path
         let source = CGEventSource(stateID: .hidSystemState)
         if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
            let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) {
@@ -59,15 +147,12 @@ struct BackgroundPaste {
             }
         }
 
-        // Let paste land
         try? await Task.sleep(for: .milliseconds(100))
 
-        // Restore focus to where the user was
         SkyLightBridge.focusWithoutRaise(
             targetPid: current.pid, targetWindowID: current.windowID
         )
 
-        // Restore clipboard
         if !keepOnClipboard {
             restorePasteboardContents(pasteboard, saved: saved)
         }

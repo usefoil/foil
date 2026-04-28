@@ -238,53 +238,89 @@ textEditApp.activate()
 Thread.sleep(forTimeInterval: 0.5)
 print("✓ Target captured: TextEdit wid=\(widA)")
 
-// Step 3: Switch to window B (simulate user moving away)
+// Step 3: Switch to a DIFFERENT app (simulate user moving away)
+// Use Finder since it's always running — this tests inter-process focus
 print()
-print("Step 3: Switching to Window B...")
-AXUIElementPerformAction(wB, kAXRaiseAction as CFString)
-Thread.sleep(forTimeInterval: 0.5)
+print("Step 3: Switching to Finder (different app)...")
+guard let finderApp = NSRunningApplication.runningApplications(
+    withBundleIdentifier: "com.apple.finder"
+).first else {
+    print("ERROR: Finder not running"); exit(1)
+}
+finderApp.activate()
+Thread.sleep(forTimeInterval: 1.0)
 
-// Record which app is frontmost BEFORE paste
 let frontBeforePaste = NSWorkspace.shared.frontmostApplication
 print("  Frontmost before paste: \(frontBeforePaste?.localizedName ?? "nil")")
-print("✓ User is in Window B")
+print("✓ User is in Finder")
 
 // Step 4: Simulate transcription delay
 print()
-print("Step 4: Simulating 2-second transcription delay...")
-Thread.sleep(forTimeInterval: 2.0)
+print("Step 4: Simulating 1-second transcription delay...")
+Thread.sleep(forTimeInterval: 1.0)
 print("✓ Transcription complete: 'SKYLIGHT_PASTE_TEST'")
 
-// Step 5: SkyLight background paste — the actual test
+// Step 5: Background paste into Window A via AX text insertion
 print()
-print("Step 5: SkyLight background paste into Window A...")
+print("Step 5: Background paste into Window A...")
 
-// Write text to clipboard
 let testText = "SKYLIGHT_PASTE_TEST"
-NSPasteboard.general.clearContents()
-NSPasteboard.general.setString(testText, forType: .string)
 
-// Focus-without-raise to target
-let focusOk = focusWithoutRaise(targetPid: textEditPid, targetWindowID: widA)
-print("  focusWithoutRaise: \(focusOk ? "OK" : "FAILED")")
-Thread.sleep(forTimeInterval: 0.05)
+// Find the text area in Window A by traversing the AX tree
+func findTextArea(in element: AXUIElement) -> AXUIElement? {
+    var roleRef: CFTypeRef?
+    AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
+    let role = roleRef as? String ?? ""
+    if role == "AXTextArea" { return element }
 
-// Send CMD+V to target PID
-let source = CGEventSource(stateID: .hidSystemState)
-if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
-   let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) {
-    keyDown.flags = .maskCommand
-    keyUp.flags = .maskCommand
-    postKeyViaSkyLight(to: textEditPid, event: keyDown)
-    postKeyViaSkyLight(to: textEditPid, event: keyUp)
-    print("  CMD+V posted to pid \(textEditPid)")
+    var childrenRef: CFTypeRef?
+    AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
+    if let children = childrenRef as? [AXUIElement] {
+        for child in children {
+            if let found = findTextArea(in: child) { return found }
+        }
+    }
+    return nil
 }
-Thread.sleep(forTimeInterval: 0.15)
 
-// Restore focus to window B
-let restoreOk = focusWithoutRaise(targetPid: textEditPid, targetWindowID: widB)
-print("  Restore focus to B: \(restoreOk ? "OK" : "FAILED")")
-Thread.sleep(forTimeInterval: 0.05)
+if let textArea = findTextArea(in: wA) {
+    // Read current text
+    var valueRef: CFTypeRef?
+    AXUIElementCopyAttributeValue(textArea, kAXValueAttribute as CFString, &valueRef)
+    let currentText = (valueRef as? String) ?? ""
+
+    // Append test text via AX
+    let newText = currentText + testText
+    let setResult = AXUIElementSetAttributeValue(
+        textArea, kAXValueAttribute as CFString, newText as CFTypeRef
+    )
+    print("  AX text insertion: \(setResult == .success ? "OK" : "FAILED (error \(setResult.rawValue))")")
+} else {
+    print("  ERROR: Could not find text area in Window A")
+
+    // Fallback: try clipboard + CMD+V with focusWithoutRaise
+    print("  Trying focusWithoutRaise + SLEventPostToPid fallback...")
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(testText, forType: .string)
+
+    let focusOk = focusWithoutRaise(targetPid: textEditPid, targetWindowID: widA)
+    print("  focusWithoutRaise: \(focusOk ? "OK" : "FAILED")")
+    AXUIElementSetAttributeValue(wA, kAXMainAttribute as CFString, true as CFTypeRef)
+    AXUIElementSetAttributeValue(wA, kAXFocusedAttribute as CFString, true as CFTypeRef)
+    Thread.sleep(forTimeInterval: 0.05)
+
+    let source = CGEventSource(stateID: .hidSystemState)
+    if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
+       let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) {
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        postKeyViaSkyLight(to: textEditPid, event: keyDown)
+        postKeyViaSkyLight(to: textEditPid, event: keyUp)
+    }
+    Thread.sleep(forTimeInterval: 0.3)
+}
+
+Thread.sleep(forTimeInterval: 0.1)
 
 // KEY ASSERTION: frontmost app should NOT have visibly changed
 let frontAfterPaste = NSWorkspace.shared.frontmostApplication
