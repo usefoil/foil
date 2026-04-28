@@ -2,19 +2,26 @@ import Foundation
 
 enum DiagnosticLog {
     private static let logPath = "/tmp/groqtalk-diag.log"
+    private static let queue = DispatchQueue(label: "com.groqtalk.diagnostic-log")
+    private static let formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        return f
+    }()
 
     static func write(_ message: String) {
-        let line = "\(ISO8601DateFormatter().string(from: Date())) \(message)\n"
+        let line = "\(formatter.string(from: Date())) \(message)\n"
         NSLog("[GroqTalk] %@", message)
         guard let data = line.data(using: .utf8) else { return }
-        if FileManager.default.fileExists(atPath: logPath) {
-            if let handle = FileHandle(forWritingAtPath: logPath) {
-                handle.seekToEndOfFile()
-                handle.write(data)
-                handle.closeFile()
+        queue.async {
+            if FileManager.default.fileExists(atPath: logPath) {
+                if let handle = FileHandle(forWritingAtPath: logPath) {
+                    handle.seekToEndOfFile()
+                    handle.write(data)
+                    handle.closeFile()
+                }
+            } else {
+                FileManager.default.createFile(atPath: logPath, contents: data)
             }
-        } else {
-            FileManager.default.createFile(atPath: logPath, contents: data)
         }
     }
 }

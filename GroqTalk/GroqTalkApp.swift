@@ -141,7 +141,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 DiagnosticLog.write("onRecordingStarted: SKIPPED — transcription in flight")
                 return
             }
-            let asyncEnabled = UserDefaults.standard.bool(forKey: "asyncPasteEnabled")
+            let asyncEnabled = self.appState.asyncPasteEnabled
             // Only capture on the FIRST press. If a debounce-cancel caused a
             // re-trigger, the user may have already moved — keep the original target.
             let capturedTarget: PasteTarget?
@@ -226,18 +226,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.appState.setStatus(.idle)
 
                     let asyncOn = self.appState.asyncPasteEnabled
-                    let hasPending = self.pendingTarget != nil
-                    DiagnosticLog.write("paste decision: asyncOn=\(asyncOn) hasPending=\(hasPending) target=\(String(describing: self.pendingTarget))")
+                    let target = self.pendingTarget
+                    self.pendingTarget = nil
+                    DiagnosticLog.write("paste decision: asyncOn=\(asyncOn) target=\(String(describing: target))")
 
-                    if asyncOn, let target = self.pendingTarget {
-                        self.pendingTarget = nil
+                    if asyncOn, let target {
                         DiagnosticLog.write("ASYNC PATH: pasting into \(target.appName) pid=\(target.pid)")
                         await self.pasteQueue.enqueue(
                             text: text, target: target,
                             keepOnClipboard: self.appState.keepOnClipboard
                         )
                     } else {
-                        self.pendingTarget = nil
                         DiagnosticLog.write("SYNC PATH: pasting into current app")
                         await self.textInserter.insert(
                             text: text,
@@ -247,6 +246,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     try? FileManager.default.removeItem(at: url)
                 } catch {
                     self.stopTranscribingAnimation()
+                    self.pendingTarget = nil
                     let errorMsg = self.errorMessage(from: error)
                     self.history.addFailure(error: errorMsg, audioFileURL: url)
                     self.appState.showError(errorMsg)

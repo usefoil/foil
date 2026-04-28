@@ -20,12 +20,18 @@ struct BackgroundPaste {
         target: PasteTarget,
         keepOnClipboard: Bool
     ) async -> Bool {
-        guard target.isValid else { return false }
+        guard target.isValid else {
+            DiagnosticLog.write("BackgroundPaste: skipped — invalid target (pid=\(target.pid))")
+            return false
+        }
 
         // Gate: target process must still be running
         guard let targetApp = NSRunningApplication(processIdentifier: target.pid),
               !targetApp.isTerminated
-        else { return false }
+        else {
+            DiagnosticLog.write("BackgroundPaste: skipped — target process terminated (pid=\(target.pid))")
+            return false
+        }
 
         // --- Approach 1: AX text insertion ---
         if let window = target.windowElement,
@@ -72,8 +78,11 @@ struct BackgroundPaste {
 
         // Try 2: Append to existing value
         var valueRef: CFTypeRef?
-        AXUIElementCopyAttributeValue(textArea, kAXValueAttribute as CFString, &valueRef)
-        let currentText = (valueRef as? String) ?? ""
+        let readResult = AXUIElementCopyAttributeValue(textArea, kAXValueAttribute as CFString, &valueRef)
+        guard readResult == .success, let currentText = valueRef as? String else {
+            DiagnosticLog.write("BackgroundPaste: AX read failed (error \(readResult.rawValue)), skipping append to avoid data loss")
+            return false
+        }
         let newText = currentText + text
         let valueResult = AXUIElementSetAttributeValue(
             textArea, kAXValueAttribute as CFString, newText as CFTypeRef
@@ -111,7 +120,7 @@ struct BackgroundPaste {
         guard let current = SkyLightBridge.currentFocus() else { return false }
 
         let pasteboard = NSPasteboard.general
-        let saved = keepOnClipboard ? [] : savePasteboardContents(pasteboard)
+        let saved = keepOnClipboard ? [] : TextInserter.savePasteboardContents(pasteboard)
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
@@ -119,7 +128,7 @@ struct BackgroundPaste {
             targetPid: target.pid, targetWindowID: targetWindowID
         )
         guard focused else {
-            if !keepOnClipboard { restorePasteboardContents(pasteboard, saved: saved) }
+            if !keepOnClipboard { TextInserter.restorePasteboardContents(pasteboard, saved: saved) }
             return false
         }
 
@@ -135,7 +144,8 @@ struct BackgroundPaste {
 
         try? await Task.sleep(for: .milliseconds(50))
 
-        // Send CMD+V via auth-signed SkyLight path
+        // Send CMD+V, preferring auth-signed SkyLight post, falling back to CGEvent.postToPid
+        var posted = false
         let source = CGEventSource(stateID: .hidSystemState)
         if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
            let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) {
@@ -147,6 +157,7 @@ struct BackgroundPaste {
             if !SkyLightBridge.postKeyEventViaSkyLight(to: target.pid, event: keyUp) {
                 keyUp.postToPid(target.pid)
             }
+            posted = true
         }
 
         try? await Task.sleep(for: .milliseconds(100))
@@ -159,39 +170,10 @@ struct BackgroundPaste {
         }
 
         if !keepOnClipboard {
-            restorePasteboardContents(pasteboard, saved: saved)
+            TextInserter.restorePasteboardContents(pasteboard, saved: saved)
         }
 
-        return true
+        return posted
     }
 
-    // MARK: - Clipboard save/restore
-
-    private static func savePasteboardContents(
-        _ pb: NSPasteboard
-    ) -> [(NSPasteboard.PasteboardType, Data)] {
-        var saved: [(NSPasteboard.PasteboardType, Data)] = []
-        guard let items = pb.pasteboardItems else { return saved }
-        for item in items {
-            for type in item.types {
-                if let data = item.data(forType: type) {
-                    saved.append((type, data))
-                }
-            }
-        }
-        return saved
-    }
-
-    private static func restorePasteboardContents(
-        _ pb: NSPasteboard,
-        saved: [(NSPasteboard.PasteboardType, Data)]
-    ) {
-        pb.clearContents()
-        guard !saved.isEmpty else { return }
-        let item = NSPasteboardItem()
-        for (type, data) in saved {
-            item.setData(data, forType: type)
-        }
-        pb.writeObjects([item])
-    }
 }

@@ -19,34 +19,25 @@ enum SkyLightBridge {
     private typealias AXGetWindowFn =
         @convention(c) (AXUIElement, UnsafeMutablePointer<UInt32>) -> Int32
 
-    // MARK: - Resolved symbols
+    // MARK: - Symbol resolution
 
     private static let skyLightHandle: UnsafeMutableRawPointer? = {
         dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
     }()
 
-    private static let postEventRecordToFn: PostEventRecordToFn? = {
+    /// Resolve a symbol from RTLD_DEFAULT after ensuring SkyLight is loaded.
+    private static func resolve<T>(_ name: String, as _: T.Type) -> T? {
         _ = skyLightHandle
-        guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "SLPSPostEventRecordTo") else { return nil }
-        return unsafeBitCast(sym, to: PostEventRecordToFn.self)
-    }()
+        guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), name) else { return nil }
+        return unsafeBitCast(sym, to: T.self)
+    }
 
-    private static let getFrontProcessFn: GetFrontProcessFn? = {
-        _ = skyLightHandle
-        guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "_SLPSGetFrontProcess") else { return nil }
-        return unsafeBitCast(sym, to: GetFrontProcessFn.self)
-    }()
+    // MARK: - Resolved symbols
 
-    private static let getProcessForPIDFn: GetProcessForPIDFn? = {
-        _ = skyLightHandle
-        guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "GetProcessForPID") else { return nil }
-        return unsafeBitCast(sym, to: GetProcessForPIDFn.self)
-    }()
-
-    private static let axGetWindowFn: AXGetWindowFn? = {
-        guard let sym = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "_AXUIElementGetWindow") else { return nil }
-        return unsafeBitCast(sym, to: AXGetWindowFn.self)
-    }()
+    private static let postEventRecordToFn = resolve("SLPSPostEventRecordTo", as: PostEventRecordToFn.self)
+    private static let getFrontProcessFn = resolve("_SLPSGetFrontProcess", as: GetFrontProcessFn.self)
+    private static let getProcessForPIDFn = resolve("GetProcessForPID", as: GetProcessForPIDFn.self)
+    private static let axGetWindowFn = resolve("_AXUIElementGetWindow", as: AXGetWindowFn.self)
 
     // MARK: - SLEventPostToPid (auth-signed event posting)
 
@@ -61,29 +52,13 @@ enum SkyLightBridge {
         AnyObject, Selector, UnsafeMutableRawPointer, Int32, UInt32
     ) -> AnyObject?
 
-    private static let slPostToPidFn: SLPostToPidFn? = {
-        _ = skyLightHandle
-        guard let p = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "SLEventPostToPid")
-        else { return nil }
-        return unsafeBitCast(p, to: SLPostToPidFn.self)
-    }()
-
-    private static let setAuthMessageFn: SetAuthMessageFn? = {
-        _ = skyLightHandle
-        guard let p = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "SLEventSetAuthenticationMessage")
-        else { return nil }
-        return unsafeBitCast(p, to: SetAuthMessageFn.self)
-    }()
+    private static let slPostToPidFn = resolve("SLEventPostToPid", as: SLPostToPidFn.self)
+    private static let setAuthMessageFn = resolve("SLEventSetAuthenticationMessage", as: SetAuthMessageFn.self)
+    private static let factoryMsgSendFn = resolve("objc_msgSend", as: FactoryMsgSendFn.self)
 
     private static let authMessageClass: AnyClass? = {
         _ = skyLightHandle
         return NSClassFromString("SLSEventAuthenticationMessage")
-    }()
-
-    private static let factoryMsgSendFn: FactoryMsgSendFn? = {
-        guard let p = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "objc_msgSend")
-        else { return nil }
-        return unsafeBitCast(p, to: FactoryMsgSendFn.self)
     }()
 
     /// True when the auth-signed event post path is available.

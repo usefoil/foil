@@ -5,7 +5,7 @@ import CoreGraphics
 struct TextInserter {
     func insert(text: String, keepOnClipboard: Bool = false) async {
         let pasteboard = NSPasteboard.general
-        let saved = keepOnClipboard ? [] : savePasteboardContents(pasteboard)
+        let saved = keepOnClipboard ? [] : Self.savePasteboardContents(pasteboard)
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
@@ -15,7 +15,7 @@ struct TextInserter {
         try? await Task.sleep(for: .milliseconds(100))
 
         if !keepOnClipboard {
-            restorePasteboardContents(pasteboard, saved: saved)
+            Self.restorePasteboardContents(pasteboard, saved: saved)
         }
     }
 
@@ -24,19 +24,17 @@ struct TextInserter {
     ///
     /// Flow: snapshot current app → activate target → paste → reactivate current app.
     func insertAtTarget(text: String, target: PasteTarget, keepOnClipboard: Bool) async {
-        // 1. Remember where the user is right now
         let currentApp = NSWorkspace.shared.frontmostApplication
 
-        // 2. Activate the target app and raise the specific window
         guard let targetApp = NSRunningApplication(processIdentifier: target.pid),
-              targetApp.isTerminated == false else {
+              !targetApp.isTerminated else {
             // Target app is gone — fall back to clipboard only
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
             return
         }
 
-        // Activate the app first, then forcefully raise the specific window.
+        // Activate the app first, then raise the specific window.
         // Some apps (terminals, browsers) need the app to be active before
         // AXRaise will take effect on a specific window.
         targetApp.activate()
@@ -44,22 +42,17 @@ struct TextInserter {
 
         if let window = target.windowElement {
             let raiseResult = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-            // Also try setting this as the main/focused window
             AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, true as CFTypeRef)
             AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, true as CFTypeRef)
             DiagnosticLog.write("insertAtTarget: AXRaise result=\(raiseResult.rawValue) window=\(window)")
         }
 
-        // Wait for activation + window raise to settle
         try? await Task.sleep(for: .milliseconds(200))
 
-        // 4. Paste using the existing mechanism
         await insert(text: text, keepOnClipboard: keepOnClipboard)
 
-        // 5. Wait for paste to land
         try? await Task.sleep(for: .milliseconds(150))
 
-        // 6. Return focus to where the user was
         currentApp?.activate()
     }
 
@@ -79,7 +72,7 @@ struct TextInserter {
         await insertAtTarget(text: text, target: target, keepOnClipboard: keepOnClipboard)
     }
 
-    private func savePasteboardContents(_ pb: NSPasteboard) -> [(NSPasteboard.PasteboardType, Data)] {
+    static func savePasteboardContents(_ pb: NSPasteboard) -> [(NSPasteboard.PasteboardType, Data)] {
         var saved: [(NSPasteboard.PasteboardType, Data)] = []
         guard let items = pb.pasteboardItems else { return saved }
         for item in items {
@@ -92,7 +85,7 @@ struct TextInserter {
         return saved
     }
 
-    private func restorePasteboardContents(
+    static func restorePasteboardContents(
         _ pb: NSPasteboard,
         saved: [(NSPasteboard.PasteboardType, Data)]
     ) {
