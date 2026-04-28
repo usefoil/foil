@@ -66,7 +66,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         pasteQueue = PasteQueue { [weak self] text, target, keepOnClipboard in
             guard let self else { return }
-            await self.textInserter.insertAtTarget(text: text, target: target, keepOnClipboard: keepOnClipboard)
+            await self.textInserter.insertAsync(text: text, target: target, keepOnClipboard: keepOnClipboard)
         }
         wireHotkeyMonitor()
         applyHotkeyConfig()
