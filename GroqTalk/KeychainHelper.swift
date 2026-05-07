@@ -5,7 +5,18 @@ enum KeychainHelper {
     private static let service = "com.neonwatty.GroqTalk"
     private static let account = "groq-api-key"
 
+    #if DEBUG
+    static var storageDirectoryOverride: URL?
+    static var legacyKeychainEnabled = true
+    #endif
+
     private static var storageURL: URL {
+        #if DEBUG
+        if let storageDirectoryOverride {
+            return storageDirectoryOverride.appendingPathComponent("api-key")
+        }
+        #endif
+
         let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first!
@@ -36,12 +47,19 @@ enum KeychainHelper {
 
     static func delete() {
         try? FileManager.default.removeItem(at: storageURL)
+        #if DEBUG
+        guard legacyKeychainEnabled else { return }
+        #endif
         deleteLegacyKeychain()
     }
 
     // MARK: - Legacy keychain migration
 
     private static func readFromLegacyKeychain() -> String? {
+        #if DEBUG
+        guard legacyKeychainEnabled else { return nil }
+        #endif
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

@@ -142,4 +142,24 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(bodyString.hasSuffix("--BOUNDARY--\r\n"),
                        "Multipart body must end with closing boundary")
     }
+
+    func testTranscriptProcessingBodyUsesGroqChatShape() throws {
+        let service = TranscriptionService()
+
+        let data = try service.buildTranscriptProcessingBody(
+            transcript: "um this is teh thing",
+            mode: .cleanUp,
+            model: "llama-3.3-70b-versatile"
+        )
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let messages = json?["messages"] as? [[String: String]]
+
+        XCTAssertEqual(json?["model"] as? String, "llama-3.3-70b-versatile")
+        XCTAssertEqual(json?["temperature"] as? Double, 0.2)
+        XCTAssertEqual(json?["max_completion_tokens"] as? Int, 1024)
+        XCTAssertEqual(messages?.first?["role"], "system")
+        XCTAssertTrue(messages?.first?["content"]?.contains("Clean up the transcript lightly") == true)
+        XCTAssertEqual(messages?.last?["role"], "user")
+        XCTAssertEqual(messages?.last?["content"], "um this is teh thing")
+    }
 }

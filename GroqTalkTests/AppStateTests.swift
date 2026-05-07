@@ -10,6 +10,9 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "hotkeyChoice")
         UserDefaults.standard.removeObject(forKey: "language")
         UserDefaults.standard.removeObject(forKey: "asyncPasteEnabled")
+        UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
+        UserDefaults.standard.removeObject(forKey: "transcriptProcessingMode")
+        UserDefaults.standard.removeObject(forKey: "transcriptCleanupModel")
     }
 
     func testInitialStatusIsIdle() {
@@ -227,6 +230,39 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         state.asyncPasteEnabled = true
         XCTAssertTrue(state.asyncPasteEnabled)
+    }
+
+    #if DEBUG
+    // MARK: - Mock transcription
+
+    func testDefaultMockTranscriptionDisabled() {
+        let state = AppState()
+        XCTAssertFalse(state.mockTranscriptionEnabled)
+    }
+
+    func testSetMockTranscription() {
+        let state = AppState()
+        state.mockTranscriptionEnabled = true
+        XCTAssertTrue(state.mockTranscriptionEnabled)
+    }
+    #endif
+
+    // MARK: - Transcript processing
+
+    func testDefaultTranscriptProcessingModeIsRaw() {
+        let state = AppState()
+        XCTAssertEqual(state.transcriptProcessingMode, .raw)
+        XCTAssertEqual(state.transcriptCleanupModel, "llama-3.3-70b-versatile")
+    }
+
+    func testSetTranscriptProcessingMode() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+        state.transcriptCleanupModel = "llama-3.1-8b-instant"
+
+        XCTAssertEqual(state.transcriptProcessingMode, .cleanUp)
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "transcriptProcessingMode"), "cleanUp")
+        XCTAssertEqual(state.transcriptCleanupModel, "llama-3.1-8b-instant")
     }
 
     // MARK: - isError

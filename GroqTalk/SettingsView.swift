@@ -1,0 +1,162 @@
+import AppKit
+import SwiftUI
+
+struct SettingsView: View {
+    @Bindable var appState: AppState
+    var history: TranscriptionHistory
+    var onHotkeyChanged: (() -> Void)?
+
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        TabView {
+            generalSettings
+                .tabItem { Label("General", systemImage: "gearshape") }
+                .accessibilityIdentifier("settings.tab.general")
+
+            recordingSettings
+                .tabItem { Label("Recording", systemImage: "mic") }
+                .accessibilityIdentifier("settings.tab.recording")
+
+            transcriptionSettings
+                .tabItem { Label("Transcription", systemImage: "waveform") }
+                .accessibilityIdentifier("settings.tab.transcription")
+
+            pasteSettings
+                .tabItem { Label("Paste", systemImage: "text.cursor") }
+                .accessibilityIdentifier("settings.tab.paste")
+
+            privacySettings
+                .tabItem { Label("Privacy", systemImage: "lock") }
+                .accessibilityIdentifier("settings.tab.privacy")
+        }
+        .accessibilityIdentifier("settings.root")
+        .scenePadding()
+        .frame(width: 520, height: 360)
+    }
+
+    private var generalSettings: some View {
+        Form {
+            Toggle("Sound effects", isOn: $appState.soundEffectsEnabled)
+                .accessibilityIdentifier("settings.soundEffectsToggle")
+            Toggle("Keep final text on clipboard", isOn: $appState.keepOnClipboard)
+                .accessibilityIdentifier("settings.keepClipboardToggle")
+        }
+        .formStyle(.grouped)
+    }
+
+    private var recordingSettings: some View {
+        Form {
+            Picker("Hotkey", selection: $appState.hotkeyChoice) {
+                Text("Right Command").tag(HotkeyMonitor.HotkeyChoice.rightCommand)
+                Text("Right Option").tag(HotkeyMonitor.HotkeyChoice.rightOption)
+                Text("Globe / Fn").tag(HotkeyMonitor.HotkeyChoice.globeFn)
+            }
+            .accessibilityIdentifier("settings.hotkeyPicker")
+            .onChange(of: appState.hotkeyChoice) { _, _ in onHotkeyChanged?() }
+
+            Picker("Mode", selection: $appState.recordingMode) {
+                Text("Hold to record").tag(HotkeyMonitor.RecordingMode.hold)
+                Text("Toggle").tag(HotkeyMonitor.RecordingMode.toggle)
+            }
+            .accessibilityIdentifier("settings.recordingModePicker")
+            .onChange(of: appState.recordingMode) { _, _ in onHotkeyChanged?() }
+
+            Picker("Audio format", selection: $appState.selectedAudioFormat) {
+                Text("M4A").tag(AudioFormat.m4a)
+                Text("WAV").tag(AudioFormat.wav)
+                Text("FLAC").tag(AudioFormat.flac)
+            }
+
+            Picker("Language", selection: $appState.selectedLanguage) {
+                ForEach(Language.allCases, id: \.self) { lang in
+                    Text(lang.displayName).tag(lang)
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var transcriptionSettings: some View {
+        Form {
+            HStack {
+                Text("Groq API key")
+                Spacer()
+                Label(appState.hasApiKey ? "Saved" : "Missing", systemImage: appState.hasApiKey ? "checkmark.circle.fill" : "exclamationmark.circle")
+                    .foregroundStyle(appState.hasApiKey ? .green : .orange)
+                Button("Change...") {
+                    openWindow(id: "api-key-setup")
+                }
+                .accessibilityIdentifier("settings.changeApiKeyButton")
+            }
+
+            Picker("Whisper model", selection: $appState.selectedModel) {
+                Text("Large V3 Turbo").tag("whisper-large-v3-turbo")
+                Text("Large V3").tag("whisper-large-v3")
+            }
+
+            Picker("After transcription", selection: $appState.transcriptProcessingMode) {
+                ForEach(TranscriptProcessingMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .accessibilityIdentifier("settings.transcriptProcessingPicker")
+
+            if appState.transcriptProcessingMode != .raw {
+                Picker("Cleanup model", selection: $appState.transcriptCleanupModel) {
+                    Text("Llama 3.3 70B Versatile").tag("llama-3.3-70b-versatile")
+                    Text("Llama 3.1 8B Instant").tag("llama-3.1-8b-instant")
+                }
+                .accessibilityIdentifier("settings.cleanupModelPicker")
+            }
+
+            #if DEBUG
+            Toggle("Mock transcription", isOn: $appState.mockTranscriptionEnabled)
+                .accessibilityIdentifier("settings.mockToggle")
+            #endif
+        }
+        .formStyle(.grouped)
+    }
+
+    private var pasteSettings: some View {
+        Form {
+            Toggle("Paste where recording started", isOn: $appState.asyncPasteEnabled)
+                .accessibilityIdentifier("settings.asyncPasteToggle")
+            Text(appState.asyncPasteEnabled ? "GroqTalk captures the target app when recording starts and returns focus after pasting." : "GroqTalk pastes into the app that is active when transcription finishes.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .formStyle(.grouped)
+    }
+
+    private var privacySettings: some View {
+        Form {
+            LabeledContent("History retention", value: "Last \(TranscriptionHistory.maxRecords) records")
+            LabeledContent("Stored records", value: "\(history.records.count)")
+            Text("History is stored locally on this Mac. Successful audio files are deleted after transcription; failed audio may be kept temporarily for retry.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Button("Open App Data Folder") {
+                    openAppDataFolder()
+                }
+                .accessibilityIdentifier("settings.openDataFolderButton")
+                Button("Clear History", role: .destructive) {
+                    history.clear()
+                }
+                .accessibilityIdentifier("settings.clearHistoryButton")
+                .disabled(history.records.isEmpty)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func openAppDataFolder() {
+        let appSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first!
+        let dir = appSupport.appendingPathComponent("GroqTalk", isDirectory: true)
+        NSWorkspace.shared.activateFileViewerSelecting([dir])
+    }
+}

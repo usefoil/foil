@@ -120,12 +120,20 @@ final class AudioRecorder {
             throw RecordingError.conversionFailed(errorCount: errors)
         }
         guard !captured.isEmpty else { return nil }
+        let frameCount = captured.reduce(0) { $0 + Int($1.frameLength) }
+        DiagnosticLog.write(
+            "audioRecorder: captured buffers=\(captured.count) frames=\(frameCount) conversionErrors=\(errors) format=\(format.rawValue)"
+        )
 
+        let url: URL
         switch format {
-        case .m4a:  return try writeM4A(buffers: captured)
-        case .wav:  return try writeWAV(buffers: captured)
-        case .flac: return try writeFLAC(buffers: captured)
+        case .m4a:  url = try writeM4A(buffers: captured)
+        case .wav:  url = try writeWAV(buffers: captured)
+        case .flac: url = try writeFLAC(buffers: captured)
         }
+        let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? -1
+        DiagnosticLog.write("audioRecorder: wrote file=\(url.lastPathComponent) bytes=\(fileSize)")
+        return url
     }
 
     func cancelRecording() {

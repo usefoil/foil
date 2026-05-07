@@ -7,36 +7,40 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0688D1A2C3E4F5B7A9E01234 /* DiagnosticLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0688D1A2C3E4F5B7A9E05678 /* DiagnosticLog.swift */; };
-		A1B2C3D4E5F6A7B8C9D0E1F2 /* SkyLightBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F3 /* SkyLightBridge.swift */; };
-		A1B2C3D4E5F6A7B8C9D0E1F4 /* SkyLightBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F5 /* SkyLightBridgeTests.swift */; };
-		B3C4D5E6F7A8B9C0D1E2F3A4 /* BackgroundPaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C4D5E6F7A8B9C0D1E2F3A5 /* BackgroundPaste.swift */; };
-		B3C4D5E6F7A8B9C0D1E2F3A6 /* BackgroundPasteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C4D5E6F7A8B9C0D1E2F3A7 /* BackgroundPasteTests.swift */; };
+		0077C5AE095BD3D6ED05268A /* BackgroundPasteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8438CCC3D27E03B7AE3815F7 /* BackgroundPasteTests.swift */; };
 		0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */; };
 		121D10BF8497F29D1F847353 /* LanguageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2945E0F6027C3F4835BBE8C1 /* LanguageTests.swift */; };
 		2B38B3440F7EDF7EE3E32329 /* TextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61B277DF7657903E9ED14B1 /* TextInserter.swift */; };
 		2F82960B56006370D0F90FCC /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D5510A5B46F677D2AE854D /* TranscriptionService.swift */; };
+		333A23FF2E429FDD686944CF /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B90F97CD7A617F9DD6B088 /* SettingsView.swift */; };
 		33D87C648D0A87C02B31A449 /* IntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A2013D32CCECA48976685C /* IntegrationTests.swift */; };
 		44A052BE79DB88DAD67DC34E /* HotkeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */; };
 		4D4F7C37344F8C343E5D09A1 /* ApiKeySetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13CB29E436E5E3465167230D /* ApiKeySetupView.swift */; };
 		4EC94F8FD46EA59C1D29DBAA /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C04ACF5F04D33BF75D666AD /* MenuBarView.swift */; };
 		59670AD3B35A6E862511D3B5 /* HistoryPopoverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B60032CCB98D3746C131217 /* HistoryPopoverTests.swift */; };
+		667DAE95FBD5D705DAB0040E /* DiagnosticLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE6B85DF059FB4B645DFB8C /* DiagnosticLog.swift */; };
 		68CA2C950FA6990F920B6F0E /* SoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0224008DA333B2B45AA9B3 /* SoundPlayer.swift */; };
 		733A1997297A35618D3AEA16 /* PasteQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 141E73C78BEF8A8E08F3B838 /* PasteQueueTests.swift */; };
 		7D8E0B807298CAECDFCE311E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B1F5AA67E138E2CA7C5849E3 /* Assets.xcassets */; };
 		93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */; };
+		978DAF75F9B4A08618AE57FB /* SkyLightBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5926CD9068E3CC23EF49D1 /* SkyLightBridge.swift */; };
 		9C5F3BE1ADFE9F40B0DD40A5 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2C48CEFD0EA9409C15CBFB0 /* AppState.swift */; };
 		A02E3739EF61ABCCE34BF29F /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF970AE548B49F2AD02AE742 /* AppStateTests.swift */; };
 		A415CE9E58748D266755EEFC /* AudioRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6B0DA7F2F73D239BFCA2B39 /* AudioRecorderTests.swift */; };
 		AA57A1978B56733EAF2BC491 /* PasteQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44A246EE288E9AD76808556 /* PasteQueue.swift */; };
+		BE2469ADB79D939E1A9EE2C8 /* SkyLightBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF13662526914E0320E811C7 /* SkyLightBridgeTests.swift */; };
 		C0482BD31D4BE0179B102CAC /* HistoryPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DA6DFA9E20871913651ECEB /* HistoryPopoverView.swift */; };
+		CF189712B8A96D3DEEECCF2A /* PasteDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D41203FA2FD2A66991651C /* PasteDelivery.swift */; };
 		D159A8B80B1638CBDCE1C5D6 /* TranscriptionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75751BABD8DCE7F43A5AC08F /* TranscriptionServiceTests.swift */; };
+		D261B42FDD09C2B0E0577E53 /* GroqTalkUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF5C3DB12AFBA88ECBA175F /* GroqTalkUITests.swift */; };
 		D5CEEFD92523C69C8E9AE87D /* TranscriptionHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38DF89D2274A959CCAD06AD /* TranscriptionHistoryTests.swift */; };
 		E353F7E3CFB6FC1E8DE25C7E /* HotkeyMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCEF01B35A4285F2AE32E990 /* HotkeyMonitorTests.swift */; };
 		F171EFD9BB5E02DA075979FB /* TranscriptionHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C23DDB33DDC6E657B8221CA /* TranscriptionHistory.swift */; };
 		F29F5E45235D5E76726E3154 /* PasteTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00ED9617CF428F8BF2444B9 /* PasteTargetTests.swift */; };
 		F34BB165ADDE82F7DA185B8D /* GroqTalkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */; };
 		F3820A5D8729E73D296EC059 /* KeychainHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */; };
+		F53B17A535796774324C1087 /* TranscriptProcessingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C56C652164796A12E37BC7F /* TranscriptProcessingMode.swift */; };
+		F7B066205963C05411DD0875 /* BackgroundPaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = F22AD03CCE8B0FD7392A3D02 /* BackgroundPaste.swift */; };
 		FA64A4E97D3B14107794AA3E /* PasteTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B56ED3D31CEFA11C4EBCD441 /* PasteTarget.swift */; };
 /* End PBXBuildFile section */
 
@@ -48,44 +52,56 @@
 			remoteGlobalIDString = 93D9EB351CAC8272AC004117;
 			remoteInfo = GroqTalk;
 		};
+		F5F4A01344FD003CC8127CE7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A2ABAD19C7C72F706510FCC2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 93D9EB351CAC8272AC004117;
+			remoteInfo = GroqTalk;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqTalkApp.swift; sourceTree = "<group>"; };
 		03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelperTests.swift; sourceTree = "<group>"; };
+		0AF5C3DB12AFBA88ECBA175F /* GroqTalkUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqTalkUITests.swift; sourceTree = "<group>"; };
 		0B60032CCB98D3746C131217 /* HistoryPopoverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverTests.swift; sourceTree = "<group>"; };
+		0BE6B85DF059FB4B645DFB8C /* DiagnosticLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLog.swift; sourceTree = "<group>"; };
 		13CB29E436E5E3465167230D /* ApiKeySetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiKeySetupView.swift; sourceTree = "<group>"; };
 		141E73C78BEF8A8E08F3B838 /* PasteQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteQueueTests.swift; sourceTree = "<group>"; };
 		2945E0F6027C3F4835BBE8C1 /* LanguageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageTests.swift; sourceTree = "<group>"; };
+		2B5926CD9068E3CC23EF49D1 /* SkyLightBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLightBridge.swift; sourceTree = "<group>"; };
 		2C23DDB33DDC6E657B8221CA /* TranscriptionHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistory.swift; sourceTree = "<group>"; };
+		2C56C652164796A12E37BC7F /* TranscriptProcessingMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptProcessingMode.swift; sourceTree = "<group>"; };
 		43A2E33CA96A9F02E59C910A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		47F67C46D628784D812AC1C1 /* GroqTalk.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GroqTalk.entitlements; sourceTree = "<group>"; };
-		0688D1A2C3E4F5B7A9E05678 /* DiagnosticLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLog.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6A7B8C9D0E1F3 /* SkyLightBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLightBridge.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6A7B8C9D0E1F5 /* SkyLightBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLightBridgeTests.swift; sourceTree = "<group>"; };
-		B3C4D5E6F7A8B9C0D1E2F3A5 /* BackgroundPaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundPaste.swift; sourceTree = "<group>"; };
-		B3C4D5E6F7A8B9C0D1E2F3A7 /* BackgroundPasteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundPasteTests.swift; sourceTree = "<group>"; };
 		583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		5DA6DFA9E20871913651ECEB /* HistoryPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverView.swift; sourceTree = "<group>"; };
 		70A2013D32CCECA48976685C /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTests.swift; sourceTree = "<group>"; };
 		72069E1D0553D8A1FE1540F1 /* GroqTalkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GroqTalkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		75751BABD8DCE7F43A5AC08F /* TranscriptionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionServiceTests.swift; sourceTree = "<group>"; };
 		78D5510A5B46F677D2AE854D /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
+		8438CCC3D27E03B7AE3815F7 /* BackgroundPasteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundPasteTests.swift; sourceTree = "<group>"; };
 		86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		8C04ACF5F04D33BF75D666AD /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitor.swift; sourceTree = "<group>"; };
 		A44A246EE288E9AD76808556 /* PasteQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteQueue.swift; sourceTree = "<group>"; };
 		AE0224008DA333B2B45AA9B3 /* SoundPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundPlayer.swift; sourceTree = "<group>"; };
 		B1F5AA67E138E2CA7C5849E3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B3B90F97CD7A617F9DD6B088 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B56ED3D31CEFA11C4EBCD441 /* PasteTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteTarget.swift; sourceTree = "<group>"; };
 		B6B0DA7F2F73D239BFCA2B39 /* AudioRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderTests.swift; sourceTree = "<group>"; };
 		BCEF01B35A4285F2AE32E990 /* HotkeyMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorTests.swift; sourceTree = "<group>"; };
+		BF13662526914E0320E811C7 /* SkyLightBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLightBridgeTests.swift; sourceTree = "<group>"; };
+		C5D41203FA2FD2A66991651C /* PasteDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteDelivery.swift; sourceTree = "<group>"; };
 		C64A6F82CCC4912E445F25A4 /* GroqTalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GroqTalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF970AE548B49F2AD02AE742 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		E00ED9617CF428F8BF2444B9 /* PasteTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteTargetTests.swift; sourceTree = "<group>"; };
 		E38DF89D2274A959CCAD06AD /* TranscriptionHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistoryTests.swift; sourceTree = "<group>"; };
+		F22AD03CCE8B0FD7392A3D02 /* BackgroundPaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundPaste.swift; sourceTree = "<group>"; };
 		F2C48CEFD0EA9409C15CBFB0 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		F61B277DF7657903E9ED14B1 /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
+		FFB5F7B6429D574072627762 /* GroqTalkUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GroqTalkUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -94,6 +110,7 @@
 			children = (
 				C64A6F82CCC4912E445F25A4 /* GroqTalk.app */,
 				72069E1D0553D8A1FE1540F1 /* GroqTalkTests.xctest */,
+				FFB5F7B6429D574072627762 /* GroqTalkUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -103,19 +120,27 @@
 			children = (
 				DF970AE548B49F2AD02AE742 /* AppStateTests.swift */,
 				B6B0DA7F2F73D239BFCA2B39 /* AudioRecorderTests.swift */,
+				8438CCC3D27E03B7AE3815F7 /* BackgroundPasteTests.swift */,
 				0B60032CCB98D3746C131217 /* HistoryPopoverTests.swift */,
 				BCEF01B35A4285F2AE32E990 /* HotkeyMonitorTests.swift */,
 				70A2013D32CCECA48976685C /* IntegrationTests.swift */,
 				03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */,
 				2945E0F6027C3F4835BBE8C1 /* LanguageTests.swift */,
-				B3C4D5E6F7A8B9C0D1E2F3A7 /* BackgroundPasteTests.swift */,
 				141E73C78BEF8A8E08F3B838 /* PasteQueueTests.swift */,
 				E00ED9617CF428F8BF2444B9 /* PasteTargetTests.swift */,
-				A1B2C3D4E5F6A7B8C9D0E1F5 /* SkyLightBridgeTests.swift */,
+				BF13662526914E0320E811C7 /* SkyLightBridgeTests.swift */,
 				E38DF89D2274A959CCAD06AD /* TranscriptionHistoryTests.swift */,
 				75751BABD8DCE7F43A5AC08F /* TranscriptionServiceTests.swift */,
 			);
 			path = GroqTalkTests;
+			sourceTree = "<group>";
+		};
+		651DBF4846CFAE6CF7C79741 /* GroqTalkUITests */ = {
+			isa = PBXGroup;
+			children = (
+				0AF5C3DB12AFBA88ECBA175F /* GroqTalkUITests.swift */,
+			);
+			path = GroqTalkUITests;
 			sourceTree = "<group>";
 		};
 		6EDD9BC93A04E16B9667BE68 = {
@@ -123,6 +148,7 @@
 			children = (
 				9564E4CCF7F9F47040EF8E0C /* GroqTalk */,
 				4F8AC894D29988B22EFFC224 /* GroqTalkTests */,
+				651DBF4846CFAE6CF7C79741 /* GroqTalkUITests */,
 				43C4E72637063E3F7C5EDA81 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -132,10 +158,10 @@
 			children = (
 				13CB29E436E5E3465167230D /* ApiKeySetupView.swift */,
 				F2C48CEFD0EA9409C15CBFB0 /* AppState.swift */,
-				B3C4D5E6F7A8B9C0D1E2F3A5 /* BackgroundPaste.swift */,
 				B1F5AA67E138E2CA7C5849E3 /* Assets.xcassets */,
 				583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */,
-				0688D1A2C3E4F5B7A9E05678 /* DiagnosticLog.swift */,
+				F22AD03CCE8B0FD7392A3D02 /* BackgroundPaste.swift */,
+				0BE6B85DF059FB4B645DFB8C /* DiagnosticLog.swift */,
 				47F67C46D628784D812AC1C1 /* GroqTalk.entitlements */,
 				02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */,
 				5DA6DFA9E20871913651ECEB /* HistoryPopoverView.swift */,
@@ -143,13 +169,16 @@
 				43A2E33CA96A9F02E59C910A /* Info.plist */,
 				86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */,
 				8C04ACF5F04D33BF75D666AD /* MenuBarView.swift */,
+				C5D41203FA2FD2A66991651C /* PasteDelivery.swift */,
 				A44A246EE288E9AD76808556 /* PasteQueue.swift */,
 				B56ED3D31CEFA11C4EBCD441 /* PasteTarget.swift */,
-				A1B2C3D4E5F6A7B8C9D0E1F3 /* SkyLightBridge.swift */,
+				B3B90F97CD7A617F9DD6B088 /* SettingsView.swift */,
+				2B5926CD9068E3CC23EF49D1 /* SkyLightBridge.swift */,
 				AE0224008DA333B2B45AA9B3 /* SoundPlayer.swift */,
 				F61B277DF7657903E9ED14B1 /* TextInserter.swift */,
 				2C23DDB33DDC6E657B8221CA /* TranscriptionHistory.swift */,
 				78D5510A5B46F677D2AE854D /* TranscriptionService.swift */,
+				2C56C652164796A12E37BC7F /* TranscriptProcessingMode.swift */,
 			);
 			path = GroqTalk;
 			sourceTree = "<group>";
@@ -157,6 +186,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		62F68710B71BE80AF44B5208 /* GroqTalkUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EB0E8235350292A6FA35E6E9 /* Build configuration list for PBXNativeTarget "GroqTalkUITests" */;
+			buildPhases = (
+				3B5286C6AA93A8029A6C0443 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				912A91CC274AB9EEC2785D00 /* PBXTargetDependency */,
+			);
+			name = GroqTalkUITests;
+			packageProductDependencies = (
+			);
+			productName = GroqTalkUITests;
+			productReference = FFB5F7B6429D574072627762 /* GroqTalkUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		93D9EB351CAC8272AC004117 /* GroqTalk */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 92FD37804B1CF4213C807F3A /* Build configuration list for PBXNativeTarget "GroqTalk" */;
@@ -201,6 +248,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					62F68710B71BE80AF44B5208 = {
+						TestTargetID = 93D9EB351CAC8272AC004117;
+					};
+				};
 			};
 			buildConfigurationList = 48CE717712EC94139459B1C2 /* Build configuration list for PBXProject "GroqTalk" */;
 			developmentRegion = en;
@@ -218,6 +270,7 @@
 			targets = (
 				93D9EB351CAC8272AC004117 /* GroqTalk */,
 				FC79325C3583A69036B83A95 /* GroqTalkTests */,
+				62F68710B71BE80AF44B5208 /* GroqTalkUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -234,25 +287,36 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		3B5286C6AA93A8029A6C0443 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D261B42FDD09C2B0E0577E53 /* GroqTalkUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		798E87334B1F687AA3179B8A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				4D4F7C37344F8C343E5D09A1 /* ApiKeySetupView.swift in Sources */,
 				9C5F3BE1ADFE9F40B0DD40A5 /* AppState.swift in Sources */,
-				B3C4D5E6F7A8B9C0D1E2F3A4 /* BackgroundPaste.swift in Sources */,
 				0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */,
-				0688D1A2C3E4F5B7A9E01234 /* DiagnosticLog.swift in Sources */,
+				F7B066205963C05411DD0875 /* BackgroundPaste.swift in Sources */,
+				667DAE95FBD5D705DAB0040E /* DiagnosticLog.swift in Sources */,
 				F34BB165ADDE82F7DA185B8D /* GroqTalkApp.swift in Sources */,
 				C0482BD31D4BE0179B102CAC /* HistoryPopoverView.swift in Sources */,
 				44A052BE79DB88DAD67DC34E /* HotkeyMonitor.swift in Sources */,
 				93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */,
 				4EC94F8FD46EA59C1D29DBAA /* MenuBarView.swift in Sources */,
+				CF189712B8A96D3DEEECCF2A /* PasteDelivery.swift in Sources */,
 				AA57A1978B56733EAF2BC491 /* PasteQueue.swift in Sources */,
 				FA64A4E97D3B14107794AA3E /* PasteTarget.swift in Sources */,
-				A1B2C3D4E5F6A7B8C9D0E1F2 /* SkyLightBridge.swift in Sources */,
+				333A23FF2E429FDD686944CF /* SettingsView.swift in Sources */,
+				978DAF75F9B4A08618AE57FB /* SkyLightBridge.swift in Sources */,
 				68CA2C950FA6990F920B6F0E /* SoundPlayer.swift in Sources */,
 				2B38B3440F7EDF7EE3E32329 /* TextInserter.swift in Sources */,
+				F53B17A535796774324C1087 /* TranscriptProcessingMode.swift in Sources */,
 				F171EFD9BB5E02DA075979FB /* TranscriptionHistory.swift in Sources */,
 				2F82960B56006370D0F90FCC /* TranscriptionService.swift in Sources */,
 			);
@@ -264,7 +328,7 @@
 			files = (
 				A02E3739EF61ABCCE34BF29F /* AppStateTests.swift in Sources */,
 				A415CE9E58748D266755EEFC /* AudioRecorderTests.swift in Sources */,
-				B3C4D5E6F7A8B9C0D1E2F3A6 /* BackgroundPasteTests.swift in Sources */,
+				0077C5AE095BD3D6ED05268A /* BackgroundPasteTests.swift in Sources */,
 				59670AD3B35A6E862511D3B5 /* HistoryPopoverTests.swift in Sources */,
 				E353F7E3CFB6FC1E8DE25C7E /* HotkeyMonitorTests.swift in Sources */,
 				33D87C648D0A87C02B31A449 /* IntegrationTests.swift in Sources */,
@@ -272,7 +336,7 @@
 				121D10BF8497F29D1F847353 /* LanguageTests.swift in Sources */,
 				733A1997297A35618D3AEA16 /* PasteQueueTests.swift in Sources */,
 				F29F5E45235D5E76726E3154 /* PasteTargetTests.swift in Sources */,
-				A1B2C3D4E5F6A7B8C9D0E1F4 /* SkyLightBridgeTests.swift in Sources */,
+				BE2469ADB79D939E1A9EE2C8 /* SkyLightBridgeTests.swift in Sources */,
 				D5CEEFD92523C69C8E9AE87D /* TranscriptionHistoryTests.swift in Sources */,
 				D159A8B80B1638CBDCE1C5D6 /* TranscriptionServiceTests.swift in Sources */,
 			);
@@ -281,6 +345,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		912A91CC274AB9EEC2785D00 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 93D9EB351CAC8272AC004117 /* GroqTalk */;
+			targetProxy = F5F4A01344FD003CC8127CE7 /* PBXContainerItemProxy */;
+		};
 		DDF5AB5538CDFB3B58C66602 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 93D9EB351CAC8272AC004117 /* GroqTalk */;
@@ -293,10 +362,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = B3A6AN2HA4;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -308,6 +375,24 @@
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GroqTalk.app/Contents/MacOS/GroqTalk";
 			};
 			name = Debug;
+		};
+		2C6B063E167FCBAA07163380 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.GroqTalkUITests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = GroqTalk;
+			};
+			name = Release;
 		};
 		94999298F2E8288D46FE8824 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -377,11 +462,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = GroqTalk/GroqTalk.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = B3A6AN2HA4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = GroqTalk/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -390,9 +473,25 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.GroqTalk;
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG MOCK_TRANSCRIPTION";
+			};
+			name = Debug;
+		};
+		B4B514430FEEA793B966FF87 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.GroqTalkUITests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = GroqTalk;
 			};
 			name = Debug;
 		};
@@ -457,11 +556,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = GroqTalk/GroqTalk.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = B3A6AN2HA4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = GroqTalk/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -470,7 +567,6 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.GroqTalk;
-				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -479,10 +575,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = B3A6AN2HA4;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -521,6 +615,15 @@
 			buildConfigurations = (
 				A2E03EE40E60CC680AC28832 /* Debug */,
 				EAA1876338CDF8E00BD8A93A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EB0E8235350292A6FA35E6E9 /* Build configuration list for PBXNativeTarget "GroqTalkUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B4B514430FEEA793B966FF87 /* Debug */,
+				2C6B063E167FCBAA07163380 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
