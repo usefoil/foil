@@ -1,8 +1,13 @@
+import AppKit
 import SwiftUI
 
 @main
 struct GroqTalkApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
+    private var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    }
 
     var body: some Scene {
         MenuBarExtra {
@@ -10,24 +15,44 @@ struct GroqTalkApp: App {
                 appState: appDelegate.appState,
                 history: appDelegate.history,
                 onRetry: { [weak appDelegate] in appDelegate?.retryLast() },
+                onPasteLast: { [weak appDelegate] in appDelegate?.pasteLastSuccess() },
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() }
             )
         } label: {
             appDelegate.menuBarLabel
         }
+        .menuBarExtraStyle(.window)
 
         Window("GroqTalk Setup", id: "api-key-setup") {
             ApiKeySetupView()
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
+
+        Window("History", id: "history") {
+            HistoryPopoverView(
+                history: appDelegate.history,
+                onRetry: { [weak appDelegate] record in appDelegate?.retryRecord(record) },
+                onPaste: { [weak appDelegate] text in appDelegate?.paste(text: text) },
+                showsHeader: true
+            )
+        }
+        .defaultSize(width: 620, height: 560)
+
+        Settings {
+            SettingsView(
+                appState: appDelegate.appState,
+                history: appDelegate.history,
+                onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() }
+            )
+        }
     }
 }
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
-    let appState = AppState()
-    let history = TranscriptionHistory()
+    let appState: AppState
+    let history: TranscriptionHistory
 
     private let hotkeyMonitor = HotkeyMonitor()
     private let audioRecorder = AudioRecorder()
@@ -40,9 +65,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var recordingTimer: Timer?
     private var transcribingTimer: Timer?
-    private var historyPopover: NSPopover?
-    private var popoverObserver: Any?
+    private var uiTestWindow: NSWindow?
+    private var uiTestHistoryWindow: NSWindow?
+    private var uiTestSettingsWindow: NSWindow?
 
+    override init() {
+        self.appState = AppState()
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            let dir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("GroqTalkUITests", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            self.history = TranscriptionHistory(storageDirectory: dir)
+        } else {
+            self.history = TranscriptionHistory()
+        }
+        super.init()
+    }
     // MARK: - Menu bar label
 
     @ViewBuilder
@@ -64,14 +102,141 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - App lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        DiagnosticLog.write("applicationDidFinishLaunching")
         pasteQueue = PasteQueue { [weak self] text, target, keepOnClipboard in
-            guard let self else { return }
-            await self.textInserter.insertAtTarget(text: text, target: target, keepOnClipboard: keepOnClipboard)
+            guard let self else { return .clipboardFallback }
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                DiagnosticLog.write("UITest paste queue: route=asyncQueued target=\(target.appName) bytes=\(text.utf8.count)")
+                return .asyncQueued
+            }
+            return await self.textInserter.insertAsync(text: text, target: target, keepOnClipboard: keepOnClipboard)
         }
+        configureUITestingIfNeeded()
         wireHotkeyMonitor()
         applyHotkeyConfig()
-        startHotkeyMonitorWithRetry()
-        setupHistoryPopover()
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            appState.setStatus(.idle)
+        } else {
+            startHotkeyMonitorWithRetry()
+        }
+    }
+
+    private func configureUITestingIfNeeded() {
+        let args = ProcessInfo.processInfo.arguments
+        guard args.contains("--ui-testing") else { return }
+
+        if args.contains("--reset-defaults") {
+            history.clear()
+            appState.soundEffectsEnabled = true
+            appState.keepOnClipboard = false
+            appState.asyncPasteEnabled = false
+            appState.selectedModel = "whisper-large-v3-turbo"
+            appState.selectedAudioFormat = .m4a
+            appState.selectedLanguage = .auto
+            appState.transcriptProcessingMode = .raw
+            appState.transcriptCleanupModel = "llama-3.3-70b-versatile"
+            appState.hotkeyChoice = .rightCommand
+            appState.recordingMode = .hold
+            appState.lastPasteSummary = nil
+            #if DEBUG
+            appState.mockTranscriptionEnabled = false
+            #endif
+        }
+
+        if args.contains("--seed-history") {
+            history.clear()
+            history.addSuccess(text: "Seeded transcript for UI testing.")
+            history.addSuccess(text: "Second searchable transcript.")
+            history.addFailure(error: "Seeded network failure", audioFileURL: nil)
+        }
+
+        showUITestWindow()
+    }
+
+    private func showUITestWindow() {
+        let view = MenuBarView(
+            appState: appState,
+            history: history,
+            onRetry: { [weak self] in self?.retryLast() },
+            onPasteLast: { [weak self] in self?.pasteLastSuccess() },
+            onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() },
+            onOpenHistory: { [weak self] in self?.showUITestHistoryWindow() },
+            onOpenSettings: { [weak self] in self?.showUITestSettingsWindow() },
+            onSimulateSuccess: { [weak self] in self?.simulateUITestTranscription(success: true) },
+            onSimulateFailure: { [weak self] in self?.simulateUITestTranscription(success: false) }
+        )
+        .accessibilityIdentifier("uiTest.controlCenter")
+        .frame(width: 360, height: 480)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 500),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "GroqTalk UI Test"
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 360, height: 480))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        uiTestWindow = window
+    }
+
+    private func showUITestHistoryWindow() {
+        let view = HistoryPopoverView(
+            history: history,
+            onRetry: { [weak self] record in self?.retryRecord(record) },
+            onPaste: { [weak self] text in self?.paste(text: text) },
+            showsHeader: true
+        )
+        .accessibilityIdentifier("history.testHost")
+        .frame(width: 620, height: 560)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 620, height: 560),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "History"
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 620, height: 560))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        uiTestHistoryWindow = window
+    }
+
+    private func showUITestSettingsWindow() {
+        let view = SettingsView(
+            appState: appState,
+            history: history,
+            onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() }
+        )
+        .accessibilityIdentifier("settings.testHost")
+        .frame(width: 560, height: 400)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 400),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Settings"
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 560, height: 400))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        uiTestSettingsWindow = window
+    }
+
+    private func fixedHostingView<Content: View>(rootView: Content, size: NSSize) -> NSHostingView<Content> {
+        let hostingView = NSHostingView(rootView: rootView)
+        hostingView.frame = NSRect(origin: .zero, size: size)
+        hostingView.autoresizingMask = [.width, .height]
+        if #available(macOS 13.0, *) {
+            hostingView.sizingOptions = []
+        }
+        return hostingView
     }
 
     // MARK: - Hotkey configuration
@@ -128,18 +293,90 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         retryRecord(record)
     }
 
+    func pasteLastSuccess() {
+        guard let text = history.records.first(where: { !$0.isFailure })?.text else { return }
+        paste(text: text)
+    }
+
+    func paste(text: String) {
+        Task {
+            let delivery = await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
+            appState.recordPaste(delivery)
+        }
+    }
+
+    func simulateUITestTranscription(success: Bool) {
+        guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else { return }
+        Task { @MainActor in
+            appState.clearError()
+            appState.setStatus(.recording)
+            startRecordingTimer()
+            try? await Task.sleep(for: .milliseconds(300))
+            stopRecordingTimer()
+            appState.setStatus(.transcribing)
+            startTranscribingAnimation()
+            try? await Task.sleep(for: .milliseconds(800))
+            stopTranscribingAnimation()
+
+            if success {
+                let text = "Mock async paste transcript"
+                history.addSuccess(text: text)
+                appState.setStatus(.idle)
+                if appState.asyncPasteEnabled {
+                    let target = PasteTarget(
+                        windowElement: nil,
+                        windowID: nil,
+                        pid: ProcessInfo.processInfo.processIdentifier,
+                        appName: "GroqTalk UI Test"
+                    )
+                    if let delivery = await pasteQueue.enqueue(
+                        text: text,
+                        target: target,
+                        keepOnClipboard: appState.keepOnClipboard
+                    ) {
+                        appState.recordPaste(delivery)
+                    }
+                } else {
+                    let delivery = await textInserter.insert(
+                        text: text,
+                        keepOnClipboard: appState.keepOnClipboard
+                    )
+                    appState.recordPaste(delivery)
+                }
+            } else {
+                history.addFailure(error: "Simulated transcription failure", audioFileURL: nil)
+                appState.showError("Simulated transcription failure")
+            }
+        }
+    }
+
     // MARK: - Wiring
 
     private func wireHotkeyMonitor() {
         hotkeyMonitor.onRecordingStarted = { [weak self] in
             guard let self else { return }
-            // Capture the paste target SYNCHRONOUSLY in the CGEvent callback,
-            // before any Task dispatch or UI updates that could shift focus.
-            let capturedTarget: PasteTarget? = self.appState.asyncPasteEnabled
-                ? PasteTarget.captureCurrentTarget()
-                : nil
+            // Don't start a new recording while transcription is in-flight.
+            // The CGEvent callback runs on the main run loop, so we can read
+            // appState.status synchronously here.
+            guard self.appState.status != .transcribing else {
+                DiagnosticLog.write("onRecordingStarted: SKIPPED — transcription in flight")
+                return
+            }
+            let asyncEnabled = self.appState.asyncPasteEnabled
+            // Only capture on the FIRST press. If a debounce-cancel caused a
+            // re-trigger, the user may have already moved — keep the original target.
+            let capturedTarget: PasteTarget?
+            if asyncEnabled && self.pendingTarget == nil {
+                capturedTarget = PasteTarget.captureCurrentTarget()
+            } else {
+                capturedTarget = nil  // signal: don't overwrite
+            }
+            DiagnosticLog.write("onRecordingStarted: asyncEnabled=\(asyncEnabled) capturedTarget=\(String(describing: capturedTarget)) existingTarget=\(self.pendingTarget != nil)")
             Task { @MainActor in
-                self.pendingTarget = capturedTarget
+                // Only set if we actually captured a new target
+                if let target = capturedTarget {
+                    self.pendingTarget = target
+                }
                 self.appState.clearError()
                 do {
                     try self.audioRecorder.startRecording()
@@ -153,7 +390,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotkeyMonitor.onRecordingStopped = { [weak self] in
             guard let self else { return }
+            guard self.appState.status == .recording else {
+                DiagnosticLog.write("onRecordingStopped: SKIPPED — not recording (status=\(self.appState.status))")
+                return
+            }
+            DiagnosticLog.write("onRecordingStopped fired")
             Task { @MainActor in
+                DiagnosticLog.write("onRecordingStopped Task executing")
                 self.stopRecordingTimer()
 
                 let url: URL
@@ -161,11 +404,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     guard let recordedURL = try self.audioRecorder.stopRecording(
                         format: self.appState.selectedAudioFormat
                     ) else {
+                        DiagnosticLog.write("onRecordingStopped: no audio file, returning")
                         self.appState.setStatus(.idle)
                         return
                     }
                     url = recordedURL
                 } catch {
+                    DiagnosticLog.write("onRecordingStopped: error \(error)")
                     self.appState.showError("Failed to save recording")
                     return
                 }
@@ -174,48 +419,78 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.appState.setStatus(.transcribing)
                 self.startTranscribingAnimation()
 
-                #if !MOCK_TRANSCRIPTION
-                guard let apiKey = KeychainHelper.readApiKey() else {
-                    self.stopTranscribingAnimation()
-                    self.history.addFailure(error: "No API key", audioFileURL: url)
-                    self.appState.showError("No API key — set one via the menu")
-                    return
-                }
+                let useMockTranscription: Bool
+                #if DEBUG
+                useMockTranscription = self.appState.mockTranscriptionEnabled
+                #else
+                useMockTranscription = false
                 #endif
+                DiagnosticLog.write("transcription mode: mock=\(useMockTranscription)")
+
+                let apiKey: String?
+                if useMockTranscription {
+                    apiKey = nil
+                } else {
+                    guard let storedApiKey = KeychainHelper.readApiKey() else {
+                        self.stopTranscribingAnimation()
+                        self.history.addFailure(error: "No API key", audioFileURL: url)
+                        self.appState.showError("No API key — set one via the menu")
+                        return
+                    }
+                    apiKey = storedApiKey
+                }
 
                 do {
                     let text: String
-                    #if MOCK_TRANSCRIPTION
-                    try await Task.sleep(for: .seconds(2))
-                    text = "Mock transcription at \(Date().formatted(date: .omitted, time: .standard))"
-                    #else
-                    text = try await self.transcriptionService.transcribe(
-                        audioFileURL: url,
-                        apiKey: apiKey,
-                        model: self.appState.selectedModel,
-                        format: self.appState.selectedAudioFormat,
-                        language: self.appState.selectedLanguage
-                    )
-                    #endif
+                    if useMockTranscription {
+                        try await Task.sleep(for: .seconds(2))
+                        text = "Mock transcription at \(Date().formatted(date: .omitted, time: .standard))"
+                    } else if let apiKey {
+                        let rawText = try await self.transcriptionService.transcribe(
+                            audioFileURL: url,
+                            apiKey: apiKey,
+                            model: self.appState.selectedModel,
+                            format: self.appState.selectedAudioFormat,
+                            language: self.appState.selectedLanguage
+                        )
+                        text = try await self.transcriptionService.processTranscript(
+                            rawText,
+                            apiKey: apiKey,
+                            mode: self.appState.transcriptProcessingMode,
+                            model: self.appState.transcriptCleanupModel
+                        )
+                    } else {
+                        throw TranscriptionService.TranscriptionError.invalidResponse
+                    }
                     self.stopTranscribingAnimation()
                     self.history.addSuccess(text: text)
                     self.appState.setStatus(.idle)
 
-                    if self.appState.asyncPasteEnabled, let target = self.pendingTarget {
-                        self.pendingTarget = nil
-                        await self.pasteQueue.enqueue(
+                    let asyncOn = self.appState.asyncPasteEnabled
+                    let target = self.pendingTarget
+                    self.pendingTarget = nil
+                    DiagnosticLog.write("paste decision: asyncOn=\(asyncOn) target=\(String(describing: target))")
+
+                    if asyncOn, let target {
+                        DiagnosticLog.write("ASYNC PATH: pasting into \(target.appName) pid=\(target.pid)")
+                        if let delivery = await self.pasteQueue.enqueue(
                             text: text, target: target,
                             keepOnClipboard: self.appState.keepOnClipboard
-                        )
+                        ) {
+                            self.appState.recordPaste(delivery)
+                        }
                     } else {
-                        await self.textInserter.insert(
+                        DiagnosticLog.write("SYNC PATH: pasting into current app")
+                        let delivery = await self.textInserter.insert(
                             text: text,
                             keepOnClipboard: self.appState.keepOnClipboard
                         )
+                        self.appState.recordPaste(delivery)
                     }
                     try? FileManager.default.removeItem(at: url)
                 } catch {
                     self.stopTranscribingAnimation()
+                    self.pendingTarget = nil
                     let errorMsg = self.errorMessage(from: error)
                     self.history.addFailure(error: errorMsg, audioFileURL: url)
                     self.appState.showError(errorMsg)
@@ -225,11 +500,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotkeyMonitor.onRecordingCancelled = { [weak self] in
             guard let self else { return }
+            DiagnosticLog.write("onRecordingCancelled")
             Task { @MainActor in
                 self.stopRecordingTimer()
                 self.audioRecorder.cancelRecording()
                 self.appState.setStatus(.idle)
-                self.pendingTarget = nil
+                // Do NOT clear pendingTarget here — a debounce-cancel is often
+                // followed immediately by a new onRecordingStarted, and we want
+                // to preserve the original capture from the first press.
+                // pendingTarget is cleared after a successful paste or when
+                // the transcription result is delivered.
             }
         }
     }
@@ -280,46 +560,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - History popover
-
-    private func setupHistoryPopover() {
-        popoverObserver = NotificationCenter.default.addObserver(
-            forName: .showHistoryPopover, object: nil, queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                self?.toggleHistoryPopover()
-            }
-        }
-    }
-
-    private func toggleHistoryPopover() {
-        if let popover = historyPopover, popover.isShown {
-            popover.performClose(nil)
-            return
-        }
-
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
-            rootView: HistoryPopoverView(
-                history: history,
-                onRetry: { [weak self] record in
-                    self?.retryRecord(record)
-                }
-            )
-        )
-
-        // Heuristic: find the status bar button to anchor the popover.
-        // Relies on AppKit's internal view hierarchy and may fail if the structure changes.
-        if let button = NSApp.windows
-            .compactMap({ $0.contentView?.subviews.first as? NSStatusBarButton })
-            .first {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            self.historyPopover = popover
-        }
-    }
-
-    private func retryRecord(_ record: TranscriptionRecord) {
+    func retryRecord(_ record: TranscriptionRecord) {
         guard appState.status == .idle || appState.isError else { return }
         guard let audioURL = record.audioFileURL else {
             appState.showError("Recording no longer available for retry")
@@ -329,8 +570,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.showError("Recording file was deleted — cannot retry")
             return
         }
-        historyPopover?.performClose(nil)
-
         // Infer format from the file extension to match the original recording
         let format = AudioFormat(rawValue: audioURL.pathExtension) ?? appState.selectedAudioFormat
 
@@ -346,16 +585,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             do {
-                let text = try await transcriptionService.transcribe(
+                let rawText = try await transcriptionService.transcribe(
                     audioFileURL: audioURL,
                     apiKey: apiKey,
                     model: appState.selectedModel,
                     format: format,
                     language: appState.selectedLanguage
                 )
+                let text = try await transcriptionService.processTranscript(
+                    rawText,
+                    apiKey: apiKey,
+                    mode: appState.transcriptProcessingMode,
+                    model: appState.transcriptCleanupModel
+                )
                 stopTranscribingAnimation()
                 history.resolveRetry(id: record.id, text: text)
-                await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
+                let delivery = await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
+                appState.recordPaste(delivery)
                 appState.setStatus(.idle)
             } catch {
                 stopTranscribingAnimation()

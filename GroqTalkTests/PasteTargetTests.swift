@@ -14,19 +14,41 @@ final class PasteTargetTests: XCTestCase {
     }
 
     func testManualInitStoresValues() {
-        let target = PasteTarget(windowElement: nil, pid: 12345, appName: "TestApp")
+        let target = PasteTarget(windowElement: nil, windowID: nil, pid: 12345, appName: "TestApp")
         XCTAssertEqual(target.pid, 12345)
         XCTAssertEqual(target.appName, "TestApp")
         XCTAssertNil(target.windowElement)
     }
 
     func testTargetWithZeroPidIsInvalid() {
-        let target = PasteTarget(windowElement: nil, pid: 0, appName: "")
+        let target = PasteTarget(windowElement: nil, windowID: nil, pid: 0, appName: "")
         XCTAssertFalse(target.isValid)
     }
 
     func testTargetWithPositivePidIsValid() {
-        let target = PasteTarget(windowElement: nil, pid: 999, appName: "App")
+        let target = PasteTarget(windowElement: nil, windowID: nil, pid: 999, appName: "App")
         XCTAssertTrue(target.isValid)
+    }
+
+    func testManualInitWithWindowID() {
+        let target = PasteTarget(windowElement: nil, windowID: 12345, pid: 999, appName: "App")
+        XCTAssertEqual(target.windowID, 12345)
+    }
+
+    func testManualInitWithNilWindowID() {
+        let target = PasteTarget(windowElement: nil, windowID: nil, pid: 999, appName: "App")
+        XCTAssertNil(target.windowID)
+    }
+
+    func testCaptureIncludesWindowID() {
+        // On a dev machine with AX, captureCurrentTarget should attempt
+        // to populate windowID. The SPI may return nil for test runner
+        // windows, so just verify no crash occurs.
+        let target = PasteTarget.captureCurrentTarget()
+        if let target, target.windowElement != nil {
+            // windowID may or may not be populated depending on
+            // whether _AXUIElementGetWindow works for this window type
+            _ = target.windowID
+        }
     }
 }

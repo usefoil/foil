@@ -3,9 +3,11 @@ import ApplicationServices
 import CoreGraphics
 
 struct TextInserter {
-    func insert(text: String, keepOnClipboard: Bool = false) async {
+    @discardableResult
+    func insert(text: String, keepOnClipboard: Bool = false) async -> PasteDelivery {
+        DiagnosticLog.write("TextInserter.insert: route=currentApp bytes=\(text.utf8.count) keepOnClipboard=\(keepOnClipboard)")
         let pasteboard = NSPasteboard.general
-        let saved = keepOnClipboard ? [] : savePasteboardContents(pasteboard)
+        let saved = keepOnClipboard ? [] : Self.savePasteboardContents(pasteboard)
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
@@ -15,51 +17,69 @@ struct TextInserter {
         try? await Task.sleep(for: .milliseconds(100))
 
         if !keepOnClipboard {
-            restorePasteboardContents(pasteboard, saved: saved)
+            Self.restorePasteboardContents(pasteboard, saved: saved)
         }
+        return .currentApp
     }
 
     /// Paste text into a previously captured target window, then return focus
     /// to wherever the user is currently working.
     ///
     /// Flow: snapshot current app → activate target → paste → reactivate current app.
-    func insertAtTarget(text: String, target: PasteTarget, keepOnClipboard: Bool) async {
-        // 1. Remember where the user is right now
+    @discardableResult
+    func insertAtTarget(text: String, target: PasteTarget, keepOnClipboard: Bool) async -> PasteDelivery {
         let currentApp = NSWorkspace.shared.frontmostApplication
 
-        // 2. Activate the target app and raise the specific window
         guard let targetApp = NSRunningApplication(processIdentifier: target.pid),
-              targetApp.isTerminated == false else {
+              !targetApp.isTerminated else {
             // Target app is gone — fall back to clipboard only
+            DiagnosticLog.write("TextInserter.insertAtTarget: route=clipboardFallback target=\(target.appName) pid=\(target.pid)")
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
-            return
+            return .clipboardFallback
         }
 
-        // Raise the specific window first, then activate the app.
-        // This order ensures macOS brings the correct window to front
-        // (not just any window of the target app).
-        if let window = target.windowElement {
-            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-        }
+        // Activate the app first, then raise the specific window.
+        // Some apps (terminals, browsers) need the app to be active before
+        // AXRaise will take effect on a specific window.
         targetApp.activate()
+        try? await Task.sleep(for: .milliseconds(50))
 
-        // 3. Wait for activation to settle — 200ms gives macOS enough time
-        //    to complete the window server focus switch, especially for
-        //    heavyweight apps like terminals and browsers.
+        if let window = target.windowElement {
+            let raiseResult = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+            AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, true as CFTypeRef)
+            AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, true as CFTypeRef)
+            DiagnosticLog.write("insertAtTarget: AXRaise result=\(raiseResult.rawValue) window=\(window)")
+        }
+
         try? await Task.sleep(for: .milliseconds(200))
 
-        // 4. Paste using the existing mechanism
-        await insert(text: text, keepOnClipboard: keepOnClipboard)
+        _ = await insert(text: text, keepOnClipboard: keepOnClipboard)
 
-        // 5. Wait for paste to land
         try? await Task.sleep(for: .milliseconds(150))
 
-        // 6. Return focus to where the user was
         currentApp?.activate()
+        return .asyncChoreography
     }
 
-    private func savePasteboardContents(_ pb: NSPasteboard) -> [(NSPasteboard.PasteboardType, Data)] {
+    /// Primary entry point for async paste. Tries SkyLight background
+    /// paste (Tier 1), falls back to window choreography (Tier 2).
+    @discardableResult
+    func insertAsync(text: String, target: PasteTarget, keepOnClipboard: Bool) async -> PasteDelivery {
+        // Tier 1: SkyLight background paste (invisible)
+        if await BackgroundPaste.attempt(
+            text: text, target: target, keepOnClipboard: keepOnClipboard
+        ) {
+            DiagnosticLog.write("insertAsync: Tier 1 (SkyLight) succeeded for \(target.appName)")
+            return .asyncBackground
+        }
+
+        // Tier 2: Window choreography (existing behavior)
+        DiagnosticLog.write("insertAsync: falling back to Tier 2 (choreography) for \(target.appName)")
+        return await insertAtTarget(text: text, target: target, keepOnClipboard: keepOnClipboard)
+    }
+
+    static func savePasteboardContents(_ pb: NSPasteboard) -> [(NSPasteboard.PasteboardType, Data)] {
         var saved: [(NSPasteboard.PasteboardType, Data)] = []
         guard let items = pb.pasteboardItems else { return saved }
         for item in items {
@@ -72,7 +92,7 @@ struct TextInserter {
         return saved
     }
 
-    private func restorePasteboardContents(
+    static func restorePasteboardContents(
         _ pb: NSPasteboard,
         saved: [(NSPasteboard.PasteboardType, Data)]
     ) {

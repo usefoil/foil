@@ -17,47 +17,65 @@ final class AppState {
     var recordingStartTime: Date?
     var recordingDuration: TimeInterval = 0
     var transcribingIconFrame: Int = 0
+    var lastPasteSummary: String?
 
     // MARK: - UserDefaults-backed preferences
+    //
+    // These are stored properties so that @Observable can track mutations.
+    // Each didSet syncs the value back to UserDefaults for persistence.
 
-    var soundEffectsEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "soundEffectsEnabled") }
-        set { UserDefaults.standard.set(newValue, forKey: "soundEffectsEnabled") }
+    private static var defaults: UserDefaults {
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing"),
+           let defaults = UserDefaults(suiteName: "com.neonwatty.GroqTalk.UITests") {
+            return defaults
+        }
+        return .standard
     }
 
-    var selectedModel: String {
-        get { UserDefaults.standard.string(forKey: "whisperModel") ?? "whisper-large-v3-turbo" }
-        set { UserDefaults.standard.set(newValue, forKey: "whisperModel") }
+    var soundEffectsEnabled: Bool = true {
+        didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
     }
 
-    var selectedAudioFormat: AudioFormat {
-        get { AudioFormat(rawValue: UserDefaults.standard.string(forKey: "audioFormat") ?? "") ?? .m4a }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "audioFormat") }
+    var selectedModel: String = "whisper-large-v3-turbo" {
+        didSet { Self.defaults.set(selectedModel, forKey: "whisperModel") }
     }
 
-    var selectedLanguage: Language {
-        get { Language(rawValue: UserDefaults.standard.string(forKey: "language") ?? "") ?? .auto }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "language") }
+    var selectedAudioFormat: AudioFormat = .m4a {
+        didSet { Self.defaults.set(selectedAudioFormat.rawValue, forKey: "audioFormat") }
     }
 
-    var keepOnClipboard: Bool {
-        get { UserDefaults.standard.bool(forKey: "keepOnClipboard") }
-        set { UserDefaults.standard.set(newValue, forKey: "keepOnClipboard") }
+    var selectedLanguage: Language = .auto {
+        didSet { Self.defaults.set(selectedLanguage.rawValue, forKey: "language") }
     }
 
-    var asyncPasteEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "asyncPasteEnabled") }
-        set { UserDefaults.standard.set(newValue, forKey: "asyncPasteEnabled") }
+    var transcriptProcessingMode: TranscriptProcessingMode = .raw {
+        didSet { Self.defaults.set(transcriptProcessingMode.rawValue, forKey: "transcriptProcessingMode") }
     }
 
-    var recordingMode: HotkeyMonitor.RecordingMode {
-        get { HotkeyMonitor.RecordingMode(rawValue: UserDefaults.standard.string(forKey: "recordingMode") ?? "") ?? .hold }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "recordingMode") }
+    var transcriptCleanupModel: String = "llama-3.3-70b-versatile" {
+        didSet { Self.defaults.set(transcriptCleanupModel, forKey: "transcriptCleanupModel") }
     }
 
-    var hotkeyChoice: HotkeyMonitor.HotkeyChoice {
-        get { HotkeyMonitor.HotkeyChoice(rawValue: UserDefaults.standard.string(forKey: "hotkeyChoice") ?? "") ?? .rightCommand }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: "hotkeyChoice") }
+    var keepOnClipboard: Bool = false {
+        didSet { Self.defaults.set(keepOnClipboard, forKey: "keepOnClipboard") }
+    }
+
+    var asyncPasteEnabled: Bool = false {
+        didSet { Self.defaults.set(asyncPasteEnabled, forKey: "asyncPasteEnabled") }
+    }
+
+    #if DEBUG
+    var mockTranscriptionEnabled: Bool = false {
+        didSet { Self.defaults.set(mockTranscriptionEnabled, forKey: "mockTranscriptionEnabled") }
+    }
+    #endif
+
+    var recordingMode: HotkeyMonitor.RecordingMode = .hold {
+        didSet { Self.defaults.set(recordingMode.rawValue, forKey: "recordingMode") }
+    }
+
+    var hotkeyChoice: HotkeyMonitor.HotkeyChoice = .rightCommand {
+        didSet { Self.defaults.set(hotkeyChoice.rawValue, forKey: "hotkeyChoice") }
     }
 
     var hasApiKey: Bool { KeychainHelper.readApiKey() != nil }
@@ -92,16 +110,54 @@ final class AppState {
     }
 
     init() {
-        UserDefaults.standard.register(defaults: [
+        let defaults = Self.defaults
+        if ProcessInfo.processInfo.arguments.contains("--reset-defaults") {
+            for key in [
+                "soundEffectsEnabled",
+                "whisperModel",
+                "audioFormat",
+                "keepOnClipboard",
+                "asyncPasteEnabled",
+                "mockTranscriptionEnabled",
+                "recordingMode",
+                "hotkeyChoice",
+                "language",
+                "transcriptProcessingMode",
+                "transcriptCleanupModel"
+            ] {
+                defaults.removeObject(forKey: key)
+            }
+        }
+
+        defaults.register(defaults: [
             "soundEffectsEnabled": true,
             "whisperModel": "whisper-large-v3-turbo",
             "audioFormat": "m4a",
             "keepOnClipboard": false,
             "asyncPasteEnabled": false,
+            "mockTranscriptionEnabled": false,
             "recordingMode": "hold",
             "hotkeyChoice": "rightCommand",
-            "language": "auto"
+            "language": "auto",
+            "transcriptProcessingMode": "raw",
+            "transcriptCleanupModel": "llama-3.3-70b-versatile"
         ])
+
+        // Load persisted values into stored properties.
+        // didSet does NOT fire during init, so no redundant writes.
+        soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
+        selectedModel = defaults.string(forKey: "whisperModel") ?? "whisper-large-v3-turbo"
+        selectedAudioFormat = AudioFormat(rawValue: defaults.string(forKey: "audioFormat") ?? "") ?? .m4a
+        selectedLanguage = Language(rawValue: defaults.string(forKey: "language") ?? "") ?? .auto
+        transcriptProcessingMode = TranscriptProcessingMode(rawValue: defaults.string(forKey: "transcriptProcessingMode") ?? "") ?? .raw
+        transcriptCleanupModel = defaults.string(forKey: "transcriptCleanupModel") ?? "llama-3.3-70b-versatile"
+        keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
+        asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
+        #if DEBUG
+        mockTranscriptionEnabled = defaults.bool(forKey: "mockTranscriptionEnabled")
+        #endif
+        recordingMode = HotkeyMonitor.RecordingMode(rawValue: defaults.string(forKey: "recordingMode") ?? "") ?? .hold
+        hotkeyChoice = HotkeyMonitor.HotkeyChoice(rawValue: defaults.string(forKey: "hotkeyChoice") ?? "") ?? .rightCommand
     }
 
     func setStatus(_ newStatus: Status) {
@@ -116,5 +172,9 @@ final class AppState {
         if case .error = status {
             status = .idle
         }
+    }
+
+    func recordPaste(_ delivery: PasteDelivery) {
+        lastPasteSummary = "Last paste: \(delivery.label)"
     }
 }

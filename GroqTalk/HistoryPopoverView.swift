@@ -1,13 +1,31 @@
+import AppKit
 import SwiftUI
 
 struct HistoryPopoverView: View {
+    enum Filter: String, CaseIterable {
+        case all = "All"
+        case successful = "Successful"
+        case failed = "Failed"
+    }
+
     var history: TranscriptionHistory
     var onRetry: ((TranscriptionRecord) -> Void)?
+    var onPaste: ((String) -> Void)?
+    var showsHeader = true
+
     @State private var searchText = ""
+    @State private var filter: Filter = .all
 
     private var filteredRecords: [TranscriptionRecord] {
-        if searchText.isEmpty { return history.records }
-        return history.records.filter { record in
+        history.records.filter { record in
+            let matchesFilter = switch filter {
+            case .all: true
+            case .successful: !record.isFailure
+            case .failed: record.isFailure
+            }
+            guard matchesFilter else { return false }
+
+            if searchText.isEmpty { return true }
             if let text = record.text {
                 return text.localizedCaseInsensitiveContains(searchText)
             }
@@ -20,7 +38,11 @@ struct HistoryPopoverView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            searchField
+            if showsHeader {
+                header
+                Divider()
+            }
+            searchAndFilters
             Divider()
             if filteredRecords.isEmpty {
                 emptyState
@@ -28,31 +50,71 @@ struct HistoryPopoverView: View {
                 recordsList
             }
         }
-        .frame(width: 350, height: 400)
+        .accessibilityIdentifier("history.root")
+        .frame(minWidth: 420, idealWidth: 560, minHeight: 420, idealHeight: 560)
     }
 
-    private var searchField: some View {
+    private var header: some View {
         HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-            TextField("Search transcriptions...", text: $searchText)
-                .textFieldStyle(.plain)
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("History")
+                    .font(.headline)
+                Text("\(history.records.count) of \(TranscriptionHistory.maxRecords) stored")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+
+            Spacer()
+
+            Button("Clear", role: .destructive) {
+                history.clear()
+            }
+            .accessibilityIdentifier("history.clearButton")
+            .disabled(history.records.isEmpty)
         }
-        .padding(8)
+        .padding(12)
+    }
+
+    private var searchAndFilters: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search transcriptions...", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .accessibilityIdentifier("history.searchField")
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            HStack {
+                ForEach(Filter.allCases, id: \.self) { filter in
+                    Button(filter.rawValue) {
+                        self.filter = filter
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(self.filter == filter)
+                }
+            }
+            .accessibilityIdentifier("history.filterPicker")
+        }
+        .padding(10)
     }
 
     private var emptyState: some View {
         VStack {
             Spacer()
+            Image(systemName: searchText.isEmpty ? "clock" : "magnifyingglass")
+                .font(.title2)
+                .foregroundStyle(.secondary)
             Text(searchText.isEmpty ? "No transcriptions yet" : "No matches")
                 .foregroundStyle(.secondary)
             Spacer()
@@ -71,18 +133,17 @@ struct HistoryPopoverView: View {
     }
 
     private func recordRow(_ record: TranscriptionRecord) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            if record.isFailure {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                    .font(.caption)
-                    .padding(.top, 2)
-            }
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: record.isFailure ? "exclamationmark.triangle.fill" : "text.bubble")
+                .foregroundStyle(record.isFailure ? .red : .secondary)
+                .font(.caption)
+                .padding(.top, 3)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(record.text ?? record.error ?? "")
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .font(.body)
+                    .textSelection(.enabled)
                     .foregroundStyle(record.isFailure ? .red : .primary)
                 Text(record.relativeTimestamp)
                     .font(.caption)
@@ -91,15 +152,34 @@ struct HistoryPopoverView: View {
 
             Spacer()
 
+            rowActions(for: record)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .accessibilityIdentifier("history.row")
+    }
+
+    @ViewBuilder
+    private func rowActions(for record: TranscriptionRecord) -> some View {
+        HStack(spacing: 8) {
             if let text = record.text {
                 Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(text, forType: .string)
+                    copy(text)
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
-                .buttonStyle(.plain)
-                .help("Copy to clipboard")
+                .accessibilityLabel("Copy")
+                .accessibilityIdentifier("history.row.copyButton")
+                .help("Copy")
+
+                Button {
+                    onPaste?(text)
+                } label: {
+                    Image(systemName: "arrow.turn.down.left")
+                }
+                .accessibilityLabel("Paste Again")
+                .accessibilityIdentifier("history.row.pasteAgainButton")
+                .help("Paste Again")
             }
 
             if record.isFailure, record.audioFileURL != nil {
@@ -108,11 +188,25 @@ struct HistoryPopoverView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .buttonStyle(.plain)
-                .help("Retry transcription")
+                .accessibilityLabel("Retry")
+                .accessibilityIdentifier("history.row.retryButton")
+                .help("Retry")
             }
+
+            Button(role: .destructive) {
+                history.delete(id: record.id)
+            } label: {
+                Image(systemName: "trash")
+            }
+            .accessibilityLabel("Delete")
+            .accessibilityIdentifier("history.row.deleteButton")
+            .help("Delete")
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .buttonStyle(.borderless)
+    }
+
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }

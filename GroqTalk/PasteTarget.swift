@@ -1,11 +1,13 @@
 import ApplicationServices
 import AppKit
+import CoreGraphics
 
 /// Captures the identity of the window that should receive a paste.
 /// Stored at the moment the user triggers recording so that focus changes
 /// during transcription don't redirect the paste to the wrong app.
 struct PasteTarget {
     let windowElement: AXUIElement?
+    let windowID: CGWindowID?
     let pid: pid_t
     let appName: String
 
@@ -39,6 +41,7 @@ struct PasteTarget {
             window = nil
         }
 
-        return PasteTarget(windowElement: window, pid: pid, appName: appName)
+        let windowID = window.flatMap { SkyLightBridge.windowID(from: $0) }
+        return PasteTarget(windowElement: window, windowID: windowID, pid: pid, appName: appName)
     }
 }

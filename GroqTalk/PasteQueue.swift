@@ -3,7 +3,7 @@ import Foundation
 /// Serializes paste operations so concurrent transcription completions
 /// don't fight over window focus. Jobs execute in FIFO order.
 actor PasteQueue {
-    typealias PasteHandler = @Sendable (String, PasteTarget, Bool) async -> Void
+    typealias PasteHandler = @Sendable (String, PasteTarget, Bool) async -> PasteDelivery
 
     private let handler: PasteHandler
 
@@ -11,8 +11,8 @@ actor PasteQueue {
         self.handler = handler
     }
 
-    func enqueue(text: String, target: PasteTarget, keepOnClipboard: Bool) async {
-        guard target.isValid else { return }
-        await handler(text, target, keepOnClipboard)
+    func enqueue(text: String, target: PasteTarget, keepOnClipboard: Bool) async -> PasteDelivery? {
+        guard target.isValid else { return nil }
+        return await handler(text, target, keepOnClipboard)
     }
 }

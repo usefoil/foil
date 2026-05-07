@@ -48,7 +48,7 @@ struct TranscriptionRecord: Codable, Identifiable {
 
 @MainActor @Observable
 final class TranscriptionHistory {
-    private static let maxRecords = 20
+    static let maxRecords = 500
 
     /// Transcription records, sorted newest-first.
     /// Insertion order is load-bearing for retry logic.
@@ -110,6 +110,33 @@ final class TranscriptionHistory {
             return nil
         }
         return first
+    }
+
+    var successfulRecords: [TranscriptionRecord] {
+        records.filter { !$0.isFailure }
+    }
+
+    func recentRecords(limit: Int) -> [TranscriptionRecord] {
+        Array(records.prefix(limit))
+    }
+
+    func delete(id: UUID) {
+        guard let index = records.firstIndex(where: { $0.id == id }) else { return }
+        let removed = records.remove(at: index)
+        if let audioURL = removed.audioFileURL {
+            try? FileManager.default.removeItem(at: audioURL)
+        }
+        save()
+    }
+
+    func clear() {
+        for record in records {
+            if let audioURL = record.audioFileURL {
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+        }
+        records = []
+        save()
     }
 
     // MARK: - Private

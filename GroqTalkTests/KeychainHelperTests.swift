@@ -2,8 +2,22 @@ import XCTest
 @testable import GroqTalk
 
 final class KeychainHelperTests: XCTestCase {
+    private var testDirectory: URL!
+
+    override func setUpWithError() throws {
+        testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GroqTalkKeychainHelperTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: testDirectory, withIntermediateDirectories: true)
+        KeychainHelper.storageDirectoryOverride = testDirectory
+        KeychainHelper.legacyKeychainEnabled = false
+    }
+
     override func tearDown() {
         KeychainHelper.delete()
+        KeychainHelper.storageDirectoryOverride = nil
+        KeychainHelper.legacyKeychainEnabled = true
+        try? FileManager.default.removeItem(at: testDirectory)
+        testDirectory = nil
     }
 
     func testReadReturnsNilWhenEmpty() {

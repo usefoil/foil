@@ -39,15 +39,15 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertNotNil(history.records.first?.audioFileURL)
     }
 
-    func testCapsAt20() {
-        for i in 0..<25 {
+    func testCapsAt500() {
+        for i in 0..<505 {
             history.addSuccess(text: "entry \(i)")
         }
-        XCTAssertEqual(history.records.count, 20)
+        XCTAssertEqual(history.records.count, 500)
         // Oldest entries should be removed — first remaining should be "entry 5"
         XCTAssertEqual(history.records.last?.text, "entry 5")
-        // Newest should be "entry 24"
-        XCTAssertEqual(history.records.first?.text, "entry 24")
+        // Newest should be "entry 504"
+        XCTAssertEqual(history.records.first?.text, "entry 504")
     }
 
     func testPersistsToDisk() {
@@ -102,21 +102,45 @@ final class TranscriptionHistoryTests: XCTestCase {
 
     func testCapCleanupDeletesAudioFiles() {
         // Fill history with failures that have audio files
-        for i in 0..<20 {
+        for i in 0..<TranscriptionHistory.maxRecords {
             let audioURL = testDir.appendingPathComponent("audio-\(i).wav")
             FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
             history.addFailure(error: "fail \(i)", audioFileURL: audioURL)
         }
-        // All 20 audio files should exist
-        XCTAssertEqual(history.records.count, 20)
+        // All retained audio files should exist
+        XCTAssertEqual(history.records.count, TranscriptionHistory.maxRecords)
 
         // Adding one more should evict the oldest and delete its audio file
         let evictedURL = testDir.appendingPathComponent("audio-0.wav")
         XCTAssertTrue(FileManager.default.fileExists(atPath: evictedURL.path))
 
         history.addSuccess(text: "new")
-        XCTAssertEqual(history.records.count, 20)
+        XCTAssertEqual(history.records.count, TranscriptionHistory.maxRecords)
         XCTAssertFalse(FileManager.default.fileExists(atPath: evictedURL.path))
+    }
+
+    func testDeleteRemovesRecordAndAudioFile() {
+        let audioURL = testDir.appendingPathComponent("delete-me.wav")
+        FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
+        history.addFailure(error: "fail", audioFileURL: audioURL)
+        let id = history.records.first!.id
+
+        history.delete(id: id)
+
+        XCTAssertTrue(history.records.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+    }
+
+    func testClearRemovesAllRecordsAndAudioFiles() {
+        let audioURL = testDir.appendingPathComponent("clear-me.wav")
+        FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
+        history.addFailure(error: "fail", audioFileURL: audioURL)
+        history.addSuccess(text: "ok")
+
+        history.clear()
+
+        XCTAssertTrue(history.records.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
     func testPreviewText() {

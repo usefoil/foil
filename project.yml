@@ -31,3 +31,13 @@ targets:
         CODE_SIGN_IDENTITY: "-"
     dependencies:
       - target: GroqTalk
+  GroqTalkUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources: [GroqTalkUITests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+    dependencies:
+      - target: GroqTalk
