@@ -174,6 +174,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DiagnosticLog.write("automation smoke: requested target=\(String(describing: target))")
         Task { @MainActor in
             appState.asyncPasteEnabled = true
+            appState.recordTargetCapture(target)
             #if DEBUG
             appState.mockTranscriptionEnabled = true
             #endif
@@ -379,6 +380,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         pid: ProcessInfo.processInfo.processIdentifier,
                         appName: "GroqTalk UI Test"
                     )
+                    appState.recordTargetCapture(target)
                     if let delivery = await pasteQueue.enqueue(
                         text: text,
                         target: target,
@@ -427,6 +429,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if let target = capturedTarget {
                     self.pendingTarget = target
                 }
+                self.appState.recordTargetCapture(capturedTarget ?? self.pendingTarget)
                 self.appState.clearError()
                 do {
                     try self.audioRecorder.startRecording()
@@ -465,10 +468,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
 
-                self.soundPlayer.playStopSound()
-                self.appState.setStatus(.transcribing)
-                self.startTranscribingAnimation()
-
                 let useMockTranscription: Bool
                 #if DEBUG
                 useMockTranscription = self.appState.mockTranscriptionEnabled
@@ -476,6 +475,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 useMockTranscription = false
                 #endif
                 DiagnosticLog.write("transcription mode: mock=\(useMockTranscription)")
+
+                self.soundPlayer.playStopSound()
+                self.appState.setStatus(.transcribing)
+                if useMockTranscription {
+                    self.appState.feedbackMessage = "Mock transcription..."
+                }
+                self.startTranscribingAnimation()
 
                 let apiKey: String?
                 if useMockTranscription {
@@ -513,6 +519,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         throw TranscriptionService.TranscriptionError.invalidResponse
                     }
                     self.stopTranscribingAnimation()
+                    self.appState.feedbackMessage = "Transcription ready"
                     self.history.addSuccess(text: text)
                     self.appState.setStatus(.idle)
 
@@ -555,6 +562,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.stopRecordingTimer()
                 self.audioRecorder.cancelRecording()
                 self.appState.setStatus(.idle)
+                self.appState.feedbackMessage = "Recording cancelled"
                 // Do NOT clear pendingTarget here — a debounce-cancel is often
                 // followed immediately by a new onRecordingStarted, and we want
                 // to preserve the original capture from the first press.
@@ -625,6 +633,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         appState.clearError()
         appState.setStatus(.transcribing)
+        appState.feedbackMessage = "Retrying transcription..."
         startTranscribingAnimation()
 
         Task {

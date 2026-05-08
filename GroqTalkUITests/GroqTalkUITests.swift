@@ -99,7 +99,8 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Sending audio"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Mock async paste transcript"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Last paste: current app"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Pasted into the current app"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Clipboard restored"].exists)
     }
 
     func testSimulatedRecordingUsesAsyncPasteWhenEnabled() {
@@ -109,7 +110,8 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Sending audio"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Mock async paste transcript"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Last paste: test target"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Pasted into the test target"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Target: GroqTalk UI Test"].exists)
     }
 
     func testSimulatedRecordingFailureKeepsRetryVisibleInHistory() {

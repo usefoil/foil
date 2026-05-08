@@ -232,6 +232,45 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.asyncPasteEnabled)
     }
 
+    func testRecordPasteUpdatesUserFeedback() {
+        let state = AppState()
+
+        state.recordPaste(.asyncBackground)
+
+        XCTAssertEqual(state.lastPasteSummary, "Pasted into the original app")
+        XCTAssertEqual(state.feedbackMessage, "Pasted into the original app")
+        XCTAssertEqual(state.clipboardFeedback, "Clipboard restored")
+    }
+
+    func testRecordPasteClipboardFallbackFeedback() {
+        let state = AppState()
+
+        state.recordPaste(.clipboardFallback)
+
+        XCTAssertEqual(state.lastPasteSummary, "Target unavailable; text copied to clipboard")
+        XCTAssertEqual(state.clipboardFeedback, "Text is on the clipboard")
+    }
+
+    func testRecordTargetCaptureUpdatesFeedback() {
+        let state = AppState()
+        let target = PasteTarget(windowElement: nil, windowID: nil, pid: 42, appName: "TextEdit")
+
+        state.recordTargetCapture(target)
+
+        XCTAssertEqual(state.capturedTargetName, "TextEdit")
+        XCTAssertEqual(state.feedbackMessage, "Target: TextEdit")
+    }
+
+    func testRecordMissingTargetWhenAsyncEnabled() {
+        let state = AppState()
+        state.asyncPasteEnabled = true
+
+        state.recordTargetCapture(nil)
+
+        XCTAssertNil(state.capturedTargetName)
+        XCTAssertEqual(state.feedbackMessage, "Target unavailable")
+    }
+
     #if DEBUG
     // MARK: - Mock transcription
 
