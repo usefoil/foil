@@ -1,14 +1,23 @@
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -c
+
 APP_NAME := GroqTalk
 BUNDLE_ID := com.neonwatty.GroqTalk
 SCHEME := $(APP_NAME)
 CONFIG := Debug
+# Local installed builds are signed with a stable Developer ID identity so
+# macOS Accessibility/TCC permissions survive rebuilds. Override these if
+# building on a machine without this certificate.
+SIGN_IDENTITY ?= Developer ID Application
+DEVELOPMENT_TEAM ?= B3A6AN2HA4
+SIGNING_FLAGS := CODE_SIGN_IDENTITY="$(SIGN_IDENTITY)" DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) CODE_SIGN_STYLE=Manual
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
 .PHONY: build run start stop restart install uninstall clean test test-ui test-cross-app test-app-smoke test-cleanup-quality qa
 
 build:
-	xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' build 2>&1 | tail -3
+	xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' $(SIGNING_FLAGS) build 2>&1 | tail -3
 
 run: build
 	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
