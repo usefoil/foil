@@ -21,4 +21,19 @@ enum PasteDelivery: Equatable {
             "clipboard"
         }
     }
+
+    var userMessage: String {
+        switch self {
+        case .currentApp:
+            "Pasted into the current app"
+        case .asyncBackground:
+            "Pasted into the original app"
+        case .asyncChoreography:
+            "Pasted into the original app"
+        case .asyncQueued:
+            "Pasted into the test target"
+        case .clipboardFallback:
+            "Target unavailable; text copied to clipboard"
+        }
+    }
 }

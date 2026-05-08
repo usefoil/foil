@@ -18,6 +18,9 @@ final class AppState {
     var recordingDuration: TimeInterval = 0
     var transcribingIconFrame: Int = 0
     var lastPasteSummary: String?
+    var capturedTargetName: String?
+    var feedbackMessage: String?
+    var clipboardFeedback: String?
 
     // MARK: - UserDefaults-backed preferences
     //
@@ -162,10 +165,23 @@ final class AppState {
 
     func setStatus(_ newStatus: Status) {
         status = newStatus
+        switch newStatus {
+        case .idle:
+            break
+        case .recording:
+            feedbackMessage = "Recording..."
+            lastPasteSummary = nil
+            clipboardFeedback = nil
+        case .transcribing:
+            feedbackMessage = "Sending audio..."
+        case .error(let message):
+            feedbackMessage = message
+        }
     }
 
     func showError(_ message: String) {
         status = .error(message)
+        feedbackMessage = message
     }
 
     func clearError() {
@@ -175,6 +191,28 @@ final class AppState {
     }
 
     func recordPaste(_ delivery: PasteDelivery) {
-        lastPasteSummary = "Last paste: \(delivery.label)"
+        lastPasteSummary = delivery.userMessage
+        feedbackMessage = delivery.userMessage
+        clipboardFeedback = delivery == .clipboardFallback
+            ? "Text is on the clipboard"
+            : (keepOnClipboard ? "Text kept on clipboard" : "Clipboard restored")
+    }
+
+    func recordTargetCapture(_ target: PasteTarget?) {
+        if let target {
+            capturedTargetName = target.appName.isEmpty ? "Unknown app" : target.appName
+            feedbackMessage = "Target: \(capturedTargetName!)"
+        } else if asyncPasteEnabled {
+            capturedTargetName = nil
+            feedbackMessage = "Target unavailable"
+        } else {
+            capturedTargetName = nil
+        }
+    }
+
+    func clearTransientFeedback() {
+        capturedTargetName = nil
+        feedbackMessage = nil
+        clipboardFeedback = nil
     }
 }

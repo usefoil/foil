@@ -30,6 +30,7 @@ struct MenuBarView: View {
             toolbarActions
             if selectedPanel == .control {
                 statusHeader
+                feedbackPanel
                 lastResultSection
                 quickControls
             } else {
@@ -237,6 +238,34 @@ struct MenuBarView: View {
         }
     }
 
+    private var feedbackPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let target = appState.capturedTargetName {
+                Label("Target: \(target)", systemImage: "scope")
+                    .accessibilityIdentifier("menu.feedback.target")
+            } else if appState.asyncPasteEnabled {
+                Label("Target will be captured when recording starts", systemImage: "scope")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("menu.feedback.targetHelp")
+            }
+
+            if let message = appState.feedbackMessage {
+                Label(message, systemImage: feedbackIcon)
+                    .accessibilityIdentifier("menu.feedback.message")
+            }
+
+            if let clipboard = appState.clipboardFeedback {
+                Label(clipboard, systemImage: "clipboard")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("menu.feedback.clipboard")
+            }
+        }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private var lastResultSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -374,6 +403,19 @@ struct MenuBarView: View {
         case .recording: .red
         case .transcribing: .blue
         case .error: .orange
+        }
+    }
+
+    private var feedbackIcon: String {
+        switch appState.status {
+        case .idle:
+            "checkmark.circle"
+        case .recording:
+            "record.circle"
+        case .transcribing:
+            "arrow.triangle.2.circlepath"
+        case .error:
+            "exclamationmark.triangle"
         }
     }
 
