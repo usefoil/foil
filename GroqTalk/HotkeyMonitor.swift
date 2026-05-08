@@ -111,6 +111,7 @@ final class HotkeyMonitor {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            NSLog("[GroqTalk] HotkeyMonitor: failed to create CGEvent tap")
             return false
         }
 
@@ -179,6 +180,9 @@ final class HotkeyMonitor {
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
 
         let status = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        if status != kIOReturnSuccess {
+            NSLog("[GroqTalk] HotkeyMonitor: failed to open HID manager status=\(status)")
+        }
         return status == kIOReturnSuccess
     }
 
