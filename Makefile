@@ -1,14 +1,44 @@
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -c
+
 APP_NAME := GroqTalk
 BUNDLE_ID := com.neonwatty.GroqTalk
 SCHEME := $(APP_NAME)
 CONFIG := Debug
+LOCAL_SIGN_IDENTITY := GroqTalk Local Code Signing
+LOCAL_SIGN_KEYCHAIN := $(HOME)/Library/Keychains/groqtalk-codesign.keychain-db
+LOCAL_SIGN_KEYCHAIN_PASSWORD ?= groqtalk-local-codesign
+DEFAULT_SIGN_IDENTITY := $(shell security find-identity -p codesigning "$(LOCAL_SIGN_KEYCHAIN)" 2>/dev/null | grep -q '"$(LOCAL_SIGN_IDENTITY)"' && echo "$(LOCAL_SIGN_IDENTITY)" || echo "-")
+SIGN_IDENTITY ?= $(DEFAULT_SIGN_IDENTITY)
+DEVELOPMENT_TEAM ?=
+
+ifeq ($(SIGN_IDENTITY),-)
+SIGNING_FLAGS := CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=NO
+else ifeq ($(SIGN_IDENTITY),$(LOCAL_SIGN_IDENTITY))
+SIGNING_FLAGS := CODE_SIGN_IDENTITY="$(SIGN_IDENTITY)" DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) CODE_SIGN_STYLE=Manual ENABLE_HARDENED_RUNTIME=NO
+else
+SIGNING_FLAGS := CODE_SIGN_IDENTITY="$(SIGN_IDENTITY)" DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) CODE_SIGN_STYLE=Manual
+endif
+
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: build run start stop restart install uninstall clean test
+.PHONY: setup-local-signing setup-release-secrets build unlock-local-signing-keychain run start stop restart install uninstall clean test
 
-build:
-	xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' build 2>&1 | tail -3
+setup-local-signing:
+	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
+
+setup-release-secrets:
+	scripts/set-release-secrets.sh
+
+unlock-local-signing-keychain:
+	@if [ "$(SIGN_IDENTITY)" = "$(LOCAL_SIGN_IDENTITY)" ] && [ -f "$(LOCAL_SIGN_KEYCHAIN)" ]; then \
+		security unlock-keychain -p "$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" "$(LOCAL_SIGN_KEYCHAIN)"; \
+	fi
+
+build: unlock-local-signing-keychain
+	@if [ -d "$(APP_PATH)" ]; then find "$(APP_PATH)" -name '*.cstemp*' -delete; fi
+	xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' $(SIGNING_FLAGS) build 2>&1 | tail -3
 
 run: build
 	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
@@ -36,7 +66,7 @@ uninstall:
 	@echo "Removed /Applications/$(APP_NAME).app"
 
 test:
-	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' 2>&1 | tail -5
+	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkTests 2>&1 | tail -5
 
 clean:
 	xcodebuild -scheme $(SCHEME) clean 2>&1 | tail -3

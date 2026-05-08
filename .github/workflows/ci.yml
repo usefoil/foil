@@ -86,6 +86,7 @@ jobs:
             -scheme GroqTalk \
             -configuration Debug \
             -destination 'platform=macOS' \
+            -only-testing:GroqTalkTests \
             -resultBundlePath TestResults.xcresult \
             | xcpretty --color && exit ${PIPESTATUS[0]}
 
