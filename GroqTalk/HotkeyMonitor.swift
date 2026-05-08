@@ -111,6 +111,7 @@ final class HotkeyMonitor {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            DiagnosticLog.write("HotkeyMonitor: failed to create CGEvent tap")
             return false
         }
 
@@ -181,6 +182,9 @@ final class HotkeyMonitor {
         IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
 
         let status = IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        if status != kIOReturnSuccess {
+            DiagnosticLog.write("HotkeyMonitor: failed to open HID manager status=\(status)")
+        }
         return status == kIOReturnSuccess
     }
 

@@ -598,6 +598,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        guard !AXIsProcessTrusted() else {
+            DiagnosticLog.write("HotkeyMonitor: start failed despite Accessibility trust")
+            appState.showError("Failed to start hotkey monitor — restart GroqTalk")
+            return
+        }
+
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
         appState.setStatus(.error("Enable Accessibility in Settings"))
