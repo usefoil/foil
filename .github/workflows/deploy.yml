@@ -193,7 +193,6 @@ jobs:
             --wait
 
           xcrun stapler staple "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
-          spctl -a -vv -t open "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
 
       - name: Upload DMG to release
         env:
