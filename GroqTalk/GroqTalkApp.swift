@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import SwiftUI
 
@@ -16,7 +17,9 @@ struct GroqTalkApp: App {
                 history: appDelegate.history,
                 onRetry: { [weak appDelegate] in appDelegate?.retryLast() },
                 onPasteLast: { [weak appDelegate] in appDelegate?.pasteLastSuccess() },
-                onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() }
+                onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
+                onOpenAccessibility: { [weak appDelegate] in appDelegate?.openAccessibilitySettings() },
+                onOpenMicrophone: { [weak appDelegate] in appDelegate?.openMicrophoneSettings() }
             )
         } label: {
             appDelegate.menuBarLabel
@@ -142,6 +145,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         configureUITestingIfNeeded()
         configureAutomationSmokeIfNeeded()
+        refreshSetupHealth()
         wireHotkeyMonitor()
         applyHotkeyConfig()
         startFloatingStatusSync()
@@ -169,6 +173,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.hotkeyChoice = .rightCommand
             appState.recordingMode = .hold
             appState.showFloatingStatus = false
+            appState.updateAccessibilityState(isTrusted: true)
+            appState.updateMicrophoneState(isReady: true)
+            appState.apiKeyState = .ready
             appState.lastPasteSummary = nil
             #if DEBUG
             appState.mockTranscriptionEnabled = false
@@ -242,20 +249,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() },
             onOpenHistory: { [weak self] in self?.showUITestHistoryWindow() },
             onOpenSettings: { [weak self] in self?.showUITestSettingsWindow() },
+            onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
+            onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
             onSimulateSuccess: { [weak self] in self?.simulateUITestTranscription(success: true) },
             onSimulateFailure: { [weak self] in self?.simulateUITestTranscription(success: false) }
         )
         .accessibilityIdentifier("uiTest.controlCenter")
-        .frame(width: 360, height: 480)
+        .frame(width: 360, height: 620)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 640),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "GroqTalk UI Test"
-        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 360, height: 480))
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 360, height: 620))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -555,10 +564,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self.appState.clearError()
                 do {
                     try self.audioRecorder.startRecording()
+                    self.appState.updateMicrophoneState(isReady: true)
                     self.appState.setStatus(.recording)
                     self.startRecordingTimer()
                     self.soundPlayer.playStartSound()
                 } catch {
+                    self.appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
                     self.appState.showError("Microphone unavailable")
                 }
             }
@@ -611,6 +622,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 } else {
                     guard let storedApiKey = KeychainHelper.readApiKey() else {
                         self.stopTranscribingAnimation()
+                        self.appState.refreshApiKeyState()
                         self.history.addFailure(error: "No API key", audioFileURL: url)
                         self.appState.showError("No API key — set one via the menu")
                         return
@@ -715,19 +727,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startHotkeyMonitorWithRetry() {
+        appState.refreshApiKeyState()
+        appState.updateAccessibilityState(isTrusted: AXIsProcessTrusted())
         if hotkeyMonitor.start() {
+            appState.updateAccessibilityState(isTrusted: true)
             appState.setStatus(.idle)
             return
         }
 
         guard !AXIsProcessTrusted() else {
             DiagnosticLog.write("HotkeyMonitor: start failed despite Accessibility trust")
+            appState.updateAccessibilityState(isTrusted: false, message: "Restart GroqTalk")
             appState.showError("Failed to start hotkey monitor — restart GroqTalk")
             return
         }
 
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
+        appState.updateAccessibilityState(isTrusted: false)
         appState.setStatus(.error("Enable Accessibility in Settings"))
 
         Task {
@@ -739,11 +756,48 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             if hotkeyMonitor.start() {
+                appState.updateAccessibilityState(isTrusted: true)
                 appState.setStatus(.idle)
             } else {
+                appState.updateAccessibilityState(isTrusted: false, message: "Restart GroqTalk")
                 appState.showError("Failed to start — try restarting GroqTalk")
             }
         }
+    }
+
+    private func refreshSetupHealth() {
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            appState.updateAccessibilityState(isTrusted: true)
+            appState.updateMicrophoneState(isReady: true)
+            appState.apiKeyState = .ready
+            return
+        }
+        appState.refreshApiKeyState()
+        appState.updateAccessibilityState(isTrusted: AXIsProcessTrusted())
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            appState.updateMicrophoneState(isReady: true)
+        case .denied, .restricted:
+            appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
+        case .notDetermined:
+            appState.microphoneState = .unknown
+        @unknown default:
+            appState.microphoneState = .unknown
+        }
+    }
+
+    func openAccessibilitySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
+    func openMicrophoneSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     func retryRecord(_ record: TranscriptionRecord) {

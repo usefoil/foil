@@ -60,6 +60,40 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.status, .recording)
     }
 
+    // MARK: - Setup health
+
+    func testSetupHealthDefaultsUnknownAndDoesNotRequireAttention() {
+        let state = AppState()
+
+        XCTAssertEqual(state.accessibilityState, .unknown)
+        XCTAssertEqual(state.microphoneState, .unknown)
+        XCTAssertEqual(state.apiKeyState, .unknown)
+        XCTAssertFalse(state.needsSetupAttention)
+    }
+
+    func testSetupHealthNeedsAttentionWhenPermissionNeedsAction() {
+        let state = AppState()
+
+        state.updateAccessibilityState(isTrusted: false)
+
+        XCTAssertEqual(state.accessibilityState, .needsAction("Enable Accessibility"))
+        XCTAssertTrue(state.needsSetupAttention)
+        XCTAssertEqual(state.menuBarIcon, "exclamationmark.triangle.fill")
+    }
+
+    func testSetupHealthReadyClearsAttention() {
+        let state = AppState()
+
+        state.updateAccessibilityState(isTrusted: false)
+        state.updateAccessibilityState(isTrusted: true)
+        state.updateMicrophoneState(isReady: true)
+        state.apiKeyState = .ready
+
+        XCTAssertEqual(state.accessibilityState, .ready)
+        XCTAssertFalse(state.needsSetupAttention)
+        XCTAssertEqual(state.menuBarIcon, "waveform")
+    }
+
     // MARK: - Audio format
 
     func testDefaultAudioFormat() {

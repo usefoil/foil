@@ -9,6 +9,8 @@ struct MenuBarView: View {
     var onHotkeyChanged: (() -> Void)?
     var onOpenHistory: (() -> Void)?
     var onOpenSettings: (() -> Void)?
+    var onOpenAccessibility: (() -> Void)?
+    var onOpenMicrophone: (() -> Void)?
     var onSimulateSuccess: (() -> Void)?
     var onSimulateFailure: (() -> Void)?
 
@@ -30,6 +32,7 @@ struct MenuBarView: View {
             toolbarActions
             if selectedPanel == .control {
                 statusHeader
+                setupPanel
                 feedbackPanel
                 lastResultSection
                 quickControls
@@ -40,6 +43,11 @@ struct MenuBarView: View {
         .accessibilityIdentifier("menu.controlCenter")
         .padding(14)
         .frame(width: 360)
+        .onAppear {
+            if !isUITesting {
+                appState.refreshApiKeyState()
+            }
+        }
     }
 
     private var toolbarActions: some View {
@@ -104,6 +112,12 @@ struct MenuBarView: View {
                 }
 
                 settingsSection("Recording") {
+                    permissionRow(
+                        title: "Accessibility",
+                        state: appState.accessibilityState,
+                        actionTitle: "Open Settings",
+                        action: onOpenAccessibility
+                    )
                     Picker("Hotkey", selection: $appState.hotkeyChoice) {
                         Text("Right Command").tag(HotkeyMonitor.HotkeyChoice.rightCommand)
                         Text("Right Option").tag(HotkeyMonitor.HotkeyChoice.rightOption)
@@ -135,16 +149,12 @@ struct MenuBarView: View {
                 }
 
                 settingsSection("Transcription") {
-                    HStack {
-                        Text("Groq API key")
-                        Spacer()
-                        Label(
-                            appState.hasApiKey ? "Saved" : "Missing",
-                            systemImage: appState.hasApiKey ? "checkmark.circle.fill" : "exclamationmark.circle"
-                        )
-                        .foregroundStyle(appState.hasApiKey ? .green : .orange)
-                    }
-
+                    permissionRow(
+                        title: "Groq API key",
+                        state: appState.apiKeyState,
+                        actionTitle: "Change",
+                        action: { openWindow(id: "api-key-setup") }
+                    )
                     Button {
                         openWindow(id: "api-key-setup")
                     } label: {
@@ -214,6 +224,72 @@ struct MenuBarView: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var setupPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Setup")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Label(
+                    appState.needsSetupAttention ? "Needs attention" : "Ready",
+                    systemImage: appState.needsSetupAttention ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(appState.needsSetupAttention ? .orange : .green)
+                .accessibilityIdentifier("menu.setup.summary")
+            }
+
+            permissionRow(
+                title: "Accessibility",
+                state: appState.accessibilityState,
+                actionTitle: "Open Settings",
+                action: onOpenAccessibility
+            )
+            permissionRow(
+                title: "Microphone",
+                state: appState.microphoneState,
+                actionTitle: "Open Settings",
+                action: onOpenMicrophone
+            )
+            permissionRow(
+                title: "Groq API key",
+                state: appState.apiKeyState,
+                actionTitle: "Add Key",
+                action: { openWindow(id: "api-key-setup") }
+            )
+        }
+        .padding(10)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityIdentifier("menu.setup.panel")
+    }
+
+    private func permissionRow(
+        title: String,
+        state: AppState.PermissionState,
+        actionTitle: String?,
+        action: (() -> Void)?
+    ) -> some View {
+        HStack(spacing: 8) {
+            Label(title, systemImage: permissionIcon(for: state))
+                .foregroundStyle(permissionColor(for: state))
+                .accessibilityIdentifier("menu.setup.\(title).label")
+            Spacer()
+            Text(permissionText(for: state))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .accessibilityIdentifier("menu.setup.\(title).state")
+            if let actionTitle, let action {
+                Button(actionTitle) {
+                    action()
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("menu.setup.\(title).action")
+            }
+        }
+        .font(.caption)
     }
 
     private var statusHeader: some View {
@@ -381,7 +457,7 @@ struct MenuBarView: View {
 
     private var statusTitle: String {
         switch appState.status {
-        case .idle: "Ready"
+        case .idle: appState.needsSetupAttention ? "Setup needed" : "Ready"
         case .recording: "Recording \(appState.formattedRecordingDuration)"
         case .transcribing: "Sending audio"
         case .error: "Needs attention"
@@ -391,19 +467,22 @@ struct MenuBarView: View {
     private var statusDetail: String {
         switch appState.status {
         case .idle:
-            "\(hotkeyLabel) is ready. \(appState.asyncPasteEnabled ? "Original-app paste is on." : "Pastes into the current app.")"
+            if appState.needsSetupAttention {
+                return "Finish setup items below before recording."
+            }
+            return "\(hotkeyLabel) is ready. \(appState.asyncPasteEnabled ? "Original-app paste is on." : "Pastes into the current app.")"
         case .recording:
-            appState.recordingMode == .hold ? "Release \(hotkeyLabel) to transcribe." : "Press \(hotkeyLabel) again to stop."
+            return appState.recordingMode == .hold ? "Release \(hotkeyLabel) to transcribe." : "Press \(hotkeyLabel) again to stop."
         case .transcribing:
-            "Transcribing with Groq. Your result will paste automatically."
+            return "Transcribing with Groq. Your result will paste automatically."
         case .error(let message):
-            message
+            return message
         }
     }
 
     private var statusColor: Color {
         switch appState.status {
-        case .idle: .accentColor
+        case .idle: appState.needsSetupAttention ? .orange : .accentColor
         case .recording: .red
         case .transcribing: .blue
         case .error: .orange
@@ -420,6 +499,39 @@ struct MenuBarView: View {
             "arrow.triangle.2.circlepath"
         case .error:
             "exclamationmark.triangle"
+        }
+    }
+
+    private func permissionIcon(for state: AppState.PermissionState) -> String {
+        switch state {
+        case .ready:
+            "checkmark.circle.fill"
+        case .needsAction:
+            "exclamationmark.triangle.fill"
+        case .unknown:
+            "questionmark.circle"
+        }
+    }
+
+    private func permissionColor(for state: AppState.PermissionState) -> Color {
+        switch state {
+        case .ready:
+            .green
+        case .needsAction:
+            .orange
+        case .unknown:
+            .secondary
+        }
+    }
+
+    private func permissionText(for state: AppState.PermissionState) -> String {
+        switch state {
+        case .ready:
+            "Ready"
+        case .needsAction(let message):
+            message
+        case .unknown:
+            "Not checked"
         }
     }
 

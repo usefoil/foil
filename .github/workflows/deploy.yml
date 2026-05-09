@@ -70,93 +70,15 @@ jobs:
           DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
         run: .github/scripts/import-cert.sh
 
-      - name: Prepare export options
+      - name: Build, notarize, and upload DMG
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: sed -i '' "s/\$(APPLE_TEAM_ID)/$APPLE_TEAM_ID/" ExportOptions.plist
-
-      - name: Archive
-        run: |
-          xcodebuild archive \
-            -scheme GroqTalk \
-            -configuration Release \
-            -destination 'platform=macOS' \
-            -archivePath "$RUNNER_TEMP/GroqTalk.xcarchive" \
-            CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}"
-
-      - name: Export app
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/GroqTalk.xcarchive" \
-            -exportPath "$RUNNER_TEMP/export" \
-            -exportOptionsPlist ExportOptions.plist
-
-      - name: Verify app signature
-        run: |
-          codesign --verify --deep --strict "$RUNNER_TEMP/export/GroqTalk.app"
-          codesign -dv "$RUNNER_TEMP/export/GroqTalk.app"
-
-      - name: Install create-dmg
-        run: brew install create-dmg
-
-      - name: Create DMG
-        env:
-          VERSION: ${{ needs.release.outputs.new_release_version }}
-        run: |
-          DMG_ROOT="$RUNNER_TEMP/dmg-root"
-          mkdir -p "$DMG_ROOT"
-          cp -R "$RUNNER_TEMP/export/GroqTalk.app" "$DMG_ROOT/GroqTalk.app"
-
-          create-dmg \
-            --volname "GroqTalk" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "GroqTalk.app" 150 190 \
-            --app-drop-link 450 190 \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            "$DMG_ROOT"
-
-      - name: Sign DMG
-        env:
-          VERSION: ${{ needs.release.outputs.new_release_version }}
-        run: |
-          codesign --force \
-            --sign "Developer ID Application" \
-            --timestamp \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
-
-      - name: Notarize DMG
-        env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          VERSION: ${{ needs.release.outputs.new_release_version }}
-        run: |
-          PRIVATE_KEYS_DIR="$RUNNER_TEMP/private_keys"
-          mkdir -p "$PRIVATE_KEYS_DIR"
-          KEY_PATH="$PRIVATE_KEYS_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
-          printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_PATH"
-          chmod 600 "$KEY_PATH"
-
-          xcrun notarytool submit \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            --key "$KEY_PATH" \
-            --key-id "$APP_STORE_CONNECT_KEY_ID" \
-            --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
-            --wait
-
-          xcrun stapler staple "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
-
-      - name: Upload DMG to release
-        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.release.outputs.new_release_version }}
-        run: |
-          gh release upload "v${VERSION}" \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            --clobber
+        run: .github/scripts/build-release-dmg.sh
 
       - name: Cleanup keychain
         if: always()
@@ -186,93 +108,15 @@ jobs:
           DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
         run: .github/scripts/import-cert.sh
 
-      - name: Prepare export options
+      - name: Build, notarize, and upload DMG
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: sed -i '' "s/\$(APPLE_TEAM_ID)/$APPLE_TEAM_ID/" ExportOptions.plist
-
-      - name: Archive
-        run: |
-          xcodebuild archive \
-            -scheme GroqTalk \
-            -configuration Release \
-            -destination 'platform=macOS' \
-            -archivePath "$RUNNER_TEMP/GroqTalk.xcarchive" \
-            CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}"
-
-      - name: Export app
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/GroqTalk.xcarchive" \
-            -exportPath "$RUNNER_TEMP/export" \
-            -exportOptionsPlist ExportOptions.plist
-
-      - name: Verify app signature
-        run: |
-          codesign --verify --deep --strict "$RUNNER_TEMP/export/GroqTalk.app"
-          codesign -dv "$RUNNER_TEMP/export/GroqTalk.app"
-
-      - name: Install create-dmg
-        run: brew install create-dmg
-
-      - name: Create DMG
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          DMG_ROOT="$RUNNER_TEMP/dmg-root"
-          mkdir -p "$DMG_ROOT"
-          cp -R "$RUNNER_TEMP/export/GroqTalk.app" "$DMG_ROOT/GroqTalk.app"
-
-          create-dmg \
-            --volname "GroqTalk" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "GroqTalk.app" 150 190 \
-            --app-drop-link 450 190 \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            "$DMG_ROOT"
-
-      - name: Sign DMG
-        env:
-          VERSION: ${{ inputs.version }}
-        run: |
-          codesign --force \
-            --sign "Developer ID Application" \
-            --timestamp \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
-
-      - name: Notarize DMG
-        env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          VERSION: ${{ inputs.version }}
-        run: |
-          PRIVATE_KEYS_DIR="$RUNNER_TEMP/private_keys"
-          mkdir -p "$PRIVATE_KEYS_DIR"
-          KEY_PATH="$PRIVATE_KEYS_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
-          printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_PATH"
-          chmod 600 "$KEY_PATH"
-
-          xcrun notarytool submit \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            --key "$KEY_PATH" \
-            --key-id "$APP_STORE_CONNECT_KEY_ID" \
-            --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
-            --wait
-
-          xcrun stapler staple "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
-
-      - name: Upload DMG to release
-        env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
-        run: |
-          gh release upload "v${VERSION}" \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            --clobber
+        run: .github/scripts/build-release-dmg.sh
 
       - name: Cleanup keychain
         if: always()
