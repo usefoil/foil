@@ -25,6 +25,7 @@
 		93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */; };
 		978DAF75F9B4A08618AE57FB /* SkyLightBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B5926CD9068E3CC23EF49D1 /* SkyLightBridge.swift */; };
 		9C5F3BE1ADFE9F40B0DD40A5 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2C48CEFD0EA9409C15CBFB0 /* AppState.swift */; };
+		9F18B70CA87B4E47A1F98D43 /* FloatingStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50B7E31E9D654C18B57372ED /* FloatingStatusView.swift */; };
 		A02E3739EF61ABCCE34BF29F /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF970AE548B49F2AD02AE742 /* AppStateTests.swift */; };
 		A415CE9E58748D266755EEFC /* AudioRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6B0DA7F2F73D239BFCA2B39 /* AudioRecorderTests.swift */; };
 		AA57A1978B56733EAF2BC491 /* PasteQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44A246EE288E9AD76808556 /* PasteQueue.swift */; };
@@ -75,6 +76,7 @@
 		2C56C652164796A12E37BC7F /* TranscriptProcessingMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptProcessingMode.swift; sourceTree = "<group>"; };
 		43A2E33CA96A9F02E59C910A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		47F67C46D628784D812AC1C1 /* GroqTalk.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GroqTalk.entitlements; sourceTree = "<group>"; };
+		50B7E31E9D654C18B57372ED /* FloatingStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingStatusView.swift; sourceTree = "<group>"; };
 		583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		5DA6DFA9E20871913651ECEB /* HistoryPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverView.swift; sourceTree = "<group>"; };
 		70A2013D32CCECA48976685C /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTests.swift; sourceTree = "<group>"; };
@@ -168,6 +170,7 @@
 				9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */,
 				43A2E33CA96A9F02E59C910A /* Info.plist */,
 				86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */,
+				50B7E31E9D654C18B57372ED /* FloatingStatusView.swift */,
 				8C04ACF5F04D33BF75D666AD /* MenuBarView.swift */,
 				C5D41203FA2FD2A66991651C /* PasteDelivery.swift */,
 				A44A246EE288E9AD76808556 /* PasteQueue.swift */,
@@ -308,6 +311,7 @@
 				C0482BD31D4BE0179B102CAC /* HistoryPopoverView.swift in Sources */,
 				44A052BE79DB88DAD67DC34E /* HotkeyMonitor.swift in Sources */,
 				93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */,
+				9F18B70CA87B4E47A1F98D43 /* FloatingStatusView.swift in Sources */,
 				4EC94F8FD46EA59C1D29DBAA /* MenuBarView.swift in Sources */,
 				CF189712B8A96D3DEEECCF2A /* PasteDelivery.swift in Sources */,
 				AA57A1978B56733EAF2BC491 /* PasteQueue.swift in Sources */,

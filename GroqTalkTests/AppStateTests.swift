@@ -10,6 +10,8 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "hotkeyChoice")
         UserDefaults.standard.removeObject(forKey: "language")
         UserDefaults.standard.removeObject(forKey: "asyncPasteEnabled")
+        UserDefaults.standard.removeObject(forKey: "showLiveFeedbackHUD")
+        UserDefaults.standard.removeObject(forKey: "showFloatingStatus")
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptProcessingMode")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupModel")
@@ -88,6 +90,101 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         state.keepOnClipboard = true
         XCTAssertTrue(state.keepOnClipboard)
+    }
+
+    // MARK: - Floating status
+
+    func testDefaultFloatingStatusDisabled() {
+        let state = AppState()
+        XCTAssertFalse(state.showFloatingStatus)
+    }
+
+    func testSetFloatingStatus() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        XCTAssertTrue(state.showFloatingStatus)
+    }
+
+    func testFloatingStatusHiddenWhenIdleWithoutTransientFeedback() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        XCTAssertFalse(state.shouldShowFloatingStatus)
+    }
+
+    func testFloatingStatusVisibleWhileRecordingWhenEnabled() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        state.setStatus(.recording)
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+    }
+
+    func testFloatingStatusVisibleWhileTranscribingWhenEnabled() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        state.setStatus(.transcribing)
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+    }
+
+    func testFloatingStatusVisibleForErrorWhenEnabled() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        state.showError("fail")
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+    }
+
+    func testFloatingStatusVisibleAfterPasteSuccessUntilExpired() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        state.recordPaste(.currentApp)
+
+        XCTAssertEqual(state.transientResult, .pasted(.currentApp))
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+
+        state.expireTransientSuccess()
+        XCTAssertNil(state.transientResult)
+        XCTAssertFalse(state.shouldShowFloatingStatus)
+    }
+
+    func testClipboardFallbackTransientPersistsAfterSuccessExpiry() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        state.recordPaste(.clipboardFallback)
+
+        XCTAssertEqual(state.transientResult, .clipboardFallback)
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+
+        state.expireTransientSuccess()
+        XCTAssertEqual(state.transientResult, .clipboardFallback)
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+    }
+
+    func testFloatingStatusDisabledByPreference() {
+        let state = AppState()
+        state.showFloatingStatus = false
+        state.setStatus(.recording)
+
+        XCTAssertFalse(state.shouldShowFloatingStatus)
+    }
+
+    func testFloatingStatusDismissHidesError() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        state.showError("fail")
+
+        state.hideFloatingStatus()
+
+        XCTAssertFalse(state.shouldShowFloatingStatus)
+    }
+
+    func testEnablingFloatingStatusClearsDismissal() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        state.showError("fail")
+        state.hideFloatingStatus()
+        XCTAssertFalse(state.shouldShowFloatingStatus)
+
+        state.showFloatingStatus = true
+        XCTAssertTrue(state.shouldShowFloatingStatus)
     }
 
     // MARK: - Recording mode
@@ -198,6 +295,18 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.menuBarIcon, "waveform")
     }
 
+    func testMenuBarIconPasteSuccess() {
+        let state = AppState()
+        state.recordPaste(.currentApp)
+        XCTAssertEqual(state.menuBarIcon, "checkmark.circle.fill")
+    }
+
+    func testMenuBarIconClipboardFallback() {
+        let state = AppState()
+        state.recordPaste(.clipboardFallback)
+        XCTAssertEqual(state.menuBarIcon, "clipboard")
+    }
+
     func testMenuBarIconRecording() {
         let state = AppState()
         state.setStatus(.recording)
@@ -240,6 +349,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.lastPasteSummary, "Pasted into the original app")
         XCTAssertEqual(state.feedbackMessage, "Pasted into the original app")
         XCTAssertEqual(state.clipboardFeedback, "Clipboard restored")
+        XCTAssertEqual(state.transientResult, .pasted(.asyncBackground))
     }
 
     func testRecordPasteClipboardFallbackFeedback() {
@@ -249,6 +359,7 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(state.lastPasteSummary, "Target unavailable; text copied to clipboard")
         XCTAssertEqual(state.clipboardFeedback, "Text is on the clipboard")
+        XCTAssertEqual(state.transientResult, .clipboardFallback)
     }
 
     func testRecordTargetCaptureUpdatesFeedback() {

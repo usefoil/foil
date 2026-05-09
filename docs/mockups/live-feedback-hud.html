@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GroqTalk Floating Status Mockup</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f5f7;
+      --text: #17191c;
+      --muted: #676d75;
+      --panel: rgba(255, 255, 255, 0.84);
+      --stroke: rgba(0, 0, 0, 0.1);
+      --shadow: rgba(20, 24, 30, 0.22);
+      --blue: #1d6ee8;
+      --red: #d73535;
+      --green: #1c8f4e;
+      --orange: #c46d12;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #181a1f;
+        --text: #f3f4f6;
+        --muted: #a2a8b2;
+        --panel: rgba(35, 38, 45, 0.84);
+        --stroke: rgba(255, 255, 255, 0.14);
+        --shadow: rgba(0, 0, 0, 0.45);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        linear-gradient(rgba(0, 0, 0, 0.03), rgba(0, 0, 0, 0.03)),
+        var(--bg);
+    }
+
+    .desktop {
+      min-height: 100vh;
+      padding: 52px 28px 28px;
+      position: relative;
+    }
+
+    .menubar {
+      position: fixed;
+      inset: 0 0 auto;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 14px;
+      padding: 0 18px;
+      font-size: 13px;
+      color: var(--muted);
+      background: rgba(246, 247, 249, 0.72);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--stroke);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .menubar { background: rgba(24, 26, 31, 0.72); }
+    }
+
+    .app-window {
+      width: min(760px, calc(100vw - 56px));
+      min-height: 430px;
+      border: 1px solid var(--stroke);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--panel) 72%, transparent);
+      box-shadow: 0 20px 60px var(--shadow);
+      overflow: hidden;
+    }
+
+    .toolbar {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--stroke);
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: #d7dbe2;
+    }
+
+    .content {
+      padding: 28px;
+      max-width: 620px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 24px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 180px;
+      resize: none;
+      border-radius: 8px;
+      border: 1px solid var(--stroke);
+      padding: 14px;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.35);
+      font: inherit;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      textarea { background: rgba(0, 0, 0, 0.18); }
+    }
+
+    .states {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+      margin-top: 28px;
+    }
+
+    .hud {
+      width: 320px;
+      min-height: 94px;
+      display: flex;
+      gap: 12px;
+      padding: 12px 14px;
+      border: 1px solid color-mix(in srgb, var(--state) 24%, var(--stroke));
+      border-radius: 12px;
+      background: var(--panel);
+      box-shadow: 0 14px 38px var(--shadow);
+      backdrop-filter: blur(26px) saturate(1.2);
+    }
+
+    .floating {
+      position: fixed;
+      top: 46px;
+      right: 18px;
+      z-index: 10;
+    }
+
+    .icon {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--state);
+      background: color-mix(in srgb, var(--state) 16%, transparent);
+      font-weight: 700;
+    }
+
+    .body { min-width: 0; flex: 1; }
+
+    .title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 4px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .detail {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .pill {
+      padding: 3px 7px;
+      border: 1px solid var(--stroke);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .close {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .progress {
+      width: 100%;
+      height: 3px;
+      margin-top: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: color-mix(in srgb, var(--state) 18%, transparent);
+    }
+
+    .progress::before {
+      content: "";
+      display: block;
+      width: 45%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--state);
+      animation: slide 1.2s ease-in-out infinite alternate;
+    }
+
+    @keyframes slide {
+      from { transform: translateX(-20%); }
+      to { transform: translateX(140%); }
+    }
+
+    .red { --state: var(--red); }
+    .blue { --state: var(--blue); }
+    .green { --state: var(--green); }
+    .orange { --state: var(--orange); }
+  </style>
+</head>
+<body>
+  <div class="menubar">
+    <span>Sat 10:42 AM</span>
+    <strong>⌁ 0:07</strong>
+  </div>
+
+  <main class="desktop">
+    <section class="app-window" aria-label="Example target app">
+      <div class="toolbar">
+        <span class="dot"></span>
+        <span class="dot"></span>
+        <span class="dot"></span>
+      </div>
+      <div class="content">
+        <h1>Notes</h1>
+        <p>The optional floating status appears only when enabled. By default, GroqTalk communicates through the menu bar and keeps details in the menu.</p>
+        <textarea spellcheck="false">Draft text appears here after paste...</textarea>
+      </div>
+    </section>
+
+    <aside class="hud floating red" aria-label="Floating recording state">
+      <div class="icon">●</div>
+      <div class="body">
+        <div class="title">Recording 0:07</div>
+        <p class="detail">Release Right Command to transcribe.</p>
+        <div class="meta">
+          <span class="pill">Target: Notes</span>
+        </div>
+      </div>
+    </aside>
+
+    <section class="states" aria-label="HUD states">
+      <div class="hud blue">
+        <div class="icon">↻</div>
+        <div class="body">
+          <div class="title">Transcribing</div>
+          <p class="detail">Sending audio to Groq. The result will paste automatically.</p>
+          <div class="progress"></div>
+        </div>
+      </div>
+
+      <div class="hud blue">
+        <div class="icon">↻</div>
+        <div class="body">
+          <div class="title">Cleaning transcript</div>
+          <p class="detail">Applying cleanup before paste.</p>
+          <div class="progress"></div>
+        </div>
+      </div>
+
+      <div class="hud green">
+        <div class="icon">✓</div>
+        <div class="body">
+          <div class="title">Done <span class="close">×</span></div>
+          <p class="detail">Pasted into the original app.</p>
+          <div class="meta">
+            <span class="pill">Clipboard restored</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud orange">
+        <div class="icon">!</div>
+        <div class="body">
+          <div class="title">Copied to clipboard <span class="close">×</span></div>
+          <p class="detail">Target unavailable; text copied to clipboard.</p>
+          <div class="meta">
+            <span class="pill">Text is on the clipboard</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud orange">
+        <div class="icon">!</div>
+        <div class="body">
+          <div class="title">Needs attention <span class="close">×</span></div>
+          <p class="detail">No API key. Set one via the GroqTalk menu.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
