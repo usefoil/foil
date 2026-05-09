@@ -15,6 +15,12 @@ final class AppState {
         case clipboardFallback
     }
 
+    enum PermissionState: Equatable {
+        case unknown
+        case ready
+        case needsAction(String)
+    }
+
     private(set) var status: Status = .idle
 
     // MARK: - Timer state
@@ -29,6 +35,9 @@ final class AppState {
     var transientResult: TransientResult?
     var floatingStatusTransientVisible = false
     var floatingStatusDismissed = false
+    var accessibilityState: PermissionState = .unknown
+    var microphoneState: PermissionState = .unknown
+    var apiKeyState: PermissionState = .unknown
 
     // MARK: - UserDefaults-backed preferences
     //
@@ -100,6 +109,13 @@ final class AppState {
 
     var hasApiKey: Bool { KeychainHelper.readApiKey() != nil }
 
+    var needsSetupAttention: Bool {
+        [accessibilityState, microphoneState, apiKeyState].contains { state in
+            if case .needsAction = state { return true }
+            return false
+        }
+    }
+
     var isError: Bool {
         if case .error = status { return true }
         return false
@@ -119,18 +135,23 @@ final class AppState {
     var menuBarIcon: String {
         switch status {
         case .idle:
+            if needsSetupAttention {
+                return "exclamationmark.triangle.fill"
+            }
             switch transientResult {
             case .pasted:
-                "checkmark.circle.fill"
+                return "checkmark.circle.fill"
             case .clipboardFallback:
-                "clipboard"
+                return "clipboard"
             case nil:
-                "waveform"
+                return "waveform"
             }
-        case .recording: "waveform.circle.fill"
+        case .recording:
+            return "waveform.circle.fill"
         case .transcribing:
-            transcribingIconFrame == 0 ? "ellipsis.circle" : "ellipsis.circle.fill"
-        case .error: "exclamationmark.triangle.fill"
+            return transcribingIconFrame == 0 ? "ellipsis.circle" : "ellipsis.circle.fill"
+        case .error:
+            return "exclamationmark.triangle.fill"
         }
     }
 
@@ -233,6 +254,23 @@ final class AppState {
         transientResult = nil
         floatingStatusDismissed = false
         floatingStatusTransientVisible = false
+    }
+
+    func updateAccessibilityState(
+        isTrusted: Bool,
+        message: String = "Enable Accessibility"
+    ) {
+        accessibilityState = isTrusted
+            ? .ready
+            : .needsAction(message)
+    }
+
+    func updateMicrophoneState(isReady: Bool, message: String = "Allow microphone access") {
+        microphoneState = isReady ? .ready : .needsAction(message)
+    }
+
+    func refreshApiKeyState() {
+        apiKeyState = hasApiKey ? .ready : .needsAction("Add Groq API key")
     }
 
     func clearError() {
