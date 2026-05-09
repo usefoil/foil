@@ -22,6 +22,7 @@ final class GroqTalkUITests: XCTestCase {
 
     func testControlCenterShowsSeededReadyState() {
         XCTAssertTrue(app.staticTexts["Ready"].exists)
+        XCTAssertTrue(app.staticTexts["Right Command · Pastes into current app"].exists)
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
         XCTAssertTrue(app.buttons["History"].exists)
         XCTAssertTrue(app.buttons["Settings"].exists)
@@ -51,6 +52,8 @@ final class GroqTalkUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Setup needed"].exists)
+        XCTAssertTrue(app.staticTexts["Enable Accessibility before recording"].exists)
         XCTAssertTrue(app.staticTexts["Open Privacy & Security and turn on GroqTalk."].exists)
         XCTAssertTrue(app.staticTexts["Open Microphone privacy and allow GroqTalk."].exists)
         XCTAssertTrue(app.staticTexts["Add your Groq API key to enable transcription."].exists)
@@ -147,8 +150,8 @@ final class GroqTalkUITests: XCTestCase {
     func testSimulatedRecordingFailureKeepsRetryVisibleInHistory() {
         app.buttons["Simulate Failure"].click()
 
-        XCTAssertTrue(app.staticTexts["Needs attention"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["Simulated transcription failure"].exists)
+        XCTAssertTrue(app.staticTexts["Simulated transcription failure"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Open History for details"].exists)
 
         app.buttons["History"].click()
         XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))

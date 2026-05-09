@@ -117,6 +117,110 @@ final class AppStateTests: XCTestCase {
         }
     }
 
+    func testReadySessionPresentationUsesHotkeyAndPasteMode() {
+        let state = AppState()
+        state.updateAccessibilityState(isTrusted: true)
+        state.updateMicrophoneState(isReady: true)
+        state.apiKeyState = .ready
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Ready")
+        XCTAssertEqual(presentation.detail, "Right Command · Pastes into current app")
+        XCTAssertEqual(presentation.systemImage, "waveform")
+        XCTAssertEqual(presentation.tone, .neutral)
+        XCTAssertNil(presentation.primaryAction)
+    }
+
+    func testSetupSessionPresentationRoutesToFirstMissingItem() {
+        let state = AppState()
+        state.updateAccessibilityState(isTrusted: false)
+        state.updateMicrophoneState(isReady: false)
+        state.apiKeyState = .needsAction("Add Groq API key")
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Setup needed")
+        XCTAssertEqual(presentation.detail, "Enable Accessibility before recording")
+        XCTAssertEqual(presentation.primaryAction, .openAccessibility)
+        XCTAssertEqual(presentation.tone, .warning)
+    }
+
+    func testRecordingSessionPresentationShowsTimerAndTarget() {
+        let state = AppState()
+        state.asyncPasteEnabled = true
+        state.capturedTargetName = "Notes"
+        state.recordingDuration = 7
+        state.setStatus(.recording)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Recording")
+        XCTAssertEqual(presentation.timerText, "0:07")
+        XCTAssertEqual(presentation.detail, "Target: Notes · Release Right Command to send")
+        XCTAssertEqual(presentation.tone, .active)
+    }
+
+    func testTranscribingSessionPresentationShowsModel() {
+        let state = AppState()
+        state.selectedModel = "whisper-large-v3-turbo"
+        state.setStatus(.transcribing)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Sending audio")
+        XCTAssertEqual(presentation.detail, "Groq · whisper-large-v3-turbo")
+        XCTAssertEqual(presentation.tone, .progress)
+    }
+
+    func testSuccessSessionPresentationOffersPasteAgain() {
+        let state = AppState()
+        state.recordPaste(.currentApp)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: true
+        )
+
+        XCTAssertEqual(presentation.title, "Pasted into the current app")
+        XCTAssertEqual(presentation.detail, "Clipboard restored")
+        XCTAssertEqual(presentation.primaryAction, .pasteAgain)
+        XCTAssertEqual(presentation.tone, .success)
+    }
+
+    func testErrorSessionPresentationRoutesRetryableFailure() {
+        let state = AppState()
+        state.showError("Request timed out")
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: true,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Request timed out")
+        XCTAssertEqual(presentation.detail, "Audio saved · Retry transcription")
+        XCTAssertEqual(presentation.primaryAction, .retry)
+        XCTAssertEqual(presentation.tone, .warning)
+    }
+
     // MARK: - Audio format
 
     func testDefaultAudioFormat() {

@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GroqTalk Session Strip States</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f6f8;
+      --surface: rgba(255, 255, 255, 0.82);
+      --surface-strong: rgba(255, 255, 255, 0.94);
+      --text: #17191d;
+      --muted: #68707b;
+      --quiet: #868e99;
+      --stroke: rgba(0, 0, 0, 0.11);
+      --shadow: rgba(20, 24, 30, 0.18);
+      --accent: #2669d9;
+      --red: #d53a35;
+      --green: #188a4b;
+      --orange: #bf6812;
+      --blue: #2669d9;
+      --control: rgba(0, 0, 0, 0.055);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #181a1f;
+        --surface: rgba(39, 42, 49, 0.82);
+        --surface-strong: rgba(46, 49, 57, 0.94);
+        --text: #f2f4f7;
+        --muted: #a1a8b2;
+        --quiet: #858d98;
+        --stroke: rgba(255, 255, 255, 0.14);
+        --shadow: rgba(0, 0, 0, 0.4);
+        --control: rgba(255, 255, 255, 0.08);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .menubar {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 16px;
+      padding: 0 18px;
+      font-size: 13px;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+      border-bottom: 1px solid var(--stroke);
+      backdrop-filter: blur(20px);
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 24px 40px;
+    }
+
+    .intro {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-end;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      letter-spacing: 0;
+      font-weight: 700;
+    }
+
+    .intro p {
+      margin: 0;
+      max-width: 650px;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 7px;
+      border-radius: 6px;
+      background: var(--control);
+      border: 1px solid var(--stroke);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(320px, 1fr));
+      gap: 14px;
+    }
+
+    .state {
+      min-width: 0;
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow) 65%, transparent);
+      overflow: hidden;
+    }
+
+    .state-header {
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 11px;
+      border-bottom: 1px solid var(--stroke);
+      font-size: 12px;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+    }
+
+    .popover {
+      padding: 12px;
+      width: 360px;
+      max-width: 100%;
+    }
+
+    .session-strip {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      min-height: 50px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+      border: 1px solid var(--stroke);
+    }
+
+    .icon {
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font-size: 14px;
+      background: var(--control);
+      color: var(--accent);
+      flex: none;
+    }
+
+    .ready .icon { color: var(--accent); }
+    .setup .icon,
+    .fail .icon,
+    .clipboard .icon { color: var(--orange); }
+    .recording .icon { color: var(--red); }
+    .sending .icon,
+    .cleaning .icon { color: var(--blue); }
+    .pasted .icon { color: var(--green); }
+
+    .copy {
+      min-width: 0;
+    }
+
+    .title-line {
+      display: flex;
+      align-items: baseline;
+      gap: 7px;
+      min-width: 0;
+      margin-bottom: 2px;
+    }
+
+    .title {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .timer {
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      color: var(--muted);
+      flex: none;
+    }
+
+    .detail {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.28;
+    }
+
+    .action {
+      appearance: none;
+      border: 1px solid var(--stroke);
+      border-radius: 6px;
+      background: var(--control);
+      color: var(--text);
+      padding: 4px 7px;
+      font: inherit;
+      font-size: 12px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .action.primary {
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
+      border-color: color-mix(in srgb, var(--accent) 26%, var(--stroke));
+    }
+
+    .menu-sample {
+      margin-top: 10px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--control) 65%, transparent);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .float-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      margin-top: 10px;
+      padding: 7px 10px;
+      width: fit-content;
+      max-width: 100%;
+      border-radius: 18px;
+      border: 1px solid var(--stroke);
+      background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+      box-shadow: 0 10px 24px var(--shadow);
+      font-size: 12px;
+      color: var(--text);
+    }
+
+    .float-row .muted {
+      color: var(--muted);
+    }
+
+    .signal {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex: none;
+    }
+
+    .recording .signal { background: var(--red); }
+    .pasted .signal { background: var(--green); }
+    .fail .signal,
+    .setup .signal,
+    .clipboard .signal { background: var(--orange); }
+    .sending .signal,
+    .cleaning .signal { background: var(--blue); }
+
+    .pulse {
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.55; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1); }
+    }
+
+    @media (max-width: 760px) {
+      .intro {
+        display: block;
+      }
+
+      .legend {
+        margin-top: 14px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="menubar">
+    <span>GroqTalk</span>
+    <span>Sat 1:12 PM</span>
+  </div>
+
+  <main class="page">
+    <section class="intro">
+      <div>
+        <h1>Session Strip States</h1>
+        <p>Compact state language for the menu popover and optional floating pill. The strip should answer what is happening, where text will go, and what action is available without becoming a dashboard.</p>
+      </div>
+      <div class="legend" aria-label="Design goals">
+        <span><b>Quiet</b> by default</span>
+        <span><b>Inline</b> recovery</span>
+        <span><b>No</b> macOS notifications</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="state ready">
+        <div class="state-header"><span>Ready</span><span>baseline</span></div>
+        <div class="popover">
+          <div class="session-strip">
+            <div class="icon">⌁</div>
+            <div class="copy">
+              <div class="title-line"><div class="title">Ready</div></div>
+              <div class="detail">Right Command · Pastes into current app</div>
+            </div>
+            <button class="action">History</button>
+          </div>
+          <div class="menu-sample">Setup stays collapsed when everything is ready. Last result and quick controls remain below.</div>
+          <div class="float-row"><span class="signal"></span><span>Ready</span><span class="muted">Right Command</span></div>
+        </div>
+      </article>
+
+      <article class="state setup">
+        <div class="state-header"><span>Setup needed</span><span>blocked</span></div>
+        <div class="popover">
+          <div class="session-strip">
+            <div class="icon">!</div>
+            <div class="copy">
+              <div class="title-line"><div class="title">Setup needed</div></div>
+              <div class="detail">Enable Accessibility before recording</div>
+            </div>
+            <button class="action primary">Open</button>
+          </div>
+          <div class="menu-sample">Only failing setup rows expand. Example: "Open Privacy & Security and turn on GroqTalk."</div>
+          <div class="float-row"><span class="signal"></span><span>Setup needed</span><span class="muted">Accessibility</span></div>
+        </div>
+      </article>
+
+      <article class="state recording">
+        <div class="state-header"><span>Recording</span><span>active</span></div>
+        <div class="popover">
+          <div class="session-strip">
+            <div class="icon">●</div>
+            <div class="copy">
+              <div class="title-line"><div class="title">Recording</div><span class="timer">0:07</span></div>
+              <div class="detail">Target: Notes · Release Right Command to send</div>
+            </div>
+            <button class="action">Cancel</button>
+          </div>
+          <div class="menu-sample">Target appears only when original-app paste is enabled. Timer is the strongest confidence signal.</div>
+          <div class="float-row"><span class="signal pulse"></span><span>Recording 0:07</span><span class="muted">Notes</span></div>
+        </div>
+      </article>
+
+      <article class="state sending">
+        <div class="state-header"><span>Sending</span><span>transcription</span></div>
+        <div class="popover">
+          <div class="session-strip">
+            <div class="icon">↻</div>
+            <div class="copy">
+              <div class="title-line"><div class="title">Sending audio</div></div>
+              <div class="detail">Groq · Whisper Large V3 Turbo</div>
+            </div>
+            <button class="action">Stop</button>
+          </div>
+          <div class="menu-sample">Show model/language subtly. Avoid stage churn for very fast requests.</div>
+          <div class="float-row"><span class="signal pulse"></span><span>Sending audio</span><span class="muted">Groq</span></div>
+        </div>
+      </article>
+
+      <article class="state cleaning">
+        <div class="state-header"><span>Cleaning</span><span>optional stage</span></div>
+        <div class="popover">
+          <div class="session-strip">
+            <div class="icon">↻</div>
+            <div class="copy">
+              <div class="title-line"><div class="title">Cleaning transcript</div></div>
+              <div class="detail">Llama 3.3 · Preserving dictated meaning</div>
+            </div>
+            <button class="action">Stop</button>
+          </div>
+          <div class="menu-sample">Only appears when cleanup is enabled and lasts long enough to avoid flicker.</div>
+          <div class="float-row"><span class="signal pulse"></span><span>Cleaning transcript</span></div>
+        </div>
+      </article>
+
+      <article class="state pasted">
+        <div class="state-header"><span>Pasted</span><span>success</span></div>
+        <div class="popover">
+          <div class="session-strip">
+            <div class="icon">✓</div>
+            <div class="copy">
+              <div class="title-line"><div class="title">Pasted into Notes</div></div>
+              <div class="detail">Clipboard restored · 42 words</div>
+            </div>
+            <button class="action">Again</button>
+          </div>
+          <div class="menu-sample">Success should be brief. Last Result below carries transcript preview, Copy, and Paste Again.</div>
+          <div class="float-row"><span class="signal"></span><span>Pasted into Notes</span><span class="muted">Clipboard restored</span></div>
+        </div>
+      </article>
+
+      <article class="state clipboard">
+        <div class="state-header"><span>Clipboard fallback</span><span>recoverable</span></div>
+        <div class="popover">
+          <div class="session-strip">
+            <div class="icon">□</div>
+            <div class="copy">
+              <div class="title-line"><div class="title">Copied to clipboard</div></div>
+              <div class="detail">Paste was blocked in the target app</div>
+            </div>
+            <button class="action">Copy</button>
+          </div>
+          <div class="menu-sample">Fallback is not failure. Make it clear the text is safe and ready to paste manually.</div>
+          <div class="float-row"><span class="signal"></span><span>Copied to clipboard</span></div>
+        </div>
+      </article>
+
+      <article class="state fail">
+        <div class="state-header"><span>Failed</span><span>retryable</span></div>
+        <div class="popover">
+          <div class="session-strip">
+            <div class="icon">!</div>
+            <div class="copy">
+              <div class="title-line"><div class="title">Request timed out</div></div>
+              <div class="detail">Audio saved · Retry transcription</div>
+            </div>
+            <button class="action primary">Retry</button>
+          </div>
+          <div class="menu-sample">Failure action lives next to the error. Preserve the recording when retry is possible.</div>
+          <div class="float-row"><span class="signal"></span><span>Request timed out</span><button class="action primary">Retry</button></div>
+        </div>
+      </article>
+
+      <article class="state fail">
+        <div class="state-header"><span>Failed</span><span>needs setup</span></div>
+        <div class="popover">
+          <div class="session-strip">
+            <div class="icon">!</div>
+            <div class="copy">
+              <div class="title-line"><div class="title">API key missing</div></div>
+              <div class="detail">Add a Groq API key to transcribe</div>
+            </div>
+            <button class="action primary">Add Key</button>
+          </div>
+          <div class="menu-sample">Setup failures route to the fix, not retry. Same strip pattern, different primary action.</div>
+          <div class="float-row"><span class="signal"></span><span>API key missing</span><button class="action primary">Add Key</button></div>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

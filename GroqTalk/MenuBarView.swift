@@ -28,11 +28,19 @@ struct MenuBarView: View {
         history.records.first { !$0.isFailure }
     }
 
+    private var session: AppState.SessionPresentation {
+        appState.sessionPresentation(
+            hotkeyLabel: hotkeyLabel,
+            hasRetryableFailure: history.retryableRecord != nil,
+            hasLastSuccess: lastSuccess?.text != nil
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             toolbarActions
             if selectedPanel == .control {
-                statusHeader
+                sessionStrip
                 setupPanel
                 feedbackPanel
                 lastResultSection
@@ -347,28 +355,54 @@ struct MenuBarView: View {
         }
     }
 
-    private var statusHeader: some View {
+    private var sessionStrip: some View {
         HStack(spacing: 12) {
-            Image(systemName: appState.menuBarIcon)
-                .font(.title2)
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(statusColor)
-                .frame(width: 28)
+            ZStack {
+                Circle()
+                    .fill(sessionColor.opacity(0.14))
+                Image(systemName: session.systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(sessionColor)
+            }
+            .frame(width: 32, height: 32)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(statusTitle)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .accessibilityIdentifier("menu.status.title")
-                Text(statusDetail)
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(session.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .accessibilityIdentifier("menu.status.title")
+                    if let timerText = session.timerText {
+                        Text(timerText)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("menu.status.timer")
+                    }
+                }
+                Text(session.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(1)
                     .accessibilityIdentifier("menu.status.detail")
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
+            if let action = session.primaryAction {
+                Button(action.title) {
+                    performSessionAction(action)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("menu.status.action")
+            }
         }
+        .padding(10)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(sessionColor.opacity(0.18), lineWidth: 1)
+        }
+        .accessibilityIdentifier("menu.sessionStrip")
     }
 
     private var feedbackPanel: some View {
@@ -510,37 +544,37 @@ struct MenuBarView: View {
         }
     }
 
-    private var statusTitle: String {
-        switch appState.status {
-        case .idle: appState.needsSetupAttention ? "Setup needed" : "Ready"
-        case .recording: "Recording \(appState.formattedRecordingDuration)"
-        case .transcribing: "Sending audio"
-        case .error: "Needs attention"
+    private var sessionColor: Color {
+        switch session.tone {
+        case .neutral:
+            .accentColor
+        case .active:
+            .red
+        case .progress:
+            .blue
+        case .success:
+            .green
+        case .warning:
+            .orange
         }
     }
 
-    private var statusDetail: String {
-        switch appState.status {
-        case .idle:
-            if appState.needsSetupAttention {
-                return "Finish setup items below before recording."
+    private func performSessionAction(_ action: AppState.SessionAction) {
+        switch action {
+        case .retry:
+            onRetry?()
+        case .openAccessibility:
+            onOpenAccessibility?()
+        case .openMicrophone:
+            onOpenMicrophone?()
+        case .addKey:
+            openWindow(id: "api-key-setup")
+        case .pasteAgain:
+            onPasteLast?()
+        case .copy:
+            if let text = lastSuccess?.text {
+                copy(text)
             }
-            return "\(hotkeyLabel) is ready. \(appState.asyncPasteEnabled ? "Original-app paste is on." : "Pastes into the current app.")"
-        case .recording:
-            return appState.recordingMode == .hold ? "Release \(hotkeyLabel) to transcribe." : "Press \(hotkeyLabel) again to stop."
-        case .transcribing:
-            return "Transcribing with Groq. Your result will paste automatically."
-        case .error(let message):
-            return message
-        }
-    }
-
-    private var statusColor: Color {
-        switch appState.status {
-        case .idle: appState.needsSetupAttention ? .orange : .accentColor
-        case .recording: .red
-        case .transcribing: .blue
-        case .error: .orange
         }
     }
 
