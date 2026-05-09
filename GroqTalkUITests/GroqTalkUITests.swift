@@ -25,9 +25,18 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
         XCTAssertTrue(app.buttons["History"].exists)
         XCTAssertTrue(app.buttons["Settings"].exists)
+        XCTAssertTrue(app.staticTexts["Test Setup"].exists)
+        XCTAssertTrue(app.buttons["Test"].exists)
         XCTAssertTrue(app.checkBoxes["Paste where recording started"].exists)
         XCTAssertTrue(app.checkBoxes["Show floating status"].exists)
         XCTAssertTrue(app.checkBoxes["Mock Transcription"].exists)
+    }
+
+    func testSetupCheckCanBeRunInline() {
+        app.buttons["Test"].click()
+
+        XCTAssertTrue(app.staticTexts["Setup Tested"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Ready to record"].exists)
     }
 
     func testHistoryWindowOpensAndSearchesSeededRecords() {

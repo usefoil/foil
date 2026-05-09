@@ -94,6 +94,29 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.menuBarIcon, "waveform")
     }
 
+    func testSetupCheckStateTransitions() {
+        let state = AppState()
+
+        XCTAssertEqual(state.setupCheckState, .idle)
+        XCTAssertFalse(state.isSetupCheckRunning)
+
+        state.startSetupCheck()
+        XCTAssertEqual(state.setupCheckState, .running)
+        XCTAssertTrue(state.isSetupCheckRunning)
+
+        state.failSetupCheck("Allow microphone access")
+        XCTAssertEqual(state.setupCheckState, .failed("Allow microphone access"))
+        XCTAssertFalse(state.isSetupCheckRunning)
+
+        state.startSetupCheck()
+        state.completeSetupCheck()
+        if case .passed = state.setupCheckState {
+            XCTAssertFalse(state.isSetupCheckRunning)
+        } else {
+            XCTFail("Expected setup check to pass")
+        }
+    }
+
     // MARK: - Audio format
 
     func testDefaultAudioFormat() {

@@ -21,6 +21,13 @@ final class AppState {
         case needsAction(String)
     }
 
+    enum SetupCheckState: Equatable {
+        case idle
+        case running
+        case passed(Date)
+        case failed(String)
+    }
+
     private(set) var status: Status = .idle
 
     // MARK: - Timer state
@@ -38,6 +45,7 @@ final class AppState {
     var accessibilityState: PermissionState = .unknown
     var microphoneState: PermissionState = .unknown
     var apiKeyState: PermissionState = .unknown
+    var setupCheckState: SetupCheckState = .idle
 
     // MARK: - UserDefaults-backed preferences
     //
@@ -114,6 +122,11 @@ final class AppState {
             if case .needsAction = state { return true }
             return false
         }
+    }
+
+    var isSetupCheckRunning: Bool {
+        if case .running = setupCheckState { return true }
+        return false
     }
 
     var isError: Bool {
@@ -271,6 +284,18 @@ final class AppState {
 
     func refreshApiKeyState() {
         apiKeyState = hasApiKey ? .ready : .needsAction("Add Groq API key")
+    }
+
+    func startSetupCheck() {
+        setupCheckState = .running
+    }
+
+    func completeSetupCheck() {
+        setupCheckState = .passed(Date())
+    }
+
+    func failSetupCheck(_ message: String) {
+        setupCheckState = .failed(message)
     }
 
     func clearError() {
