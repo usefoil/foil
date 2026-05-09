@@ -150,7 +150,6 @@ jobs:
       - name: Verify app signature
         run: |
           codesign --verify --deep --strict "$RUNNER_TEMP/export/GroqTalk.app"
-          spctl -a -vv "$RUNNER_TEMP/export/GroqTalk.app"
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -194,6 +193,7 @@ jobs:
             --wait
 
           xcrun stapler staple "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
+          spctl -a -vv -t open "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
 
       - name: Upload DMG to release
         env:
