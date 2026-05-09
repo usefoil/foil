@@ -128,8 +128,10 @@ final class GroqTalkUITests: XCTestCase {
 
         app.buttons["Simulate Success"].click()
 
-        XCTAssertTrue(app.staticTexts["Sending audio"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Transcribing audio"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Cleaning transcript"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Pasting text"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.staticTexts["Done"].waitForExistence(timeout: 1))
         XCTAssertTrue(app.staticTexts["Mock async paste transcript"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Pasted into the current app"].waitForExistence(timeout: 2))
@@ -140,8 +142,9 @@ final class GroqTalkUITests: XCTestCase {
         app.checkBoxes["Paste where recording started"].click()
         app.buttons["Simulate Success"].click()
 
-        XCTAssertTrue(app.staticTexts["Sending audio"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Transcribing audio"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Pasting text"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.staticTexts["Mock async paste transcript"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Pasted into the test target"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Target: GroqTalk UI Test"].exists)
@@ -150,7 +153,7 @@ final class GroqTalkUITests: XCTestCase {
     func testSimulatedRecordingFailureKeepsRetryVisibleInHistory() {
         app.buttons["Simulate Failure"].click()
 
-        XCTAssertTrue(app.staticTexts["Simulated transcription failure"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Simulated transcription failure"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.staticTexts["Open History for details"].exists)
 
         app.buttons["History"].click()
@@ -162,15 +165,15 @@ final class GroqTalkUITests: XCTestCase {
         app.checkBoxes["Show floating status"].click()
         app.buttons["Simulate Success"].click()
 
-        XCTAssertTrue(app.staticTexts["Sending audio"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Pasted into the current app"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Transcribing audio"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Pasted into the current app"].waitForExistence(timeout: 6))
     }
 
     func testFloatingStatusAutoHidesAfterSuccessWhenEnabled() {
         app.checkBoxes["Show floating status"].click()
         app.buttons["Simulate Success"].click()
 
-        XCTAssertTrue(app.staticTexts["Pasted into the current app"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Pasted into the current app"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.windows["GroqTalk Floating Status"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Ready"].exists)
         XCTAssertTrue(app.staticTexts["Pasted into the current app"].exists)
@@ -180,7 +183,7 @@ final class GroqTalkUITests: XCTestCase {
         app.buttons["Simulate Success"].click()
 
         XCTAssertFalse(app.windows["GroqTalk Floating Status"].waitForExistence(timeout: 1))
-        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.staticTexts["Pasted into the current app"].waitForExistence(timeout: 2))
     }
 
