@@ -162,16 +162,16 @@ final class GroqTalkUITests: XCTestCase {
         app.checkBoxes["Show floating status"].click()
         app.buttons["Simulate Success"].click()
 
-        XCTAssertTrue(app.staticTexts["Transcribing"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Done"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Sending audio"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["Pasted into the current app"].waitForExistence(timeout: 3))
     }
 
     func testFloatingStatusAutoHidesAfterSuccessWhenEnabled() {
         app.checkBoxes["Show floating status"].click()
         app.buttons["Simulate Success"].click()
 
-        XCTAssertTrue(app.staticTexts["Done"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["Done"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Pasted into the current app"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.windows["GroqTalk Floating Status"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Ready"].exists)
         XCTAssertTrue(app.staticTexts["Pasted into the current app"].exists)
     }

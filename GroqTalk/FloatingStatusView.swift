@@ -4,24 +4,39 @@ struct FloatingStatusView: View {
     @Bindable var appState: AppState
     var onDismiss: (() -> Void)?
 
+    private var session: AppState.SessionPresentation {
+        appState.sessionPresentation(
+            hotkeyLabel: hotkeyLabel,
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .center, spacing: 10) {
             ZStack {
                 Circle()
-                    .fill(statusColor.opacity(0.16))
-                Image(systemName: statusIcon)
-                    .font(.system(size: 17, weight: .semibold))
+                    .fill(sessionColor.opacity(0.16))
+                Image(systemName: session.systemImage)
+                    .font(.system(size: 15, weight: .semibold))
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(statusColor)
+                    .foregroundStyle(sessionColor)
             }
-            .frame(width: 34, height: 34)
+            .frame(width: 30, height: 30)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(title)
-                        .font(.headline)
+                    Text(session.title)
+                        .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
                         .accessibilityIdentifier("liveFeedback.title")
+
+                    if let timerText = session.timerText {
+                        Text(timerText)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("liveFeedback.timer")
+                    }
 
                     Spacer(minLength: 8)
 
@@ -39,25 +54,16 @@ struct FloatingStatusView: View {
                     }
                 }
 
-                Text(detail)
+                Text(session.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
                     .accessibilityIdentifier("liveFeedback.detail")
 
                 if showsProgress {
                     ProgressView()
                         .controlSize(.small)
                         .accessibilityIdentifier("liveFeedback.progress")
-                }
-
-                if let target = appState.capturedTargetName {
-                    Label("Target: \(target)", systemImage: "scope")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .accessibilityIdentifier("liveFeedback.target")
                 }
 
                 if let clipboard = appState.clipboardFeedback {
@@ -70,79 +76,29 @@ struct FloatingStatusView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
         .frame(width: 320, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .overlay {
             RoundedRectangle(cornerRadius: 12)
-                .stroke(statusColor.opacity(0.24), lineWidth: 1)
+                .stroke(sessionColor.opacity(0.24), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 10)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("liveFeedback.hud")
     }
 
-    private var title: String {
-        switch appState.status {
-        case .idle:
-            if appState.clipboardFeedback == "Text is on the clipboard" {
-                return "Copied to clipboard"
-            }
-            return "Done"
-        case .recording:
-            return "Recording \(appState.formattedRecordingDuration)"
-        case .transcribing:
-            return "Transcribing"
-        case .error:
-            return "Needs attention"
-        }
-    }
-
-    private var detail: String {
-        switch appState.status {
-        case .idle:
-            return appState.feedbackMessage ?? appState.lastPasteSummary ?? "Ready"
-        case .recording:
-            switch appState.recordingMode {
-            case .hold:
-                return "Release \(hotkeyLabel) to transcribe."
-            case .toggle:
-                return "Press \(hotkeyLabel) again to stop."
-            }
-        case .transcribing:
-            if appState.transcriptProcessingMode == .raw {
-                return "Sending audio to Groq. The result will paste automatically."
-            }
-            return "Sending audio to Groq. Cleanup may run before paste."
-        case .error(let message):
-            return message
-        }
-    }
-
-    private var statusIcon: String {
-        switch appState.status {
-        case .idle:
-            appState.clipboardFeedback == "Text is on the clipboard"
-                ? "clipboard"
-                : "checkmark.circle.fill"
-        case .recording:
-            "record.circle"
-        case .transcribing:
-            "arrow.triangle.2.circlepath"
-        case .error:
-            "exclamationmark.triangle.fill"
-        }
-    }
-
-    private var statusColor: Color {
-        switch appState.status {
-        case .idle:
-            appState.clipboardFeedback == "Text is on the clipboard" ? .orange : .green
-        case .recording:
+    private var sessionColor: Color {
+        switch session.tone {
+        case .neutral:
+            .accentColor
+        case .active:
             .red
-        case .transcribing:
+        case .progress:
             .blue
-        case .error:
+        case .success:
+            .green
+        case .warning:
             .orange
         }
     }

@@ -357,7 +357,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func makeFloatingStatusPanel() -> NSPanel {
-        let size = NSSize(width: 340, height: 132)
+        let size = NSSize(width: 340, height: 96)
         let panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel],
