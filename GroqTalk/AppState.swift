@@ -28,6 +28,42 @@ final class AppState {
         case failed(String)
     }
 
+    enum SessionTone: Equatable {
+        case neutral
+        case active
+        case progress
+        case success
+        case warning
+    }
+
+    enum SessionAction: Equatable {
+        case retry
+        case openAccessibility
+        case openMicrophone
+        case addKey
+        case pasteAgain
+        case copy
+
+        var title: String {
+            switch self {
+            case .retry: "Retry"
+            case .openAccessibility, .openMicrophone: "Open"
+            case .addKey: "Add Key"
+            case .pasteAgain: "Again"
+            case .copy: "Copy"
+            }
+        }
+    }
+
+    struct SessionPresentation: Equatable {
+        let title: String
+        let detail: String
+        let timerText: String?
+        let systemImage: String
+        let tone: SessionTone
+        let primaryAction: SessionAction?
+    }
+
     private(set) var status: Status = .idle
 
     // MARK: - Timer state
@@ -180,6 +216,148 @@ final class AppState {
     var formattedRecordingDuration: String {
         let seconds = Int(recordingDuration)
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+
+    func sessionPresentation(
+        hotkeyLabel: String,
+        hasRetryableFailure: Bool,
+        hasLastSuccess: Bool
+    ) -> SessionPresentation {
+        switch status {
+        case .idle:
+            if let setupPresentation = setupSessionPresentation() {
+                return setupPresentation
+            }
+            switch transientResult {
+            case .pasted:
+                return SessionPresentation(
+                    title: lastPasteSummary ?? "Pasted",
+                    detail: clipboardFeedback ?? "Ready for the next dictation",
+                    timerText: nil,
+                    systemImage: "checkmark.circle.fill",
+                    tone: .success,
+                    primaryAction: hasLastSuccess ? .pasteAgain : nil
+                )
+            case .clipboardFallback:
+                return SessionPresentation(
+                    title: "Copied to clipboard",
+                    detail: "Paste was blocked in the target app",
+                    timerText: nil,
+                    systemImage: "clipboard",
+                    tone: .warning,
+                    primaryAction: hasLastSuccess ? .copy : nil
+                )
+            case nil:
+                return SessionPresentation(
+                    title: "Ready",
+                    detail: "\(hotkeyLabel) · \(asyncPasteEnabled ? "Pastes where recording starts" : "Pastes into current app")",
+                    timerText: nil,
+                    systemImage: "waveform",
+                    tone: .neutral,
+                    primaryAction: nil
+                )
+            }
+        case .recording:
+            let instruction = recordingMode == .hold
+                ? "Release \(hotkeyLabel) to send"
+                : "Press \(hotkeyLabel) again to stop"
+            let target = capturedTargetName.map { "Target: \($0)" }
+            return SessionPresentation(
+                title: "Recording",
+                detail: [target, instruction].compactMap { $0 }.joined(separator: " · "),
+                timerText: formattedRecordingDuration,
+                systemImage: "record.circle",
+                tone: .active,
+                primaryAction: nil
+            )
+        case .transcribing:
+            return SessionPresentation(
+                title: "Sending audio",
+                detail: transcriptionDetail,
+                timerText: nil,
+                systemImage: "arrow.triangle.2.circlepath",
+                tone: .progress,
+                primaryAction: nil
+            )
+        case .error(let message):
+            return SessionPresentation(
+                title: message,
+                detail: errorDetail(for: message, hasRetryableFailure: hasRetryableFailure),
+                timerText: nil,
+                systemImage: "exclamationmark.triangle.fill",
+                tone: .warning,
+                primaryAction: errorAction(for: message, hasRetryableFailure: hasRetryableFailure)
+            )
+        }
+    }
+
+    private func setupSessionPresentation() -> SessionPresentation? {
+        if case .needsAction = accessibilityState {
+            return SessionPresentation(
+                title: "Setup needed",
+                detail: "Enable Accessibility before recording",
+                timerText: nil,
+                systemImage: "exclamationmark.triangle.fill",
+                tone: .warning,
+                primaryAction: .openAccessibility
+            )
+        }
+        if case .needsAction = microphoneState {
+            return SessionPresentation(
+                title: "Setup needed",
+                detail: "Allow microphone access before recording",
+                timerText: nil,
+                systemImage: "exclamationmark.triangle.fill",
+                tone: .warning,
+                primaryAction: .openMicrophone
+            )
+        }
+        if case .needsAction = apiKeyState {
+            return SessionPresentation(
+                title: "Setup needed",
+                detail: "Add a Groq API key to transcribe",
+                timerText: nil,
+                systemImage: "exclamationmark.triangle.fill",
+                tone: .warning,
+                primaryAction: .addKey
+            )
+        }
+        return nil
+    }
+
+    private var transcriptionDetail: String {
+        switch transcriptProcessingMode {
+        case .raw:
+            "Groq · \(selectedModel)"
+        case .cleanUp, .rewriteClearly:
+            "Groq · \(transcriptProcessingMode.displayName) before paste"
+        }
+    }
+
+    private func errorDetail(for message: String, hasRetryableFailure: Bool) -> String {
+        if message.localizedCaseInsensitiveContains("api key") {
+            return "Add a Groq API key to transcribe"
+        }
+        if message.localizedCaseInsensitiveContains("accessibility") {
+            return "Enable GroqTalk in Privacy & Security"
+        }
+        if message.localizedCaseInsensitiveContains("microphone") {
+            return "Check Microphone privacy or audio input"
+        }
+        return hasRetryableFailure ? "Audio saved · Retry transcription" : "Open History for details"
+    }
+
+    private func errorAction(for message: String, hasRetryableFailure: Bool) -> SessionAction? {
+        if message.localizedCaseInsensitiveContains("api key") {
+            return .addKey
+        }
+        if message.localizedCaseInsensitiveContains("accessibility") {
+            return .openAccessibility
+        }
+        if message.localizedCaseInsensitiveContains("microphone") {
+            return .openMicrophone
+        }
+        return hasRetryableFailure ? .retry : nil
     }
 
     init() {
