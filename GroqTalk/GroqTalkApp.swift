@@ -214,6 +214,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.mockTranscriptionEnabled = true
             #endif
             appState.clearError()
+            appState.transcriptionStage = .transcribingAudio
             appState.setStatus(.transcribing)
             startTranscribingAnimation()
             try? await Task.sleep(for: .milliseconds(500))
@@ -497,9 +498,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             startRecordingTimer()
             try? await Task.sleep(for: .milliseconds(300))
             stopRecordingTimer()
+            appState.transcriptionStage = .transcribingAudio
             appState.setStatus(.transcribing)
             startTranscribingAnimation()
-            try? await Task.sleep(for: .milliseconds(800))
+            try? await Task.sleep(for: .milliseconds(1_200))
+            appState.transcriptionStage = .cleaningTranscript
+            try? await Task.sleep(for: .milliseconds(1_200))
+            appState.transcriptionStage = .pasting
+            try? await Task.sleep(for: .milliseconds(1_200))
             stopTranscribingAnimation()
 
             if success {
@@ -612,6 +618,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 DiagnosticLog.write("transcription mode: mock=\(useMockTranscription)")
 
                 self.soundPlayer.playStopSound()
+                self.appState.transcriptionStage = .transcribingAudio
                 self.appState.setStatus(.transcribing)
                 if useMockTranscription {
                     self.appState.feedbackMessage = "Mock transcription..."
@@ -638,6 +645,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         try await Task.sleep(for: .seconds(2))
                         text = "Mock transcription at \(Date().formatted(date: .omitted, time: .standard))"
                     } else if let apiKey {
+                        self.appState.transcriptionStage = .transcribingAudio
                         let rawText = try await self.transcriptionService.transcribe(
                             audioFileURL: url,
                             apiKey: apiKey,
@@ -645,6 +653,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             format: self.appState.selectedAudioFormat,
                             language: self.appState.selectedLanguage
                         )
+                        if self.appState.transcriptProcessingMode != .raw {
+                            self.appState.transcriptionStage = .cleaningTranscript
+                        }
                         text = try await self.transcriptionService.processTranscript(
                             rawText,
                             apiKey: apiKey,
@@ -657,12 +668,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.stopTranscribingAnimation()
                     self.appState.feedbackMessage = "Transcription ready"
                     self.history.addSuccess(text: text)
-                    self.appState.setStatus(.idle)
 
                     let asyncOn = self.appState.asyncPasteEnabled
                     let target = self.pendingTarget
                     self.pendingTarget = nil
                     DiagnosticLog.write("paste decision: asyncOn=\(asyncOn) target=\(String(describing: target))")
+                    self.appState.transcriptionStage = .pasting
 
                     if asyncOn, let target {
                         DiagnosticLog.write("ASYNC PATH: pasting into \(target.appName) pid=\(target.pid)")
@@ -680,6 +691,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         )
                         self.recordPaste(delivery)
                     }
+                    self.appState.setStatus(.idle)
                     try? FileManager.default.removeItem(at: url)
                 } catch {
                     self.stopTranscribingAnimation()
@@ -897,6 +909,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let format = AudioFormat(rawValue: audioURL.pathExtension) ?? appState.selectedAudioFormat
 
         appState.clearError()
+        appState.transcriptionStage = .transcribingAudio
         appState.setStatus(.transcribing)
         appState.feedbackMessage = "Retrying transcription..."
         startTranscribingAnimation()
@@ -916,6 +929,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     format: format,
                     language: appState.selectedLanguage
                 )
+                if appState.transcriptProcessingMode != .raw {
+                    appState.transcriptionStage = .cleaningTranscript
+                }
                 let text = try await transcriptionService.processTranscript(
                     rawText,
                     apiKey: apiKey,
@@ -924,6 +940,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 )
                 stopTranscribingAnimation()
                 history.resolveRetry(id: record.id, text: text)
+                appState.transcriptionStage = .pasting
                 let delivery = await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
                 recordPaste(delivery)
                 appState.setStatus(.idle)

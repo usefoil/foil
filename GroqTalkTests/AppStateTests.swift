@@ -32,6 +32,7 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         state.setStatus(.transcribing)
         XCTAssertEqual(state.status, .transcribing)
+        XCTAssertEqual(state.transcriptionStage, .transcribingAudio)
     }
 
     func testShowErrorSetsErrorStatus() {
@@ -51,6 +52,7 @@ final class AppStateTests: XCTestCase {
         state.showError("will be cleared")
         state.clearError()
         XCTAssertEqual(state.status, .idle)
+        XCTAssertNil(state.transcriptionStage)
     }
 
     func testClearErrorNoOpWhenNotError() {
@@ -176,6 +178,7 @@ final class AppStateTests: XCTestCase {
     func testTranscribingSessionPresentationShowsModel() {
         let state = AppState()
         state.selectedModel = "whisper-large-v3-turbo"
+        state.transcriptionStage = .transcribingAudio
         state.setStatus(.transcribing)
 
         let presentation = state.sessionPresentation(
@@ -184,9 +187,55 @@ final class AppStateTests: XCTestCase {
             hasLastSuccess: false
         )
 
-        XCTAssertEqual(presentation.title, "Sending audio")
+        XCTAssertEqual(presentation.title, "Transcribing audio")
         XCTAssertEqual(presentation.detail, "Groq · whisper-large-v3-turbo")
         XCTAssertEqual(presentation.tone, .progress)
+    }
+
+    func testCleaningSessionPresentationShowsCleanupModel() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+        state.transcriptCleanupModel = "llama-3.3-70b-versatile"
+        state.transcriptionStage = .cleaningTranscript
+        state.setStatus(.transcribing)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Cleaning transcript")
+        XCTAssertEqual(presentation.detail, "llama-3.3-70b-versatile · Clean up")
+        XCTAssertEqual(presentation.systemImage, "sparkles")
+        XCTAssertEqual(presentation.tone, .progress)
+    }
+
+    func testPastingSessionPresentationShowsTarget() {
+        let state = AppState()
+        state.capturedTargetName = "Notes"
+        state.transcriptionStage = .pasting
+        state.setStatus(.transcribing)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Pasting text")
+        XCTAssertEqual(presentation.detail, "Target: Notes")
+        XCTAssertEqual(presentation.systemImage, "arrow.down.doc")
+    }
+
+    func testIdleClearsTranscriptionStage() {
+        let state = AppState()
+        state.setStatus(.transcribing)
+        XCTAssertEqual(state.transcriptionStage, .transcribingAudio)
+
+        state.setStatus(.idle)
+
+        XCTAssertNil(state.transcriptionStage)
     }
 
     func testSuccessSessionPresentationOffersPasteAgain() {

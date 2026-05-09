@@ -15,6 +15,12 @@ final class AppState {
         case clipboardFallback
     }
 
+    enum TranscriptionStage: Equatable {
+        case transcribingAudio
+        case cleaningTranscript
+        case pasting
+    }
+
     enum PermissionState: Equatable {
         case unknown
         case ready
@@ -76,6 +82,7 @@ final class AppState {
     var feedbackMessage: String?
     var clipboardFeedback: String?
     var transientResult: TransientResult?
+    var transcriptionStage: TranscriptionStage?
     var floatingStatusTransientVisible = false
     var floatingStatusDismissed = false
     var accessibilityState: PermissionState = .unknown
@@ -271,14 +278,7 @@ final class AppState {
                 primaryAction: nil
             )
         case .transcribing:
-            return SessionPresentation(
-                title: "Sending audio",
-                detail: transcriptionDetail,
-                timerText: nil,
-                systemImage: "arrow.triangle.2.circlepath",
-                tone: .progress,
-                primaryAction: nil
-            )
+            return transcriptionSessionPresentation()
         case .error(let message):
             return SessionPresentation(
                 title: message,
@@ -325,12 +325,44 @@ final class AppState {
         return nil
     }
 
+    private func transcriptionSessionPresentation() -> SessionPresentation {
+        switch transcriptionStage ?? .transcribingAudio {
+        case .transcribingAudio:
+            return SessionPresentation(
+                title: "Transcribing audio",
+                detail: transcriptionDetail,
+                timerText: nil,
+                systemImage: "waveform.badge.magnifyingglass",
+                tone: .progress,
+                primaryAction: nil
+            )
+        case .cleaningTranscript:
+            return SessionPresentation(
+                title: "Cleaning transcript",
+                detail: "\(transcriptCleanupModel) · \(transcriptProcessingMode.displayName)",
+                timerText: nil,
+                systemImage: "sparkles",
+                tone: .progress,
+                primaryAction: nil
+            )
+        case .pasting:
+            return SessionPresentation(
+                title: "Pasting text",
+                detail: capturedTargetName.map { "Target: \($0)" } ?? "Inserting into current app",
+                timerText: nil,
+                systemImage: "arrow.down.doc",
+                tone: .progress,
+                primaryAction: nil
+            )
+        }
+    }
+
     private var transcriptionDetail: String {
         switch transcriptProcessingMode {
         case .raw:
             "Groq · \(selectedModel)"
         case .cleanUp, .rewriteClearly:
-            "Groq · \(transcriptProcessingMode.displayName) before paste"
+            "Groq · Cleanup follows transcription"
         }
     }
 
@@ -419,8 +451,10 @@ final class AppState {
         status = newStatus
         switch newStatus {
         case .idle:
+            transcriptionStage = nil
             break
         case .recording:
+            transcriptionStage = nil
             floatingStatusDismissed = false
             floatingStatusTransientVisible = false
             transientResult = nil
@@ -430,8 +464,10 @@ final class AppState {
         case .transcribing:
             floatingStatusDismissed = false
             floatingStatusTransientVisible = false
+            transcriptionStage = transcriptionStage ?? .transcribingAudio
             feedbackMessage = "Sending audio..."
         case .error(let message):
+            transcriptionStage = nil
             floatingStatusDismissed = false
             floatingStatusTransientVisible = false
             transientResult = nil
@@ -441,6 +477,7 @@ final class AppState {
 
     func showError(_ message: String) {
         status = .error(message)
+        transcriptionStage = nil
         feedbackMessage = message
         transientResult = nil
         floatingStatusDismissed = false
