@@ -11,6 +11,7 @@ struct MenuBarView: View {
     var onOpenSettings: (() -> Void)?
     var onOpenAccessibility: (() -> Void)?
     var onOpenMicrophone: (() -> Void)?
+    var onRunSetupCheck: (() -> Void)?
     var onSimulateSuccess: (() -> Void)?
     var onSimulateFailure: (() -> Void)?
 
@@ -259,10 +260,36 @@ struct MenuBarView: View {
                 actionTitle: "Add Key",
                 action: { openWindow(id: "api-key-setup") }
             )
+
+            Divider()
+                .opacity(0.5)
+
+            setupCheckRow
         }
         .padding(10)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityIdentifier("menu.setup.panel")
+    }
+
+    private var setupCheckRow: some View {
+        HStack(spacing: 8) {
+            Label(setupCheckTitle, systemImage: setupCheckIcon)
+                .foregroundStyle(setupCheckColor)
+                .accessibilityIdentifier("menu.setup.test.label")
+            Spacer()
+            Text(setupCheckDetail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .accessibilityIdentifier("menu.setup.test.state")
+            Button(setupCheckButtonTitle) {
+                onRunSetupCheck?()
+            }
+            .buttonStyle(.borderless)
+            .disabled(appState.isSetupCheckRunning)
+            .accessibilityIdentifier("menu.setup.test.action")
+        }
+        .font(.caption)
     }
 
     private func permissionRow(
@@ -532,6 +559,65 @@ struct MenuBarView: View {
             message
         case .unknown:
             "Not checked"
+        }
+    }
+
+    private var setupCheckTitle: String {
+        switch appState.setupCheckState {
+        case .idle, .running:
+            "Test Setup"
+        case .passed:
+            "Setup Tested"
+        case .failed:
+            "Setup Check Failed"
+        }
+    }
+
+    private var setupCheckDetail: String {
+        switch appState.setupCheckState {
+        case .idle:
+            "Run local check"
+        case .running:
+            "Checking..."
+        case .passed:
+            "Ready to record"
+        case .failed(let message):
+            message
+        }
+    }
+
+    private var setupCheckButtonTitle: String {
+        switch appState.setupCheckState {
+        case .failed:
+            "Retry"
+        case .running:
+            "Checking"
+        default:
+            "Test"
+        }
+    }
+
+    private var setupCheckIcon: String {
+        switch appState.setupCheckState {
+        case .idle:
+            "checklist"
+        case .running:
+            "arrow.triangle.2.circlepath"
+        case .passed:
+            "checkmark.circle.fill"
+        case .failed:
+            "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var setupCheckColor: Color {
+        switch appState.setupCheckState {
+        case .passed:
+            .green
+        case .failed:
+            .orange
+        case .idle, .running:
+            .secondary
         }
     }
 

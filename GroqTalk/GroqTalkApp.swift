@@ -19,7 +19,8 @@ struct GroqTalkApp: App {
                 onPasteLast: { [weak appDelegate] in appDelegate?.pasteLastSuccess() },
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
                 onOpenAccessibility: { [weak appDelegate] in appDelegate?.openAccessibilitySettings() },
-                onOpenMicrophone: { [weak appDelegate] in appDelegate?.openMicrophoneSettings() }
+                onOpenMicrophone: { [weak appDelegate] in appDelegate?.openMicrophoneSettings() },
+                onRunSetupCheck: { [weak appDelegate] in appDelegate?.runSetupCheck() }
             )
         } label: {
             appDelegate.menuBarLabel
@@ -251,6 +252,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onOpenSettings: { [weak self] in self?.showUITestSettingsWindow() },
             onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
             onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
+            onRunSetupCheck: { [weak self] in self?.runSetupCheck() },
             onSimulateSuccess: { [weak self] in self?.simulateUITestTranscription(success: true) },
             onSimulateFailure: { [weak self] in self?.simulateUITestTranscription(success: false) }
         )
@@ -798,6 +800,80 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSWorkspace.shared.open(url)
+    }
+
+    func runSetupCheck() {
+        guard !appState.isSetupCheckRunning else { return }
+        guard appState.status == .idle || appState.isError else {
+            appState.failSetupCheck("Wait until recording finishes")
+            return
+        }
+
+        appState.startSetupCheck()
+
+        Task { @MainActor in
+            refreshSetupHealth()
+
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+                appState.completeSetupCheck()
+                return
+            }
+
+            guard appState.hasApiKey else {
+                appState.refreshApiKeyState()
+                appState.failSetupCheck("Add Groq API key")
+                return
+            }
+
+            guard AXIsProcessTrusted() else {
+                appState.updateAccessibilityState(isTrusted: false)
+                appState.failSetupCheck("Enable Accessibility")
+                return
+            }
+            appState.updateAccessibilityState(isTrusted: true)
+
+            let microphoneReady = await requestMicrophoneAccessIfNeeded()
+            guard microphoneReady else {
+                appState.updateMicrophoneState(isReady: false)
+                appState.failSetupCheck("Allow microphone access")
+                return
+            }
+            appState.updateMicrophoneState(isReady: true)
+
+            do {
+                try audioRecorder.startRecording()
+                try await Task.sleep(for: .milliseconds(250))
+                let testRecordingURL = try audioRecorder.stopRecording(format: .wav)
+                if let testRecordingURL {
+                    try? FileManager.default.removeItem(at: testRecordingURL)
+                }
+                appState.completeSetupCheck()
+            } catch is CancellationError {
+                audioRecorder.cancelRecording()
+                appState.failSetupCheck("Setup check cancelled")
+            } catch {
+                audioRecorder.cancelRecording()
+                DiagnosticLog.write("setupCheck: microphone engine failed error=\(error.localizedDescription)")
+                appState.failSetupCheck("Microphone unavailable")
+            }
+        }
+    }
+
+    private func requestMicrophoneAccessIfNeeded() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            return true
+        case .denied, .restricted:
+            return false
+        case .notDetermined:
+            return await withCheckedContinuation { continuation in
+                AVCaptureDevice.requestAccess(for: .audio) { granted in
+                    continuation.resume(returning: granted)
+                }
+            }
+        @unknown default:
+            return false
+        }
     }
 
     func retryRecord(_ record: TranscriptionRecord) {
