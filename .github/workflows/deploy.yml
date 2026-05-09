@@ -118,6 +118,15 @@ jobs:
             "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
             "$DMG_ROOT"
 
+      - name: Sign DMG
+        env:
+          VERSION: ${{ needs.release.outputs.new_release_version }}
+        run: |
+          codesign --force \
+            --sign "Developer ID Application" \
+            --timestamp \
+            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
+
       - name: Notarize DMG
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -224,6 +233,15 @@ jobs:
             --app-drop-link 450 190 \
             "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
             "$DMG_ROOT"
+
+      - name: Sign DMG
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          codesign --force \
+            --sign "Developer ID Application" \
+            --timestamp \
+            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
 
       - name: Notarize DMG
         env:
