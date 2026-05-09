@@ -10,6 +10,11 @@ final class AppState {
         case error(String)
     }
 
+    enum TransientResult: Equatable {
+        case pasted(PasteDelivery)
+        case clipboardFallback
+    }
+
     private(set) var status: Status = .idle
 
     // MARK: - Timer state
@@ -21,6 +26,9 @@ final class AppState {
     var capturedTargetName: String?
     var feedbackMessage: String?
     var clipboardFeedback: String?
+    var transientResult: TransientResult?
+    var floatingStatusTransientVisible = false
+    var floatingStatusDismissed = false
 
     // MARK: - UserDefaults-backed preferences
     //
@@ -63,6 +71,15 @@ final class AppState {
         didSet { Self.defaults.set(keepOnClipboard, forKey: "keepOnClipboard") }
     }
 
+    var showFloatingStatus: Bool = false {
+        didSet {
+            Self.defaults.set(showFloatingStatus, forKey: "showFloatingStatus")
+            if showFloatingStatus {
+                floatingStatusDismissed = false
+            }
+        }
+    }
+
     var asyncPasteEnabled: Bool = false {
         didSet { Self.defaults.set(asyncPasteEnabled, forKey: "asyncPasteEnabled") }
     }
@@ -88,9 +105,28 @@ final class AppState {
         return false
     }
 
+    var shouldShowFloatingStatus: Bool {
+        guard showFloatingStatus, !floatingStatusDismissed else { return false }
+        switch status {
+        case .recording, .transcribing, .error:
+            return true
+        case .idle:
+            return floatingStatusTransientVisible
+                && (feedbackMessage != nil || lastPasteSummary != nil || clipboardFeedback != nil)
+        }
+    }
+
     var menuBarIcon: String {
         switch status {
-        case .idle: "waveform"
+        case .idle:
+            switch transientResult {
+            case .pasted:
+                "checkmark.circle.fill"
+            case .clipboardFallback:
+                "clipboard"
+            case nil:
+                "waveform"
+            }
         case .recording: "waveform.circle.fill"
         case .transcribing:
             transcribingIconFrame == 0 ? "ellipsis.circle" : "ellipsis.circle.fill"
@@ -120,6 +156,8 @@ final class AppState {
                 "whisperModel",
                 "audioFormat",
                 "keepOnClipboard",
+                "showLiveFeedbackHUD",
+                "showFloatingStatus",
                 "asyncPasteEnabled",
                 "mockTranscriptionEnabled",
                 "recordingMode",
@@ -137,6 +175,7 @@ final class AppState {
             "whisperModel": "whisper-large-v3-turbo",
             "audioFormat": "m4a",
             "keepOnClipboard": false,
+            "showFloatingStatus": false,
             "asyncPasteEnabled": false,
             "mockTranscriptionEnabled": false,
             "recordingMode": "hold",
@@ -155,6 +194,7 @@ final class AppState {
         transcriptProcessingMode = TranscriptProcessingMode(rawValue: defaults.string(forKey: "transcriptProcessingMode") ?? "") ?? .raw
         transcriptCleanupModel = defaults.string(forKey: "transcriptCleanupModel") ?? "llama-3.3-70b-versatile"
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
+        showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
         #if DEBUG
         mockTranscriptionEnabled = defaults.bool(forKey: "mockTranscriptionEnabled")
@@ -169,12 +209,20 @@ final class AppState {
         case .idle:
             break
         case .recording:
+            floatingStatusDismissed = false
+            floatingStatusTransientVisible = false
+            transientResult = nil
             feedbackMessage = "Recording..."
             lastPasteSummary = nil
             clipboardFeedback = nil
         case .transcribing:
+            floatingStatusDismissed = false
+            floatingStatusTransientVisible = false
             feedbackMessage = "Sending audio..."
         case .error(let message):
+            floatingStatusDismissed = false
+            floatingStatusTransientVisible = false
+            transientResult = nil
             feedbackMessage = message
         }
     }
@@ -182,6 +230,9 @@ final class AppState {
     func showError(_ message: String) {
         status = .error(message)
         feedbackMessage = message
+        transientResult = nil
+        floatingStatusDismissed = false
+        floatingStatusTransientVisible = false
     }
 
     func clearError() {
@@ -196,6 +247,9 @@ final class AppState {
         clipboardFeedback = delivery == .clipboardFallback
             ? "Text is on the clipboard"
             : (keepOnClipboard ? "Text kept on clipboard" : "Clipboard restored")
+        transientResult = delivery == .clipboardFallback ? .clipboardFallback : .pasted(delivery)
+        floatingStatusDismissed = false
+        floatingStatusTransientVisible = true
     }
 
     func recordTargetCapture(_ target: PasteTarget?) {
@@ -214,5 +268,20 @@ final class AppState {
         capturedTargetName = nil
         feedbackMessage = nil
         clipboardFeedback = nil
+        transientResult = nil
+        floatingStatusTransientVisible = false
+        floatingStatusDismissed = false
+    }
+
+    func hideFloatingStatus() {
+        floatingStatusDismissed = true
+    }
+
+    func expireTransientSuccess() {
+        guard case .idle = status else { return }
+        if case .pasted = transientResult {
+            transientResult = nil
+            floatingStatusTransientVisible = false
+        }
     }
 }

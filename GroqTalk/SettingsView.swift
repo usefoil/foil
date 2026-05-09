@@ -39,6 +39,8 @@ struct SettingsView: View {
         Form {
             Toggle("Sound effects", isOn: $appState.soundEffectsEnabled)
                 .accessibilityIdentifier("settings.soundEffectsToggle")
+            Toggle("Show floating status", isOn: $appState.showFloatingStatus)
+                .accessibilityIdentifier("settings.floatingStatusToggle")
             Toggle("Keep final text on clipboard", isOn: $appState.keepOnClipboard)
                 .accessibilityIdentifier("settings.keepClipboardToggle")
         }

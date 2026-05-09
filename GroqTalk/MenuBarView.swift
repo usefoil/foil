@@ -97,6 +97,8 @@ struct MenuBarView: View {
                 settingsSection("General") {
                     Toggle("Sound effects", isOn: $appState.soundEffectsEnabled)
                         .accessibilityIdentifier("menu.settings.soundEffectsToggle")
+                    Toggle("Show floating status", isOn: $appState.showFloatingStatus)
+                        .accessibilityIdentifier("menu.settings.floatingStatusToggle")
                     Toggle("Keep final text on clipboard", isOn: $appState.keepOnClipboard)
                         .accessibilityIdentifier("menu.settings.keepClipboardToggle")
                 }
@@ -345,6 +347,8 @@ struct MenuBarView: View {
                 .accessibilityIdentifier("menu.asyncPasteToggle")
             Toggle("Keep final text on clipboard", isOn: $appState.keepOnClipboard)
                 .accessibilityIdentifier("menu.keepClipboardToggle")
+            Toggle("Show floating status", isOn: $appState.showFloatingStatus)
+                .accessibilityIdentifier("menu.floatingStatusToggle")
 
             Picker("Cleanup", selection: $appState.transcriptProcessingMode) {
                 ForEach(TranscriptProcessingMode.allCases) { mode in

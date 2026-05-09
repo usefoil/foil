@@ -62,6 +62,18 @@ func textValue(in window: AXUIElement) -> String {
     return valueRef as? String ?? ""
 }
 
+func windowTitles(forBundleID bundleID: String) -> [String] {
+    guard let runningApp = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first else {
+        return []
+    }
+
+    let appElement = AXUIElementCreateApplication(runningApp.processIdentifier)
+    var windowsRef: CFTypeRef?
+    AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
+    guard let windows = windowsRef as? [AXUIElement] else { return [] }
+    return windows.map(windowTitle)
+}
+
 func waitUntil(timeout: TimeInterval, poll: TimeInterval = 0.25, _ condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
@@ -98,6 +110,7 @@ run("/usr/bin/defaults", ["write", appBundleID, "keepOnClipboard", "-bool", "fal
 run("/usr/bin/defaults", ["write", appBundleID, "recordingMode", "hold"])
 run("/usr/bin/defaults", ["write", appBundleID, "audioFormat", "m4a"])
 run("/usr/bin/defaults", ["write", appBundleID, "transcriptProcessingMode", "raw"])
+run("/usr/bin/defaults", ["write", appBundleID, "showFloatingStatus", "-bool", "false"])
 
 run("/usr/bin/pkill", ["-x", "GroqTalk"])
 Thread.sleep(forTimeInterval: 1.0)
@@ -167,15 +180,23 @@ let pasted = waitUntil(timeout: 9, poll: 0.5, {
 
 let targetText = textValue(in: targetWindow)
 let log = readDiagnosticLog()
+let groqTalkWindows = windowTitles(forBundleID: appBundleID)
+let floatingStatusVisible = groqTalkWindows.contains { $0 == "GroqTalk Floating Status" }
 
 print()
 print("Diagnostic checks:")
 print(log.contains("automation smoke: requested") ? "✓ automation mock transcription requested" : "✗ automation request not observed")
 print(log.contains("ASYNC PATH") ? "✓ async paste path used" : "✗ async paste path not observed")
 print(log.contains("automation smoke: enabled") ? "✓ automation smoke mode enabled" : "✗ automation smoke mode missing")
+print(!floatingStatusVisible ? "✓ floating status stayed off by default" : "✗ floating status appeared despite default-off preference")
 
 if log.contains("Microphone unavailable") {
     print("ERROR: GroqTalk reported microphone unavailable.")
+    exit(1)
+}
+
+if floatingStatusVisible {
+    print("GroqTalk windows: \(groqTalkWindows)")
     exit(1)
 }
 

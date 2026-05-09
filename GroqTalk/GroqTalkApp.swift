@@ -67,6 +67,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var recordingTimer: Timer?
     private var transcribingTimer: Timer?
+    private var floatingStatusPanel: NSPanel?
+    private var floatingStatusSyncTimer: Timer?
+    private var transientSuccessAutoHideTimer: Timer?
     private var uiTestWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
     private var uiTestSettingsWindow: NSWindow?
@@ -96,8 +99,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 Text(appState.formattedRecordingDuration)
                     .monospacedDigit()
             }
-        default:
+        case .transcribing:
+            HStack(spacing: 4) {
+                Image(systemName: appState.menuBarIcon)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.blue)
+                Text("Sending")
+            }
+        case .error:
             Image(systemName: appState.menuBarIcon)
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.orange)
+        case .idle:
+            switch appState.transientResult {
+            case .pasted:
+                Image(systemName: appState.menuBarIcon)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.green)
+            case .clipboardFallback:
+                Image(systemName: appState.menuBarIcon)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.orange)
+            case nil:
+                Image(systemName: appState.menuBarIcon)
+            }
         }
     }
 
@@ -119,6 +144,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         configureAutomationSmokeIfNeeded()
         wireHotkeyMonitor()
         applyHotkeyConfig()
+        startFloatingStatusSync()
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
             appState.setStatus(.idle)
         } else {
@@ -142,6 +168,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.transcriptCleanupModel = "llama-3.3-70b-versatile"
             appState.hotkeyChoice = .rightCommand
             appState.recordingMode = .hold
+            appState.showFloatingStatus = false
             appState.lastPasteSummary = nil
             #if DEBUG
             appState.mockTranscriptionEnabled = false
@@ -195,13 +222,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                    keepOnClipboard: appState.keepOnClipboard
                ) {
                 DiagnosticLog.write("ASYNC PATH: automation smoke pasted into \(target.appName) pid=\(target.pid)")
-                appState.recordPaste(delivery)
+                recordPaste(delivery)
             } else {
                 let delivery = await textInserter.insert(
                     text: text,
                     keepOnClipboard: appState.keepOnClipboard
                 )
-                appState.recordPaste(delivery)
+                recordPaste(delivery)
             }
         }
     }
@@ -290,6 +317,101 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return hostingView
     }
 
+    // MARK: - Floating status
+
+    private func startFloatingStatusSync() {
+        floatingStatusSyncTimer?.invalidate()
+        floatingStatusSyncTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.syncFloatingStatus()
+            }
+        }
+        syncFloatingStatus()
+    }
+
+    private func syncFloatingStatus() {
+        guard appState.shouldShowFloatingStatus else {
+            floatingStatusPanel?.orderOut(nil)
+            return
+        }
+
+        let panel = floatingStatusPanel ?? makeFloatingStatusPanel()
+        if floatingStatusPanel == nil {
+            floatingStatusPanel = panel
+        }
+        positionFloatingStatusPanel(panel)
+        if !panel.isVisible {
+            panel.orderFrontRegardless()
+        }
+    }
+
+    private func makeFloatingStatusPanel() -> NSPanel {
+        let size = NSSize(width: 340, height: 132)
+        let panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "GroqTalk Floating Status"
+        panel.setAccessibilityIdentifier("floatingStatus.window")
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.hidesOnDeactivate = false
+        panel.isMovableByWindowBackground = false
+        panel.contentView = NSHostingView(
+            rootView: FloatingStatusView(
+                appState: appState,
+                onDismiss: { [weak self] in
+                    self?.appState.hideFloatingStatus()
+                    self?.syncFloatingStatus()
+                }
+            )
+        )
+        return panel
+    }
+
+    private func positionFloatingStatusPanel(_ panel: NSPanel) {
+        let screen = NSScreen.screens.first { screen in
+            screen.frame.contains(NSEvent.mouseLocation)
+        } ?? NSScreen.main
+
+        guard let visibleFrame = screen?.visibleFrame else { return }
+        let margin: CGFloat = 18
+        let size = panel.frame.size
+        let origin = NSPoint(
+            x: visibleFrame.maxX - size.width - margin,
+            y: visibleFrame.maxY - size.height - margin
+        )
+        panel.setFrameOrigin(origin)
+    }
+
+    private func recordPaste(_ delivery: PasteDelivery) {
+        appState.recordPaste(delivery)
+        if delivery != .clipboardFallback {
+            scheduleTransientSuccessAutoHide()
+        }
+    }
+
+    private func scheduleTransientSuccessAutoHide() {
+        transientSuccessAutoHideTimer?.invalidate()
+        transientSuccessAutoHideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.appState.expireTransientSuccess()
+                self?.syncFloatingStatus()
+            }
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        floatingStatusSyncTimer?.invalidate()
+        transientSuccessAutoHideTimer?.invalidate()
+    }
+
     // MARK: - Hotkey configuration
 
     func applyHotkeyConfig() {
@@ -352,7 +474,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func paste(text: String) {
         Task {
             let delivery = await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
-            appState.recordPaste(delivery)
+            recordPaste(delivery)
         }
     }
 
@@ -386,14 +508,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         target: target,
                         keepOnClipboard: appState.keepOnClipboard
                     ) {
-                        appState.recordPaste(delivery)
+                        recordPaste(delivery)
                     }
                 } else {
                     let delivery = await textInserter.insert(
                         text: text,
                         keepOnClipboard: appState.keepOnClipboard
                     )
-                    appState.recordPaste(delivery)
+                    recordPaste(delivery)
                 }
             } else {
                 history.addFailure(error: "Simulated transcription failure", audioFileURL: nil)
@@ -534,7 +656,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             text: text, target: target,
                             keepOnClipboard: self.appState.keepOnClipboard
                         ) {
-                            self.appState.recordPaste(delivery)
+                            self.recordPaste(delivery)
                         }
                     } else {
                         DiagnosticLog.write("SYNC PATH: pasting into current app")
@@ -542,7 +664,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             text: text,
                             keepOnClipboard: self.appState.keepOnClipboard
                         )
-                        self.appState.recordPaste(delivery)
+                        self.recordPaste(delivery)
                     }
                     try? FileManager.default.removeItem(at: url)
                 } catch {
@@ -666,7 +788,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 stopTranscribingAnimation()
                 history.resolveRetry(id: record.id, text: text)
                 let delivery = await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
-                appState.recordPaste(delivery)
+                recordPaste(delivery)
                 appState.setStatus(.idle)
             } catch {
                 stopTranscribingAnimation()

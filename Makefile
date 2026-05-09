@@ -23,7 +23,7 @@ endif
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: setup-local-signing setup-release-secrets build unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-cross-app test-app-smoke test-cleanup-quality qa
+.PHONY: setup-local-signing setup-release-secrets build unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-cross-app test-app-smoke test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -81,6 +81,22 @@ test-app-smoke:
 
 test-cleanup-quality:
 	swift tests/test_cleanup_quality.swift
+
+qa-ci:
+	@echo "=== Unit tests ==="
+	$(MAKE) test
+	@echo ""
+	@echo "=== UI feedback tests ==="
+	$(MAKE) test-ui
+
+qa-local: install
+	@echo "=== Installed app smoke test ==="
+	$(MAKE) test-app-smoke
+	@echo ""
+	@echo "=== Desktop paste integration tests ==="
+	$(MAKE) test-cross-app
+	@echo ""
+	@echo "Run 'make test-cleanup-quality' separately when a local Groq API key is configured."
 
 qa:
 	@echo "=== Unit tests ==="
