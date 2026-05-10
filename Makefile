@@ -23,13 +23,19 @@ endif
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: setup-local-signing setup-release-secrets build unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-cross-app test-app-smoke test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-cross-app test-app-smoke test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
 
 setup-release-secrets:
 	scripts/set-release-secrets.sh
+
+enable-xctest-developer-mode:
+	sudo DevToolsSecurity -enable
+	@if ! id -Gn "$$USER" | tr ' ' '\n' | grep -qx '_developer'; then \
+		sudo dseditgroup -o edit -a "$$USER" -t user _developer; \
+	fi
 
 unlock-local-signing-keychain:
 	@if [ "$(SIGN_IDENTITY)" = "$(LOCAL_SIGN_IDENTITY)" ] && [ -f "$(LOCAL_SIGN_KEYCHAIN)" ]; then \
