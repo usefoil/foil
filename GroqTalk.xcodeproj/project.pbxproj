@@ -34,6 +34,7 @@
 		CF189712B8A96D3DEEECCF2A /* PasteDelivery.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D41203FA2FD2A66991651C /* PasteDelivery.swift */; };
 		D159A8B80B1638CBDCE1C5D6 /* TranscriptionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75751BABD8DCE7F43A5AC08F /* TranscriptionServiceTests.swift */; };
 		D261B42FDD09C2B0E0577E53 /* GroqTalkUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF5C3DB12AFBA88ECBA175F /* GroqTalkUITests.swift */; };
+		7D299B2966D34496A26B3212 /* TextInserterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 085D9F0A10C442AE80C8789D /* TextInserterTests.swift */; };
 		D5CEEFD92523C69C8E9AE87D /* TranscriptionHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E38DF89D2274A959CCAD06AD /* TranscriptionHistoryTests.swift */; };
 		E353F7E3CFB6FC1E8DE25C7E /* HotkeyMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCEF01B35A4285F2AE32E990 /* HotkeyMonitorTests.swift */; };
 		F171EFD9BB5E02DA075979FB /* TranscriptionHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C23DDB33DDC6E657B8221CA /* TranscriptionHistory.swift */; };
@@ -99,6 +100,7 @@
 		C64A6F82CCC4912E445F25A4 /* GroqTalk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GroqTalk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF970AE548B49F2AD02AE742 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
 		E00ED9617CF428F8BF2444B9 /* PasteTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteTargetTests.swift; sourceTree = "<group>"; };
+		085D9F0A10C442AE80C8789D /* TextInserterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserterTests.swift; sourceTree = "<group>"; };
 		E38DF89D2274A959CCAD06AD /* TranscriptionHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistoryTests.swift; sourceTree = "<group>"; };
 		F22AD03CCE8B0FD7392A3D02 /* BackgroundPaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundPaste.swift; sourceTree = "<group>"; };
 		F2C48CEFD0EA9409C15CBFB0 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -131,6 +133,7 @@
 				141E73C78BEF8A8E08F3B838 /* PasteQueueTests.swift */,
 				E00ED9617CF428F8BF2444B9 /* PasteTargetTests.swift */,
 				BF13662526914E0320E811C7 /* SkyLightBridgeTests.swift */,
+				085D9F0A10C442AE80C8789D /* TextInserterTests.swift */,
 				E38DF89D2274A959CCAD06AD /* TranscriptionHistoryTests.swift */,
 				75751BABD8DCE7F43A5AC08F /* TranscriptionServiceTests.swift */,
 			);
@@ -341,6 +344,7 @@
 				733A1997297A35618D3AEA16 /* PasteQueueTests.swift in Sources */,
 				F29F5E45235D5E76726E3154 /* PasteTargetTests.swift in Sources */,
 				BE2469ADB79D939E1A9EE2C8 /* SkyLightBridgeTests.swift in Sources */,
+				7D299B2966D34496A26B3212 /* TextInserterTests.swift in Sources */,
 				D5CEEFD92523C69C8E9AE87D /* TranscriptionHistoryTests.swift in Sources */,
 				D159A8B80B1638CBDCE1C5D6 /* TranscriptionServiceTests.swift in Sources */,
 			);
@@ -468,14 +472,14 @@
 				CODE_SIGN_ENTITLEMENTS = GroqTalk/GroqTalk.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 32;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = GroqTalk/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.GroqTalk;
 				SDKROOT = macosx;
 			};
@@ -562,14 +566,14 @@
 				CODE_SIGN_ENTITLEMENTS = GroqTalk/GroqTalk.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 32;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = GroqTalk/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.8.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.GroqTalk;
 				SDKROOT = macosx;
 			};
