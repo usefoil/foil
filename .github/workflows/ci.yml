@@ -139,6 +139,7 @@ jobs:
           name: coverage-report
           path: coverage.json
           retention-days: 30
+          if-no-files-found: ignore
 
   ui-tests:
     name: UI Tests
