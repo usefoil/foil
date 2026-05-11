@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import GroqTalk
 
@@ -7,7 +8,7 @@ final class BackgroundPasteTests: XCTestCase {
         let result = await BackgroundPaste.attempt(
             text: "hello", target: target, keepOnClipboard: false
         )
-        XCTAssertFalse(result)
+        XCTAssertEqual(result, .failed)
     }
 
     func testAttemptReturnsFalseForInvalidPid() async {
@@ -15,7 +16,7 @@ final class BackgroundPasteTests: XCTestCase {
         let result = await BackgroundPaste.attempt(
             text: "hello", target: target, keepOnClipboard: false
         )
-        XCTAssertFalse(result)
+        XCTAssertEqual(result, .failed)
     }
 
     func testAttemptReturnsFalseForTerminatedProcess() async {
@@ -24,6 +25,77 @@ final class BackgroundPasteTests: XCTestCase {
         let result = await BackgroundPaste.attempt(
             text: "hello", target: target, keepOnClipboard: false
         )
-        XCTAssertFalse(result)
+        XCTAssertEqual(result, .failed)
+    }
+
+    func testGuardedRestoreSkipsWhenClipboardChangesDuringPasteDelay() {
+        let pasteboardName = NSPasteboard.Name("GroqTalkTests.\(UUID().uuidString)")
+        let pasteboard = NSPasteboard(name: pasteboardName)
+        defer { pasteboard.releaseGlobally() }
+
+        pasteboard.clearContents()
+        pasteboard.setString("original clipboard", forType: .string)
+        let saved = TextInserter.savePasteboardContents(pasteboard)
+
+        pasteboard.clearContents()
+        pasteboard.setString("groqtalk paste text", forType: .string)
+        let restoreChangeCount = pasteboard.changeCount
+
+        pasteboard.clearContents()
+        pasteboard.setString("user copied something else", forType: .string)
+
+        let restored = TextInserter.restorePasteboardContents(
+            pasteboard,
+            saved: saved,
+            onlyIfChangeCount: restoreChangeCount
+        )
+
+        XCTAssertFalse(restored)
+        XCTAssertEqual(pasteboard.string(forType: .string), "user copied something else")
+    }
+
+    func testGuardedRestoreRestoresWhenClipboardIsStillPastePayload() {
+        let pasteboardName = NSPasteboard.Name("GroqTalkTests.\(UUID().uuidString)")
+        let pasteboard = NSPasteboard(name: pasteboardName)
+        defer { pasteboard.releaseGlobally() }
+
+        pasteboard.clearContents()
+        pasteboard.setString("original clipboard", forType: .string)
+        let saved = TextInserter.savePasteboardContents(pasteboard)
+
+        pasteboard.clearContents()
+        pasteboard.setString("groqtalk paste text", forType: .string)
+        let restoreChangeCount = pasteboard.changeCount
+
+        let restored = TextInserter.restorePasteboardContents(
+            pasteboard,
+            saved: saved,
+            onlyIfChangeCount: restoreChangeCount
+        )
+
+        XCTAssertTrue(restored)
+        XCTAssertEqual(pasteboard.string(forType: .string), "original clipboard")
+    }
+
+    func testCommandPostedDeliveryMessagesDoNotClaimVerifiedPaste() {
+        XCTAssertEqual(
+            PasteDelivery.currentAppCommandPosted.userMessage,
+            "Paste command sent to the current app"
+        )
+        XCTAssertEqual(
+            PasteDelivery.asyncCommandPosted.userMessage,
+            "Paste command sent to the original app"
+        )
+        XCTAssertEqual(
+            PasteDelivery.asyncChoreography.userMessage,
+            "Paste command sent to the original app"
+        )
+    }
+
+    func testCommandPostedDeliveryLabelsAreDistinctFromVerifiedPaste() {
+        XCTAssertEqual(PasteDelivery.currentAppCommandPosted.label, "current app command posted")
+        XCTAssertEqual(PasteDelivery.asyncCommandPosted.label, "original app command posted")
+        XCTAssertEqual(PasteDelivery.asyncBackground.label, "original app")
+        XCTAssertEqual(PasteDelivery.clipboardFallback.label, "clipboard")
     }
 }

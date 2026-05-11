@@ -16,6 +16,7 @@ struct MenuBarView: View {
     var onSimulateFailure: (() -> Void)?
 
     @State private var selectedPanel: Panel = .control
+    @State private var isShowingClearHistoryConfirmation = false
 
     @Environment(\.openWindow) private var openWindow
 
@@ -56,6 +57,14 @@ struct MenuBarView: View {
             if !isUITesting {
                 appState.refreshApiKeyState()
             }
+        }
+        .alert("Clear History?", isPresented: $isShowingClearHistoryConfirmation) {
+            Button("Clear History", role: .destructive) {
+                history.clear()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes all stored transcripts and any retained failed-audio retry files from this Mac.")
         }
     }
 
@@ -211,9 +220,12 @@ struct MenuBarView: View {
                 settingsSection("Privacy") {
                     LabeledContent("History retention", value: "Last \(TranscriptionHistory.maxRecords) records")
                     LabeledContent("Stored records", value: "\(history.records.count)")
+                    Text("History stays on this Mac. Successful audio is deleted after transcription. Failed audio may be retained locally only for retry, and Clear History deletes those retry files.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     Button("Clear History", role: .destructive) {
-                        history.clear()
+                        isShowingClearHistoryConfirmation = true
                     }
                     .accessibilityIdentifier("menu.settings.clearHistoryButton")
                     .disabled(history.records.isEmpty)

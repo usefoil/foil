@@ -12,17 +12,24 @@ import Foundation
 /// 2. **SkyLight CMD+V** — focus-without-raise + keyboard event injection.
 ///    Requires SkyLight SPIs and auth-signed event posting.
 ///
-/// Returns true on success, false if unavailable or failed (caller
-/// should fall back to Tier 2: window choreography).
+/// Returns a verified result for direct AX insertion, a command-posted
+/// result for SkyLight CMD+V, or failed so the caller can fall back to
+/// Tier 2: window choreography.
 struct BackgroundPaste {
+    enum AttemptResult: Equatable {
+        case failed
+        case verified
+        case commandPosted
+    }
+
     static func attempt(
         text: String,
         target: PasteTarget,
         keepOnClipboard: Bool
-    ) async -> Bool {
+    ) async -> AttemptResult {
         guard target.isValid else {
             DiagnosticLog.write("BackgroundPaste: skipped — invalid target (pid=\(target.pid))")
-            return false
+            return .failed
         }
 
         // Gate: target process must still be running
@@ -30,7 +37,7 @@ struct BackgroundPaste {
               !targetApp.isTerminated
         else {
             DiagnosticLog.write("BackgroundPaste: skipped — target process terminated (pid=\(target.pid))")
-            return false
+            return .failed
         }
 
         // --- Approach 1: AX text insertion ---
@@ -42,26 +49,26 @@ struct BackgroundPaste {
                     NSPasteboard.general.setString(text, forType: .string)
                 }
                 DiagnosticLog.write("BackgroundPaste: AX insertion succeeded for \(target.appName)")
-                return true
+                return .verified
             }
         }
 
         // --- Approach 2: SkyLight focusWithoutRaise + CMD+V ---
         if SkyLightBridge.isAvailable,
            let targetWindowID = target.windowID {
-            let success = await attemptSkyLightPaste(
+            let result = await attemptSkyLightPaste(
                 text: text, target: target,
                 targetWindowID: targetWindowID,
                 keepOnClipboard: keepOnClipboard
             )
-            if success {
-                DiagnosticLog.write("BackgroundPaste: SkyLight CMD+V succeeded for \(target.appName)")
-                return true
+            if result == .commandPosted {
+                DiagnosticLog.write("BackgroundPaste: SkyLight CMD+V posted for \(target.appName)")
+                return result
             }
         }
 
         DiagnosticLog.write("BackgroundPaste: both approaches failed for \(target.appName)")
-        return false
+        return .failed
     }
 
     // MARK: - AX text insertion
@@ -116,20 +123,27 @@ struct BackgroundPaste {
         target: PasteTarget,
         targetWindowID: CGWindowID,
         keepOnClipboard: Bool
-    ) async -> Bool {
-        guard let current = SkyLightBridge.currentFocus() else { return false }
+    ) async -> AttemptResult {
+        guard let current = SkyLightBridge.currentFocus() else { return .failed }
 
         let pasteboard = NSPasteboard.general
         let saved = keepOnClipboard ? [] : TextInserter.savePasteboardContents(pasteboard)
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        let restoreChangeCount = pasteboard.changeCount
 
         let focused = SkyLightBridge.focusWithoutRaise(
             targetPid: target.pid, targetWindowID: targetWindowID
         )
         guard focused else {
-            if !keepOnClipboard { TextInserter.restorePasteboardContents(pasteboard, saved: saved) }
-            return false
+            if !keepOnClipboard {
+                TextInserter.restorePasteboardContents(
+                    pasteboard,
+                    saved: saved,
+                    onlyIfChangeCount: restoreChangeCount
+                )
+            }
+            return .failed
         }
 
         // AX synthetic focus — sync AppKit's internal input routing
@@ -170,10 +184,14 @@ struct BackgroundPaste {
         }
 
         if !keepOnClipboard {
-            TextInserter.restorePasteboardContents(pasteboard, saved: saved)
+            TextInserter.restorePasteboardContents(
+                pasteboard,
+                saved: saved,
+                onlyIfChangeCount: restoreChangeCount
+            )
         }
 
-        return posted
+        return posted ? .commandPosted : .failed
     }
 
 }

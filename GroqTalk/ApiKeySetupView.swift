@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ApiKeySetupView: View {
+    var onSaved: (() -> Void)?
+
     @State private var apiKey = ""
     @State private var errorMessage: String?
     @State private var saved = false
@@ -61,6 +63,7 @@ struct ApiKeySetupView: View {
     private func saveKey() {
         do {
             try KeychainHelper.save(apiKey: apiKey)
+            onSaved?()
             saved = true
             errorMessage = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {

@@ -28,7 +28,11 @@ struct GroqTalkApp: App {
         .menuBarExtraStyle(.window)
 
         Window("GroqTalk Setup", id: "api-key-setup") {
-            ApiKeySetupView()
+            ApiKeySetupView(
+                onSaved: { [weak appDelegate] in
+                    appDelegate?.appState.refreshApiKeyState()
+                }
+            )
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
@@ -593,18 +597,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 DiagnosticLog.write("onRecordingStopped Task executing")
                 self.stopRecordingTimer()
 
+                self.soundPlayer.playStopSound()
+                self.appState.transcriptionStage = .transcribingAudio
+                self.appState.setStatus(.transcribing)
+                self.startTranscribingAnimation()
+
                 let url: URL
                 do {
-                    guard let recordedURL = try self.audioRecorder.stopRecording(
+                    guard let recordedURL = try await self.audioRecorder.stopRecordingAsync(
                         format: self.appState.selectedAudioFormat
                     ) else {
                         DiagnosticLog.write("onRecordingStopped: no audio file, returning")
+                        self.stopTranscribingAnimation()
                         self.appState.setStatus(.idle)
                         return
                     }
                     url = recordedURL
                 } catch {
                     DiagnosticLog.write("onRecordingStopped: error \(error)")
+                    self.stopTranscribingAnimation()
                     self.appState.showError("Failed to save recording")
                     return
                 }
@@ -617,13 +628,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 #endif
                 DiagnosticLog.write("transcription mode: mock=\(useMockTranscription)")
 
-                self.soundPlayer.playStopSound()
-                self.appState.transcriptionStage = .transcribingAudio
-                self.appState.setStatus(.transcribing)
                 if useMockTranscription {
                     self.appState.feedbackMessage = "Mock transcription..."
                 }
-                self.startTranscribingAnimation()
 
                 let apiKey: String?
                 if useMockTranscription {
@@ -781,6 +788,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshSetupHealth() {
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            if ProcessInfo.processInfo.arguments.contains("--seed-setup-unknown") {
+                appState.accessibilityState = .unknown
+                appState.microphoneState = .unknown
+                appState.apiKeyState = .unknown
+                return
+            }
             if ProcessInfo.processInfo.arguments.contains("--seed-setup-failures") {
                 appState.updateAccessibilityState(isTrusted: false)
                 appState.updateMicrophoneState(isReady: false)
@@ -862,7 +875,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 try audioRecorder.startRecording()
                 try await Task.sleep(for: .milliseconds(250))
-                let testRecordingURL = try audioRecorder.stopRecording(format: .wav)
+                let testRecordingURL = try await audioRecorder.stopRecordingAsync(format: .wav)
                 if let testRecordingURL {
                     try? FileManager.default.removeItem(at: testRecordingURL)
                 }

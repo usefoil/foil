@@ -160,11 +160,14 @@ final class AppState {
 
     var hasApiKey: Bool { KeychainHelper.readApiKey() != nil }
 
+    var isSetupReady: Bool {
+        accessibilityState == .ready
+            && microphoneState == .ready
+            && apiKeyState == .ready
+    }
+
     var needsSetupAttention: Bool {
-        [accessibilityState, microphoneState, apiKeyState].contains { state in
-            if case .needsAction = state { return true }
-            return false
-        }
+        !isSetupReady
     }
 
     var isSetupCheckRunning: Bool {
@@ -213,7 +216,7 @@ final class AppState {
 
     var statusText: String {
         switch status {
-        case .idle: "Ready"
+        case .idle: isSetupReady ? "Ready" : "Setup needed"
         case .recording: "Recording..."
         case .transcribing: "Transcribing..."
         case .error(let msg): msg
@@ -292,27 +295,35 @@ final class AppState {
     }
 
     private func setupSessionPresentation() -> SessionPresentation? {
-        if case .needsAction = accessibilityState {
+        if accessibilityState != .ready {
             return SessionPresentation(
                 title: "Setup needed",
-                detail: "Enable Accessibility before recording",
+                detail: setupDetail(
+                    for: accessibilityState,
+                    unknown: "Check Accessibility before recording",
+                    needsAction: "Enable Accessibility before recording"
+                ),
                 timerText: nil,
                 systemImage: "exclamationmark.triangle.fill",
                 tone: .warning,
                 primaryAction: .openAccessibility
             )
         }
-        if case .needsAction = microphoneState {
+        if microphoneState != .ready {
             return SessionPresentation(
                 title: "Setup needed",
-                detail: "Allow microphone access before recording",
+                detail: setupDetail(
+                    for: microphoneState,
+                    unknown: "Check microphone access before recording",
+                    needsAction: "Allow microphone access before recording"
+                ),
                 timerText: nil,
                 systemImage: "exclamationmark.triangle.fill",
                 tone: .warning,
                 primaryAction: .openMicrophone
             )
         }
-        if case .needsAction = apiKeyState {
+        if apiKeyState != .ready {
             return SessionPresentation(
                 title: "Setup needed",
                 detail: "Add a Groq API key to transcribe",
@@ -323,6 +334,21 @@ final class AppState {
             )
         }
         return nil
+    }
+
+    private func setupDetail(
+        for state: PermissionState,
+        unknown: String,
+        needsAction: String
+    ) -> String {
+        switch state {
+        case .unknown:
+            unknown
+        case .needsAction:
+            needsAction
+        case .ready:
+            ""
+        }
     }
 
     private func transcriptionSessionPresentation() -> SessionPresentation {

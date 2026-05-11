@@ -44,11 +44,12 @@ enum Language: String, CaseIterable, Codable {
     }
 }
 
-final class AudioRecorder {
+final class AudioRecorder: @unchecked Sendable {
     private var audioEngine: AVAudioEngine?
     private var buffers: [AVAudioPCMBuffer] = []
     private var conversionErrorCount = 0
     private let bufferQueue = DispatchQueue(label: "com.neonwatty.groqtalk.audiobuffers")
+    private let encodingQueue = DispatchQueue(label: "com.neonwatty.groqtalk.audioencoding", qos: .userInitiated)
 
     private static let targetSampleRate: Double = 16000
     private static let targetChannels: AVAudioChannelCount = 1
@@ -105,6 +106,27 @@ final class AudioRecorder {
     /// Returns nil if no recording was active or no audio was captured (benign short press).
     /// Throws if audio was captured but encoding failed, or if all buffers were lost to conversion errors.
     func stopRecording(format: AudioFormat = .wav) throws -> URL? {
+        let capturedAudio = try stopAndCaptureRecording()
+        return try encodeCapturedAudio(capturedAudio, format: format)
+    }
+
+    /// Stops recording immediately, then encodes captured audio off the caller's actor.
+    /// Engine/tap teardown stays synchronous so recording state is finalized before UI updates.
+    func stopRecordingAsync(format: AudioFormat = .wav) async throws -> URL? {
+        let capturedAudio = try stopAndCaptureRecording()
+        return try await withCheckedThrowingContinuation { continuation in
+            encodingQueue.async { [self] in
+                do {
+                    let url = try encodeCapturedAudio(capturedAudio, format: format)
+                    continuation.resume(returning: url)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private func stopAndCaptureRecording() throws -> CapturedAudio? {
         guard let engine = audioEngine else { return nil }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
@@ -120,6 +142,13 @@ final class AudioRecorder {
             throw RecordingError.conversionFailed(errorCount: errors)
         }
         guard !captured.isEmpty else { return nil }
+        return CapturedAudio(buffers: captured, conversionErrorCount: errors)
+    }
+
+    private func encodeCapturedAudio(_ capturedAudio: CapturedAudio?, format: AudioFormat) throws -> URL? {
+        guard let capturedAudio else { return nil }
+        let captured = capturedAudio.buffers
+        let errors = capturedAudio.conversionErrorCount
         let frameCount = captured.reduce(0) { $0 + Int($1.frameLength) }
         DiagnosticLog.write(
             "audioRecorder: captured buffers=\(captured.count) frames=\(frameCount) conversionErrors=\(errors) format=\(format.rawValue)"
@@ -205,5 +234,10 @@ final class AudioRecorder {
     enum RecordingError: Error {
         case formatConversionFailed
         case conversionFailed(errorCount: Int)
+    }
+
+    private struct CapturedAudio {
+        let buffers: [AVAudioPCMBuffer]
+        let conversionErrorCount: Int
     }
 }

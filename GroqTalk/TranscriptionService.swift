@@ -1,8 +1,19 @@
 import Foundation
 
+protocol TranscriptionTransport {
+    func data(for request: URLRequest) async throws -> (Data, URLResponse)
+}
+
+extension URLSession: TranscriptionTransport {}
+
 struct TranscriptionService {
     private let endpoint = URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
     private let chatEndpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
+    private let transport: TranscriptionTransport
+
+    init(transport: TranscriptionTransport = URLSession.shared) {
+        self.transport = transport
+    }
 
     func transcribe(audioFileURL: URL, apiKey: String, model: String, format: AudioFormat = .wav, language: Language = .auto) async throws -> String {
         let boundary = UUID().uuidString
@@ -19,7 +30,7 @@ struct TranscriptionService {
             "transcribe: sending format=\(format.rawValue) audioBytes=\(audioSize) bodyBytes=\(bodySize) model=\(model) language=\(language.rawValue)"
         )
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await transport.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             DiagnosticLog.write("transcribe: invalid response type")
             throw TranscriptionError.invalidResponse
@@ -62,7 +73,7 @@ struct TranscriptionService {
         request.httpBody = try buildTranscriptProcessingBody(transcript: transcript, mode: mode, model: model)
 
         DiagnosticLog.write("processTranscript: sending mode=\(mode.rawValue) model=\(model) inputLength=\(transcript.count)")
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await transport.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             DiagnosticLog.write("processTranscript: invalid response type")
             throw TranscriptionError.invalidResponse
