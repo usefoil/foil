@@ -11,15 +11,20 @@ struct TextInserter {
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        let restoreChangeCount = pasteboard.changeCount
 
         simulatePaste()
 
         try? await Task.sleep(for: .milliseconds(100))
 
         if !keepOnClipboard {
-            Self.restorePasteboardContents(pasteboard, saved: saved)
+            Self.restorePasteboardContents(
+                pasteboard,
+                saved: saved,
+                onlyIfChangeCount: restoreChangeCount
+            )
         }
-        return .currentApp
+        return .currentAppCommandPosted
     }
 
     /// Paste text into a previously captured target window, then return focus
@@ -67,11 +72,15 @@ struct TextInserter {
     @discardableResult
     func insertAsync(text: String, target: PasteTarget, keepOnClipboard: Bool) async -> PasteDelivery {
         // Tier 1: SkyLight background paste (invisible)
-        if await BackgroundPaste.attempt(
+        let backgroundResult = await BackgroundPaste.attempt(
             text: text, target: target, keepOnClipboard: keepOnClipboard
-        ) {
-            DiagnosticLog.write("insertAsync: Tier 1 (SkyLight) succeeded for \(target.appName)")
+        )
+        if backgroundResult == .verified {
+            DiagnosticLog.write("insertAsync: Tier 1 (AX) verified for \(target.appName)")
             return .asyncBackground
+        } else if backgroundResult == .commandPosted {
+            DiagnosticLog.write("insertAsync: Tier 1 (SkyLight) command posted for \(target.appName)")
+            return .asyncCommandPosted
         }
 
         // Tier 2: Window choreography (existing behavior)
@@ -92,17 +101,24 @@ struct TextInserter {
         return saved
     }
 
+    @discardableResult
     static func restorePasteboardContents(
         _ pb: NSPasteboard,
-        saved: [(NSPasteboard.PasteboardType, Data)]
-    ) {
+        saved: [(NSPasteboard.PasteboardType, Data)],
+        onlyIfChangeCount expectedChangeCount: Int? = nil
+    ) -> Bool {
+        if let expectedChangeCount, pb.changeCount != expectedChangeCount {
+            DiagnosticLog.write("TextInserter.restorePasteboardContents: skipped — pasteboard changed during paste delay")
+            return false
+        }
         pb.clearContents()
-        guard !saved.isEmpty else { return }
+        guard !saved.isEmpty else { return true }
         let item = NSPasteboardItem()
         for (type, data) in saved {
             item.setData(data, forType: type)
         }
         pb.writeObjects([item])
+        return true
     }
 
     private func simulatePaste() {

@@ -7,6 +7,7 @@ struct SettingsView: View {
     var onHotkeyChanged: (() -> Void)?
 
     @Environment(\.openWindow) private var openWindow
+    @State private var isShowingClearHistoryConfirmation = false
 
     var body: some View {
         TabView {
@@ -33,6 +34,14 @@ struct SettingsView: View {
         .accessibilityIdentifier("settings.root")
         .scenePadding()
         .frame(width: 520, height: 360)
+        .alert("Clear History?", isPresented: $isShowingClearHistoryConfirmation) {
+            Button("Clear History", role: .destructive) {
+                history.clear()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes all stored transcripts and any retained failed-audio retry files from this Mac.")
+        }
     }
 
     private var generalSettings: some View {
@@ -135,7 +144,7 @@ struct SettingsView: View {
         Form {
             LabeledContent("History retention", value: "Last \(TranscriptionHistory.maxRecords) records")
             LabeledContent("Stored records", value: "\(history.records.count)")
-            Text("History is stored locally on this Mac. Successful audio files are deleted after transcription; failed audio may be kept temporarily for retry.")
+            Text("History is stored locally on this Mac. Successful audio files are deleted after transcription. When transcription fails, the failed audio may be retained locally only so you can retry it, and Clear History deletes those retained retry files.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -145,7 +154,7 @@ struct SettingsView: View {
                 }
                 .accessibilityIdentifier("settings.openDataFolderButton")
                 Button("Clear History", role: .destructive) {
-                    history.clear()
+                    isShowingClearHistoryConfirmation = true
                 }
                 .accessibilityIdentifier("settings.clearHistoryButton")
                 .disabled(history.records.isEmpty)

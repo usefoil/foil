@@ -3,7 +3,25 @@ import XCTest
 
 @MainActor
 final class AppStateTests: XCTestCase {
+    private var testDirectory: URL!
+
+    override func setUpWithError() throws {
+        testDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GroqTalkAppStateTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: testDirectory, withIntermediateDirectories: true)
+        KeychainHelper.storageDirectoryOverride = testDirectory
+        KeychainHelper.serviceOverride = "com.neonwatty.GroqTalk.app-state-tests.\(UUID().uuidString)"
+        KeychainHelper.accountOverride = "groq-api-key-app-state-tests"
+    }
+
     override func tearDown() {
+        KeychainHelper.delete()
+        KeychainHelper.storageDirectoryOverride = nil
+        KeychainHelper.serviceOverride = nil
+        KeychainHelper.accountOverride = nil
+        try? FileManager.default.removeItem(at: testDirectory)
+        testDirectory = nil
+
         UserDefaults.standard.removeObject(forKey: "audioFormat")
         UserDefaults.standard.removeObject(forKey: "keepOnClipboard")
         UserDefaults.standard.removeObject(forKey: "recordingMode")
@@ -15,6 +33,12 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptProcessingMode")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupModel")
+    }
+
+    private func markSetupReady(_ state: AppState) {
+        state.updateAccessibilityState(isTrusted: true)
+        state.updateMicrophoneState(isReady: true)
+        state.apiKeyState = .ready
     }
 
     func testInitialStatusIsIdle() {
@@ -64,13 +88,14 @@ final class AppStateTests: XCTestCase {
 
     // MARK: - Setup health
 
-    func testSetupHealthDefaultsUnknownAndDoesNotRequireAttention() {
+    func testSetupHealthDefaultsUnknownAndRequiresAttention() {
         let state = AppState()
 
         XCTAssertEqual(state.accessibilityState, .unknown)
         XCTAssertEqual(state.microphoneState, .unknown)
         XCTAssertEqual(state.apiKeyState, .unknown)
-        XCTAssertFalse(state.needsSetupAttention)
+        XCTAssertFalse(state.isSetupReady)
+        XCTAssertTrue(state.needsSetupAttention)
     }
 
     func testSetupHealthNeedsAttentionWhenPermissionNeedsAction() {
@@ -91,9 +116,39 @@ final class AppStateTests: XCTestCase {
         state.updateMicrophoneState(isReady: true)
         state.apiKeyState = .ready
 
+        XCTAssertTrue(state.isSetupReady)
         XCTAssertEqual(state.accessibilityState, .ready)
         XCTAssertFalse(state.needsSetupAttention)
         XCTAssertEqual(state.menuBarIcon, "waveform")
+    }
+
+    func testUnknownSetupSessionPresentationDoesNotReportReady() {
+        let state = AppState()
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Setup needed")
+        XCTAssertEqual(presentation.detail, "Check Accessibility before recording")
+        XCTAssertEqual(presentation.primaryAction, .openAccessibility)
+        XCTAssertEqual(presentation.tone, .warning)
+        XCTAssertEqual(state.statusText, "Setup needed")
+        XCTAssertEqual(state.menuBarIcon, "exclamationmark.triangle.fill")
+    }
+
+    func testRefreshApiKeyStateReflectsSavedKey() throws {
+        let state = AppState()
+
+        state.refreshApiKeyState()
+        XCTAssertEqual(state.apiKeyState, .needsAction("Add Groq API key"))
+
+        try KeychainHelper.save(apiKey: "test-key")
+        state.refreshApiKeyState()
+
+        XCTAssertEqual(state.apiKeyState, .ready)
     }
 
     func testSetupCheckStateTransitions() {
@@ -240,6 +295,7 @@ final class AppStateTests: XCTestCase {
 
     func testSuccessSessionPresentationOffersPasteAgain() {
         let state = AppState()
+        markSetupReady(state)
         state.recordPaste(.currentApp)
 
         let presentation = state.sessionPresentation(
@@ -477,6 +533,12 @@ final class AppStateTests: XCTestCase {
 
     func testStatusTextIdle() {
         let state = AppState()
+        XCTAssertEqual(state.statusText, "Setup needed")
+    }
+
+    func testStatusTextReadyWhenSetupReady() {
+        let state = AppState()
+        markSetupReady(state)
         XCTAssertEqual(state.statusText, "Ready")
     }
 
@@ -502,17 +564,25 @@ final class AppStateTests: XCTestCase {
 
     func testMenuBarIconIdle() {
         let state = AppState()
+        XCTAssertEqual(state.menuBarIcon, "exclamationmark.triangle.fill")
+    }
+
+    func testMenuBarIconReadyWhenSetupReady() {
+        let state = AppState()
+        markSetupReady(state)
         XCTAssertEqual(state.menuBarIcon, "waveform")
     }
 
     func testMenuBarIconPasteSuccess() {
         let state = AppState()
+        markSetupReady(state)
         state.recordPaste(.currentApp)
         XCTAssertEqual(state.menuBarIcon, "checkmark.circle.fill")
     }
 
     func testMenuBarIconClipboardFallback() {
         let state = AppState()
+        markSetupReady(state)
         state.recordPaste(.clipboardFallback)
         XCTAssertEqual(state.menuBarIcon, "clipboard")
     }

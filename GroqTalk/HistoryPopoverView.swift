@@ -15,6 +15,8 @@ struct HistoryPopoverView: View {
 
     @State private var searchText = ""
     @State private var filter: Filter = .all
+    @State private var isShowingClearConfirmation = false
+    @State private var pendingDeleteRecord: TranscriptionRecord?
 
     private var filteredRecords: [TranscriptionRecord] {
         history.records.filter { record in
@@ -52,6 +54,38 @@ struct HistoryPopoverView: View {
         }
         .accessibilityIdentifier("history.root")
         .frame(minWidth: 420, idealWidth: 560, minHeight: 420, idealHeight: 560)
+        .alert("Clear History?", isPresented: $isShowingClearConfirmation) {
+            Button("Clear History", role: .destructive) {
+                history.clear()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes all stored transcripts and any retained failed-audio retry files from this Mac.")
+        }
+        .alert("Delete History Item?", isPresented: pendingDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                if let pendingDeleteRecord {
+                    history.delete(id: pendingDeleteRecord.id)
+                }
+                pendingDeleteRecord = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteRecord = nil
+            }
+        } message: {
+            Text("This removes the selected transcript and any retained failed-audio retry file from this Mac.")
+        }
+    }
+
+    private var pendingDeleteConfirmation: Binding<Bool> {
+        Binding(
+            get: { pendingDeleteRecord != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pendingDeleteRecord = nil
+                }
+            }
+        )
     }
 
     private var header: some View {
@@ -67,7 +101,7 @@ struct HistoryPopoverView: View {
             Spacer()
 
             Button("Clear", role: .destructive) {
-                history.clear()
+                isShowingClearConfirmation = true
             }
             .accessibilityIdentifier("history.clearButton")
             .disabled(history.records.isEmpty)
@@ -101,7 +135,8 @@ struct HistoryPopoverView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(self.filter == filter)
+                    .accessibilityAddTraits(self.filter == filter ? .isSelected : [])
+                    .accessibilityValue(self.filter == filter ? "Selected" : "Not selected")
                 }
             }
             .accessibilityIdentifier("history.filterPicker")
@@ -194,7 +229,7 @@ struct HistoryPopoverView: View {
             }
 
             Button(role: .destructive) {
-                history.delete(id: record.id)
+                pendingDeleteRecord = record
             } label: {
                 Image(systemName: "trash")
             }
