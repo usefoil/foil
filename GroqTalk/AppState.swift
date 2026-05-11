@@ -180,6 +180,18 @@ final class AppState {
         return false
     }
 
+    var canStartRecordingControl: Bool {
+        status == .idle && isSetupReady
+    }
+
+    var canStopRecordingControl: Bool {
+        status == .recording
+    }
+
+    var canCancelRecordingControl: Bool {
+        status == .recording
+    }
+
     var shouldShowFloatingStatus: Bool {
         guard showFloatingStatus, !floatingStatusDismissed else { return false }
         switch status {

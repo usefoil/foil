@@ -6,6 +6,9 @@ struct MenuBarView: View {
     var history: TranscriptionHistory
     var onRetry: (() -> Void)?
     var onPasteLast: (() -> Void)?
+    var onStartRecording: (() -> Void)?
+    var onStopRecording: (() -> Void)?
+    var onCancelRecording: (() -> Void)?
     var onHotkeyChanged: (() -> Void)?
     var onOpenHistory: (() -> Void)?
     var onOpenSettings: (() -> Void)?
@@ -512,6 +515,8 @@ struct MenuBarView: View {
             Text("Quick Controls")
                 .font(.subheadline.weight(.semibold))
 
+            recordingControls
+
             Picker("Recording", selection: $appState.recordingMode) {
                 Text("Hold").tag(HotkeyMonitor.RecordingMode.hold)
                 Text("Toggle").tag(HotkeyMonitor.RecordingMode.toggle)
@@ -554,6 +559,49 @@ struct MenuBarView: View {
                 .buttonStyle(.borderless)
             }
         }
+    }
+
+    private var recordingControls: some View {
+        HStack(spacing: 8) {
+            Button {
+                onStartRecording?()
+            } label: {
+                Label("Start", systemImage: "record.circle")
+            }
+            .disabled(!appState.canStartRecordingControl)
+            .keyboardShortcut("r", modifiers: [.command])
+            .accessibilityLabel("Start recording")
+            .accessibilityHint("Begins recording audio for transcription.")
+            .accessibilityIdentifier("menu.recording.startButton")
+            .help("Start recording")
+
+            Button {
+                onStopRecording?()
+            } label: {
+                Label("Stop", systemImage: "stop.circle")
+            }
+            .disabled(!appState.canStopRecordingControl)
+            .keyboardShortcut(.return, modifiers: [])
+            .accessibilityLabel("Stop recording")
+            .accessibilityHint("Stops recording and starts transcription.")
+            .accessibilityIdentifier("menu.recording.stopButton")
+            .help("Stop recording and transcribe")
+
+            Button(role: .cancel) {
+                onCancelRecording?()
+            } label: {
+                Label("Cancel", systemImage: "xmark.circle")
+            }
+            .disabled(!appState.canCancelRecordingControl)
+            .keyboardShortcut(.cancelAction)
+            .accessibilityLabel("Cancel recording")
+            .accessibilityHint("Stops recording without transcription.")
+            .accessibilityIdentifier("menu.recording.cancelButton")
+            .help("Cancel recording")
+        }
+        .buttonStyle(.borderless)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("menu.recording.controls")
     }
 
     private var sessionColor: Color {

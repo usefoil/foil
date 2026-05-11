@@ -52,6 +52,42 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.status, .recording)
     }
 
+    func testRecordingControlsRequireReadyIdleState() {
+        let state = AppState()
+
+        XCTAssertFalse(state.canStartRecordingControl)
+        XCTAssertFalse(state.canStopRecordingControl)
+        XCTAssertFalse(state.canCancelRecordingControl)
+
+        markSetupReady(state)
+
+        XCTAssertTrue(state.canStartRecordingControl)
+        XCTAssertFalse(state.canStopRecordingControl)
+        XCTAssertFalse(state.canCancelRecordingControl)
+    }
+
+    func testRecordingControlsSwitchWhileRecording() {
+        let state = AppState()
+        markSetupReady(state)
+
+        state.setStatus(.recording)
+
+        XCTAssertFalse(state.canStartRecordingControl)
+        XCTAssertTrue(state.canStopRecordingControl)
+        XCTAssertTrue(state.canCancelRecordingControl)
+    }
+
+    func testRecordingControlsDisabledWhileTranscribing() {
+        let state = AppState()
+        markSetupReady(state)
+
+        state.setStatus(.transcribing)
+
+        XCTAssertFalse(state.canStartRecordingControl)
+        XCTAssertFalse(state.canStopRecordingControl)
+        XCTAssertFalse(state.canCancelRecordingControl)
+    }
+
     func testTransitionToTranscribing() {
         let state = AppState()
         state.setStatus(.transcribing)
@@ -440,6 +476,30 @@ final class AppStateTests: XCTestCase {
         state.hideFloatingStatus()
 
         XCTAssertFalse(state.shouldShowFloatingStatus)
+    }
+
+    func testFloatingStatusDismissDoesNotDisablePreference() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        state.showError("fail")
+
+        state.hideFloatingStatus()
+
+        XCTAssertTrue(state.showFloatingStatus)
+        XCTAssertTrue(state.floatingStatusDismissed)
+        XCTAssertFalse(state.shouldShowFloatingStatus)
+    }
+
+    func testFloatingStatusDismissalClearsForNewRecordingSession() {
+        let state = AppState()
+        state.showFloatingStatus = true
+        state.showError("fail")
+        state.hideFloatingStatus()
+
+        state.setStatus(.recording)
+
+        XCTAssertFalse(state.floatingStatusDismissed)
+        XCTAssertTrue(state.shouldShowFloatingStatus)
     }
 
     func testEnablingFloatingStatusClearsDismissal() {

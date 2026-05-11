@@ -17,6 +17,9 @@ struct GroqTalkApp: App {
                 history: appDelegate.history,
                 onRetry: { [weak appDelegate] in appDelegate?.retryLast() },
                 onPasteLast: { [weak appDelegate] in appDelegate?.pasteLastSuccess() },
+                onStartRecording: { [weak appDelegate] in appDelegate?.startRecordingFromControl() },
+                onStopRecording: { [weak appDelegate] in appDelegate?.stopRecordingFromControl() },
+                onCancelRecording: { [weak appDelegate] in appDelegate?.cancelRecordingFromControl() },
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
                 onOpenAccessibility: { [weak appDelegate] in appDelegate?.openAccessibilitySettings() },
                 onOpenMicrophone: { [weak appDelegate] in appDelegate?.openMicrophoneSettings() },
@@ -252,6 +255,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             history: history,
             onRetry: { [weak self] in self?.retryLast() },
             onPasteLast: { [weak self] in self?.pasteLastSuccess() },
+            onStartRecording: { [weak self] in self?.startRecordingFromControl() },
+            onStopRecording: { [weak self] in self?.stopRecordingFromControl() },
+            onCancelRecording: { [weak self] in self?.cancelRecordingFromControl() },
             onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() },
             onOpenHistory: { [weak self] in self?.showUITestHistoryWindow() },
             onOpenSettings: { [weak self] in self?.showUITestSettingsWindow() },
@@ -335,6 +341,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Floating status
 
+    private final class FloatingStatusPanel: NSPanel {
+        override var canBecomeKey: Bool { true }
+        override var canBecomeMain: Bool { false }
+    }
+
     private func startFloatingStatusSync() {
         floatingStatusSyncTimer?.invalidate()
         floatingStatusSyncTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
@@ -363,7 +374,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func makeFloatingStatusPanel() -> NSPanel {
         let size = NSSize(width: 340, height: 96)
-        let panel = NSPanel(
+        let panel = FloatingStatusPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -545,185 +556,206 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func startRecordingFromControl() {
+        startRecording(captureTarget: true)
+    }
+
+    func stopRecordingFromControl() {
+        stopRecording()
+    }
+
+    func cancelRecordingFromControl() {
+        cancelRecording(preservingPendingTarget: false)
+    }
+
     // MARK: - Wiring
 
     private func wireHotkeyMonitor() {
         hotkeyMonitor.onRecordingStarted = { [weak self] in
-            guard let self else { return }
-            // Don't start a new recording while transcription is in-flight.
-            // The CGEvent callback runs on the main run loop, so we can read
-            // appState.status synchronously here.
-            guard self.appState.status != .transcribing else {
-                DiagnosticLog.write("onRecordingStarted: SKIPPED — transcription in flight")
-                return
-            }
-            let asyncEnabled = self.appState.asyncPasteEnabled
-            // Only capture on the FIRST press. If a debounce-cancel caused a
-            // re-trigger, the user may have already moved — keep the original target.
-            let capturedTarget: PasteTarget?
-            if asyncEnabled && self.pendingTarget == nil {
-                capturedTarget = PasteTarget.captureCurrentTarget()
-            } else {
-                capturedTarget = nil  // signal: don't overwrite
-            }
-            DiagnosticLog.write("onRecordingStarted: asyncEnabled=\(asyncEnabled) capturedTarget=\(String(describing: capturedTarget)) existingTarget=\(self.pendingTarget != nil)")
-            Task { @MainActor in
-                // Only set if we actually captured a new target
-                if let target = capturedTarget {
-                    self.pendingTarget = target
-                }
-                self.appState.recordTargetCapture(capturedTarget ?? self.pendingTarget)
-                self.appState.clearError()
-                do {
-                    try self.audioRecorder.startRecording()
-                    self.appState.updateMicrophoneState(isReady: true)
-                    self.appState.setStatus(.recording)
-                    self.startRecordingTimer()
-                    self.soundPlayer.playStartSound()
-                } catch {
-                    self.appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
-                    self.appState.showError("Microphone unavailable")
-                }
-            }
+            self?.startRecording(captureTarget: true)
         }
         hotkeyMonitor.onRecordingStopped = { [weak self] in
-            guard let self else { return }
-            guard self.appState.status == .recording else {
-                DiagnosticLog.write("onRecordingStopped: SKIPPED — not recording (status=\(self.appState.status))")
-                return
-            }
-            DiagnosticLog.write("onRecordingStopped fired")
-            Task { @MainActor in
-                DiagnosticLog.write("onRecordingStopped Task executing")
-                self.stopRecordingTimer()
-
-                self.soundPlayer.playStopSound()
-                self.appState.transcriptionStage = .transcribingAudio
-                self.appState.setStatus(.transcribing)
-                self.startTranscribingAnimation()
-
-                let url: URL
-                do {
-                    guard let recordedURL = try await self.audioRecorder.stopRecordingAsync(
-                        format: self.appState.selectedAudioFormat
-                    ) else {
-                        DiagnosticLog.write("onRecordingStopped: no audio file, returning")
-                        self.stopTranscribingAnimation()
-                        self.appState.setStatus(.idle)
-                        return
-                    }
-                    url = recordedURL
-                } catch {
-                    DiagnosticLog.write("onRecordingStopped: error \(error)")
-                    self.stopTranscribingAnimation()
-                    self.appState.showError("Failed to save recording")
-                    return
-                }
-
-                let useMockTranscription: Bool
-                #if DEBUG
-                useMockTranscription = self.appState.mockTranscriptionEnabled
-                #else
-                useMockTranscription = false
-                #endif
-                DiagnosticLog.write("transcription mode: mock=\(useMockTranscription)")
-
-                if useMockTranscription {
-                    self.appState.feedbackMessage = "Mock transcription..."
-                }
-
-                let apiKey: String?
-                if useMockTranscription {
-                    apiKey = nil
-                } else {
-                    guard let storedApiKey = KeychainHelper.readApiKey() else {
-                        self.stopTranscribingAnimation()
-                        self.appState.refreshApiKeyState()
-                        self.history.addFailure(error: "No API key", audioFileURL: url)
-                        self.appState.showError("No API key — set one via the menu")
-                        return
-                    }
-                    apiKey = storedApiKey
-                }
-
-                do {
-                    let text: String
-                    if useMockTranscription {
-                        try await Task.sleep(for: .seconds(2))
-                        text = "Mock transcription at \(Date().formatted(date: .omitted, time: .standard))"
-                    } else if let apiKey {
-                        self.appState.transcriptionStage = .transcribingAudio
-                        let rawText = try await self.transcriptionService.transcribe(
-                            audioFileURL: url,
-                            apiKey: apiKey,
-                            model: self.appState.selectedModel,
-                            format: self.appState.selectedAudioFormat,
-                            language: self.appState.selectedLanguage
-                        )
-                        if self.appState.transcriptProcessingMode != .raw {
-                            self.appState.transcriptionStage = .cleaningTranscript
-                        }
-                        text = try await self.transcriptionService.processTranscript(
-                            rawText,
-                            apiKey: apiKey,
-                            mode: self.appState.transcriptProcessingMode,
-                            model: self.appState.transcriptCleanupModel
-                        )
-                    } else {
-                        throw TranscriptionService.TranscriptionError.invalidResponse
-                    }
-                    self.stopTranscribingAnimation()
-                    self.appState.feedbackMessage = "Transcription ready"
-                    self.history.addSuccess(text: text)
-
-                    let asyncOn = self.appState.asyncPasteEnabled
-                    let target = self.pendingTarget
-                    self.pendingTarget = nil
-                    DiagnosticLog.write("paste decision: asyncOn=\(asyncOn) target=\(String(describing: target))")
-                    self.appState.transcriptionStage = .pasting
-
-                    if asyncOn, let target {
-                        DiagnosticLog.write("ASYNC PATH: pasting into \(target.appName) pid=\(target.pid)")
-                        if let delivery = await self.pasteQueue.enqueue(
-                            text: text, target: target,
-                            keepOnClipboard: self.appState.keepOnClipboard
-                        ) {
-                            self.recordPaste(delivery)
-                        }
-                    } else {
-                        DiagnosticLog.write("SYNC PATH: pasting into current app")
-                        let delivery = await self.textInserter.insert(
-                            text: text,
-                            keepOnClipboard: self.appState.keepOnClipboard
-                        )
-                        self.recordPaste(delivery)
-                    }
-                    self.appState.setStatus(.idle)
-                    try? FileManager.default.removeItem(at: url)
-                } catch {
-                    self.stopTranscribingAnimation()
-                    self.pendingTarget = nil
-                    let errorMsg = self.errorMessage(from: error)
-                    self.history.addFailure(error: errorMsg, audioFileURL: url)
-                    self.appState.showError(errorMsg)
-                    // Do NOT delete audio file — preserved for retry
-                }
-            }
+            self?.stopRecording()
         }
         hotkeyMonitor.onRecordingCancelled = { [weak self] in
-            guard let self else { return }
-            DiagnosticLog.write("onRecordingCancelled")
-            Task { @MainActor in
-                self.stopRecordingTimer()
-                self.audioRecorder.cancelRecording()
-                self.appState.setStatus(.idle)
-                self.appState.feedbackMessage = "Recording cancelled"
-                // Do NOT clear pendingTarget here — a debounce-cancel is often
-                // followed immediately by a new onRecordingStarted, and we want
-                // to preserve the original capture from the first press.
-                // pendingTarget is cleared after a successful paste or when
-                // the transcription result is delivered.
+            self?.cancelRecording(preservingPendingTarget: true)
+        }
+    }
+
+    private func startRecording(captureTarget: Bool) {
+        // Don't start a new recording while transcription is in-flight.
+        guard appState.status != .transcribing else {
+            DiagnosticLog.write("onRecordingStarted: SKIPPED — transcription in flight")
+            return
+        }
+        guard appState.status != .recording else {
+            DiagnosticLog.write("onRecordingStarted: SKIPPED — already recording")
+            return
+        }
+
+        let asyncEnabled = appState.asyncPasteEnabled
+        let capturedTarget: PasteTarget?
+        if captureTarget, asyncEnabled, pendingTarget == nil {
+            capturedTarget = PasteTarget.captureCurrentTarget()
+        } else {
+            capturedTarget = nil
+        }
+        DiagnosticLog.write("onRecordingStarted: asyncEnabled=\(asyncEnabled) capturedTarget=\(String(describing: capturedTarget)) existingTarget=\(pendingTarget != nil)")
+        Task { @MainActor in
+            if let target = capturedTarget {
+                pendingTarget = target
             }
+            appState.recordTargetCapture(capturedTarget ?? pendingTarget)
+            appState.clearError()
+            do {
+                try audioRecorder.startRecording()
+                appState.updateMicrophoneState(isReady: true)
+                appState.setStatus(.recording)
+                startRecordingTimer()
+                soundPlayer.playStartSound()
+            } catch {
+                appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
+                appState.showError("Microphone unavailable")
+            }
+        }
+    }
+
+    private func stopRecording() {
+        guard appState.status == .recording else {
+            DiagnosticLog.write("onRecordingStopped: SKIPPED — not recording (status=\(appState.status))")
+            return
+        }
+        DiagnosticLog.write("onRecordingStopped fired")
+        Task { @MainActor in
+            DiagnosticLog.write("onRecordingStopped Task executing")
+            stopRecordingTimer()
+
+            soundPlayer.playStopSound()
+            appState.transcriptionStage = .transcribingAudio
+            appState.setStatus(.transcribing)
+            startTranscribingAnimation()
+
+            let url: URL
+            do {
+                guard let recordedURL = try await audioRecorder.stopRecordingAsync(
+                    format: appState.selectedAudioFormat
+                ) else {
+                    DiagnosticLog.write("onRecordingStopped: no audio file, returning")
+                    stopTranscribingAnimation()
+                    appState.setStatus(.idle)
+                    return
+                }
+                url = recordedURL
+            } catch {
+                DiagnosticLog.write("onRecordingStopped: error \(error)")
+                stopTranscribingAnimation()
+                appState.showError("Failed to save recording")
+                return
+            }
+
+            let useMockTranscription: Bool
+            #if DEBUG
+            useMockTranscription = appState.mockTranscriptionEnabled
+            #else
+            useMockTranscription = false
+            #endif
+            DiagnosticLog.write("transcription mode: mock=\(useMockTranscription)")
+
+            if useMockTranscription {
+                appState.feedbackMessage = "Mock transcription..."
+            }
+
+            let apiKey: String?
+            if useMockTranscription {
+                apiKey = nil
+            } else {
+                guard let storedApiKey = KeychainHelper.readApiKey() else {
+                    stopTranscribingAnimation()
+                    appState.refreshApiKeyState()
+                    history.addFailure(error: "No API key", audioFileURL: url)
+                    appState.showError("No API key — set one via the menu")
+                    return
+                }
+                apiKey = storedApiKey
+            }
+
+            do {
+                let text: String
+                if useMockTranscription {
+                    try await Task.sleep(for: .seconds(2))
+                    text = "Mock transcription at \(Date().formatted(date: .omitted, time: .standard))"
+                } else if let apiKey {
+                    appState.transcriptionStage = .transcribingAudio
+                    let rawText = try await transcriptionService.transcribe(
+                        audioFileURL: url,
+                        apiKey: apiKey,
+                        model: appState.selectedModel,
+                        format: appState.selectedAudioFormat,
+                        language: appState.selectedLanguage
+                    )
+                    if appState.transcriptProcessingMode != .raw {
+                        appState.transcriptionStage = .cleaningTranscript
+                    }
+                    text = try await transcriptionService.processTranscript(
+                        rawText,
+                        apiKey: apiKey,
+                        mode: appState.transcriptProcessingMode,
+                        model: appState.transcriptCleanupModel
+                    )
+                } else {
+                    throw TranscriptionService.TranscriptionError.invalidResponse
+                }
+                stopTranscribingAnimation()
+                appState.feedbackMessage = "Transcription ready"
+                history.addSuccess(text: text)
+
+                let asyncOn = appState.asyncPasteEnabled
+                let target = pendingTarget
+                pendingTarget = nil
+                DiagnosticLog.write("paste decision: asyncOn=\(asyncOn) target=\(String(describing: target))")
+                appState.transcriptionStage = .pasting
+
+                if asyncOn, let target {
+                    DiagnosticLog.write("ASYNC PATH: pasting into \(target.appName) pid=\(target.pid)")
+                    if let delivery = await pasteQueue.enqueue(
+                        text: text, target: target,
+                        keepOnClipboard: appState.keepOnClipboard
+                    ) {
+                        recordPaste(delivery)
+                    }
+                } else {
+                    DiagnosticLog.write("SYNC PATH: pasting into current app")
+                    let delivery = await textInserter.insert(
+                        text: text,
+                        keepOnClipboard: appState.keepOnClipboard
+                    )
+                    recordPaste(delivery)
+                }
+                appState.setStatus(.idle)
+                try? FileManager.default.removeItem(at: url)
+            } catch {
+                stopTranscribingAnimation()
+                pendingTarget = nil
+                let errorMsg = errorMessage(from: error)
+                history.addFailure(error: errorMsg, audioFileURL: url)
+                appState.showError(errorMsg)
+                // Do NOT delete audio file — preserved for retry
+            }
+        }
+    }
+
+    private func cancelRecording(preservingPendingTarget: Bool) {
+        DiagnosticLog.write("onRecordingCancelled")
+        Task { @MainActor in
+            stopRecordingTimer()
+            audioRecorder.cancelRecording()
+            appState.setStatus(.idle)
+            appState.feedbackMessage = "Recording cancelled"
+            if !preservingPendingTarget {
+                pendingTarget = nil
+            }
+            // Hotkey debounce cancels are often followed immediately by a new
+            // start, so that path preserves the original target capture.
         }
     }
 

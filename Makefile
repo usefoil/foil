@@ -23,7 +23,7 @@ endif
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-cross-app test-app-smoke test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-cross-app test-app-smoke test-paste-real qa-paste test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -85,6 +85,11 @@ test-cross-app:
 test-app-smoke:
 	swift tests/test_app_mock_async_paste.swift
 
+test-paste-real: install
+	swift tests/test_app_mock_async_paste.swift
+
+qa-paste: test-paste-real
+
 test-cleanup-quality:
 	swift tests/test_cleanup_quality.swift
 
@@ -97,7 +102,7 @@ qa-ci:
 
 qa-local: install
 	@echo "=== Installed app smoke test ==="
-	$(MAKE) test-app-smoke
+	$(MAKE) test-paste-real
 	@echo ""
 	@echo "=== Desktop paste integration tests ==="
 	$(MAKE) test-cross-app
