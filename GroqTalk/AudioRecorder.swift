@@ -45,22 +45,32 @@ enum Language: String, CaseIterable, Codable {
 }
 
 final class AudioRecorder: @unchecked Sendable {
+    static let defaultMaxRecordingDuration: TimeInterval = 600
+    static let defaultMaxBufferedFrames = Int(targetSampleRate * defaultMaxRecordingDuration)
+
     private var audioEngine: AVAudioEngine?
     private var buffers: [AVAudioPCMBuffer] = []
     private var conversionErrorCount = 0
-    private let bufferQueue = DispatchQueue(label: "com.neonwatty.groqtalk.audiobuffers")
+    private var capturedFrameCount = 0
+    private var didExceedFrameLimit = false
+    private let bufferLock = NSLock()
     private let encodingQueue = DispatchQueue(label: "com.neonwatty.groqtalk.audioencoding", qos: .userInitiated)
+    private let maxBufferedFrames: Int
 
     private static let targetSampleRate: Double = 16000
     private static let targetChannels: AVAudioChannelCount = 1
 
-    private static var pcmFormat: AVAudioFormat {
+    private static var pcmFormat: AVAudioFormat? {
         AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: targetSampleRate,
             channels: targetChannels,
             interleaved: false
-        )!
+        )
+    }
+
+    init(maxBufferedFrames: Int = AudioRecorder.defaultMaxBufferedFrames) {
+        self.maxBufferedFrames = maxBufferedFrames
     }
 
     func startRecording() throws {
@@ -68,12 +78,15 @@ final class AudioRecorder: @unchecked Sendable {
 
         let engine = AVAudioEngine()
         audioEngine = engine
-        bufferQueue.sync { buffers = []; conversionErrorCount = 0 }
+        resetCapturedState()
 
         let inputNode = engine.inputNode
         let hwFormat = inputNode.outputFormat(forBus: 0)
 
-        guard let converter = AVAudioConverter(from: hwFormat, to: Self.pcmFormat) else {
+        guard let targetFormat = Self.pcmFormat else {
+            throw RecordingError.audioFormatUnavailable
+        }
+        guard let converter = AVAudioConverter(from: hwFormat, to: targetFormat) else {
             throw RecordingError.formatConversionFailed
         }
 
@@ -83,7 +96,7 @@ final class AudioRecorder: @unchecked Sendable {
             let outputFrameCount = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
             guard outputFrameCount > 0,
                   let converted = AVAudioPCMBuffer(
-                      pcmFormat: Self.pcmFormat, frameCapacity: outputFrameCount
+                      pcmFormat: targetFormat, frameCapacity: outputFrameCount
                   ) else { return }
 
             var error: NSError?
@@ -92,10 +105,12 @@ final class AudioRecorder: @unchecked Sendable {
                 return buffer
             }
             if let error {
-                self.bufferQueue.sync { self.conversionErrorCount += 1 }
-                print("AudioRecorder: conversion error — \(error)")
+                self.bufferLock.withLock {
+                    self.conversionErrorCount += 1
+                }
+                DiagnosticLog.write("audioRecorder: conversion error \(error.localizedDescription)")
             } else if converted.frameLength > 0 {
-                self.bufferQueue.sync { self.buffers.append(converted) }
+                self.appendConvertedBuffer(converted)
             }
         }
 
@@ -132,12 +147,19 @@ final class AudioRecorder: @unchecked Sendable {
         engine.stop()
         audioEngine = nil
 
-        let (captured, errors) = bufferQueue.sync { () -> ([AVAudioPCMBuffer], Int) in
+        let (captured, errors, exceededLimit) = bufferLock.withLock { () -> ([AVAudioPCMBuffer], Int, Bool) in
             let b = buffers; let e = conversionErrorCount
-            buffers = []; conversionErrorCount = 0
-            return (b, e)
+            let exceeded = didExceedFrameLimit
+            buffers = []
+            conversionErrorCount = 0
+            capturedFrameCount = 0
+            didExceedFrameLimit = false
+            return (b, e, exceeded)
         }
 
+        if exceededLimit {
+            throw RecordingError.recordingTooLong
+        }
         if captured.isEmpty && errors > 0 {
             throw RecordingError.conversionFailed(errorCount: errors)
         }
@@ -170,7 +192,31 @@ final class AudioRecorder: @unchecked Sendable {
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         audioEngine = nil
-        bufferQueue.sync { buffers = []; conversionErrorCount = 0 }
+        resetCapturedState()
+    }
+
+    private func appendConvertedBuffer(_ buffer: AVAudioPCMBuffer) {
+        bufferLock.withLock {
+            guard !didExceedFrameLimit else { return }
+            let frameLength = Int(buffer.frameLength)
+            guard capturedFrameCount + frameLength <= maxBufferedFrames else {
+                didExceedFrameLimit = true
+                buffers.removeAll()
+                capturedFrameCount = 0
+                return
+            }
+            buffers.append(buffer)
+            capturedFrameCount += frameLength
+        }
+    }
+
+    private func resetCapturedState() {
+        bufferLock.withLock {
+            buffers = []
+            conversionErrorCount = 0
+            capturedFrameCount = 0
+            didExceedFrameLimit = false
+        }
     }
 
     // MARK: - WAV output
@@ -179,12 +225,14 @@ final class AudioRecorder: @unchecked Sendable {
     func writeWAV(buffers: [AVAudioPCMBuffer]) throws -> URL {
         let url = tempURL(extension: "wav")
         // Write as 16-bit PCM WAV (smaller than float32 WAV)
-        let int16Format = AVAudioFormat(
+        guard let int16Format = AVAudioFormat(
             commonFormat: .pcmFormatInt16,
             sampleRate: Self.targetSampleRate,
             channels: Self.targetChannels,
             interleaved: true
-        )!
+        ) else {
+            throw RecordingError.audioFormatUnavailable
+        }
         let file = try AVAudioFile(forWriting: url, settings: int16Format.settings)
         for buffer in buffers {
             try file.write(from: buffer)
@@ -233,7 +281,9 @@ final class AudioRecorder: @unchecked Sendable {
 
     enum RecordingError: Error {
         case formatConversionFailed
+        case audioFormatUnavailable
         case conversionFailed(errorCount: Int)
+        case recordingTooLong
     }
 
     private struct CapturedAudio {
