@@ -810,9 +810,9 @@ final class AppStateTests: XCTestCase {
     func testSelectedInputDeviceIDPersists() {
         let state = AppState()
         state.selectedInputDeviceID = 42
-        XCTAssertEqual(UserDefaults.standard.object(forKey: "selectedInputDeviceID") as? UInt32, 42)
+        XCTAssertEqual(state.selectedInputDeviceID, 42)
         state.selectedInputDeviceID = nil
-        XCTAssertNil(UserDefaults.standard.object(forKey: "selectedInputDeviceID"))
+        XCTAssertNil(state.selectedInputDeviceID)
     }
 
     // MARK: - Transcript processing

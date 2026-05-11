@@ -76,7 +76,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingTarget: PasteTarget?
     private var pasteQueue: PasteQueue!
 
-    private var recordingTimer: Timer?
+    private var recordingController: RecordingController!
     private var transcribingTimer: Timer?
     private var floatingStatusPanel: NSPanel?
     private var floatingStatusSyncTimer: Timer?
@@ -141,6 +141,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         DiagnosticLog.write("applicationDidFinishLaunching")
+        recordingController = RecordingController(audioRecorder: audioRecorder, appState: appState)
+        recordingController.delegate = self
         pasteQueue = PasteQueue { [weak self] text, target, keepOnClipboard in
             guard let self else { return .clipboardFallback }
             if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
@@ -443,6 +445,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         floatingStatusSyncTimer?.invalidate()
         transientSuccessAutoHideTimer?.invalidate()
+        recordingController?.invalidateTimers()
     }
 
     // MARK: - Hotkey configuration
@@ -452,26 +455,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             hotkeyChoice: appState.hotkeyChoice,
             recordingMode: appState.recordingMode
         )
-    }
-
-    // MARK: - Recording timer
-
-    private func startRecordingTimer() {
-        appState.recordingStartTime = Date()
-        appState.recordingDuration = 0
-        recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self, let start = self.appState.recordingStartTime else { return }
-                self.appState.recordingDuration = Date().timeIntervalSince(start)
-            }
-        }
-    }
-
-    private func stopRecordingTimer() {
-        recordingTimer?.invalidate()
-        recordingTimer = nil
-        appState.recordingStartTime = nil
-        appState.recordingDuration = 0
     }
 
     // MARK: - Transcribing animation
@@ -516,9 +499,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             appState.clearError()
             appState.setStatus(.recording)
-            startRecordingTimer()
+            // Use inline state mutation for the UI simulation -- does not go through RecordingController
+            appState.recordingStartTime = Date()
+            appState.recordingDuration = 0
             try? await Task.sleep(for: .milliseconds(300))
-            stopRecordingTimer()
+            appState.recordingStartTime = nil
+            appState.recordingDuration = 0
             appState.transcriptionStage = .transcribingAudio
             appState.setStatus(.transcribing)
             startTranscribingAnimation()
@@ -563,101 +549,50 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func startRecordingFromControl() {
-        startRecording(captureTarget: true)
+        captureTargetThenStartRecording()
     }
 
     func stopRecordingFromControl() {
-        stopRecording()
+        recordingController.stopRecording()
     }
 
     func cancelRecordingFromControl() {
-        cancelRecording(preservingPendingTarget: false)
+        recordingController.cancelRecording()
     }
 
     // MARK: - Wiring
 
     private func wireHotkeyMonitor() {
         hotkeyMonitor.onRecordingStarted = { [weak self] in
-            self?.startRecording(captureTarget: true)
+            self?.captureTargetThenStartRecording()
         }
         hotkeyMonitor.onRecordingStopped = { [weak self] in
-            self?.stopRecording()
+            self?.recordingController.stopRecording()
         }
         hotkeyMonitor.onRecordingCancelled = { [weak self] in
-            self?.cancelRecording(preservingPendingTarget: false)
+            self?.recordingController.cancelRecording()
         }
     }
 
-    private func startRecording(captureTarget: Bool) {
-        // Don't start a new recording while transcription is in-flight.
-        guard appState.status != .transcribing else {
-            DiagnosticLog.write("onRecordingStarted: SKIPPED — transcription in flight")
-            return
-        }
-        guard appState.status != .recording else {
-            DiagnosticLog.write("onRecordingStarted: SKIPPED — already recording")
-            return
-        }
-
+    private func captureTargetThenStartRecording() {
         let asyncEnabled = appState.asyncPasteEnabled
-        let capturedTarget = captureTarget && asyncEnabled
-            ? PasteTarget.captureCurrentTarget()
-            : nil
-        DiagnosticLog.write("onRecordingStarted: asyncEnabled=\(asyncEnabled) capturedTarget=\(String(describing: capturedTarget)) existingTarget=\(pendingTarget != nil)")
-        Task { @MainActor in
-            pendingTarget = capturedTarget
-            appState.recordTargetCapture(capturedTarget ?? pendingTarget)
-            appState.clearError()
-            do {
-                try audioRecorder.startRecording()
-                appState.updateMicrophoneState(isReady: true)
-                appState.setStatus(.recording)
-                startRecordingTimer()
-                soundPlayer.playStartSound()
-            } catch {
-                pendingTarget = nil
-                appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
-                appState.showError("Microphone unavailable")
-            }
-        }
+        let capturedTarget = asyncEnabled ? PasteTarget.captureCurrentTarget() : nil
+        DiagnosticLog.write("captureTargetThenStartRecording: asyncEnabled=\(asyncEnabled) capturedTarget=\(String(describing: capturedTarget)) existingTarget=\(pendingTarget != nil)")
+        pendingTarget = capturedTarget
+        appState.recordTargetCapture(capturedTarget ?? pendingTarget)
+        appState.clearError()
+        recordingController.startRecording()
     }
 
-    private func stopRecording() {
-        guard appState.status == .recording else {
-            DiagnosticLog.write("onRecordingStopped: SKIPPED — not recording (status=\(appState.status))")
-            return
-        }
-        DiagnosticLog.write("onRecordingStopped fired")
-        Task { @MainActor in
-            DiagnosticLog.write("onRecordingStopped Task executing")
-            stopRecordingTimer()
+    // MARK: - Transcription flow (invoked from RecordingControllerDelegate)
 
+    private func runTranscriptionFlow(audioURL: URL, format: AudioFormat) {
+        DiagnosticLog.write("runTranscriptionFlow: url=\(audioURL.lastPathComponent) format=\(format.rawValue)")
+        Task { @MainActor in
             soundPlayer.playStopSound()
             appState.transcriptionStage = .transcribingAudio
             appState.setStatus(.transcribing)
             startTranscribingAnimation()
-
-            let url: URL
-            do {
-                guard let recordedURL = try await audioRecorder.stopRecordingAsync(
-                    format: appState.selectedAudioFormat
-                ) else {
-                    DiagnosticLog.write("onRecordingStopped: no audio file, returning")
-                    stopTranscribingAnimation()
-                    appState.setStatus(.idle)
-                    return
-                }
-                url = recordedURL
-            } catch {
-                DiagnosticLog.write("onRecordingStopped: error \(error)")
-                stopTranscribingAnimation()
-                if case AudioRecorder.RecordingError.recordingTooLong = error {
-                    appState.showError("Recording too long")
-                } else {
-                    appState.showError("Failed to save recording")
-                }
-                return
-            }
 
             let useMockTranscription: Bool
             #if DEBUG
@@ -678,10 +613,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let storedApiKey = KeychainHelper.readApiKey() else {
                     stopTranscribingAnimation()
                     appState.refreshApiKeyState()
-                    try? FileManager.default.removeItem(at: url)
+                    try? FileManager.default.removeItem(at: audioURL)
                     pendingTarget = nil
                     history.addFailure(error: "No API key", audioFileURL: nil)
-                    appState.showError("No API key — set one via the menu")
+                    appState.showError("No API key -- set one via the menu")
                     return
                 }
                 apiKey = storedApiKey
@@ -696,10 +631,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 } else if let apiKey {
                     appState.transcriptionStage = .transcribingAudio
                     let rawText = try await transcriptionService.transcribe(
-                        audioFileURL: url,
+                        audioFileURL: audioURL,
                         apiKey: apiKey,
                         model: appState.selectedModel,
-                        format: appState.selectedAudioFormat,
+                        format: format,
                         language: appState.selectedLanguage
                     )
                     let processed = await processTranscriptOrRaw(
@@ -742,14 +677,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     appState.feedbackMessage = "Cleanup failed; raw transcript used"
                 }
                 appState.setStatus(.idle)
-                try? FileManager.default.removeItem(at: url)
+                try? FileManager.default.removeItem(at: audioURL)
             } catch {
                 stopTranscribingAnimation()
                 pendingTarget = nil
                 let errorMsg = errorMessage(from: error)
-                history.addFailure(error: errorMsg, audioFileURL: url)
+                history.addFailure(error: errorMsg, audioFileURL: audioURL)
                 appState.showError(errorMsg)
-                // Do NOT delete audio file — preserved for retry
+                // Do NOT delete audio file -- preserved for retry
             }
         }
     }
@@ -778,21 +713,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func cancelRecording(preservingPendingTarget: Bool) {
-        DiagnosticLog.write("onRecordingCancelled")
-        Task { @MainActor in
-            stopRecordingTimer()
-            audioRecorder.cancelRecording()
-            appState.setStatus(.idle)
-            appState.feedbackMessage = "Recording cancelled"
-            if !preservingPendingTarget {
-                pendingTarget = nil
-            }
-            // Cancellation clears target capture so a later transcript cannot
-            // paste into a stale app/window.
-        }
-    }
-
     private func errorMessage(from error: Error) -> String {
         switch error {
         case TranscriptionService.TranscriptionError.invalidApiKey:
@@ -802,7 +722,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case AudioRecorder.RecordingError.recordingTooLong:
             "Recording too long"
         case AudioRecorder.RecordingError.audioFormatUnavailable:
-            "Audio format unavailable — please restart the app"
+            "Audio format unavailable -- please restart the app"
         case TranscriptionService.TranscriptionError.rateLimited:
             "Groq rate limit reached"
         case TranscriptionService.TranscriptionError.quotaExceeded:
@@ -839,7 +759,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         guard !AXIsProcessTrusted() else {
             DiagnosticLog.write("HotkeyMonitor: start failed despite Accessibility trust")
             appState.updateAccessibilityState(isTrusted: false, message: "Restart GroqTalk")
-            appState.showError("Failed to start hotkey monitor — restart GroqTalk")
+            appState.showError("Failed to start hotkey monitor -- restart GroqTalk")
             return
         }
 
@@ -861,7 +781,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState.setStatus(.idle)
             } else {
                 appState.updateAccessibilityState(isTrusted: false, message: "Restart GroqTalk")
-                appState.showError("Failed to start — try restarting GroqTalk")
+                appState.showError("Failed to start -- try restarting GroqTalk")
             }
         }
     }
@@ -1026,7 +946,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         guard FileManager.default.fileExists(atPath: audioURL.path) else {
-            appState.showError("Recording file was deleted — cannot retry")
+            appState.showError("Recording file was deleted -- cannot retry")
             return
         }
         // Infer format from the file extension to match the original recording
@@ -1041,7 +961,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             guard let apiKey = KeychainHelper.readApiKey() else {
                 stopTranscribingAnimation()
-                appState.showError("No API key — set one via the menu")
+                appState.showError("No API key -- set one via the menu")
                 return
             }
 
@@ -1075,5 +995,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState.showError(errorMsg)
             }
         }
+    }
+}
+
+// MARK: - RecordingControllerDelegate
+
+extension AppDelegate: RecordingControllerDelegate {
+    func recordingControllerDidStart(_ controller: RecordingController) {
+        DiagnosticLog.write("AppDelegate: recordingControllerDidStart")
+        appState.updateMicrophoneState(isReady: true)
+        soundPlayer.playStartSound()
+    }
+
+    func recordingController(
+        _ controller: RecordingController,
+        didStopWithURL audioURL: URL,
+        format: AudioFormat
+    ) {
+        DiagnosticLog.write("AppDelegate: recordingController didStopWithURL=\(audioURL.lastPathComponent)")
+        runTranscriptionFlow(audioURL: audioURL, format: format)
+    }
+
+    func recordingControllerDidStopWithNoAudio(_ controller: RecordingController) {
+        DiagnosticLog.write("AppDelegate: recordingControllerDidStopWithNoAudio")
+        stopTranscribingAnimation()
+        appState.setStatus(.idle)
+    }
+
+    func recordingControllerDidCancel(_ controller: RecordingController) {
+        DiagnosticLog.write("AppDelegate: recordingControllerDidCancel")
+        appState.setStatus(.idle)
+        appState.feedbackMessage = "Recording cancelled"
+        pendingTarget = nil
+    }
+
+    func recordingController(_ controller: RecordingController, didFailWithError error: Error) {
+        DiagnosticLog.write("AppDelegate: recordingController didFailWithError=\(error)")
+        pendingTarget = nil
+        appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
+        appState.showError("Microphone unavailable")
     }
 }

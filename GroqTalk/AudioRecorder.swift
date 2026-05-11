@@ -335,11 +335,12 @@ final class AudioRecorder: @unchecked Sendable {
             let dataStatus = AudioObjectGetPropertyData(deviceID, &inputScopeAddress, 0, nil, &configSizeMutable, bufferListPointer)
             guard dataStatus == noErr else { continue }
 
-            let bufferList = bufferListPointer.load(as: AudioBufferList.self)
-            let totalChannels = withUnsafePointer(to: bufferList.mBuffers) { buffersStart in
-                (0..<Int(bufferList.mNumberBuffers)).reduce(0) { total, i in
-                    total + Int(buffersStart[i].mNumberChannels)
-                }
+            let totalChannels = bufferListPointer.withMemoryRebound(
+                to: AudioBufferList.self,
+                capacity: 1
+            ) { ptr in
+                UnsafeMutableAudioBufferListPointer(ptr)
+                    .reduce(0) { $0 + Int($1.mNumberChannels) }
             }
             guard totalChannels > 0 else { continue }
 

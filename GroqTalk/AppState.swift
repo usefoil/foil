@@ -165,9 +165,9 @@ final class AppState {
     var selectedInputDeviceID: UInt32? {
         didSet {
             if let id = selectedInputDeviceID {
-                UserDefaults.standard.set(id, forKey: "selectedInputDeviceID")
+                Self.defaults.set(id, forKey: "selectedInputDeviceID")
             } else {
-                UserDefaults.standard.removeObject(forKey: "selectedInputDeviceID")
+                Self.defaults.removeObject(forKey: "selectedInputDeviceID")
             }
         }
     }
@@ -490,7 +490,8 @@ final class AppState {
                 "hotkeyChoice",
                 "language",
                 "transcriptProcessingMode",
-                "transcriptCleanupModel"
+                "transcriptCleanupModel",
+                "selectedInputDeviceID"
             ] {
                 defaults.removeObject(forKey: key)
             }
@@ -529,7 +530,7 @@ final class AppState {
         #endif
         recordingMode = HotkeyMonitor.RecordingMode(rawValue: defaults.string(forKey: "recordingMode") ?? "") ?? .hold
         hotkeyChoice = HotkeyMonitor.HotkeyChoice(rawValue: defaults.string(forKey: "hotkeyChoice") ?? "") ?? .rightCommand
-        let savedDevice = UserDefaults.standard.object(forKey: "selectedInputDeviceID") as? UInt32
+        let savedDevice = Self.defaults.object(forKey: "selectedInputDeviceID") as? UInt32
         selectedInputDeviceID = savedDevice
     }
 
