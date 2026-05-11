@@ -20,9 +20,7 @@ struct LaunchAtLoginManagerTests {
         let manager = LaunchAtLoginManager()
         let before = manager.isEnabled
         manager.refreshStatus()
-        // After refresh, value should still be a valid Bool (may or may not change)
-        #expect(manager.isEnabled == manager.isEnabled)
-        // Silence unused-variable warning
-        _ = before
+        // status should not flip spontaneously
+        #expect(manager.isEnabled == before)
     }
 }

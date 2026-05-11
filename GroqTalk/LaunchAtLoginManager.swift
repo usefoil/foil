@@ -16,9 +16,10 @@ final class LaunchAtLoginManager {
             } else {
                 try SMAppService.mainApp.unregister()
             }
-            isEnabled = enabled
+            refreshStatus()  // read back actual state instead of assuming success
         } catch {
             DiagnosticLog.write("Launch at login toggle failed: \(error.localizedDescription)")
+            refreshStatus()  // also refresh on error to show true state
         }
     }
 

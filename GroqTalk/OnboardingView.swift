@@ -96,8 +96,10 @@ struct OnboardingView: View {
 
             permissionStatusBadge(state: appState.apiKeyState, readyLabel: "API key saved")
 
-            Link("Get a free API key at console.groq.com", destination: URL(string: "https://console.groq.com/keys")!)
-                .font(.caption)
+            if let url = URL(string: "https://console.groq.com/keys") {
+                Link("Get a free API key at console.groq.com", destination: url)
+                    .font(.caption)
+            }
         }
     }
 

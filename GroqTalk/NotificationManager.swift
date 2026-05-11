@@ -30,7 +30,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             content: content,
             trigger: nil
         )
-        UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                DiagnosticLog.write("Notification delivery failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     func postTranscriptionFailed(errorMessage: String) {
@@ -44,7 +48,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             content: content,
             trigger: nil
         )
-        UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                DiagnosticLog.write("Notification delivery failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     nonisolated func userNotificationCenter(
