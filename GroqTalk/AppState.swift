@@ -144,6 +144,10 @@ final class AppState {
         didSet { Self.defaults.set(asyncPasteEnabled, forKey: "asyncPasteEnabled") }
     }
 
+    var experimentalSkyLightPasteEnabled: Bool = false {
+        didSet { Self.defaults.set(experimentalSkyLightPasteEnabled, forKey: "experimentalSkyLightPasteEnabled") }
+    }
+
     #if DEBUG
     var mockTranscriptionEnabled: Bool = false {
         didSet { Self.defaults.set(mockTranscriptionEnabled, forKey: "mockTranscriptionEnabled") }
@@ -338,7 +342,7 @@ final class AppState {
         if apiKeyState != .ready {
             return SessionPresentation(
                 title: "Setup needed",
-                detail: "Add a Groq API key to transcribe",
+                detail: apiKeySetupDetail(),
                 timerText: nil,
                 systemImage: "exclamationmark.triangle.fill",
                 tone: .warning,
@@ -346,6 +350,17 @@ final class AppState {
             )
         }
         return nil
+    }
+
+    private func apiKeySetupDetail() -> String {
+        switch apiKeyState {
+        case .unknown:
+            "Check Groq API key before recording"
+        case .needsAction(let message):
+            message
+        case .ready:
+            ""
+        }
     }
 
     private func setupDetail(
@@ -441,6 +456,7 @@ final class AppState {
                 "showLiveFeedbackHUD",
                 "showFloatingStatus",
                 "asyncPasteEnabled",
+                "experimentalSkyLightPasteEnabled",
                 "mockTranscriptionEnabled",
                 "recordingMode",
                 "hotkeyChoice",
@@ -459,6 +475,7 @@ final class AppState {
             "keepOnClipboard": false,
             "showFloatingStatus": false,
             "asyncPasteEnabled": false,
+            "experimentalSkyLightPasteEnabled": false,
             "mockTranscriptionEnabled": false,
             "recordingMode": "hold",
             "hotkeyChoice": "rightCommand",
@@ -478,6 +495,7 @@ final class AppState {
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
+        experimentalSkyLightPasteEnabled = defaults.bool(forKey: "experimentalSkyLightPasteEnabled")
         #if DEBUG
         mockTranscriptionEnabled = defaults.bool(forKey: "mockTranscriptionEnabled")
         #endif

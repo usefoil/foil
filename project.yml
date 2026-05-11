@@ -12,8 +12,8 @@ targets:
     settings:
       base:
         ENABLE_HARDENED_RUNTIME: YES
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: "1.8.2"
+        CURRENT_PROJECT_VERSION: 32
         CODE_SIGN_ENTITLEMENTS: GroqTalk/GroqTalk.entitlements
         CODE_SIGN_IDENTITY: "-"
     info:

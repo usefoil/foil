@@ -28,6 +28,7 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "hotkeyChoice")
         UserDefaults.standard.removeObject(forKey: "language")
         UserDefaults.standard.removeObject(forKey: "asyncPasteEnabled")
+        UserDefaults.standard.removeObject(forKey: "experimentalSkyLightPasteEnabled")
         UserDefaults.standard.removeObject(forKey: "showLiveFeedbackHUD")
         UserDefaults.standard.removeObject(forKey: "showFloatingStatus")
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
@@ -245,6 +246,24 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(presentation.detail, "Enable Accessibility before recording")
         XCTAssertEqual(presentation.primaryAction, .openAccessibility)
         XCTAssertEqual(presentation.tone, .warning)
+    }
+
+    func testSetupSessionPresentationShowsInvalidApiKeyAfterPermissionsReady() {
+        let state = AppState()
+        state.updateAccessibilityState(isTrusted: true)
+        state.updateMicrophoneState(isReady: true)
+        state.apiKeyState = .needsAction("Invalid Groq API key")
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Setup needed")
+        XCTAssertEqual(presentation.detail, "Invalid Groq API key")
+        XCTAssertEqual(presentation.primaryAction, .addKey)
+        XCTAssertFalse(state.isSetupReady)
     }
 
     func testRecordingSessionPresentationShowsTimerAndTarget() {
@@ -679,6 +698,17 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         state.asyncPasteEnabled = true
         XCTAssertTrue(state.asyncPasteEnabled)
+    }
+
+    func testExperimentalSkyLightPasteDefaultsOff() {
+        let state = AppState()
+        XCTAssertFalse(state.experimentalSkyLightPasteEnabled)
+    }
+
+    func testSetExperimentalSkyLightPaste() {
+        let state = AppState()
+        state.experimentalSkyLightPasteEnabled = true
+        XCTAssertTrue(state.experimentalSkyLightPasteEnabled)
     }
 
     func testRecordPasteUpdatesUserFeedback() {

@@ -149,7 +149,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 DiagnosticLog.write("UITest paste queue: route=asyncQueued target=\(target.appName) bytes=\(text.utf8.count)")
                 return .asyncQueued
             }
-            return await self.textInserter.insertAsync(text: text, target: target, keepOnClipboard: keepOnClipboard)
+            return await self.textInserter.insertAsync(
+                text: text,
+                target: target,
+                keepOnClipboard: keepOnClipboard,
+                allowSkyLight: self.appState.experimentalSkyLightPasteEnabled
+            )
         }
         configureUITestingIfNeeded()
         configureAutomationSmokeIfNeeded()
@@ -184,6 +189,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.updateAccessibilityState(isTrusted: true)
             appState.updateMicrophoneState(isReady: true)
             appState.apiKeyState = .ready
+            appState.experimentalSkyLightPasteEnabled = false
             appState.lastPasteSummary = nil
             #if DEBUG
             appState.mockTranscriptionEnabled = false
@@ -645,7 +651,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } catch {
                 DiagnosticLog.write("onRecordingStopped: error \(error)")
                 stopTranscribingAnimation()
-                appState.showError("Failed to save recording")
+                if case AudioRecorder.RecordingError.recordingTooLong = error {
+                    appState.showError("Recording too long")
+                } else {
+                    appState.showError("Failed to save recording")
+                }
                 return
             }
 
@@ -679,6 +689,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             do {
                 let text: String
+                var cleanupFailed = false
                 if useMockTranscription {
                     try await Task.sleep(for: .seconds(2))
                     text = "Mock transcription at \(Date().formatted(date: .omitted, time: .standard))"
@@ -691,15 +702,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         format: appState.selectedAudioFormat,
                         language: appState.selectedLanguage
                     )
-                    if appState.transcriptProcessingMode != .raw {
-                        appState.transcriptionStage = .cleaningTranscript
-                    }
-                    text = try await transcriptionService.processTranscript(
-                        rawText,
+                    let processed = await processTranscriptOrRaw(
+                        rawText: rawText,
                         apiKey: apiKey,
-                        mode: appState.transcriptProcessingMode,
-                        model: appState.transcriptCleanupModel
+                        context: "transcription"
                     )
+                    text = processed.text
+                    cleanupFailed = processed.cleanupFailed
                 } else {
                     throw TranscriptionService.TranscriptionError.invalidResponse
                 }
@@ -729,6 +738,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     )
                     recordPaste(delivery)
                 }
+                if cleanupFailed {
+                    appState.feedbackMessage = "Cleanup failed; raw transcript used"
+                }
                 appState.setStatus(.idle)
                 try? FileManager.default.removeItem(at: url)
             } catch {
@@ -739,6 +751,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState.showError(errorMsg)
                 // Do NOT delete audio file — preserved for retry
             }
+        }
+    }
+
+    private func processTranscriptOrRaw(
+        rawText: String,
+        apiKey: String,
+        context: String
+    ) async -> (text: String, cleanupFailed: Bool) {
+        guard appState.transcriptProcessingMode != .raw else {
+            return (rawText, false)
+        }
+
+        appState.transcriptionStage = .cleaningTranscript
+        do {
+            let text = try await transcriptionService.processTranscript(
+                rawText,
+                apiKey: apiKey,
+                mode: appState.transcriptProcessingMode,
+                model: appState.transcriptCleanupModel
+            )
+            return (text, false)
+        } catch {
+            DiagnosticLog.write("\(context): cleanup failed mappedMessage=\(errorMessage(from: error))")
+            return (rawText, true)
         }
     }
 
@@ -763,6 +799,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "Invalid API key"
         case TranscriptionService.TranscriptionError.fileTooLarge:
             "Recording too long"
+        case AudioRecorder.RecordingError.recordingTooLong:
+            "Recording too long"
+        case TranscriptionService.TranscriptionError.rateLimited:
+            "Groq rate limit reached"
+        case TranscriptionService.TranscriptionError.quotaExceeded:
+            "Groq quota exceeded"
+        case TranscriptionService.TranscriptionError.modelUnavailable(let model):
+            "Model unavailable: \(model)"
+        case TranscriptionService.TranscriptionError.badRequest:
+            "Groq rejected the request"
+        case TranscriptionService.TranscriptionError.serverError:
+            "Groq is temporarily unavailable"
         case TranscriptionService.TranscriptionError.apiError(let code, _):
             "API error (\(code))"
         case let urlError as URLError where urlError.code == .notConnectedToInternet:
@@ -887,6 +935,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
+            guard let apiKey = KeychainHelper.readApiKey() else {
+                appState.refreshApiKeyState()
+                appState.failSetupCheck("Add Groq API key")
+                return
+            }
+
+            do {
+                let requiredModels = requiredModelsForSetupCheck()
+                try await transcriptionService.validateApiKey(
+                    apiKey: apiKey,
+                    requiredModels: requiredModels
+                )
+                appState.apiKeyState = .ready
+            } catch TranscriptionService.TranscriptionError.invalidApiKey {
+                appState.apiKeyState = .needsAction("Invalid Groq API key")
+                appState.failSetupCheck("Invalid Groq API key")
+                return
+            } catch {
+                let message = errorMessage(from: error)
+                appState.failSetupCheck(message)
+                return
+            }
+
             guard AXIsProcessTrusted() else {
                 appState.updateAccessibilityState(isTrusted: false)
                 appState.failSetupCheck("Enable Accessibility")
@@ -919,6 +990,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState.failSetupCheck("Microphone unavailable")
             }
         }
+    }
+
+    private func requiredModelsForSetupCheck() -> [String] {
+        var models = [appState.selectedModel]
+        if appState.transcriptProcessingMode != .raw {
+            models.append(appState.transcriptCleanupModel)
+        }
+        return Array(Set(models))
     }
 
     private func requestMicrophoneAccessIfNeeded() async -> Bool {
@@ -972,20 +1051,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     format: format,
                     language: appState.selectedLanguage
                 )
-                if appState.transcriptProcessingMode != .raw {
-                    appState.transcriptionStage = .cleaningTranscript
-                }
-                let text = try await transcriptionService.processTranscript(
-                    rawText,
+                let processed = await processTranscriptOrRaw(
+                    rawText: rawText,
                     apiKey: apiKey,
-                    mode: appState.transcriptProcessingMode,
-                    model: appState.transcriptCleanupModel
+                    context: "retry"
                 )
+                let text = processed.text
                 stopTranscribingAnimation()
                 history.resolveRetry(id: record.id, text: text)
                 appState.transcriptionStage = .pasting
                 let delivery = await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
                 recordPaste(delivery)
+                if processed.cleanupFailed {
+                    appState.feedbackMessage = "Cleanup failed; raw transcript used"
+                }
                 appState.setStatus(.idle)
             } catch {
                 stopTranscribingAnimation()

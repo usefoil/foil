@@ -29,7 +29,8 @@ final class TextInserterTests: XCTestCase {
         pasteboard.setString("replacement text", forType: .string)
 
         // Restore and verify.
-        TextInserter.restorePasteboardContents(pasteboard, saved: saved)
+        let restoreResult = TextInserter.restorePasteboardContents(pasteboard, saved: saved)
+        XCTAssertTrue(restoreResult, "Restore should succeed on the happy path")
         let restored = pasteboard.string(forType: .string)
 
         XCTAssertEqual(restored, "original text", "Restored pasteboard should contain the original text")
@@ -48,7 +49,7 @@ final class TextInserterTests: XCTestCase {
         XCTAssertTrue(saved.isEmpty, "Saving an empty pasteboard should return an empty array")
     }
 
-    func testSavePasteboardContentsReturnsOneEntryPerTypeItem() {
+    func testSavePasteboardContentsIncludesStringType() {
         let pasteboard = makeTestPasteboard()
         defer { pasteboard.releaseGlobally() }
 
