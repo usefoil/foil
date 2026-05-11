@@ -78,7 +78,11 @@ Use this split:
 - Local required before release candidate: real paste/focus tests via `make test-paste-real` or `make qa-paste`, microphone behavior, signed installed app smoke test, and live Groq cleanup quality checks.
 - Manual final check: fresh install, permission prompts, notarized DMG, Homebrew install, and cross-app paste sanity.
 
-Any local-only QA path must have a documented command or checklist entry so it is repeatable.
+Any local-only QA path must have a documented command or checklist entry so it
+is repeatable. Record release-candidate evidence in
+[`docs/release-qa-log.md`](release-qa-log.md). Skips must fail by default unless
+`ALLOW_LOCAL_QA_SKIP=1` is set and the skipped result is explicitly recorded in
+that QA log.
 
 ### Migration And Rollback Policy
 
@@ -114,7 +118,7 @@ Paste and focus:
 - Clipboard restoration honors user changes made during paste delays.
 - Paste outcomes distinguish verified success, command-posted/unknown, and clipboard fallback.
 - Invalid or terminated targets return fallback outcomes.
-- Local integration scripts exercise at least one real async paste path without the UI-test bypass. Use `make test-paste-real` for the installed-app TextEdit smoke path.
+- Local integration scripts exercise at least one real async paste path without the UI-test bypass. Use `make test-paste-real` for the installed-app TextEdit smoke path. A local AX-window skip is not a passing release gate unless recorded with `ALLOW_LOCAL_QA_SKIP=1`.
 
 Recording and transcription:
 
@@ -426,6 +430,7 @@ Release dry-run checklist:
    `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_TEAM_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`.
 7. Confirm the release runner image has the configured Xcode path from `deploy.yml` or update the workflow before release.
 8. For an existing semantic-release tag, run the manual `Build DMG for Existing Release` workflow with the version number without the leading `v`.
+   Manual dispatch must not run semantic-release; it should only rebuild the existing release DMG.
 9. After the workflow completes, download the release DMG and verify locally:
    `spctl -a -vv -t open --context context:primary-signature GroqTalk-VERSION-macos.dmg`
 10. Mount the DMG, copy the app to Applications, launch it, and complete a fresh setup smoke test for Accessibility, Microphone, API key, and one transcription.
@@ -478,6 +483,7 @@ Before public release, verify:
 - Paste failure states are honest and do not overclaim success.
 - There are no known P0/P1 bugs.
 - Full QA gate results are recorded with skipped checks explained.
+- `docs/release-qa-log.md` is filled in for the release candidate.
 - Fresh install on a clean macOS user account.
 - No existing Groq key.
 - Accessibility denied, then granted.

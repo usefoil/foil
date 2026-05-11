@@ -74,27 +74,16 @@ struct BackgroundPaste {
     // MARK: - AX text insertion
 
     /// Insert text at the cursor position via AX API.
-    /// Tries AXSelectedText first (insert at cursor), falls back to
-    /// AXValue append.
+    /// Avoid blind AXValue append because the first text field in a window is
+    /// not necessarily the user's intended insertion target.
     private static func insertViaAX(text: String, into textArea: AXUIElement) -> Bool {
-        // Try 1: Replace selected text (inserts at cursor if no selection)
         let selectedResult = AXUIElementSetAttributeValue(
             textArea, kAXSelectedTextAttribute as CFString, text as CFTypeRef
         )
         if selectedResult == .success { return true }
 
-        // Try 2: Append to existing value
-        var valueRef: CFTypeRef?
-        let readResult = AXUIElementCopyAttributeValue(textArea, kAXValueAttribute as CFString, &valueRef)
-        guard readResult == .success, let currentText = valueRef as? String else {
-            DiagnosticLog.write("BackgroundPaste: AX read failed (error \(readResult.rawValue)), skipping append to avoid data loss")
-            return false
-        }
-        let newText = currentText + text
-        let valueResult = AXUIElementSetAttributeValue(
-            textArea, kAXValueAttribute as CFString, newText as CFTypeRef
-        )
-        return valueResult == .success
+        DiagnosticLog.write("BackgroundPaste: AX selected-text insertion failed (error \(selectedResult.rawValue))")
+        return false
     }
 
     /// Find a text area or text field within a window's AX tree.

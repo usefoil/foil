@@ -3,7 +3,7 @@ import AVFAudio
 @testable import GroqTalk
 
 /// End-to-end tests that call the real Groq Whisper API.
-/// Skipped automatically if no API key is available.
+/// Skipped unless RUN_LIVE_GROQ_TESTS=1 and GROQ_API_KEY are set.
 final class IntegrationTests: XCTestCase {
     private var recorder: AudioRecorder!
     private var tempFiles: [URL] = []
@@ -23,16 +23,14 @@ final class IntegrationTests: XCTestCase {
     // MARK: - Helpers
 
     private func requireApiKey() throws -> String {
-        // Check environment variable first (for CI or explicit overrides)
+        guard ProcessInfo.processInfo.environment["RUN_LIVE_GROQ_TESTS"] == "1" else {
+            throw XCTSkip("Set RUN_LIVE_GROQ_TESTS=1 and GROQ_API_KEY to run live Groq API tests")
+        }
         if let envKey = ProcessInfo.processInfo.environment["GROQ_API_KEY"],
            !envKey.isEmpty {
             return envKey
         }
-        // Fall back to the app's stored key
-        guard let key = KeychainHelper.readApiKey() else {
-            throw XCTSkip("No API key available — set GROQ_API_KEY or configure in the app")
-        }
-        return key
+        throw XCTSkip("Set GROQ_API_KEY to run live Groq API tests")
     }
 
     /// Creates a 1-second synthetic 16kHz mono sine wave buffer.

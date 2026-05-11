@@ -44,7 +44,11 @@ unlock-local-signing-keychain:
 
 build: unlock-local-signing-keychain
 	@if [ -d "$(APP_PATH)" ]; then find "$(APP_PATH)" -name '*.cstemp*' -delete; fi
-	xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' $(SIGNING_FLAGS) build 2>&1 | tail -3
+	@tmp=$$(mktemp); \
+	xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' $(SIGNING_FLAGS) build >"$$tmp" 2>&1; \
+	status=$$?; tail -3 "$$tmp"; \
+	if ! grep -q '\*\* BUILD SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
+	rm -f "$$tmp"; exit $$status
 
 run: build
 	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
@@ -72,10 +76,18 @@ uninstall:
 	@echo "Removed /Applications/$(APP_NAME).app"
 
 test:
-	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkTests 2>&1 | tail -5
+	@tmp=$$(mktemp); \
+	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkTests >"$$tmp" 2>&1; \
+	status=$$?; tail -5 "$$tmp"; \
+	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
+	rm -f "$$tmp"; exit $$status
 
 test-ui:
-	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkUITests 2>&1 | tail -5
+	@tmp=$$(mktemp); \
+	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkUITests >"$$tmp" 2>&1; \
+	status=$$?; tail -5 "$$tmp"; \
+	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
+	rm -f "$$tmp"; exit $$status
 
 test-cross-app:
 	swift tests/test_async_paste.swift

@@ -2,8 +2,8 @@
 //
 // Real Groq cleanup-quality smoke test.
 //
-// Reads the saved local Groq API key and runs the post-transcription cleanup
-// prompts against a fixed rambling sample. Prints only model outputs, never the key.
+// Reads GROQ_API_KEY and runs the post-transcription cleanup prompts against a
+// fixed rambling sample. Prints only model outputs, never the key.
 
 import Foundation
 
@@ -57,14 +57,11 @@ enum CleanupMode: String, CaseIterable {
 
 enum CleanupQualityTest {
     static func run() async -> Int32 {
-        let keyURL = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("GroqTalk/api-key")
-
-        guard let key = try? String(contentsOf: keyURL, encoding: .utf8)
+        guard let key = ProcessInfo.processInfo.environment["GROQ_API_KEY"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !key.isEmpty else {
-            print("ERROR: Missing Groq API key at \(keyURL.path)")
+            print("ERROR: Missing GROQ_API_KEY environment variable.")
+            print("This live QA check intentionally avoids legacy plaintext app key files.")
             return 1
         }
 
