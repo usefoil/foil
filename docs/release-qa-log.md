@@ -6,8 +6,8 @@ publishing.
 
 ## Release Candidate
 
-- Version: Unreleased RC from `feat/initial-implementation` after `v1.8.1`
-- Commit: `86c7079`
+- Version: `v1.8.2`
+- Commit: `fe4da4e`
 - Date: 2026-05-11 09:01:15 MST
 - Runner: `jeremywatt`
 - macOS version: 26.3.1 (a), build 25D771280a
@@ -23,7 +23,7 @@ publishing.
 | Installed app real paste | `make test-paste-real` | SKIP RECORDED | Default run exited `2` on AX-window skip as expected; explicit rerun with `ALLOW_LOCAL_QA_SKIP=1` exited `0`. Production `insertAsync` path was exercised and UI-test bypass was not used, but target AX window was not exposed to the installed app process. |
 | Cross-app paste | `make test-cross-app` | PASS WITH SKIPS | TextEdit async paste PASS; SkyLight background paste PASS; Terminal PASS; Chrome PASS; VS Code skipped because app is not installed; Notes skipped to avoid mutating persistent Notes data. |
 | Live cleanup quality | `GROQ_API_KEY=... make test-cleanup-quality` | BLOCKED | `make test-cleanup-quality` without `GROQ_API_KEY` failed fast as intended. Rerun with a valid key before release sign-off. |
-| Semantic release dry run | `npx semantic-release --dry-run --no-ci` | PASS / NO RELEASE | First run failed without `GH_TOKEN`; rerun with `GH_TOKEN="$(gh auth token)"` passed. semantic-release found 3 commits since `v1.8.1`, none release-triggering, so no new version would be published. |
+| Semantic release dry run | `npx semantic-release --dry-run --no-ci` | PASS / NO RELEASE BEFORE TRIGGER | First run failed without `GH_TOKEN`; rerun with `GH_TOKEN="$(gh auth token)"` passed. semantic-release found 3 commits since `v1.8.1`, none release-triggering. PR #48 then added an intentional `fix:` release trigger and published `v1.8.2`. |
 
 ## Local-Only Skips
 
@@ -41,17 +41,17 @@ Do not set `ALLOW_LOCAL_QA_SKIP=1` unless the skipped result is recorded here.
 
 | Artifact | Command | Result | Notes |
 | --- | --- | --- | --- |
-| DMG signature | `spctl -a -vv -t open --context context:primary-signature GroqTalk-VERSION-macos.dmg` | BLOCKED | No DMG exists locally for commit `86c7079`. Latest GitHub release is `v1.8.1`, which predates this RC. |
-| DMG notarization staple | `xcrun stapler validate /Volumes/GroqTalk/GroqTalk.app` | BLOCKED | Requires a mounted signed/notarized RC DMG. |
-| DMG checksum | `shasum -a 256 GroqTalk-VERSION-macos.dmg` | BLOCKED | No RC DMG exists locally. Existing `v1.8.1` asset digest from GitHub is `sha256:9c1a3289fec1e874f24f0dd38c5d3501663b67a59e8fa1597bc42f13eddc29dd`, but that is not an artifact for commit `86c7079`. |
+| DMG signature | `spctl -a -vv -t open --context context:primary-signature GroqTalk-1.8.2-macos.dmg` | PASS | Downloaded from `v1.8.2`; Gatekeeper accepted the DMG as `source=Notarized Developer ID`, origin `Developer ID Application: Mean Weasel LLC (B3A6AN2HA4)`. |
+| DMG notarization staple | `xcrun stapler validate GroqTalk-1.8.2-macos.dmg` | PASS | Stapler validation passed for the DMG. Mounted app does not have its own stapled ticket, but `spctl -a -vv /Volumes/GroqTalk/GroqTalk.app` accepted it as Notarized Developer ID and `codesign --verify --deep --strict --verbose=2` passed. |
+| DMG checksum | `shasum -a 256 GroqTalk-1.8.2-macos.dmg` | PASS | `b86a6d46d7aa987d6f5724c8aac574e9726c9bbbf1e0114389e49d1b869f2b8b`, matching the GitHub release asset digest. |
 | Homebrew cask install | `brew install --cask groqtalk` | BLOCKED | `gh repo view neonwatty/tap` could not resolve the tap repository. README correctly treats Homebrew as planned/unverified. |
 
 ## Manual Smoke
 
 | Scenario | Result | Notes |
 | --- | --- | --- |
-| Fresh install from DMG | BLOCKED | Requires signed/notarized RC DMG for commit `86c7079`. |
-| Accessibility permission prompt and setup check | PARTIAL | Installed debug app was copied to `/Applications/GroqTalk.app`; AX-window exposure was still unavailable for real paste smoke. Requires fresh permission-cycle verification. |
+| Fresh install from DMG | PASS | Copied `GroqTalk.app` from mounted `GroqTalk-1.8.2-macos.dmg` to `/Applications`, launched successfully, Gatekeeper accepted `/Applications/GroqTalk.app`, bundle version/build `1.8.2` / `32`. |
+| Accessibility permission prompt and setup check | PARTIAL | Installed signed app launches from `/Applications`; AX-window exposure was unavailable earlier for real paste smoke. Requires fresh permission-cycle verification. |
 | Microphone permission prompt and setup check | NOT RUN | Requires manual fresh-user state or clean permission reset. |
 | API key save and Keychain readiness | NOT RUN | Requires manual app flow with a real or disposable key. |
 | One real transcription | NOT RUN | Requires `GROQ_API_KEY` or app-saved key plus microphone input. |
@@ -60,6 +60,6 @@ Do not set `ALLOW_LOCAL_QA_SKIP=1` unless the skipped result is recorded here.
 
 ## Sign-Off
 
-- Known P0/P1 issues: None from CI/local deterministic gates. RC sign-off is blocked on live cleanup quality, fresh DMG artifact verification, and final manual smoke.
+- Known P0/P1 issues: None from CI/local deterministic gates or DMG verification. RC sign-off is still blocked on live cleanup quality and remaining manual smoke.
 - Remaining P2/P3 issues accepted for this release: Installed-app paste AX-window skip on this runner; VS Code/Notes cross-app coverage skipped; Homebrew tap unavailable.
 - Approver:
