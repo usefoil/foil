@@ -268,14 +268,19 @@ print("  Window B contents: \(textB.prefix(100))")
 AXUIElementPerformAction(wB, kAXRaiseAction as CFString)
 
 print()
+let passed: Bool
 if textA.contains("ASYNC_PASTE_TEST_SUCCESS") && !textB.contains("ASYNC_PASTE_TEST_SUCCESS") {
     print("✅ SUCCESS: Text landed in Window A (target), not Window B (current)")
+    passed = true
 } else if textB.contains("ASYNC_PASTE_TEST_SUCCESS") {
     print("❌ FAIL: Text landed in Window B (current) instead of Window A (target)")
+    passed = false
 } else if textA.contains("ASYNC_PASTE_TEST_SUCCESS") && textB.contains("ASYNC_PASTE_TEST_SUCCESS") {
     print("❌ FAIL: Text landed in BOTH windows")
+    passed = false
 } else {
     print("❌ FAIL: Text not found in either window")
+    passed = false
 }
 
 // Cleanup
@@ -284,3 +289,4 @@ print("Cleaning up...")
 try? FileManager.default.removeItem(at: fileA)
 try? FileManager.default.removeItem(at: fileB)
 print("Done.")
+exit(passed ? 0 : 1)

@@ -9,6 +9,7 @@ enum DiagnosticLog {
     }()
 
     static func write(_ message: String) {
+        guard isEnabled else { return }
         let line = "\(formatter.string(from: Date())) \(message)\n"
         NSLog("[GroqTalk] %@", message)
         guard let data = line.data(using: .utf8) else { return }
@@ -23,5 +24,13 @@ enum DiagnosticLog {
                 FileManager.default.createFile(atPath: logPath, contents: data)
             }
         }
+    }
+
+    private static var isEnabled: Bool {
+        #if DEBUG
+        return true
+        #else
+        return ProcessInfo.processInfo.environment["GROQTALK_DIAGNOSTICS"] == "1"
+        #endif
     }
 }

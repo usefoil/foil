@@ -77,6 +77,38 @@ final class BackgroundPasteTests: XCTestCase {
         XCTAssertEqual(pasteboard.string(forType: .string), "original clipboard")
     }
 
+    func testClipboardFallbackRestoresPreviousClipboardWhenKeepOff() async {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString("previous clipboard", forType: .string)
+
+        let target = PasteTarget(windowElement: nil, windowID: nil, pid: 99999, appName: "Ghost")
+        let delivery = await TextInserter().insertAtTarget(
+            text: "private transcript",
+            target: target,
+            keepOnClipboard: false
+        )
+
+        XCTAssertEqual(delivery, .clipboardFallback)
+        XCTAssertEqual(pasteboard.string(forType: .string), "previous clipboard")
+    }
+
+    func testClipboardFallbackKeepsTranscriptWhenKeepOnClipboardIsEnabled() async {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString("previous clipboard", forType: .string)
+
+        let target = PasteTarget(windowElement: nil, windowID: nil, pid: 99999, appName: "Ghost")
+        let delivery = await TextInserter().insertAtTarget(
+            text: "private transcript",
+            target: target,
+            keepOnClipboard: true
+        )
+
+        XCTAssertEqual(delivery, .clipboardFallback)
+        XCTAssertEqual(pasteboard.string(forType: .string), "private transcript")
+    }
+
     func testCommandPostedDeliveryMessagesDoNotClaimVerifiedPaste() {
         XCTAssertEqual(
             PasteDelivery.currentAppCommandPosted.userMessage,

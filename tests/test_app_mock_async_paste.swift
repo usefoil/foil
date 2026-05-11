@@ -224,7 +224,12 @@ if log.contains("windowElement: nil") {
     print()
     print("⚠️  SKIP: Installed GroqTalk entered the mock async path, but this desktop session did not expose the target AX window to the app process.")
     print("Grant or refresh Accessibility permission for /Applications/GroqTalk.app, then rerun `make test-paste-real`.")
-    exit(0)
+    if ProcessInfo.processInfo.environment["ALLOW_LOCAL_QA_SKIP"] == "1" {
+        print("ALLOW_LOCAL_QA_SKIP=1 set; recording this as an explicit local skip.")
+        exit(0)
+    }
+    print("Set ALLOW_LOCAL_QA_SKIP=1 only when this skip is recorded in the release QA log.")
+    exit(2)
 }
 
 print()

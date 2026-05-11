@@ -37,10 +37,16 @@ struct TextInserter {
 
         guard let targetApp = NSRunningApplication(processIdentifier: target.pid),
               !targetApp.isTerminated else {
-            // Target app is gone — fall back to clipboard only
+            // Target app is gone. Leave text on the clipboard only when the
+            // user has explicitly asked GroqTalk to keep transcripts there.
             DiagnosticLog.write("TextInserter.insertAtTarget: route=clipboardFallback target=\(target.appName) pid=\(target.pid)")
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
+            let pasteboard = NSPasteboard.general
+            let saved = keepOnClipboard ? [] : Self.savePasteboardContents(pasteboard)
+            pasteboard.clearContents()
+            pasteboard.setString(text, forType: .string)
+            if !keepOnClipboard {
+                Self.restorePasteboardContents(pasteboard, saved: saved)
+            }
             return .clipboardFallback
         }
 

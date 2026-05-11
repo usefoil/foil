@@ -9,17 +9,13 @@ Demo media has not been published yet.
 GroqTalk is still in beta. Verify the release artifact for the version you want
 before treating the install paths below as public-ready.
 
-**Manual:** Download the latest `.dmg` from
-[Releases](https://github.com/neonwatty/groqtalk/releases), open it, and drag
-GroqTalk into Applications.
+**Manual:** Download `GroqTalk-VERSION-macos.dmg` from
+[Releases](https://github.com/neonwatty/groqtalk/releases), verify the checksum
+published with that release, open it, and drag GroqTalk into Applications.
 
-**Homebrew cask:** Available only after the matching release DMG has been built,
-uploaded, and the tap cask has been verified.
-
-```
-brew tap neonwatty/tap
-brew install --cask groqtalk
-```
+**Homebrew cask:** Planned, but not currently a verified install path. Do not
+publish `brew tap` / `brew install --cask` instructions until the tap exists,
+the cask points at a real DMG, and the cask SHA-256 has been checked.
 
 ## Setup
 
@@ -84,7 +80,7 @@ make setup-release-secrets
 - **Hold-to-record** — hold Right Command, Right Option, or Globe/Fn to record, release to transcribe
 - **Toggle mode** — press once to start, again to stop
 - **Auto-paste** — by default, sends a paste command to the app active when transcription finishes
-- **Async paste option** — can capture the app where recording started and paste there later; some apps may block automation, in which case text is copied to the clipboard
+- **Async paste option** — can capture the app where recording started and paste there later; some apps may block automation, in which case GroqTalk falls back to clipboard handling
 - **Clipboard safety** — by default, GroqTalk restores the previous clipboard after posting paste; Settings can keep final text on the clipboard instead
 - **3 audio formats** — M4A (smaller), WAV (lossless), FLAC (lossless, smaller)
 - **Language selection** — hint Whisper for better accuracy in 12 languages
@@ -96,8 +92,8 @@ make setup-release-secrets
 - API keys are stored in the macOS Keychain. Older plaintext API-key files are migrated on read when possible.
 - Transcription history stays on this Mac in Application Support and stores the last 500 records.
 - Successful audio files are deleted after transcription.
-- Failed audio may be retained locally so the failed transcription can be retried. Clearing history deletes retained retry files.
-- Normal diagnostics should not include API keys or full transcript text.
+- Failed audio may be retained locally only for retryable transcription failures. Clearing history deletes retained retry files.
+- Normal diagnostics should not include API keys or full transcript text. Release builds write diagnostic logs only when `GROQTALK_DIAGNOSTICS=1` is set.
 
 ## Paste Caveats
 

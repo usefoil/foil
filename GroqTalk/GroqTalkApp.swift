@@ -578,7 +578,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.stopRecording()
         }
         hotkeyMonitor.onRecordingCancelled = { [weak self] in
-            self?.cancelRecording(preservingPendingTarget: true)
+            self?.cancelRecording(preservingPendingTarget: false)
         }
     }
 
@@ -594,17 +594,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let asyncEnabled = appState.asyncPasteEnabled
-        let capturedTarget: PasteTarget?
-        if captureTarget, asyncEnabled, pendingTarget == nil {
-            capturedTarget = PasteTarget.captureCurrentTarget()
-        } else {
-            capturedTarget = nil
-        }
+        let capturedTarget = captureTarget && asyncEnabled
+            ? PasteTarget.captureCurrentTarget()
+            : nil
         DiagnosticLog.write("onRecordingStarted: asyncEnabled=\(asyncEnabled) capturedTarget=\(String(describing: capturedTarget)) existingTarget=\(pendingTarget != nil)")
         Task { @MainActor in
-            if let target = capturedTarget {
-                pendingTarget = target
-            }
+            pendingTarget = capturedTarget
             appState.recordTargetCapture(capturedTarget ?? pendingTarget)
             appState.clearError()
             do {
@@ -614,6 +609,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 startRecordingTimer()
                 soundPlayer.playStartSound()
             } catch {
+                pendingTarget = nil
                 appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
                 appState.showError("Microphone unavailable")
             }
@@ -672,7 +668,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let storedApiKey = KeychainHelper.readApiKey() else {
                     stopTranscribingAnimation()
                     appState.refreshApiKeyState()
-                    history.addFailure(error: "No API key", audioFileURL: url)
+                    try? FileManager.default.removeItem(at: url)
+                    pendingTarget = nil
+                    history.addFailure(error: "No API key", audioFileURL: nil)
                     appState.showError("No API key — set one via the menu")
                     return
                 }
@@ -754,8 +752,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if !preservingPendingTarget {
                 pendingTarget = nil
             }
-            // Hotkey debounce cancels are often followed immediately by a new
-            // start, so that path preserves the original target capture.
+            // Cancellation clears target capture so a later transcript cannot
+            // paste into a stale app/window.
         }
     }
 
