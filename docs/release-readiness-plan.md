@@ -75,7 +75,7 @@ CI should stay deterministic. Tests that require real Accessibility permission, 
 Use this split:
 
 - CI required: build, deterministic unit tests, deterministic UI tests, request construction, state, persistence, and mocked networking.
-- Local required before release candidate: real paste/focus tests, microphone behavior, signed installed app smoke test, and live Groq cleanup quality checks.
+- Local required before release candidate: real paste/focus tests via `make test-paste-real` or `make qa-paste`, microphone behavior, signed installed app smoke test, and live Groq cleanup quality checks.
 - Manual final check: fresh install, permission prompts, notarized DMG, Homebrew install, and cross-app paste sanity.
 
 Any local-only QA path must have a documented command or checklist entry so it is repeatable.
@@ -114,7 +114,7 @@ Paste and focus:
 - Clipboard restoration honors user changes made during paste delays.
 - Paste outcomes distinguish verified success, command-posted/unknown, and clipboard fallback.
 - Invalid or terminated targets return fallback outcomes.
-- Local integration scripts exercise at least one real async paste path without the UI-test bypass.
+- Local integration scripts exercise at least one real async paste path without the UI-test bypass. Use `make test-paste-real` for the installed-app TextEdit smoke path.
 
 Recording and transcription:
 
@@ -401,6 +401,48 @@ Acceptance:
 
 - A maintainer can cut a signed/notarized release from documented steps.
 - README install claims match reality.
+
+Current local verification notes:
+
+- `package.json` includes `semantic-release` and `@semantic-release/exec`.
+- `.releaserc.json` currently publishes from `feat/initial-implementation` and writes `new_release_published=true` plus `new_release_version=${nextRelease.version}` to `$GITHUB_OUTPUT` through `@semantic-release/exec`.
+- `.github/workflows/deploy.yml` also triggers release automation from `feat/initial-implementation`, so branch configuration is internally consistent for the current beta branch.
+- Public-ready release automation should move both `.releaserc.json` and `.github/workflows/deploy.yml` to `main` in the same change. Changing only one side will either prevent releases or prevent the DMG job from receiving the expected semantic-release output.
+- The automatic DMG job checks out `v${new_release_version}`, imports the Developer ID certificate, archives with `MARKETING_VERSION` set to the release version, exports with `ExportOptions.plist`, verifies bundle version/build, creates a DMG, signs it, notarizes it with App Store Connect API-key credentials, staples it, validates Gatekeeper/stapler status, and uploads `GroqTalk-${VERSION}-macos.dmg` to the GitHub release.
+- The manual DMG job builds an existing `v${inputs.version}` release and uploads the same DMG name. Use this when semantic-release already created the release but packaging needs to be re-run.
+- Homebrew is not verified from this repository alone. The tap/cask must be checked against the actual uploaded DMG URL and SHA-256 before README Homebrew instructions are treated as public-ready.
+
+Release dry-run checklist:
+
+1. Confirm working tree is clean except intentional release changes:
+   `git status --short`
+2. Install release tooling:
+   `npm ci`
+3. Validate local semantic-release configuration:
+   `npx semantic-release --dry-run --no-ci`
+4. Confirm the dry run identifies the intended branch, next version, release notes, and GitHub release action without publishing.
+5. Confirm `.releaserc.json` `branches` and `.github/workflows/deploy.yml` `on.push.branches` match the intended release branch.
+6. Confirm required repository secrets exist:
+   `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_TEAM_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`.
+7. Confirm the release runner image has the configured Xcode path from `deploy.yml` or update the workflow before release.
+8. For an existing semantic-release tag, run the manual `Build DMG for Existing Release` workflow with the version number without the leading `v`.
+9. After the workflow completes, download the release DMG and verify locally:
+   `spctl -a -vv -t open --context context:primary-signature GroqTalk-VERSION-macos.dmg`
+10. Mount the DMG, copy the app to Applications, launch it, and complete a fresh setup smoke test for Accessibility, Microphone, API key, and one transcription.
+
+Homebrew/DMG verification path:
+
+1. Confirm the release contains `GroqTalk-VERSION-macos.dmg`.
+2. Download the DMG and compute its checksum:
+   `shasum -a 256 GroqTalk-VERSION-macos.dmg`
+3. Update the Homebrew tap cask URL to the exact release asset and the cask `sha256` to the computed value.
+4. Verify from a clean tap state:
+   `brew untap neonwatty/tap || true`
+5. Tap and install:
+   `brew tap neonwatty/tap`
+   `brew install --cask groqtalk`
+6. Confirm `/Applications/GroqTalk.app` launches and Gatekeeper accepts the installed app.
+7. Record the workflow run URL, release URL, DMG checksum, cask commit, and local verification result in the release notes or QA log.
 
 ### Agent M: README And Docs Cleanup
 

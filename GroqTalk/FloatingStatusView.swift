@@ -4,6 +4,8 @@ struct FloatingStatusView: View {
     @Bindable var appState: AppState
     var onDismiss: (() -> Void)?
 
+    private let dismissButtonSize: CGFloat = 28
+
     private var session: AppState.SessionPresentation {
         appState.sessionPresentation(
             hotkeyLabel: hotkeyLabel,
@@ -23,46 +25,45 @@ struct FloatingStatusView: View {
                     .foregroundStyle(sessionColor)
             }
             .frame(width: 30, height: 30)
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(session.title)
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
+                        .truncationMode(.tail)
+                        .layoutPriority(1)
                         .accessibilityIdentifier("liveFeedback.title")
 
                     if let timerText = session.timerText {
                         Text(timerText)
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                             .accessibilityIdentifier("liveFeedback.timer")
                     }
 
                     Spacer(minLength: 8)
 
                     if isDismissible {
-                        Button {
-                            onDismiss?()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("Dismiss live feedback")
-                        .accessibilityIdentifier("liveFeedback.dismissButton")
+                        dismissButton
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(session.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
                     .accessibilityIdentifier("liveFeedback.detail")
 
                 if showsProgress {
                     ProgressView()
                         .controlSize(.small)
+                        .accessibilityLabel("Transcribing")
                         .accessibilityIdentifier("liveFeedback.progress")
                 }
 
@@ -71,9 +72,11 @@ struct FloatingStatusView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                        .truncationMode(.tail)
                         .accessibilityIdentifier("liveFeedback.clipboard")
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -86,6 +89,25 @@ struct FloatingStatusView: View {
         .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 10)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("liveFeedback.hud")
+    }
+
+    private var dismissButton: some View {
+        Button {
+            onDismiss?()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: dismissButtonSize, height: dismissButtonSize)
+                .contentShape(Rectangle())
+                .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .accessibilityLabel("Dismiss live feedback")
+        .accessibilityIdentifier("liveFeedback.dismissButton")
+        .accessibilitySortPriority(1)
+        .keyboardShortcut(.cancelAction)
+        .help("Dismiss live feedback")
     }
 
     private var sessionColor: Color {

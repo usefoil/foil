@@ -2,8 +2,10 @@
 //
 // Real-app smoke test for GroqTalk's mock transcription + async paste path.
 //
-// This drives the installed menu bar app through the configured hotkey. It is
-// intentionally visible desktop automation, not a headless test.
+// This drives the installed menu bar app through an automation-only
+// notification and intentionally avoids `--ui-testing`, so PasteQueue must use
+// the production TextInserter.insertAsync path rather than the UI-test
+// clipboard bypass. It is visible desktop automation, not a headless test.
 
 import AppKit
 import ApplicationServices
@@ -187,8 +189,20 @@ print()
 print("Diagnostic checks:")
 print(log.contains("automation smoke: requested") ? "✓ automation mock transcription requested" : "✗ automation request not observed")
 print(log.contains("ASYNC PATH") ? "✓ async paste path used" : "✗ async paste path not observed")
+print(log.contains("insertAsync:") ? "✓ production insertAsync path exercised" : "✗ production insertAsync path not observed")
+print(!log.contains("UITest paste queue") ? "✓ UI-test paste bypass not used" : "✗ UI-test paste bypass was used")
 print(log.contains("automation smoke: enabled") ? "✓ automation smoke mode enabled" : "✗ automation smoke mode missing")
 print(!floatingStatusVisible ? "✓ floating status stayed off by default" : "✗ floating status appeared despite default-off preference")
+
+if log.contains("UITest paste queue") {
+    print("ERROR: Real paste smoke test used the UI-test paste bypass.")
+    exit(1)
+}
+
+if !log.contains("insertAsync:") {
+    print("ERROR: Real paste smoke test did not exercise TextInserter.insertAsync.")
+    exit(1)
+}
 
 if log.contains("Microphone unavailable") {
     print("ERROR: GroqTalk reported microphone unavailable.")
@@ -209,7 +223,7 @@ if pasted && targetText.contains(testTextPrefix) {
 if log.contains("windowElement: nil") {
     print()
     print("⚠️  SKIP: Installed GroqTalk entered the mock async path, but this desktop session did not expose the target AX window to the app process.")
-    print("Grant or refresh Accessibility permission for /Applications/GroqTalk.app, then rerun `make test-app-smoke`.")
+    print("Grant or refresh Accessibility permission for /Applications/GroqTalk.app, then rerun `make test-paste-real`.")
     exit(0)
 }
 
