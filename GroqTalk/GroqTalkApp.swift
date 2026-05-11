@@ -801,6 +801,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "Recording too long"
         case AudioRecorder.RecordingError.recordingTooLong:
             "Recording too long"
+        case AudioRecorder.RecordingError.audioFormatUnavailable:
+            "Audio format unavailable — please restart the app"
         case TranscriptionService.TranscriptionError.rateLimited:
             "Groq rate limit reached"
         case TranscriptionService.TranscriptionError.quotaExceeded:

@@ -260,4 +260,19 @@ final class AudioRecorderTests: XCTestCase {
     func testAudioFormatCaseIterable() {
         XCTAssertEqual(AudioFormat.allCases.count, 3)
     }
+
+    // MARK: - RecordingError tests
+
+    func testRecordingErrorCasesExist() {
+        let formatError = AudioRecorder.RecordingError.audioFormatUnavailable
+        XCTAssertNotNil(formatError)
+
+        let tooLongError = AudioRecorder.RecordingError.recordingTooLong
+        XCTAssertNotNil(tooLongError)
+    }
+
+    func testRecordingErrorDescriptions() {
+        let error = AudioRecorder.RecordingError.audioFormatUnavailable
+        XCTAssertFalse(error.localizedDescription.isEmpty)
+    }
 }
