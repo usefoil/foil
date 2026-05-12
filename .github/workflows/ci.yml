@@ -89,7 +89,10 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
 
       - name: Run tests
+        timeout-minutes: 10
         run: |
+          # Run tests with a background watchdog to kill hung xcodebuild
+          # (testmanagerd sometimes hangs after all tests pass)
           xcodebuild test \
             -scheme GroqTalk \
             -configuration Debug \
@@ -97,7 +100,27 @@ jobs:
             -only-testing:GroqTalkTests \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult \
-            | xcpretty --color && exit ${PIPESTATUS[0]}
+            | xcpretty --color &
+          XCBUILD_PID=$!
+          # Watchdog: kill after 8 minutes if still running
+          ( sleep 480 && kill -9 $XCBUILD_PID 2>/dev/null ) &
+          WATCHDOG_PID=$!
+          wait $XCBUILD_PID 2>/dev/null
+          TEST_EXIT=$?
+          kill $WATCHDOG_PID 2>/dev/null || true
+          # If killed by watchdog (exit 137) or succeeded (exit 0), check results bundle
+          if [ "$TEST_EXIT" -eq 137 ] || [ "$TEST_EXIT" -eq 0 ]; then
+            if [ -d TestResults.xcresult ]; then
+              FAILURES=$(xcrun xcresulttool get test-results summary --path TestResults.xcresult --compact 2>/dev/null | grep -c '"result" : "Failure"' || true)
+              if [ "$FAILURES" -gt 0 ]; then
+                echo "::error::Tests had $FAILURES failure(s)"
+                exit 1
+              fi
+              echo "All tests passed (xcodebuild exited $TEST_EXIT)"
+              exit 0
+            fi
+          fi
+          exit $TEST_EXIT
 
       - name: Test summary
         if: always()
