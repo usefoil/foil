@@ -20,6 +20,7 @@
 		2DC6528192290AF60E7D3FE2 /* PasteControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAF5C8EBDB1AFE5A3FE2296 /* PasteControllerTests.swift */; };
 		2F82960B56006370D0F90FCC /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D5510A5B46F677D2AE854D /* TranscriptionService.swift */; };
 		333A23FF2E429FDD686944CF /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B90F97CD7A617F9DD6B088 /* SettingsView.swift */; };
+		CC11223344556677889900DD /* KeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC11223344556677889900EE /* KeyRecorderView.swift */; };
 		33D87C648D0A87C02B31A449 /* IntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A2013D32CCECA48976685C /* IntegrationTests.swift */; };
 		340759604FA8369AAC611223 /* NotificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4DBABAE3A9E92427066BFD1 /* NotificationManagerTests.swift */; };
 		40A2CF8DC033B1B74827D7D7 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A61E71A6E8082B95B8BFFBB /* LaunchAtLoginManager.swift */; };
@@ -115,6 +116,7 @@
 		8634D2C0D98884FEBC13540B /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		86442051E2DC80E412022354 /* TranscriptionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionController.swift; sourceTree = "<group>"; };
 		86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		CC11223344556677889900EE /* KeyRecorderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRecorderView.swift; sourceTree = "<group>"; };
 		8C04ACF5F04D33BF75D666AD /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		9957FA9EA140D6FB52B0B16D /* SparkleUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdater.swift; sourceTree = "<group>"; };
 		9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitor.swift; sourceTree = "<group>"; };
@@ -230,6 +232,7 @@
 				9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */,
 				43A2E33CA96A9F02E59C910A /* Info.plist */,
 				86D07A7A6D47B83D5319CB92 /* KeychainHelper.swift */,
+				CC11223344556677889900EE /* KeyRecorderView.swift */,
 				5A61E71A6E8082B95B8BFFBB /* LaunchAtLoginManager.swift */,
 				8C04ACF5F04D33BF75D666AD /* MenuBarView.swift */,
 				8634D2C0D98884FEBC13540B /* NotificationManager.swift */,
@@ -384,6 +387,7 @@
 				C0482BD31D4BE0179B102CAC /* HistoryPopoverView.swift in Sources */,
 				44A052BE79DB88DAD67DC34E /* HotkeyMonitor.swift in Sources */,
 				93AD185BFCF6ADFE1DF0693E /* KeychainHelper.swift in Sources */,
+				CC11223344556677889900DD /* KeyRecorderView.swift in Sources */,
 				40A2CF8DC033B1B74827D7D7 /* LaunchAtLoginManager.swift in Sources */,
 				4EC94F8FD46EA59C1D29DBAA /* MenuBarView.swift in Sources */,
 				E684116050150916A832760C /* NotificationManager.swift in Sources */,
