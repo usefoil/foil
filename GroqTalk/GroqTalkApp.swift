@@ -73,12 +73,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let textInserter = TextInserter()
     private let soundPlayer = SoundPlayer()
 
-    private var pendingTarget: PasteTarget?
-    private var pasteQueue: PasteQueue!
     private var retryingRecordID: UUID?
 
     private var recordingController: RecordingController!
     private var transcriptionController: TranscriptionController!
+    private var pasteController: PasteController!
     private var transcribingTimer: Timer?
     private var floatingStatusPanel: NSPanel?
     private var floatingStatusSyncTimer: Timer?
@@ -152,21 +151,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         recordingController.delegate = self
         transcriptionController = TranscriptionController(transcriptionService: transcriptionService, appState: appState)
         transcriptionController.delegate = self
-        pasteQueue = PasteQueue { [weak self] text, target, keepOnClipboard in
-            guard let self else { return .clipboardFallback }
-            if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-                DiagnosticLog.write("UITest paste queue: route=asyncQueued target=\(target.appName) bytes=\(text.utf8.count)")
-                return .asyncQueued
-            }
-            return await self.textInserter.insertAsync(
-                text: text,
-                target: target,
-                keepOnClipboard: keepOnClipboard,
-                allowSkyLight: self.appState.experimentalSkyLightPasteEnabled
-            )
-        }
+        pasteController = PasteController(textInserter: textInserter, appState: appState)
+        pasteController.delegate = self
         configureUITestingIfNeeded()
         configureAutomationSmokeIfNeeded()
         refreshSetupHealth()
@@ -275,21 +261,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             history.addSuccess(text: text)
             appState.setStatus(.idle)
 
-            if let target,
-               let delivery = await pasteQueue.enqueue(
-                   text: text,
-                   target: target,
-                   keepOnClipboard: appState.keepOnClipboard
-               ) {
-                DiagnosticLog.write("ASYNC PATH: automation smoke pasted into \(target.appName) pid=\(target.pid)")
-                recordPaste(delivery)
-            } else {
-                let delivery = await textInserter.insert(
-                    text: text,
-                    keepOnClipboard: appState.keepOnClipboard
-                )
-                recordPaste(delivery)
+            pasteController.setPendingTarget(target)
+            if target != nil {
+                DiagnosticLog.write("ASYNC PATH: automation smoke pasting via pasteController target=\(target!.appName) pid=\(target!.pid)")
             }
+            await pasteController.paste(text: text)
         }
     }
 
@@ -525,8 +501,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func paste(text: String) {
         Task {
-            let delivery = await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
-            recordPaste(delivery)
+            await pasteController.pasteDirectly(text: text)
         }
     }
 
@@ -563,19 +538,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         appName: "GroqTalk UI Test"
                     )
                     appState.recordTargetCapture(target)
-                    if let delivery = await pasteQueue.enqueue(
-                        text: text,
-                        target: target,
-                        keepOnClipboard: appState.keepOnClipboard
-                    ) {
-                        recordPaste(delivery)
-                    }
+                    pasteController.setPendingTarget(target)
+                    await pasteController.paste(text: text)
                 } else {
-                    let delivery = await textInserter.insert(
-                        text: text,
-                        keepOnClipboard: appState.keepOnClipboard
-                    )
-                    recordPaste(delivery)
+                    await pasteController.pasteDirectly(text: text)
                 }
             } else {
                 history.addFailure(error: "Simulated transcription failure", audioFileURL: nil)
@@ -611,11 +577,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func captureTargetThenStartRecording() {
-        let asyncEnabled = appState.asyncPasteEnabled
-        let capturedTarget = asyncEnabled ? PasteTarget.captureCurrentTarget() : nil
-        DiagnosticLog.write("captureTargetThenStartRecording: asyncEnabled=\(asyncEnabled) capturedTarget=\(String(describing: capturedTarget)) existingTarget=\(pendingTarget != nil)")
-        pendingTarget = capturedTarget
-        appState.recordTargetCapture(capturedTarget ?? pendingTarget)
+        pasteController.captureTarget()
+        let capturedTarget = pasteController.pendingTarget
+        DiagnosticLog.write("captureTargetThenStartRecording: asyncEnabled=\(appState.asyncPasteEnabled) capturedTarget=\(String(describing: capturedTarget))")
+        appState.recordTargetCapture(capturedTarget)
         appState.clearError()
         recordingController.startRecording()
     }
@@ -882,8 +847,7 @@ extension AppDelegate: TranscriptionControllerDelegate {
             retryingRecordID = nil
             appState.transcriptionStage = .pasting
             Task {
-                let delivery = await textInserter.insert(text: text, keepOnClipboard: appState.keepOnClipboard)
-                recordPaste(delivery)
+                await pasteController.pasteDirectly(text: text)
                 if cleanupFailed {
                     appState.feedbackMessage = "Cleanup failed; raw transcript used"
                 }
@@ -896,29 +860,11 @@ extension AppDelegate: TranscriptionControllerDelegate {
             // Normal flow: add new success record, handle paste routing
             history.addSuccess(text: text)
 
-            let asyncOn = appState.asyncPasteEnabled
-            let target = pendingTarget
-            pendingTarget = nil
-            DiagnosticLog.write("paste decision: asyncOn=\(asyncOn) target=\(String(describing: target))")
+            DiagnosticLog.write("paste decision: delegating to pasteController asyncOn=\(appState.asyncPasteEnabled) pendingTarget=\(String(describing: pasteController.pendingTarget))")
             appState.transcriptionStage = .pasting
 
             Task {
-                if asyncOn, let target {
-                    DiagnosticLog.write("ASYNC PATH: pasting into \(target.appName) pid=\(target.pid)")
-                    if let delivery = await pasteQueue.enqueue(
-                        text: text, target: target,
-                        keepOnClipboard: appState.keepOnClipboard
-                    ) {
-                        recordPaste(delivery)
-                    }
-                } else {
-                    DiagnosticLog.write("SYNC PATH: pasting into current app")
-                    let delivery = await textInserter.insert(
-                        text: text,
-                        keepOnClipboard: appState.keepOnClipboard
-                    )
-                    recordPaste(delivery)
-                }
+                await pasteController.paste(text: text)
                 if cleanupFailed {
                     appState.feedbackMessage = "Cleanup failed; raw transcript used"
                 }
@@ -947,13 +893,13 @@ extension AppDelegate: TranscriptionControllerDelegate {
             retryingRecordID = nil
         } else if error is NoApiKeyError {
             // No API key: clear pending state, don't preserve audio
-            pendingTarget = nil
+            pasteController.clearPendingTarget()
             appState.refreshApiKeyState()
             try? FileManager.default.removeItem(at: audioURL)
             history.addFailure(error: "No API key", audioFileURL: nil)
         } else {
             // Normal failure: preserve audio for retry
-            pendingTarget = nil
+            pasteController.clearPendingTarget()
             history.addFailure(error: errorMessage, audioFileURL: audioURL)
             // Do NOT delete audio file -- preserved for retry
         }
@@ -995,13 +941,21 @@ extension AppDelegate: RecordingControllerDelegate {
         DiagnosticLog.write("AppDelegate: recordingControllerDidCancel")
         appState.setStatus(.idle)
         appState.feedbackMessage = "Recording cancelled"
-        pendingTarget = nil
+        pasteController.clearPendingTarget()
     }
 
     func recordingController(_ controller: RecordingController, didFailWithError error: Error) {
         DiagnosticLog.write("AppDelegate: recordingController didFailWithError=\(error)")
-        pendingTarget = nil
+        pasteController.clearPendingTarget()
         appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
         appState.showError("Microphone unavailable")
+    }
+}
+
+// MARK: - PasteControllerDelegate
+
+extension AppDelegate: PasteControllerDelegate {
+    func pasteController(_ controller: PasteController, didPaste text: String, delivery: PasteDelivery) {
+        recordPaste(delivery)
     }
 }

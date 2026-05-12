@@ -8,12 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		0077C5AE095BD3D6ED05268A /* BackgroundPasteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8438CCC3D27E03B7AE3815F7 /* BackgroundPasteTests.swift */; };
+		0A92A7EC36F3623125F223E6 /* PasteController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 083397DB441D045E69BD9F9A /* PasteController.swift */; };
 		0B492F5DE8DE7B78E4146A3B /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B424B1B2ED24EAE73F4BE163 /* OnboardingView.swift */; };
 		0E98CFFCF65770F0B9142AAB /* SparkleUpdaterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DE7417C7D7B25A410AAC4EC /* SparkleUpdaterTests.swift */; };
 		0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */; };
 		121D10BF8497F29D1F847353 /* LanguageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2945E0F6027C3F4835BBE8C1 /* LanguageTests.swift */; };
 		2B38B3440F7EDF7EE3E32329 /* TextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F61B277DF7657903E9ED14B1 /* TextInserter.swift */; };
 		2CABAEB7CE09E3DF49A65BEE /* TextInserterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEFB984E4D92EE302684103A /* TextInserterTests.swift */; };
+		2DC6528192290AF60E7D3FE2 /* PasteControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAF5C8EBDB1AFE5A3FE2296 /* PasteControllerTests.swift */; };
 		2F82960B56006370D0F90FCC /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78D5510A5B46F677D2AE854D /* TranscriptionService.swift */; };
 		333A23FF2E429FDD686944CF /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B90F97CD7A617F9DD6B088 /* SettingsView.swift */; };
 		33D87C648D0A87C02B31A449 /* IntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A2013D32CCECA48976685C /* IntegrationTests.swift */; };
@@ -79,6 +81,7 @@
 /* Begin PBXFileReference section */
 		02AB21B35C638DC3AB2379B3 /* GroqTalkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqTalkApp.swift; sourceTree = "<group>"; };
 		03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelperTests.swift; sourceTree = "<group>"; };
+		083397DB441D045E69BD9F9A /* PasteController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteController.swift; sourceTree = "<group>"; };
 		0AF5C3DB12AFBA88ECBA175F /* GroqTalkUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqTalkUITests.swift; sourceTree = "<group>"; };
 		0B60032CCB98D3746C131217 /* HistoryPopoverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverTests.swift; sourceTree = "<group>"; };
 		0BE6B85DF059FB4B645DFB8C /* DiagnosticLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLog.swift; sourceTree = "<group>"; };
@@ -117,6 +120,7 @@
 		B424B1B2ED24EAE73F4BE163 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		B56ED3D31CEFA11C4EBCD441 /* PasteTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteTarget.swift; sourceTree = "<group>"; };
 		B6B0DA7F2F73D239BFCA2B39 /* AudioRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderTests.swift; sourceTree = "<group>"; };
+		BAAF5C8EBDB1AFE5A3FE2296 /* PasteControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteControllerTests.swift; sourceTree = "<group>"; };
 		BCEF01B35A4285F2AE32E990 /* HotkeyMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorTests.swift; sourceTree = "<group>"; };
 		BF13662526914E0320E811C7 /* SkyLightBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLightBridgeTests.swift; sourceTree = "<group>"; };
 		C5D41203FA2FD2A66991651C /* PasteDelivery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteDelivery.swift; sourceTree = "<group>"; };
@@ -168,6 +172,7 @@
 				2945E0F6027C3F4835BBE8C1 /* LanguageTests.swift */,
 				15C8A7CE2C08EA04B285F130 /* LaunchAtLoginManagerTests.swift */,
 				E4DBABAE3A9E92427066BFD1 /* NotificationManagerTests.swift */,
+				BAAF5C8EBDB1AFE5A3FE2296 /* PasteControllerTests.swift */,
 				141E73C78BEF8A8E08F3B838 /* PasteQueueTests.swift */,
 				E00ED9617CF428F8BF2444B9 /* PasteTargetTests.swift */,
 				C93EC0BBDAD5377C0501062D /* RecordingControllerTests.swift */,
@@ -220,6 +225,7 @@
 				8C04ACF5F04D33BF75D666AD /* MenuBarView.swift */,
 				8634D2C0D98884FEBC13540B /* NotificationManager.swift */,
 				B424B1B2ED24EAE73F4BE163 /* OnboardingView.swift */,
+				083397DB441D045E69BD9F9A /* PasteController.swift */,
 				C5D41203FA2FD2A66991651C /* PasteDelivery.swift */,
 				A44A246EE288E9AD76808556 /* PasteQueue.swift */,
 				B56ED3D31CEFA11C4EBCD441 /* PasteTarget.swift */,
@@ -372,6 +378,7 @@
 				4EC94F8FD46EA59C1D29DBAA /* MenuBarView.swift in Sources */,
 				E684116050150916A832760C /* NotificationManager.swift in Sources */,
 				0B492F5DE8DE7B78E4146A3B /* OnboardingView.swift in Sources */,
+				0A92A7EC36F3623125F223E6 /* PasteController.swift in Sources */,
 				CF189712B8A96D3DEEECCF2A /* PasteDelivery.swift in Sources */,
 				AA57A1978B56733EAF2BC491 /* PasteQueue.swift in Sources */,
 				FA64A4E97D3B14107794AA3E /* PasteTarget.swift in Sources */,
@@ -402,6 +409,7 @@
 				121D10BF8497F29D1F847353 /* LanguageTests.swift in Sources */,
 				FDF502A5CA608D10D2E0080F /* LaunchAtLoginManagerTests.swift in Sources */,
 				340759604FA8369AAC611223 /* NotificationManagerTests.swift in Sources */,
+				2DC6528192290AF60E7D3FE2 /* PasteControllerTests.swift in Sources */,
 				733A1997297A35618D3AEA16 /* PasteQueueTests.swift in Sources */,
 				F29F5E45235D5E76726E3154 /* PasteTargetTests.swift in Sources */,
 				D952EC1FB3552FF6B82907ED /* RecordingControllerTests.swift in Sources */,
