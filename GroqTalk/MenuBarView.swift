@@ -418,6 +418,16 @@ struct MenuBarView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .accessibilityIdentifier("menu.status.detail")
+                if appState.isApproachingTimeLimit {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text("\(appState.formattedRemainingTime) remaining")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    .accessibilityIdentifier("menu.status.timeLimitWarning")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

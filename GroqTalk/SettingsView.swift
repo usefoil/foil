@@ -8,6 +8,8 @@ struct SettingsView: View {
 
     @Environment(\.openWindow) private var openWindow
     @State private var isShowingClearHistoryConfirmation = false
+    @State private var launchAtLoginManager = LaunchAtLoginManager()
+    @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
 
     var body: some View {
         TabView {
@@ -52,6 +54,25 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.floatingStatusToggle")
             Toggle("Keep final text on clipboard", isOn: $appState.keepOnClipboard)
                 .accessibilityIdentifier("settings.keepClipboardToggle")
+            Toggle("Launch at Login", isOn: Binding(
+                get: { launchAtLoginManager.isEnabled },
+                set: { launchAtLoginManager.setEnabled($0) }
+            ))
+            .accessibilityIdentifier("settings.launchAtLoginToggle")
+            Toggle("Show Notifications", isOn: $notificationsEnabled)
+                .accessibilityIdentifier("settings.notificationsToggle")
+                .onChange(of: notificationsEnabled) { _, enabled in
+                    UserDefaults.standard.set(enabled, forKey: "notificationsEnabled")
+                    if enabled {
+                        Task {
+                            let granted = await NotificationManager.shared.requestAuthorization()
+                            if !granted {
+                                notificationsEnabled = false
+                                UserDefaults.standard.set(false, forKey: "notificationsEnabled")
+                            }
+                        }
+                    }
+                }
         }
         .formStyle(.grouped)
     }
@@ -84,6 +105,14 @@ struct SettingsView: View {
                     Text(lang.displayName).tag(lang)
                 }
             }
+
+            Picker("Input Device", selection: $appState.selectedInputDeviceID) {
+                Text("System Default").tag(nil as UInt32?)
+                ForEach(AudioRecorder.availableInputDevices()) { device in
+                    Text(device.name).tag(Optional(device.id))
+                }
+            }
+            .accessibilityIdentifier("settings.inputDevicePicker")
         }
         .formStyle(.grouped)
     }

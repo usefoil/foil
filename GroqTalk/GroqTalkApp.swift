@@ -84,6 +84,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var uiTestWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
     private var uiTestSettingsWindow: NSWindow?
+    private var onboardingWindow: NSWindow?
+    private var hasCompletedOnboarding: Bool {
+        get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
+        set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
+    }
 
     override init() {
         self.appState = AppState()
@@ -169,6 +174,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             startHotkeyMonitorWithRetry()
         }
+        if !hasCompletedOnboarding && !ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            showOnboarding()
+        }
+    }
+
+    private func showOnboarding() {
+        let onboardingView = OnboardingView(appState: appState) { [weak self] in
+            self?.hasCompletedOnboarding = true
+            self?.onboardingWindow?.close()
+            self?.onboardingWindow = nil
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 450),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Welcome to GroqTalk"
+        window.contentView = NSHostingView(rootView: onboardingView)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        onboardingWindow = window
     }
 
     private func configureUITestingIfNeeded() {
