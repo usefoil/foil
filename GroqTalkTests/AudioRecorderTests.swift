@@ -201,7 +201,7 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertEqual(url.pathExtension, "wav")
 
         let service = TranscriptionService()
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: url, model: "whisper-large-v3-turbo", format: .wav, boundary: "b"
         )
         let bodyString = String(data: body, encoding: .isoLatin1)!
@@ -215,7 +215,7 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertEqual(url.pathExtension, "m4a")
 
         let service = TranscriptionService()
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: url, model: "whisper-large-v3-turbo", format: .m4a, boundary: "b"
         )
         let bodyString = String(data: body, encoding: .isoLatin1)!
@@ -229,7 +229,7 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertEqual(url.pathExtension, "flac")
 
         let service = TranscriptionService()
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: url, model: "whisper-large-v3-turbo", format: .flac, boundary: "b"
         )
         let bodyString = String(data: body, encoding: .isoLatin1)!

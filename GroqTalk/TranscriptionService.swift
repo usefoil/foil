@@ -152,7 +152,7 @@ struct TranscriptionService {
         return try JSONEncoder().encode(request)
     }
 
-    func buildMultipartBody(audioFileURL: URL, model: String, format: AudioFormat, language: Language = .auto, boundary: String) throws -> Data {
+    static func buildMultipartBody(audioFileURL: URL, model: String, format: AudioFormat, language: Language = .auto, boundary: String) throws -> Data {
         let audioData = try Data(contentsOf: audioFileURL)
         var body = Data()
 
@@ -190,7 +190,7 @@ struct TranscriptionService {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    let body = try buildMultipartBody(
+                    let body = try Self.buildMultipartBody(
                         audioFileURL: audioFileURL,
                         model: model,
                         format: format,

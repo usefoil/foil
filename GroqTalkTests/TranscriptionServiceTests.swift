@@ -50,7 +50,7 @@ final class TranscriptionServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         let boundary = "test-boundary-123"
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3-turbo",
             format: .wav,
@@ -74,7 +74,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data([0x00, 0x00]).write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3",
             format: .m4a,
@@ -94,7 +94,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data([0x66, 0x4C, 0x61, 0x43]).write(to: tempURL) // "fLaC" magic
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3",
             format: .flac,
@@ -115,7 +115,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data(audioBytes).write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3",
             format: .wav,
@@ -138,7 +138,7 @@ final class TranscriptionServiceTests: XCTestCase {
         var contentTypes: Set<String> = []
 
         for format in AudioFormat.allCases {
-            let body = try service.buildMultipartBody(
+            let body = try TranscriptionService.buildMultipartBody(
                 audioFileURL: tempURL, model: "m", format: format, boundary: "b"
             )
             let bodyString = String(data: body, encoding: .isoLatin1)!
@@ -159,7 +159,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data([0x00]).write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL, model: "whisper-large-v3", format: .wav, boundary: "b"
         )
         let bodyString = String(data: body, encoding: .utf8)!
@@ -174,7 +174,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data([0x00]).write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL, model: "m", format: .wav, boundary: "BOUNDARY"
         )
         let bodyString = String(data: body, encoding: .utf8)!
@@ -283,7 +283,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let tempURL = try Self.makeAudioFile(bytes: [0x01, 0x02, 0x03])
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let sync = try service.buildMultipartBody(
+        let sync = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3",
             format: .wav,

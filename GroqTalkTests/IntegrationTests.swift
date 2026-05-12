@@ -148,7 +148,7 @@ final class IntegrationTests: XCTestCase {
             }
 
             let service = TranscriptionService()
-            let body = try service.buildMultipartBody(
+            let body = try TranscriptionService.buildMultipartBody(
                 audioFileURL: url, model: "whisper-large-v3-turbo",
                 format: format, boundary: "test-boundary"
             )
@@ -176,7 +176,7 @@ final class IntegrationTests: XCTestCase {
         let url = track(try recorder.writeWAV(buffers: [buffer]))
 
         let service = TranscriptionService()
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: url, model: "whisper-large-v3-turbo",
             format: .wav, language: .es, boundary: "test-boundary"
         )
@@ -193,7 +193,7 @@ final class IntegrationTests: XCTestCase {
         let url = track(try recorder.writeWAV(buffers: [buffer]))
 
         let service = TranscriptionService()
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: url, model: "whisper-large-v3-turbo",
             format: .wav, language: .auto, boundary: "test-boundary"
         )
