@@ -70,7 +70,8 @@ final class RecordingController {
         }
 
         do {
-            try audioRecorder.startRecording(deviceID: appState.selectedInputDeviceID.map { AudioDeviceID($0) })
+            let deviceID = appState.selectedInputDeviceUID.flatMap { AudioRecorder.deviceID(forUID: $0) }
+            try audioRecorder.startRecording(deviceID: deviceID)
             isRecording = true
             appState.setStatus(.recording)
             startRecordingTimer()

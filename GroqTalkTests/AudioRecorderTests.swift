@@ -299,10 +299,20 @@ final class AudioRecorderTests: XCTestCase {
     }
 
     func testAudioDeviceEquality() {
-        let a = AudioRecorder.AudioDevice(id: 1, name: "Mic", isInput: true)
-        let b = AudioRecorder.AudioDevice(id: 1, name: "Mic", isInput: true)
-        let c = AudioRecorder.AudioDevice(id: 2, name: "Other", isInput: true)
+        let a = AudioRecorder.AudioDevice(id: 1, uid: "uid-1", name: "Mic", isInput: true)
+        let b = AudioRecorder.AudioDevice(id: 1, uid: "uid-1", name: "Mic", isInput: true)
+        let c = AudioRecorder.AudioDevice(id: 2, uid: "uid-2", name: "Other", isInput: true)
         XCTAssertEqual(a, b)
         XCTAssertNotEqual(a, c)
+    }
+
+    func testDeviceIDForUIDReturnsNilForUnknownUID() {
+        let result = AudioRecorder.deviceID(forUID: "nonexistent-uid-\(UUID().uuidString)")
+        XCTAssertNil(result)
+    }
+
+    func testAvailableDevicesHaveNonEmptyUIDs() {
+        let devices = AudioRecorder.availableInputDevices()
+        XCTAssertTrue(devices.allSatisfy { !$0.uid.isEmpty })
     }
 }
