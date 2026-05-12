@@ -216,7 +216,7 @@ struct HistoryPopoverView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("history.row")
         .contentShape(Rectangle())
         .onTapGesture {
