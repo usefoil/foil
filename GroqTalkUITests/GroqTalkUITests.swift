@@ -240,6 +240,14 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Paste command sent to the current app"].waitForExistence(timeout: 2))
     }
 
+    func testOnboardingNotShownForReturningUser() {
+        let app = XCUIApplication()
+        app.launchArguments += ["--ui-testing"]
+        app.launch()
+        // UI testing mode should skip onboarding
+        XCTAssertFalse(app.windows["Welcome to GroqTalk"].exists)
+    }
+
     private var controlCenter: XCUIElement {
         app.windows["GroqTalk UI Test"].exists
             ? app.windows["GroqTalk UI Test"]
