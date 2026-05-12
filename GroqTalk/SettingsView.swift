@@ -10,7 +10,7 @@ struct SettingsView: View {
     @State private var isShowingClearHistoryConfirmation = false
     @State private var launchAtLoginManager = LaunchAtLoginManager()
     @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
-    @State private var sparkleUpdater = SparkleUpdater()
+    private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
 
     var body: some View {
         TabView {

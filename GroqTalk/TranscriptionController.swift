@@ -72,8 +72,6 @@ final class TranscriptionController {
             apiKey = nil
         } else {
             guard let storedApiKey = KeychainHelper.readApiKey() else {
-                let missingKeyError = TranscriptionService.TranscriptionError.invalidApiKey
-                let msg = errorMessage(from: missingKeyError)
                 // Use a sentinel error for "no key" that callers can detect
                 let noKeyError = NoApiKeyError()
                 delegate?.transcriptionController(
@@ -129,6 +127,14 @@ final class TranscriptionController {
     func retryTranscription(record: TranscriptionRecord) async {
         guard let audioURL = record.audioFileURL else {
             DiagnosticLog.write("TranscriptionController.retryTranscription: no audioFileURL on record")
+            let sentinelError = NoApiKeyError()
+            delegate?.transcriptionController(
+                self,
+                didFail: sentinelError,
+                errorMessage: "Recording no longer available for retry",
+                audioURL: URL(fileURLWithPath: ""),
+                format: appState.selectedAudioFormat
+            )
             return
         }
         let format = AudioFormat(rawValue: audioURL.pathExtension) ?? appState.selectedAudioFormat
@@ -212,6 +218,8 @@ final class TranscriptionController {
             "Recording too long"
         case AudioRecorder.RecordingError.audioFormatUnavailable:
             "Audio format unavailable -- please restart the app"
+        case AudioRecorder.RecordingError.deviceSelectionFailed:
+            "Selected input device is unavailable"
         case TranscriptionService.TranscriptionError.rateLimited:
             "Groq rate limit reached"
         case TranscriptionService.TranscriptionError.quotaExceeded:

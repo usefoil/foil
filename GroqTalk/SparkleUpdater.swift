@@ -4,6 +4,8 @@ import SwiftUI
 @MainActor
 @Observable
 final class SparkleUpdater {
+    static let shared = SparkleUpdater()
+
     private let updaterController: SPUStandardUpdaterController
 
     var canCheckForUpdates: Bool {
@@ -15,7 +17,7 @@ final class SparkleUpdater {
         set { updaterController.updater.automaticallyChecksForUpdates = newValue }
     }
 
-    init() {
+    private init() {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: nil,

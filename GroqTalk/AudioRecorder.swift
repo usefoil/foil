@@ -74,7 +74,7 @@ final class AudioRecorder: @unchecked Sendable {
         self.maxBufferedFrames = maxBufferedFrames
     }
 
-    func startRecording() throws {
+    func startRecording(deviceID: AudioDeviceID? = nil) throws {
         cancelRecording()
 
         let engine = AVAudioEngine()
@@ -82,6 +82,25 @@ final class AudioRecorder: @unchecked Sendable {
         resetCapturedState()
 
         let inputNode = engine.inputNode
+
+        if let deviceID {
+            if let audioUnit = inputNode.audioUnit {
+                var id = deviceID
+                let status = AudioUnitSetProperty(
+                    audioUnit,
+                    kAudioOutputUnitProperty_CurrentDevice,
+                    kAudioUnitScope_Global,
+                    0,
+                    &id,
+                    UInt32(MemoryLayout<AudioDeviceID>.size)
+                )
+                if status != noErr {
+                    DiagnosticLog.write("AudioRecorder: failed to set input device \(deviceID): OSStatus \(status)")
+                    throw RecordingError.deviceSelectionFailed
+                }
+            }
+        }
+
         let hwFormat = inputNode.outputFormat(forBus: 0)
 
         guard let targetFormat = Self.pcmFormat else {
@@ -366,6 +385,7 @@ final class AudioRecorder: @unchecked Sendable {
         case audioFormatUnavailable
         case conversionFailed(errorCount: Int)
         case recordingTooLong
+        case deviceSelectionFailed
     }
 
     private struct CapturedAudio {

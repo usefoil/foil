@@ -50,8 +50,10 @@ struct ApiKeySetupView: View {
             }
 
             HStack {
-                Link("Get API Key", destination: URL(string: "https://console.groq.com/keys")!)
-                    .font(.caption)
+                if let groqKeysURL = URL(string: "https://console.groq.com/keys") {
+                    Link("Get API Key", destination: groqKeysURL)
+                        .font(.caption)
+                }
 
                 Spacer()
 

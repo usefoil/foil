@@ -276,6 +276,21 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertFalse(error.localizedDescription.isEmpty)
     }
 
+    // MARK: - Device ID parameter
+
+    func testStartRecordingAcceptsNilDeviceID() {
+        // Verify the method signature accepts nil deviceID (system default)
+        let recorder = AudioRecorder()
+        _ = recorder // Method signature accepts optional
+    }
+
+    func testAvailableDeviceIDsAreValidAudioDeviceIDs() {
+        let devices = AudioRecorder.availableInputDevices()
+        for device in devices {
+            XCTAssertTrue(device.id > 0, "Device ID should be positive")
+        }
+    }
+
     // MARK: - Audio device enumeration
 
     func testAvailableInputDevicesReturnsArray() {

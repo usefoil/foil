@@ -148,7 +148,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         DiagnosticLog.write("applicationDidFinishLaunching")
-        sparkleUpdater = SparkleUpdater()
+        _ = SparkleUpdater.shared
         recordingController = RecordingController(audioRecorder: audioRecorder, appState: appState)
         recordingController.delegate = self
         transcriptionController = TranscriptionController(transcriptionService: transcriptionService, appState: appState)

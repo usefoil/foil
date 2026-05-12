@@ -1,3 +1,4 @@
+import CoreAudio
 import Foundation
 
 // MARK: - Delegate protocol
@@ -57,7 +58,7 @@ final class RecordingController {
     // MARK: - Public API
 
     /// Start a recording session.
-    /// Does nothing if setup is not ready or recording is already in progress.
+    /// Does nothing if a transcription is in flight or recording is already in progress.
     func startRecording() {
         guard appState.status != .transcribing else {
             DiagnosticLog.write("RecordingController.startRecording: SKIPPED — transcription in flight")
@@ -69,7 +70,7 @@ final class RecordingController {
         }
 
         do {
-            try audioRecorder.startRecording()
+            try audioRecorder.startRecording(deviceID: appState.selectedInputDeviceID.map { AudioDeviceID($0) })
             isRecording = true
             appState.setStatus(.recording)
             startRecordingTimer()

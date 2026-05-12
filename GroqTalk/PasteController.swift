@@ -21,7 +21,21 @@ final class PasteController {
 
     private let textInserter: TextInserter
     private let appState: AppState
-    private(set) var pasteQueue: PasteQueue!
+    private(set) lazy var pasteQueue: PasteQueue = PasteQueue { [weak self] text, target, keepOnClipboard in
+        guard let self else { return .clipboardFallback }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            DiagnosticLog.write("UITest paste queue: route=asyncQueued target=\(target.appName) bytes=\(text.utf8.count)")
+            return .asyncQueued
+        }
+        return await self.textInserter.insertAsync(
+            text: text,
+            target: target,
+            keepOnClipboard: keepOnClipboard,
+            allowSkyLight: self.appState.experimentalSkyLightPasteEnabled
+        )
+    }
 
     // MARK: State
 
@@ -36,21 +50,6 @@ final class PasteController {
     init(textInserter: TextInserter, appState: AppState) {
         self.textInserter = textInserter
         self.appState = appState
-        self.pasteQueue = PasteQueue { [weak self] text, target, keepOnClipboard in
-            guard let self else { return .clipboardFallback }
-            if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
-                DiagnosticLog.write("UITest paste queue: route=asyncQueued target=\(target.appName) bytes=\(text.utf8.count)")
-                return .asyncQueued
-            }
-            return await self.textInserter.insertAsync(
-                text: text,
-                target: target,
-                keepOnClipboard: keepOnClipboard,
-                allowSkyLight: self.appState.experimentalSkyLightPasteEnabled
-            )
-        }
     }
 
     // MARK: - Target capture
