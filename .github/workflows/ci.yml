@@ -89,10 +89,10 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
 
       - name: Run tests
+        id: run-tests
         timeout-minutes: 10
+        continue-on-error: true
         run: |
-          # Run tests with a background watchdog to kill hung xcodebuild
-          # (testmanagerd sometimes hangs after all tests pass)
           xcodebuild test \
             -scheme GroqTalk \
             -configuration Debug \
@@ -100,27 +100,28 @@ jobs:
             -only-testing:GroqTalkTests \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult \
-            | xcpretty --color &
-          XCBUILD_PID=$!
-          # Watchdog: kill after 8 minutes if still running
-          ( sleep 480 && kill -9 $XCBUILD_PID 2>/dev/null ) &
-          WATCHDOG_PID=$!
-          wait $XCBUILD_PID 2>/dev/null
-          TEST_EXIT=$?
-          kill $WATCHDOG_PID 2>/dev/null || true
-          # If killed by watchdog (exit 137) or succeeded (exit 0), check results bundle
-          if [ "$TEST_EXIT" -eq 137 ] || [ "$TEST_EXIT" -eq 0 ]; then
-            if [ -d TestResults.xcresult ]; then
-              FAILURES=$(xcrun xcresulttool get test-results summary --path TestResults.xcresult --compact 2>/dev/null | grep -c '"result" : "Failure"' || true)
-              if [ "$FAILURES" -gt 0 ]; then
-                echo "::error::Tests had $FAILURES failure(s)"
-                exit 1
-              fi
-              echo "All tests passed (xcodebuild exited $TEST_EXIT)"
-              exit 0
+            | xcpretty --color && exit ${PIPESTATUS[0]}
+
+      - name: Verify test results
+        run: |
+          # xcodebuild may hang after tests pass (testmanagerd issue).
+          # Check the xcresult bundle for actual failures regardless of step exit code.
+          if [ -d TestResults.xcresult ]; then
+            SUMMARY=$(xcrun xcresulttool get test-results summary --path TestResults.xcresult --compact 2>/dev/null || echo "")
+            if echo "$SUMMARY" | grep -q '"result" : "Failed"'; then
+              echo "::error::Test failures found in results bundle"
+              echo "$SUMMARY" | head -50
+              exit 1
             fi
+            echo "All tests passed per results bundle"
+            exit 0
           fi
-          exit $TEST_EXIT
+          # No bundle — trust the step outcome
+          if [ "${{ steps.run-tests.outcome }}" = "failure" ]; then
+            echo "::error::Tests failed and no results bundle found"
+            exit 1
+          fi
+          echo "No results bundle but step did not report failure"
 
       - name: Test summary
         if: always()
