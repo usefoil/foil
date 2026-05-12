@@ -108,10 +108,13 @@ jobs:
           WATCHDOG_PID=$!
 
           # Wait for xcodebuild to exit (naturally or via watchdog)
+          # Disable errexit so non-zero wait (from SIGTERM) doesn't abort before verification
+          set +e
           wait $XCODE_PID 2>/dev/null
           TEST_EXIT=$?
-          kill $WATCHDOG_PID 2>/dev/null || true
-          wait $WATCHDOG_PID 2>/dev/null || true
+          kill $WATCHDOG_PID 2>/dev/null
+          wait $WATCHDOG_PID 2>/dev/null
+          set -e
 
           # Check xcresult for actual test failures
           if [ -d TestResults.xcresult ]; then
