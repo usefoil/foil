@@ -27,7 +27,7 @@ targets:
       properties:
         LSUIElement: true
         NSMicrophoneUsageDescription: "GroqTalk needs microphone access to record audio for speech-to-text."
-        SUFeedURL: "https://github.com/neonwatty/groqtalk/releases/latest/download/appcast.xml"
+        SUFeedURL: "https://github.com/mean-weasel/groqtalk/releases/latest/download/appcast.xml"
   GroqTalkTests:
     type: bundle.unit-test
     platform: macOS

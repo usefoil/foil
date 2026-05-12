@@ -303,6 +303,7 @@ final class AudioRecorder: @unchecked Sendable {
 
     struct AudioDevice: Identifiable, Equatable, Hashable {
         let id: AudioDeviceID
+        let uid: String
         let name: String
         let isInput: Bool
     }
@@ -374,10 +375,27 @@ final class AudioRecorder: @unchecked Sendable {
             let nameStatus = AudioObjectGetPropertyData(deviceID, &nameAddress, 0, nil, &nameSize, &nameRef)
             let deviceName = nameStatus == noErr ? (nameRef?.takeRetainedValue() as String? ?? "Unknown Device") : "Unknown Device"
 
-            inputDevices.append(AudioDevice(id: deviceID, name: deviceName, isInput: true))
+            // Get stable device UID (persists across reboots, unlike AudioDeviceID)
+            var uidAddress = AudioObjectPropertyAddress(
+                mSelector: kAudioDevicePropertyDeviceUID,
+                mScope: kAudioObjectPropertyScopeGlobal,
+                mElement: kAudioObjectPropertyElementMain
+            )
+            var uidRef: Unmanaged<CFString>?
+            var uidSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+            let uidStatus = AudioObjectGetPropertyData(deviceID, &uidAddress, 0, nil, &uidSize, &uidRef)
+            let deviceUID = uidStatus == noErr ? (uidRef?.takeRetainedValue() as String? ?? "") : ""
+            guard !deviceUID.isEmpty else { continue }
+
+            inputDevices.append(AudioDevice(id: deviceID, uid: deviceUID, name: deviceName, isInput: true))
         }
 
         return inputDevices
+    }
+
+    /// Resolves a stable device UID to the current AudioDeviceID, or nil if not found.
+    static func deviceID(forUID uid: String) -> AudioDeviceID? {
+        availableInputDevices().first { $0.uid == uid }?.id
     }
 
     enum RecordingError: Error {

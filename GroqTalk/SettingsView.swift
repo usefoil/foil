@@ -119,10 +119,10 @@ struct SettingsView: View {
                 }
             }
 
-            Picker("Input Device", selection: $appState.selectedInputDeviceID) {
-                Text("System Default").tag(nil as UInt32?)
+            Picker("Input Device", selection: $appState.selectedInputDeviceUID) {
+                Text("System Default").tag(nil as String?)
                 ForEach(AudioRecorder.availableInputDevices()) { device in
-                    Text(device.name).tag(Optional(device.id))
+                    Text(device.name).tag(Optional(device.uid))
                 }
             }
             .accessibilityIdentifier("settings.inputDevicePicker")

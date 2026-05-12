@@ -34,7 +34,7 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptProcessingMode")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupModel")
-        UserDefaults.standard.removeObject(forKey: "selectedInputDeviceID")
+        UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
     }
 
     private func markSetupReady(_ state: AppState) {
@@ -807,12 +807,12 @@ final class AppStateTests: XCTestCase {
     }
 
     @MainActor
-    func testSelectedInputDeviceIDPersists() {
+    func testSelectedInputDeviceUIDPersists() {
         let state = AppState()
-        state.selectedInputDeviceID = 42
-        XCTAssertEqual(state.selectedInputDeviceID, 42)
-        state.selectedInputDeviceID = nil
-        XCTAssertNil(state.selectedInputDeviceID)
+        state.selectedInputDeviceUID = "BuiltInMicrophoneDevice"
+        XCTAssertEqual(state.selectedInputDeviceUID, "BuiltInMicrophoneDevice")
+        state.selectedInputDeviceUID = nil
+        XCTAssertNil(state.selectedInputDeviceUID)
     }
 
     // MARK: - Transcript processing
