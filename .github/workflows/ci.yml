@@ -17,7 +17,7 @@ permissions:
 jobs:
   detect-changes:
     name: Detect Changed Paths
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     if: github.event_name == 'pull_request'
     outputs:
