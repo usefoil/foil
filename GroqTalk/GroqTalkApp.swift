@@ -75,6 +75,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var retryingRecordID: UUID?
 
+    private var sparkleUpdater: SparkleUpdater!
     private var recordingController: RecordingController!
     private var transcriptionController: TranscriptionController!
     private var pasteController: PasteController!
@@ -147,6 +148,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         DiagnosticLog.write("applicationDidFinishLaunching")
+        sparkleUpdater = SparkleUpdater()
         recordingController = RecordingController(audioRecorder: audioRecorder, appState: appState)
         recordingController.delegate = self
         transcriptionController = TranscriptionController(transcriptionService: transcriptionService, appState: appState)
