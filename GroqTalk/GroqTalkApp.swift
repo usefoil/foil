@@ -177,6 +177,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !hasCompletedOnboarding && !ProcessInfo.processInfo.arguments.contains("--ui-testing") {
             showOnboarding()
         }
+        if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
+            Task { await NotificationManager.shared.requestAuthorization() }
+        }
     }
 
     private func showOnboarding() {
@@ -705,6 +708,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if cleanupFailed {
                     appState.feedbackMessage = "Cleanup failed; raw transcript used"
                 }
+                if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
+                    NotificationManager.shared.postTranscriptionComplete(preview: text)
+                }
                 appState.setStatus(.idle)
                 try? FileManager.default.removeItem(at: audioURL)
             } catch {
@@ -713,6 +719,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 let errorMsg = errorMessage(from: error)
                 history.addFailure(error: errorMsg, audioFileURL: audioURL)
                 appState.showError(errorMsg)
+                if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
+                    NotificationManager.shared.postTranscriptionFailed(errorMessage: errorMsg)
+                }
                 // Do NOT delete audio file -- preserved for retry
             }
         }
@@ -1016,12 +1025,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if processed.cleanupFailed {
                     appState.feedbackMessage = "Cleanup failed; raw transcript used"
                 }
+                if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
+                    NotificationManager.shared.postTranscriptionComplete(preview: text)
+                }
                 appState.setStatus(.idle)
             } catch {
                 stopTranscribingAnimation()
                 let errorMsg = errorMessage(from: error)
                 history.resolveRetryFailure(id: record.id, error: errorMsg)
                 appState.showError(errorMsg)
+                if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
+                    NotificationManager.shared.postTranscriptionFailed(errorMessage: errorMsg)
+                }
             }
         }
     }
