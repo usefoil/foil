@@ -5,7 +5,9 @@ struct MenuBarView: View {
     @Bindable var appState: AppState
     var history: TranscriptionHistory
     var onRetry: (() -> Void)?
+    var onRetryRecord: ((TranscriptionRecord) -> Void)?
     var onPasteLast: (() -> Void)?
+    var onPasteText: ((String) -> Void)?
     var onStartRecording: (() -> Void)?
     var onStopRecording: (() -> Void)?
     var onCancelRecording: (() -> Void)?
@@ -26,6 +28,7 @@ struct MenuBarView: View {
     private enum Panel {
         case control
         case settings
+        case history
     }
 
     private var lastSuccess: TranscriptionRecord? {
@@ -49,13 +52,21 @@ struct MenuBarView: View {
                 feedbackPanel
                 lastResultSection
                 quickControls
+            } else if selectedPanel == .history {
+                HistoryPopoverView(
+                    history: history,
+                    onRetry: onRetryRecord,
+                    onPaste: onPasteText,
+                    showsHeader: false
+                )
+                .frame(maxHeight: 400)
             } else {
                 embeddedSettings
             }
         }
         .accessibilityIdentifier("menu.controlCenter")
         .padding(14)
-        .frame(width: 360)
+        .frame(width: selectedPanel == .history ? 480 : 360)
         .onAppear {
             if !isUITesting {
                 appState.refreshApiKeyState()
@@ -90,12 +101,13 @@ struct MenuBarView: View {
             .foregroundStyle(selectedPanel == .settings ? .primary : .secondary)
 
             Button {
-                openHistory()
+                selectedPanel = .history
             } label: {
                 Image(systemName: "clock")
             }
             .accessibilityLabel("History")
             .accessibilityIdentifier("menu.historyButton")
+            .foregroundStyle(selectedPanel == .history ? .primary : .secondary)
 
             Button {
                 openTroubleshooting()
@@ -483,7 +495,7 @@ struct MenuBarView: View {
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Button {
-                    openHistory()
+                    selectedPanel = .history
                 } label: {
                     Image(systemName: "clock.arrow.circlepath")
                 }
@@ -815,11 +827,8 @@ struct MenuBarView: View {
     }
 
     private func openHistory() {
-        if let onOpenHistory {
-            onOpenHistory()
-        } else {
-            openWindow(id: "history")
-        }
+        onOpenHistory?()
+        selectedPanel = .history
     }
 
     private func openSettingsView() {
