@@ -2,13 +2,41 @@ import Foundation
 import Security
 
 enum KeychainHelper {
-    private static let service = "com.neonwatty.GroqTalk"
-    private static let account = "groq-api-key"
+    private static let defaultService = "com.neonwatty.GroqTalk"
+    private static let defaultAccount = "groq-api-key"
 
-    private static var storageURL: URL {
-        let appSupport = FileManager.default.urls(
+    #if DEBUG
+    static var storageDirectoryOverride: URL?
+    static var serviceOverride: String?
+    static var accountOverride: String?
+    #endif
+
+    private static var service: String {
+        #if DEBUG
+        serviceOverride ?? defaultService
+        #else
+        defaultService
+        #endif
+    }
+
+    private static var account: String {
+        #if DEBUG
+        accountOverride ?? defaultAccount
+        #else
+        defaultAccount
+        #endif
+    }
+
+    private static var legacyPlaintextStorageURL: URL? {
+        guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
-        ).first!
+        ).first else { return nil }
+        #if DEBUG
+        if let storageDirectoryOverride {
+            return storageDirectoryOverride.appendingPathComponent("api-key")
+        }
+        #endif
+
         let dir = appSupport.appendingPathComponent("GroqTalk", isDirectory: true)
         return dir.appendingPathComponent("api-key")
     }
@@ -16,56 +44,117 @@ enum KeychainHelper {
     static func save(apiKey: String) throws {
         let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let dir = storageURL.deletingLastPathComponent()
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try Data(trimmed.utf8).write(to: storageURL, options: .atomic)
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o600], ofItemAtPath: storageURL.path
-        )
+        try saveToKeychain(apiKey: trimmed)
+        if let legacyURL = legacyPlaintextStorageURL {
+            try? FileManager.default.removeItem(at: legacyURL)
+        }
     }
 
     static func readApiKey() -> String? {
-        if let data = try? Data(contentsOf: storageURL),
-           let key = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !key.isEmpty {
+        if let key = readFromKeychain() {
+            if let legacyURL = legacyPlaintextStorageURL {
+                try? FileManager.default.removeItem(at: legacyURL)
+            }
             return key
         }
-        return readFromLegacyKeychain()
+        return migrateLegacyPlaintextFile()
     }
 
     static func delete() {
-        try? FileManager.default.removeItem(at: storageURL)
-        deleteLegacyKeychain()
+        deleteFromKeychain()
+        if let legacyURL = legacyPlaintextStorageURL {
+            try? FileManager.default.removeItem(at: legacyURL)
+        }
     }
 
-    // MARK: - Legacy keychain migration
+    // MARK: - Keychain storage
 
-    private static func readFromLegacyKeychain() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+    private static func saveToKeychain(apiKey: String) throws {
+        let data = Data(apiKey.utf8)
+        let query = baseQuery()
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
+
+        let addStatus = SecItemAdd(query.merging(attributes) { _, new in new } as CFDictionary, nil)
+        if addStatus == errSecSuccess { return }
+
+        if addStatus == errSecDuplicateItem {
+            let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            guard updateStatus == errSecSuccess else {
+                throw KeychainError.unhandledStatus(updateStatus)
+            }
+            return
+        }
+
+        throw KeychainError.unhandledStatus(addStatus)
+    }
+
+    private static func readFromKeychain() -> String? {
+        var query = baseQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data,
-              let key = String(data: data, encoding: .utf8) else { return nil }
-        // Migrate to file storage — only delete legacy on success
-        if (try? save(apiKey: key)) != nil {
-            deleteLegacyKeychain()
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let key = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !key.isEmpty else {
+            return nil
         }
         return key
     }
 
-    private static func deleteLegacyKeychain() {
-        let query: [String: Any] = [
+    private static func deleteFromKeychain() {
+        SecItemDelete(baseQuery() as CFDictionary)
+    }
+
+    private static func baseQuery() -> [String: Any] {
+        [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
-        SecItemDelete(query as CFDictionary)
+    }
+
+    // MARK: - Legacy plaintext migration
+
+    private static func migrateLegacyPlaintextFile() -> String? {
+        guard let legacyURL = legacyPlaintextStorageURL,
+              let data = try? Data(contentsOf: legacyURL),
+              let key = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !key.isEmpty else {
+            if let legacyURL = legacyPlaintextStorageURL {
+                try? FileManager.default.removeItem(at: legacyURL)
+            }
+            return nil
+        }
+
+        do {
+            try saveToKeychain(apiKey: key)
+            try? FileManager.default.removeItem(at: legacyURL)
+            return key
+        } catch {
+            DiagnosticLog.write("KeychainHelper: failed to migrate legacy plaintext API key status=\(error.localizedDescription)")
+            return key
+        }
+    }
+
+    enum KeychainError: LocalizedError, Equatable {
+        case unhandledStatus(OSStatus)
+
+        var errorDescription: String? {
+            switch self {
+            case .unhandledStatus(let status):
+                if let message = SecCopyErrorMessageString(status, nil) as String? {
+                    return message
+                }
+                return "Keychain error \(status)"
+            }
+        }
     }
 }

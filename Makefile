@@ -23,13 +23,19 @@ endif
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: setup-local-signing setup-release-secrets build unlock-local-signing-keychain run start stop restart install uninstall clean test
+.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-cross-app test-app-smoke test-paste-real qa-paste test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
 
 setup-release-secrets:
 	scripts/set-release-secrets.sh
+
+enable-xctest-developer-mode:
+	sudo DevToolsSecurity -enable
+	@if ! id -Gn "$$USER" | tr ' ' '\n' | grep -qx '_developer'; then \
+		sudo dseditgroup -o edit -a "$$USER" -t user _developer; \
+	fi
 
 unlock-local-signing-keychain:
 	@if [ "$(SIGN_IDENTITY)" = "$(LOCAL_SIGN_IDENTITY)" ] && [ -f "$(LOCAL_SIGN_KEYCHAIN)" ]; then \
@@ -38,7 +44,11 @@ unlock-local-signing-keychain:
 
 build: unlock-local-signing-keychain
 	@if [ -d "$(APP_PATH)" ]; then find "$(APP_PATH)" -name '*.cstemp*' -delete; fi
-	xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' $(SIGNING_FLAGS) build 2>&1 | tail -3
+	@tmp=$$(mktemp); \
+	xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' $(SIGNING_FLAGS) build >"$$tmp" 2>&1; \
+	status=$$?; tail -3 "$$tmp"; \
+	if ! grep -q '\*\* BUILD SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
+	rm -f "$$tmp"; exit $$status
 
 run: build
 	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
@@ -66,7 +76,61 @@ uninstall:
 	@echo "Removed /Applications/$(APP_NAME).app"
 
 test:
-	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkTests 2>&1 | tail -5
+	@tmp=$$(mktemp); \
+	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkTests >"$$tmp" 2>&1; \
+	status=$$?; tail -5 "$$tmp"; \
+	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
+	rm -f "$$tmp"; exit $$status
+
+test-ui:
+	@tmp=$$(mktemp); \
+	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkUITests >"$$tmp" 2>&1; \
+	status=$$?; tail -5 "$$tmp"; \
+	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
+	rm -f "$$tmp"; exit $$status
+
+test-cross-app:
+	swift tests/test_async_paste.swift
+	swift tests/test_skylight_paste.swift
+	swift tests/test_cross_app_async_paste.swift
+
+test-app-smoke:
+	swift tests/test_app_mock_async_paste.swift
+
+test-paste-real: install
+	swift tests/test_app_mock_async_paste.swift
+
+qa-paste: test-paste-real
+
+test-cleanup-quality:
+	swift tests/test_cleanup_quality.swift
+
+qa-ci:
+	@echo "=== Unit tests ==="
+	$(MAKE) test
+	@echo ""
+	@echo "=== UI feedback tests ==="
+	$(MAKE) test-ui
+
+qa-local: install
+	@echo "=== Installed app smoke test ==="
+	$(MAKE) test-paste-real
+	@echo ""
+	@echo "=== Desktop paste integration tests ==="
+	$(MAKE) test-cross-app
+	@echo ""
+	@echo "Run 'make test-cleanup-quality' separately when a local Groq API key is configured."
+
+qa:
+	@echo "=== Unit tests ==="
+	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' 2>&1 | grep -E "Executed|TEST (SUCCEEDED|FAILED)"
+	@echo ""
+	@echo "=== Async paste integration test ==="
+	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
+	swift tests/test_async_paste.swift
+	@echo ""
+	@echo "=== SkyLight background paste test ==="
+	swift tests/test_skylight_paste.swift
 
 clean:
 	xcodebuild -scheme $(SCHEME) clean 2>&1 | tail -3

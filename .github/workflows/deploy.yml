@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Existing release version to build, without leading v"
+        description: Existing release version to build, without the leading v
         required: true
         type: string
 
@@ -18,22 +18,22 @@ permissions:
 jobs:
   release:
     name: Semantic Release
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name == 'push'
     outputs:
       new_release_published: ${{ steps.semantic.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -54,29 +54,13 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     needs: [release]
-    if: >-
-      always() &&
-      (github.event_name == 'workflow_dispatch' ||
-       needs.release.outputs.new_release_published == 'true')
+    if: needs.release.outputs.new_release_published == 'true'
 
     steps:
-      - name: Resolve release version
-        id: release-version
-        env:
-          DISPATCH_VERSION: ${{ inputs.version }}
-          SEMANTIC_VERSION: ${{ needs.release.outputs.new_release_version }}
-        run: |
-          VERSION="${DISPATCH_VERSION:-$SEMANTIC_VERSION}"
-          if [ -z "$VERSION" ]; then
-            echo "No release version resolved" >&2
-            exit 1
-          fi
-          echo "version=${VERSION#v}" >> "$GITHUB_OUTPUT"
-
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          ref: v${{ steps.release-version.outputs.version }}
+          ref: v${{ needs.release.outputs.new_release_version }}
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
@@ -85,123 +69,105 @@ jobs:
         env:
           DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
           DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
-        run: |
-          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
-          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
-          CERT_PATH="$RUNNER_TEMP/developer-id-certificate.p12"
+        run: .github/scripts/import-cert.sh
 
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          echo "$DEVELOPER_ID_CERT_BASE64" | base64 --decode > "$CERT_PATH"
-          security import "$CERT_PATH" \
-            -k "$KEYCHAIN_PATH" \
-            -P "$DEVELOPER_ID_CERT_PASSWORD" \
-            -T /usr/bin/codesign \
-            -T /usr/bin/security
-
-          security set-key-partition-list \
-            -S apple-tool:,apple:,codesign: \
-            -s \
-            -k "$KEYCHAIN_PASSWORD" \
-            "$KEYCHAIN_PATH"
-
-          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
-          rm -f "$CERT_PATH"
-          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
-
-      - name: Prepare export options
+      - name: Build, notarize, and upload DMG
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          cat > ExportOptions.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>developer-id</string>
-              <key>signingStyle</key>
-              <string>automatic</string>
-              <key>teamID</key>
-              <string>$APPLE_TEAM_ID</string>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Archive
-        run: |
-          xcodebuild archive \
-            -scheme GroqTalk \
-            -configuration Release \
-            -destination 'platform=macOS' \
-            -archivePath "$RUNNER_TEMP/GroqTalk.xcarchive" \
-            CODE_SIGN_IDENTITY="Developer ID Application" \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}"
-
-      - name: Export app
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/GroqTalk.xcarchive" \
-            -exportPath "$RUNNER_TEMP/export" \
-            -exportOptionsPlist ExportOptions.plist
-
-      - name: Verify app signature
-        run: |
-          codesign --verify --deep --strict "$RUNNER_TEMP/export/GroqTalk.app"
-
-      - name: Install create-dmg
-        run: brew install create-dmg
-
-      - name: Create DMG
-        env:
-          VERSION: ${{ steps.release-version.outputs.version }}
-        run: |
-          DMG_ROOT="$RUNNER_TEMP/dmg-root"
-          mkdir -p "$DMG_ROOT"
-          cp -R "$RUNNER_TEMP/export/GroqTalk.app" "$DMG_ROOT/GroqTalk.app"
-
-          create-dmg \
-            --volname "GroqTalk" \
-            --window-pos 200 120 \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "GroqTalk.app" 150 190 \
-            --app-drop-link 450 190 \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            "$DMG_ROOT"
-
-      - name: Notarize DMG
-        env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          VERSION: ${{ steps.release-version.outputs.version }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.new_release_version }}
+        run: .github/scripts/build-release-dmg.sh
+
+      - name: Validate notarization
+        env:
+          VERSION: ${{ needs.release.outputs.new_release_version }}
         run: |
-          PRIVATE_KEYS_DIR="$RUNNER_TEMP/private_keys"
-          mkdir -p "$PRIVATE_KEYS_DIR"
-          KEY_PATH="$PRIVATE_KEYS_DIR/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
-          printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_PATH"
-          chmod 600 "$KEY_PATH"
+          DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
+          echo "Validating notarization for: $DMG_PATH"
+          spctl --assess --type open --context context:primary-signature -v "$DMG_PATH"
+          if [ $? -ne 0 ]; then
+            echo "Notarization validation FAILED: spctl rejected the DMG" >&2
+            exit 1
+          fi
+          echo "Notarization validation passed."
 
-          xcrun notarytool submit \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            --key "$KEY_PATH" \
-            --key-id "$APP_STORE_CONNECT_KEY_ID" \
-            --issuer "$APP_STORE_CONNECT_ISSUER_ID" \
-            --wait
-
-          xcrun stapler staple "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
-
-      - name: Upload DMG to release
+      - name: Generate and upload appcast.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.release-version.outputs.version }}
+          VERSION: ${{ needs.release.outputs.new_release_version }}
+        run: .github/scripts/generate-appcast.sh
+
+      - name: Update Homebrew cask
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.new_release_version }}
+        run: .github/scripts/update-homebrew-cask.sh
+
+      - name: Cleanup keychain
+        if: always()
         run: |
-          gh release upload "v${VERSION}" \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            --clobber
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+          fi
+
+  build-dmg-manual:
+    name: Build DMG for Existing Release
+    runs-on: macos-15
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: v${{ inputs.version }}
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
+
+      - name: Import signing certificate
+        env:
+          DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
+          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: .github/scripts/import-cert.sh
+
+      - name: Build, notarize, and upload DMG
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: .github/scripts/build-release-dmg.sh
+
+      - name: Validate notarization
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
+          echo "Validating notarization for: $DMG_PATH"
+          spctl --assess --type open --context context:primary-signature -v "$DMG_PATH"
+          if [ $? -ne 0 ]; then
+            echo "Notarization validation FAILED: spctl rejected the DMG" >&2
+            exit 1
+          fi
+          echo "Notarization validation passed."
+
+      - name: Generate and upload appcast.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: .github/scripts/generate-appcast.sh
+
+      - name: Update Homebrew cask
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: .github/scripts/update-homebrew-cask.sh
 
       - name: Cleanup keychain
         if: always()

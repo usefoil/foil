@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 struct TranscriptionRecord: Codable, Identifiable {
     let id: UUID
@@ -45,17 +46,41 @@ struct TranscriptionRecord: Codable, Identifiable {
     }
 }
 
-@MainActor
+@MainActor @Observable
 final class TranscriptionHistory {
-    private static let maxRecords = 20
+    nonisolated static let maxRecords = 500
 
     /// Transcription records, sorted newest-first.
     /// Insertion order is load-bearing for retry logic.
     private(set) var records: [TranscriptionRecord] = []
+    var retentionLimit: Int {
+        didSet {
+            trimToRetentionLimit()
+            save()
+        }
+    }
+
+    var isPersistenceEnabled: Bool {
+        didSet {
+            if !isPersistenceEnabled {
+                clear()
+                try? FileManager.default.removeItem(at: historyFileURL)
+            } else {
+                save()
+            }
+        }
+    }
+
     private let historyFileURL: URL
 
-    init(storageDirectory: URL) {
+    init(
+        storageDirectory: URL,
+        retentionLimit: Int = TranscriptionHistory.maxRecords,
+        isPersistenceEnabled: Bool = true
+    ) {
         self.historyFileURL = storageDirectory.appendingPathComponent("history.json")
+        self.retentionLimit = retentionLimit
+        self.isPersistenceEnabled = isPersistenceEnabled
         load()
     }
 
@@ -100,6 +125,15 @@ final class TranscriptionHistory {
         save()
     }
 
+    func updateSuccess(id: UUID, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let index = records.firstIndex(where: { $0.id == id }),
+              !records[index].isFailure else { return }
+        records[index].outcome = .success(text: trimmed)
+        save()
+    }
+
     /// Returns the most recent record if it is a failure with a retryable audio file.
     var retryableRecord: TranscriptionRecord? {
         guard let first = records.first,
@@ -111,20 +145,134 @@ final class TranscriptionHistory {
         return first
     }
 
+    var successfulRecords: [TranscriptionRecord] {
+        records.filter { !$0.isFailure }
+    }
+
+    func recentRecords(limit: Int) -> [TranscriptionRecord] {
+        Array(records.prefix(limit))
+    }
+
+    func delete(id: UUID) {
+        guard let index = records.firstIndex(where: { $0.id == id }) else { return }
+        let removed = records.remove(at: index)
+        if let audioURL = removed.audioFileURL {
+            try? FileManager.default.removeItem(at: audioURL)
+        }
+        save()
+    }
+
+    func clear() {
+        for record in records {
+            if let audioURL = record.audioFileURL {
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+        }
+        records = []
+        save()
+    }
+
+    /// Delete all records older than the given date.
+    func deleteOlderThan(_ date: Date) {
+        let toDelete = records.filter { $0.timestamp < date }
+        for record in toDelete {
+            if let url = record.audioFileURL {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        records.removeAll { $0.timestamp < date }
+        save()
+    }
+
+    /// Delete all records matching the given IDs.
+    func deleteAll(ids: Set<UUID>) {
+        for record in records where ids.contains(record.id) {
+            if let url = record.audioFileURL {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        records.removeAll { ids.contains($0.id) }
+        save()
+    }
+
+    /// Delete records from a given array (e.g., filtered results).
+    func deleteFiltered(_ recordsToDelete: [TranscriptionRecord]) {
+        let ids = Set(recordsToDelete.map(\.id))
+        deleteAll(ids: ids)
+    }
+
+    var retainedFailedAudioCount: Int {
+        records.reduce(0) { count, record in
+            guard let url = record.audioFileURL,
+                  FileManager.default.fileExists(atPath: url.path) else {
+                return count
+            }
+            return count + 1
+        }
+    }
+
+    func clearRetainedFailedAudio() {
+        var updated = false
+        for index in records.indices {
+            guard case .failure(let error, let audioURL) = records[index].outcome,
+                  let audioURL else { continue }
+            try? FileManager.default.removeItem(at: audioURL)
+            records[index].outcome = .failure(error: error, audioFileURL: nil)
+            updated = true
+        }
+        if updated { save() }
+    }
+
+    func exportMarkdown() -> String {
+        records.map { record in
+            let kind = record.isFailure ? "Failure" : "Transcript"
+            let body = record.text ?? record.error ?? ""
+            return """
+            ## \(kind) - \(Self.exportDateFormatter.string(from: record.timestamp))
+
+            \(body)
+            """
+        }
+        .joined(separator: "\n\n")
+    }
+
+    func exportJSON() throws -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(records)
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
     // MARK: - Private
 
     private func insert(_ record: TranscriptionRecord) {
+        guard isPersistenceEnabled, effectiveRetentionLimit > 0 else {
+            if let audioURL = record.audioFileURL {
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+            return
+        }
         records.insert(record, at: 0)
-        while records.count > Self.maxRecords {
+        trimToRetentionLimit()
+        save()
+    }
+
+    private func trimToRetentionLimit() {
+        while records.count > effectiveRetentionLimit {
             let evicted = records.removeLast()
             if let audioURL = evicted.audioFileURL {
                 try? FileManager.default.removeItem(at: audioURL)
             }
         }
-        save()
+    }
+
+    private var effectiveRetentionLimit: Int {
+        max(0, retentionLimit)
     }
 
     private func save() {
+        guard isPersistenceEnabled else { return }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         do {
@@ -136,6 +284,7 @@ final class TranscriptionHistory {
     }
 
     private func load() {
+        guard isPersistenceEnabled else { return }
         guard FileManager.default.fileExists(atPath: historyFileURL.path) else { return }
         do {
             let data = try Data(contentsOf: historyFileURL)
@@ -147,4 +296,10 @@ final class TranscriptionHistory {
             records = []
         }
     }
+
+    private static let exportDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
 }

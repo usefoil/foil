@@ -2,6 +2,45 @@ import XCTest
 @testable import GroqTalk
 
 final class TranscriptionServiceTests: XCTestCase {
+    private final class StubTransport: TranscriptionTransport {
+        var requests: [URLRequest] = []
+        let handler: (URLRequest) async throws -> (Data, URLResponse)
+
+        init(handler: @escaping (URLRequest) async throws -> (Data, URLResponse)) {
+            self.handler = handler
+        }
+
+        func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+            requests.append(request)
+            return try await handler(request)
+        }
+    }
+
+    private static func makeAudioFile(name: String = UUID().uuidString, bytes: [UInt8] = [0x52, 0x49, 0x46, 0x46]) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(name)
+            .appendingPathExtension("wav")
+        try Data(bytes).write(to: url)
+        return url
+    }
+
+    private static func httpResponse(statusCode: Int, url: URL = URL(string: "https://api.groq.com")!) -> HTTPURLResponse {
+        HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+    }
+
+    private static func apiErrorJSON(message: String, type: String? = nil, code: String? = nil) -> Data {
+        var error: [String: Any] = ["message": message]
+        if let type { error["type"] = type }
+        if let code { error["code"] = code }
+        let payload: [String: Any] = ["error": error]
+        return try! JSONSerialization.data(withJSONObject: payload)
+    }
+
     func testMultipartBodyContainsAllFields() throws {
         let service = TranscriptionService()
 
@@ -11,7 +50,7 @@ final class TranscriptionServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
         let boundary = "test-boundary-123"
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3-turbo",
             format: .wav,
@@ -35,7 +74,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data([0x00, 0x00]).write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3",
             format: .m4a,
@@ -55,7 +94,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data([0x66, 0x4C, 0x61, 0x43]).write(to: tempURL) // "fLaC" magic
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3",
             format: .flac,
@@ -76,7 +115,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data(audioBytes).write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL,
             model: "whisper-large-v3",
             format: .wav,
@@ -99,7 +138,7 @@ final class TranscriptionServiceTests: XCTestCase {
         var contentTypes: Set<String> = []
 
         for format in AudioFormat.allCases {
-            let body = try service.buildMultipartBody(
+            let body = try TranscriptionService.buildMultipartBody(
                 audioFileURL: tempURL, model: "m", format: format, boundary: "b"
             )
             let bodyString = String(data: body, encoding: .isoLatin1)!
@@ -120,7 +159,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data([0x00]).write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL, model: "whisper-large-v3", format: .wav, boundary: "b"
         )
         let bodyString = String(data: body, encoding: .utf8)!
@@ -135,11 +174,343 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data([0x00]).write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let body = try service.buildMultipartBody(
+        let body = try TranscriptionService.buildMultipartBody(
             audioFileURL: tempURL, model: "m", format: .wav, boundary: "BOUNDARY"
         )
         let bodyString = String(data: body, encoding: .utf8)!
         XCTAssertTrue(bodyString.hasSuffix("--BOUNDARY--\r\n"),
                        "Multipart body must end with closing boundary")
+    }
+
+    func testTranscriptProcessingBodyUsesGroqChatShape() throws {
+        let service = TranscriptionService()
+
+        let data = try service.buildTranscriptProcessingBody(
+            transcript: "um this is teh thing",
+            mode: .cleanUp,
+            model: "llama-3.3-70b-versatile"
+        )
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let messages = json?["messages"] as? [[String: String]]
+
+        XCTAssertEqual(json?["model"] as? String, "llama-3.3-70b-versatile")
+        XCTAssertEqual(json?["temperature"] as? Double, 0.2)
+        XCTAssertEqual(json?["max_completion_tokens"] as? Int, 1024)
+        XCTAssertEqual(messages?.first?["role"], "system")
+        XCTAssertTrue(messages?.first?["content"]?.contains("Clean up the transcript lightly") == true)
+        XCTAssertEqual(messages?.last?["role"], "user")
+        XCTAssertEqual(messages?.last?["content"], "um this is teh thing")
+    }
+
+    // MARK: - Deterministic transport/status mapping
+
+    func testTranscribeReturnsTrimmedTextForHTTP200() async throws {
+        let transport = StubTransport { request in
+            (
+                Data("  hello world\n".utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(transport: transport)
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let text = try await service.transcribe(
+            audioFileURL: tempURL,
+            apiKey: "test-key",
+            model: "whisper-large-v3",
+            format: .wav
+        )
+
+        XCTAssertEqual(text, "hello world")
+        XCTAssertEqual(transport.requests.count, 1)
+        XCTAssertEqual(transport.requests.first?.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+    }
+
+    func testTranscribeMapsHTTP401ToInvalidApiKey() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (Data("unauthorized".utf8), Self.httpResponse(statusCode: 401, url: request.url!))
+        })
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        do {
+            _ = try await service.transcribe(audioFileURL: tempURL, apiKey: "bad", model: "m")
+            XCTFail("Expected invalid API key error")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .invalidApiKey)
+        }
+    }
+
+    func testTranscribeMapsHTTP413ToFileTooLarge() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (Data("too large".utf8), Self.httpResponse(statusCode: 413, url: request.url!))
+        })
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        do {
+            _ = try await service.transcribe(audioFileURL: tempURL, apiKey: "key", model: "m")
+            XCTFail("Expected file too large error")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .fileTooLarge)
+        }
+    }
+
+    func testTranscribePreflightsOversizedFileBeforeNetwork() async throws {
+        var transportCalled = false
+        let service = TranscriptionService(transport: StubTransport { _ in
+            transportCalled = true
+            return (Data("should not call".utf8), Self.httpResponse(statusCode: 200))
+        })
+        let tempURL = try Self.makeAudioFile(
+            name: "oversized",
+            bytes: Array(repeating: 0x00, count: TranscriptionService.maxUploadBytes + 1)
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        do {
+            _ = try await service.transcribe(audioFileURL: tempURL, apiKey: "key", model: "m")
+            XCTFail("Expected file too large")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .fileTooLarge)
+        }
+        XCTAssertFalse(transportCalled)
+    }
+
+    func testAsyncMultipartBodyMatchesSyncBuilder() async throws {
+        let service = TranscriptionService()
+        let tempURL = try Self.makeAudioFile(bytes: [0x01, 0x02, 0x03])
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let sync = try TranscriptionService.buildMultipartBody(
+            audioFileURL: tempURL,
+            model: "whisper-large-v3",
+            format: .wav,
+            language: .es,
+            boundary: "boundary"
+        )
+        let async = try await service.buildMultipartBodyAsync(
+            audioFileURL: tempURL,
+            model: "whisper-large-v3",
+            format: .wav,
+            language: .es,
+            boundary: "boundary"
+        )
+
+        XCTAssertEqual(async, sync)
+    }
+
+    func testTranscribeMapsHTTP429ToRateLimited() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (
+                Self.apiErrorJSON(message: "Rate limit reached", type: "rate_limit_error"),
+                Self.httpResponse(statusCode: 429, url: request.url!)
+            )
+        })
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        do {
+            _ = try await service.transcribe(audioFileURL: tempURL, apiKey: "key", model: "m")
+            XCTFail("Expected rate limit error")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .rateLimited("Rate limit reached"))
+        }
+    }
+
+    func testTranscribeMapsHTTP429QuotaBodyToQuotaExceeded() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (
+                Self.apiErrorJSON(message: "Quota exceeded. Check billing.", type: "insufficient_quota"),
+                Self.httpResponse(statusCode: 429, url: request.url!)
+            )
+        })
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        do {
+            _ = try await service.transcribe(audioFileURL: tempURL, apiKey: "key", model: "m")
+            XCTFail("Expected quota error")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .quotaExceeded("Quota exceeded. Check billing."))
+        }
+    }
+
+    func testTranscribeMapsHTTP500ToServerError() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (Data("server exploded".utf8), Self.httpResponse(statusCode: 500, url: request.url!))
+        })
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        do {
+            _ = try await service.transcribe(audioFileURL: tempURL, apiKey: "key", model: "m")
+            XCTFail("Expected server error")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .serverError(500))
+        }
+    }
+
+    func testTranscribeMapsBadRequestModelBodyToModelUnavailable() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (
+                Self.apiErrorJSON(message: "The model 'missing-model' does not exist"),
+                Self.httpResponse(statusCode: 400, url: request.url!)
+            )
+        })
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        do {
+            _ = try await service.transcribe(audioFileURL: tempURL, apiKey: "key", model: "missing-model")
+            XCTFail("Expected model unavailable")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .modelUnavailable("missing-model"))
+        }
+    }
+
+    func testProcessTranscriptMapsMalformedChatResponseToInvalidResponse() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (Data(#"{"choices":[{"message":{"content":"   "}}]}"#.utf8), Self.httpResponse(statusCode: 200, url: request.url!))
+        })
+
+        do {
+            _ = try await service.processTranscript(
+                "raw transcript",
+                apiKey: "key",
+                mode: .cleanUp,
+                model: "llama-3.3-70b-versatile"
+            )
+            XCTFail("Expected invalid response")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .invalidResponse)
+        }
+    }
+
+    func testProcessTranscriptMapsMalformedJSONToInvalidResponse() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (Data(#"{"choices":["#.utf8), Self.httpResponse(statusCode: 200, url: request.url!))
+        })
+
+        do {
+            _ = try await service.processTranscript(
+                "raw transcript",
+                apiKey: "key",
+                mode: .cleanUp,
+                model: "llama-3.3-70b-versatile"
+            )
+            XCTFail("Expected invalid response")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .invalidResponse)
+        }
+    }
+
+    func testProcessTranscriptMapsHTTP401ToInvalidApiKey() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (Data("unauthorized".utf8), Self.httpResponse(statusCode: 401, url: request.url!))
+        })
+
+        do {
+            _ = try await service.processTranscript(
+                "raw transcript",
+                apiKey: "bad",
+                mode: .cleanUp,
+                model: "llama-3.3-70b-versatile"
+            )
+            XCTFail("Expected invalid API key")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .invalidApiKey)
+        }
+    }
+
+    func testProcessTranscriptMapsHTTP429ToRateLimited() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (
+                Self.apiErrorJSON(message: "Rate limit reached", type: "rate_limit_error"),
+                Self.httpResponse(statusCode: 429, url: request.url!)
+            )
+        })
+
+        do {
+            _ = try await service.processTranscript(
+                "raw transcript",
+                apiKey: "key",
+                mode: .cleanUp,
+                model: "llama-3.3-70b-versatile"
+            )
+            XCTFail("Expected rate limit")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .rateLimited("Rate limit reached"))
+        }
+    }
+
+    func testValidateApiKeyUsesModelsEndpointAndAuthorization() async throws {
+        let transport = StubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.groq.com/openai/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            return (
+                Data(#"{"data":[{"id":"whisper-large-v3-turbo"},{"id":"llama-3.3-70b-versatile"}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(transport: transport)
+
+        try await service.validateApiKey(
+            apiKey: "test-key",
+            requiredModels: ["whisper-large-v3-turbo", "llama-3.3-70b-versatile"]
+        )
+
+        XCTAssertEqual(transport.requests.count, 1)
+        XCTAssertEqual(transport.requests.first?.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+    }
+
+    func testValidateApiKeyMapsHTTP401ToInvalidApiKey() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (Data("unauthorized".utf8), Self.httpResponse(statusCode: 401, url: request.url!))
+        })
+
+        do {
+            try await service.validateApiKey(apiKey: "bad")
+            XCTFail("Expected invalid API key")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .invalidApiKey)
+        }
+    }
+
+    func testValidateApiKeyFailsWhenRequiredModelIsUnavailable() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            (
+                Data(#"{"data":[{"id":"whisper-large-v3-turbo"}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        })
+
+        do {
+            try await service.validateApiKey(
+                apiKey: "key",
+                requiredModels: ["whisper-large-v3-turbo", "missing-cleanup-model"]
+            )
+            XCTFail("Expected model unavailable")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .modelUnavailable("missing-cleanup-model"))
+        }
+    }
+
+    func testTranscribePropagatesTimeoutAndOfflineErrors() async throws {
+        for code in [URLError.timedOut, .notConnectedToInternet] {
+            let service = TranscriptionService(transport: StubTransport { _ in
+                throw URLError(code)
+            })
+            let tempURL = try Self.makeAudioFile()
+            defer { try? FileManager.default.removeItem(at: tempURL) }
+
+            do {
+                _ = try await service.transcribe(audioFileURL: tempURL, apiKey: "key", model: "m")
+                XCTFail("Expected URL error \(code)")
+            } catch let error as URLError {
+                XCTAssertEqual(error.code, code)
+            }
+        }
     }
 }
