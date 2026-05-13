@@ -101,8 +101,9 @@ jobs:
         run: .github/scripts/generate-appcast.sh
 
       - name: Update Homebrew cask
+        continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.release.outputs.new_release_version }}
         run: .github/scripts/update-homebrew-cask.sh
 
@@ -164,8 +165,9 @@ jobs:
         run: .github/scripts/generate-appcast.sh
 
       - name: Update Homebrew cask
+        continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
         run: .github/scripts/update-homebrew-cask.sh
 
