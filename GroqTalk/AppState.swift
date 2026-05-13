@@ -219,10 +219,17 @@ final class AppState {
     }
 
     var shouldShowFloatingStatus: Bool {
+        // Always show during active transcription (user needs to know paste is coming)
+        if status == .transcribing {
+            return !floatingStatusDismissed
+        }
+        // Otherwise respect user preference
         guard showFloatingStatus, !floatingStatusDismissed else { return false }
         switch status {
-        case .recording, .transcribing, .error:
+        case .recording, .error:
             return true
+        case .transcribing:
+            return true  // already handled above, but kept for exhaustiveness
         case .idle:
             return floatingStatusTransientVisible
                 && (feedbackMessage != nil || lastPasteSummary != nil || clipboardFeedback != nil)

@@ -19,14 +19,35 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    func postTranscriptionStarted() {
+        let content = UNMutableNotificationContent()
+        content.title = "Transcribing..."
+        content.body = "Your recording is being processed"
+        content.sound = nil  // silent — don't interrupt
+
+        let request = UNNotificationRequest(
+            identifier: "transcription-started",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                DiagnosticLog.write("Notification delivery failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
     func postTranscriptionComplete(preview: String) {
+        // Remove the "started" notification so this one replaces it
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: ["transcription-started"])
+
         let content = UNMutableNotificationContent()
         content.title = "Transcription Complete"
         content.body = String(preview.prefix(100))
         content.sound = .default
 
         let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
+            identifier: "transcription-complete",
             content: content,
             trigger: nil
         )

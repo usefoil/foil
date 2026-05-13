@@ -828,6 +828,10 @@ extension AppDelegate: TranscriptionControllerDelegate {
             startTranscribingAnimation()
         }
 
+        if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
+            NotificationManager.shared.postTranscriptionStarted()
+        }
+
         let useMockTranscription: Bool
         #if DEBUG
         useMockTranscription = appState.mockTranscriptionEnabled
