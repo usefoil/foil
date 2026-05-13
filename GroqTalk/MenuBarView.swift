@@ -101,7 +101,7 @@ struct MenuBarView: View {
             .foregroundStyle(selectedPanel == .settings ? .primary : .secondary)
 
             Button {
-                selectedPanel = .history
+                openHistory()
             } label: {
                 Image(systemName: "clock")
             }
@@ -827,8 +827,11 @@ struct MenuBarView: View {
     }
 
     private func openHistory() {
-        onOpenHistory?()
-        selectedPanel = .history
+        if let onOpenHistory {
+            onOpenHistory()
+        } else {
+            selectedPanel = .history
+        }
     }
 
     private func openSettingsView() {
