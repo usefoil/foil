@@ -85,9 +85,10 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Right Command · Pastes into current app"].exists)
     }
 
-    func testHistoryWindowOpensAndSearchesSeededRecords() {
+    func testHistoryShowsAndSearchesSeededRecords() {
         app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        // Wait for inline history content to appear
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 3))
 
         let searchField = app.textFields["Search transcriptions..."]
         XCTAssertTrue(searchField.exists)
@@ -100,7 +101,8 @@ final class GroqTalkUITests: XCTestCase {
 
     func testHistoryFilterShowsFailedRecords() {
         app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        // Wait for inline history content to appear
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 3))
 
         XCTAssertTrue(app.buttons["All"].isEnabled)
         app.buttons["Failed"].click()
@@ -111,7 +113,8 @@ final class GroqTalkUITests: XCTestCase {
 
     func testHistoryDeleteAndClearActions() {
         app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        // Wait for inline history content to appear
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 3))
 
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
         app.buttons["Delete"].firstMatch.click()
@@ -121,7 +124,8 @@ final class GroqTalkUITests: XCTestCase {
 
         relaunchWithSeededHistory()
         app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        // Wait for inline history content to appear after relaunch
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 3))
 
         app.buttons["Clear"].click()
         XCTAssertTrue(app.staticTexts["Clear History?"].waitForExistence(timeout: 2))
@@ -131,10 +135,11 @@ final class GroqTalkUITests: XCTestCase {
 
     func testHistoryDetailAllowsEditingAndExport() {
         app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        // Wait for inline history content to appear
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Export"].exists)
 
-        let detailsButtons = app.windows["History"].buttons.matching(NSPredicate(format: "label == %@", "Details"))
+        let detailsButtons = app.buttons.matching(NSPredicate(format: "label == %@", "Details"))
         XCTAssertGreaterThanOrEqual(detailsButtons.count, 2, app.debugDescription)
         detailsButtons.element(boundBy: 1).click()
         let editor = app.textViews["history.detail.editor"]
@@ -210,7 +215,8 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Open History for details"].exists)
 
         app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        // Wait for inline history content to appear
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Simulated transcription failure"].waitForExistence(timeout: 2))
     }
 
