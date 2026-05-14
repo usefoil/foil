@@ -66,13 +66,12 @@ final class TranscriptionController {
         #endif
         DiagnosticLog.write("TranscriptionController: mock=\(useMockTranscription)")
 
-        // Validate API key (skipped for mock mode)
         let apiKey: String?
         if useMockTranscription {
             apiKey = nil
         } else {
-            guard let storedApiKey = KeychainHelper.readApiKey() else {
-                // Use a sentinel error for "no key" that callers can detect
+            let resolvedKey = resolveApiKey()
+            guard let key = resolvedKey else {
                 let noKeyError = NoApiKeyError()
                 delegate?.transcriptionController(
                     self,
@@ -83,7 +82,7 @@ final class TranscriptionController {
                 )
                 return
             }
-            apiKey = storedApiKey
+            apiKey = key
         }
 
         do {
@@ -178,6 +177,17 @@ final class TranscriptionController {
             DiagnosticLog.write("TranscriptionController.retryTranscription: failed error=\(msg)")
             delegate?.transcriptionController(self, didFail: error, errorMessage: msg, audioURL: audioURL, format: format)
         }
+    }
+
+    private func resolveApiKey() -> String? {
+        #if DEBUG
+        if let envKey = ProcessInfo.processInfo.environment["E2E_API_KEY"],
+           !envKey.isEmpty {
+            DiagnosticLog.write("TranscriptionController: using E2E_API_KEY from environment")
+            return envKey
+        }
+        #endif
+        return KeychainHelper.readApiKey()
     }
 
     // MARK: - Internal helpers

@@ -197,6 +197,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         uiTestingController = uiTestingCtrl
         uiTestingCtrl.configureUITestingIfNeeded()
         uiTestingCtrl.configureAutomationSmokeIfNeeded()
+        uiTestingCtrl.configureE2ETranscribeIfNeeded()
         refreshSetupHealth()
         wireHotkeyMonitor()
         applyHotkeyConfig()
@@ -470,7 +471,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshSetupHealth() {
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+        let isTestHost = ProcessInfo.processInfo.arguments.contains("--ui-testing")
+            || NSClassFromString("XCTestCase") != nil
+        if isTestHost {
             if ProcessInfo.processInfo.arguments.contains("--seed-setup-unknown") {
                 appState.accessibilityState = .unknown
                 appState.microphoneState = .unknown
@@ -685,6 +688,11 @@ extension AppDelegate: TranscriptionControllerDelegate {
         cleanupFailed: Bool
     ) {
         DiagnosticLog.write("AppDelegate: transcriptionController didTranscribe textLength=\(text.count) cleanupFailed=\(cleanupFailed)")
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--e2e-transcribe") {
+            try? text.write(toFile: "/tmp/groqtalk-e2e-result.txt", atomically: true, encoding: .utf8)
+        }
+        #endif
         stopTranscribingAnimation()
         appState.feedbackMessage = "Transcription ready"
 
