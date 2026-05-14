@@ -72,6 +72,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let transcriptionService = TranscriptionService()
     private let textInserter = TextInserter()
     private let soundPlayer = SoundPlayer()
+    private let singleInstanceGuard: SingleInstanceGuarding
 
     private var retryingRecordID: UUID?
 
@@ -90,7 +91,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
     }
 
-    override init() {
+    override convenience init() {
+        self.init(singleInstanceGuard: SingleInstanceGuard())
+    }
+
+    init(singleInstanceGuard: SingleInstanceGuarding) {
+        self.singleInstanceGuard = singleInstanceGuard
         self.appState = AppState()
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
             let dir = FileManager.default.temporaryDirectory
@@ -145,6 +151,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - App lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Prevent multiple instances: if another copy is already running, activate it and quit.
+        // Skip during UI testing (app is launched by the test harness) and during
+        // unit/integration tests (the test runner hosts the app process, so the
+        // real app may also be running alongside).
+        let isTesting = ProcessInfo.processInfo.arguments.contains("--ui-testing")
+            || NSClassFromString("XCTestCase") != nil
+        if !isTesting, singleInstanceGuard.activateExistingInstanceIfRunning() {
+            // terminate is deferred to the next run loop tick because calling it
+            // during applicationDidFinishLaunching can cause AppKit issues.
+            // Safe here: no applicationShouldTerminate override can cancel it.
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+            return
+        }
+
         DiagnosticLog.write("applicationDidFinishLaunching")
         _ = SparkleUpdater.shared
         recordingController = RecordingController(audioRecorder: audioRecorder, appState: appState)

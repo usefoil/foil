@@ -64,6 +64,8 @@
 		FA64A4E97D3B14107794AA3E /* PasteTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B56ED3D31CEFA11C4EBCD441 /* PasteTarget.swift */; };
 		FDF502A5CA608D10D2E0080F /* LaunchAtLoginManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15C8A7CE2C08EA04B285F130 /* LaunchAtLoginManagerTests.swift */; };
 		DD1A2B3C4E5F6A7B8C9D0E2F /* UITestingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1A2B3C4E5F6A7B8C9D0E1F /* UITestingController.swift */; };
+		AA22334455667788990011BB /* SingleInstanceGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA22334455667788990011AA /* SingleInstanceGuard.swift */; };
+		AA22334455667788990011DD /* SingleInstanceGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA22334455667788990011CC /* SingleInstanceGuardTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -105,6 +107,8 @@
 		583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		AA11223344556677889900AA /* AudioRecording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecording.swift; sourceTree = "<group>"; };
 		BB11223344556677889900BB /* MockAudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAudioRecorder.swift; sourceTree = "<group>"; };
+		AA22334455667788990011AA /* SingleInstanceGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleInstanceGuard.swift; sourceTree = "<group>"; };
+		AA22334455667788990011CC /* SingleInstanceGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleInstanceGuardTests.swift; sourceTree = "<group>"; };
 		5A61E71A6E8082B95B8BFFBB /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		5DA6DFA9E20871913651ECEB /* HistoryPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverView.swift; sourceTree = "<group>"; };
 		7015BB4F30AB39CCD14AD34B /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
@@ -189,6 +193,7 @@
 				E00ED9617CF428F8BF2444B9 /* PasteTargetTests.swift */,
 				C93EC0BBDAD5377C0501062D /* RecordingControllerTests.swift */,
 				24F0B55225C42E812C09E4DB /* RecordingFlowTests.swift */,
+				AA22334455667788990011CC /* SingleInstanceGuardTests.swift */,
 				BF13662526914E0320E811C7 /* SkyLightBridgeTests.swift */,
 				7DE7417C7D7B25A410AAC4EC /* SparkleUpdaterTests.swift */,
 				DEFB984E4D92EE302684103A /* TextInserterTests.swift */,
@@ -245,6 +250,7 @@
 				B56ED3D31CEFA11C4EBCD441 /* PasteTarget.swift */,
 				7015BB4F30AB39CCD14AD34B /* RecordingController.swift */,
 				B3B90F97CD7A617F9DD6B088 /* SettingsView.swift */,
+				AA22334455667788990011AA /* SingleInstanceGuard.swift */,
 				2B5926CD9068E3CC23EF49D1 /* SkyLightBridge.swift */,
 				AE0224008DA333B2B45AA9B3 /* SoundPlayer.swift */,
 				9957FA9EA140D6FB52B0B16D /* SparkleUpdater.swift */,
@@ -401,6 +407,7 @@
 				FA64A4E97D3B14107794AA3E /* PasteTarget.swift in Sources */,
 				B3BC2234AE2D40D243DA06C5 /* RecordingController.swift in Sources */,
 				333A23FF2E429FDD686944CF /* SettingsView.swift in Sources */,
+				AA22334455667788990011BB /* SingleInstanceGuard.swift in Sources */,
 				978DAF75F9B4A08618AE57FB /* SkyLightBridge.swift in Sources */,
 				68CA2C950FA6990F920B6F0E /* SoundPlayer.swift in Sources */,
 				AC0181248EFEA98EF8D0FFD2 /* SparkleUpdater.swift in Sources */,
@@ -434,6 +441,7 @@
 				F29F5E45235D5E76726E3154 /* PasteTargetTests.swift in Sources */,
 				D952EC1FB3552FF6B82907ED /* RecordingControllerTests.swift in Sources */,
 				6C6794F893BED2FBEA21814B /* RecordingFlowTests.swift in Sources */,
+				AA22334455667788990011DD /* SingleInstanceGuardTests.swift in Sources */,
 				BE2469ADB79D939E1A9EE2C8 /* SkyLightBridgeTests.swift in Sources */,
 				0E98CFFCF65770F0B9142AAB /* SparkleUpdaterTests.swift in Sources */,
 				2CABAEB7CE09E3DF49A65BEE /* TextInserterTests.swift in Sources */,
