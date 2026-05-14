@@ -198,12 +198,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         wireHotkeyMonitor()
         applyHotkeyConfig()
         startFloatingStatusSync()
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+        if isTesting {
             appState.setStatus(.idle)
         } else {
             startHotkeyMonitorWithRetry()
         }
-        if !hasCompletedOnboarding && !ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+        if !hasCompletedOnboarding && !isTesting {
             showOnboarding()
         }
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
