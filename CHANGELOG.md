@@ -1,3 +1,10 @@
+## [1.10.1](https://github.com/mean-weasel/groqtalk/compare/v1.10.0...v1.10.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* align retry-transcription test with delegate notification behavior ([#68](https://github.com/mean-weasel/groqtalk/issues/68)) ([e741d30](https://github.com/mean-weasel/groqtalk/commit/e741d30322a30c71844384de65f6e989262a3147))
+
 # [1.10.0](https://github.com/mean-weasel/groqtalk/compare/v1.9.1...v1.10.0) (2026-05-14)
 
 
