@@ -1,3 +1,10 @@
+## [1.10.2](https://github.com/mean-weasel/groqtalk/compare/v1.10.1...v1.10.2) (2026-05-14)
+
+
+### Bug Fixes
+
+* suppress accessibility prompt during unit tests ([#70](https://github.com/mean-weasel/groqtalk/issues/70)) ([244331b](https://github.com/mean-weasel/groqtalk/commit/244331b3e76fdadb9db2403122b3ab3d6dfc3ed4))
+
 ## [1.10.1](https://github.com/mean-weasel/groqtalk/compare/v1.10.0...v1.10.1) (2026-05-14)
 
 
