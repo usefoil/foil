@@ -248,6 +248,71 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertFalse(app.windows["Welcome to GroqTalk"].exists)
     }
 
+    // MARK: - E2E Transcription (requires GROQ_API_KEY)
+
+    func testE2ETranscription() throws {
+        guard let apiKey = readGroqKeyViaCLI() else {
+            throw XCTSkip("GROQ_API_KEY not in keychain — skipping E2E transcription test")
+        }
+
+        let resultPath = "/tmp/groqtalk-e2e-result.txt"
+        try? FileManager.default.removeItem(atPath: resultPath)
+
+        app.terminate()
+        app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--reset-defaults",
+            "--e2e-transcribe"
+        ]
+        app.launchEnvironment["E2E_API_KEY"] = apiKey
+        app.launch()
+
+        XCTAssertTrue(controlCenter.waitForExistence(timeout: 10), "App should launch")
+
+        let pasted = app.staticTexts["Paste command sent to the current app"]
+        XCTAssertTrue(pasted.waitForExistence(timeout: 30),
+                      "E2E transcription should complete and paste within 30 seconds")
+
+        let transcript = (try? String(contentsOfFile: resultPath, encoding: .utf8)) ?? ""
+        XCTAssertFalse(transcript.isEmpty, "E2E result file should contain the transcript")
+
+        let expected = "the quick brown fox jumps over the lazy dog"
+        let expectedWords = Set(expected.split(separator: " ").map { String($0) })
+        let transcriptWords = Set(transcript.lowercased()
+            .filter { $0.isLetter || $0.isWhitespace }
+            .split(separator: " ")
+            .map { String($0) })
+        let missingWords = expectedWords.subtracting(transcriptWords)
+        XCTAssertTrue(missingWords.count <= 1,
+                      "Transcript '\(transcript)' missing words: \(missingWords.sorted()). Expected: '\(expected)'")
+    }
+
+    private func readGroqKeyViaCLI() -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = [
+            "find-generic-password",
+            "-s", "com.neonwatty.GroqTalk",
+            "-a", "groq-api-key",
+            "-w"
+        ]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let key = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return key?.isEmpty == false ? key : nil
+        } catch {
+            return nil
+        }
+    }
+
     private var controlCenter: XCUIElement {
         app.windows["GroqTalk UI Test"].exists
             ? app.windows["GroqTalk UI Test"]
