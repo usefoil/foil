@@ -45,3 +45,25 @@ jobs:
             -destination 'platform=macOS' \
             -only-testing:GroqTalkTests/IntegrationTests \
             | xcpretty --color && exit ${PIPESTATUS[0]}
+
+      - name: Run E2E transcription UI test
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          if [ -z "$GROQ_API_KEY" ]; then
+            echo "::warning::GROQ_API_KEY secret not set — skipping E2E UI test"
+            exit 0
+          fi
+
+          # Ensure API key is in the keychain for the test host
+          security add-generic-password \
+            -s "com.neonwatty.GroqTalk" \
+            -a "groq-api-key" \
+            -w "$GROQ_API_KEY" -U 2>/dev/null || true
+
+          xcodebuild test \
+            -scheme GroqTalk \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription \
+            | xcpretty --color && exit ${PIPESTATUS[0]}

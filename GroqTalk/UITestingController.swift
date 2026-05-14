@@ -133,6 +133,42 @@ final class UITestingController {
         DiagnosticLog.write("automation smoke: enabled")
     }
 
+    // MARK: - E2E transcription
+
+    func configureE2ETranscribeIfNeeded() {
+        #if DEBUG
+        guard ProcessInfo.processInfo.arguments.contains("--e2e-transcribe") else { return }
+
+        let wavURL: URL
+        if let envPath = ProcessInfo.processInfo.environment["E2E_WAV_PATH"],
+           FileManager.default.fileExists(atPath: envPath) {
+            wavURL = URL(fileURLWithPath: envPath)
+            DiagnosticLog.write("E2E: using WAV from environment at \(wavURL.path)")
+        } else if let bundleURL = Bundle.main.url(forResource: "e2e-test-audio", withExtension: "wav") {
+            wavURL = bundleURL
+            DiagnosticLog.write("E2E: using bundled WAV at \(wavURL.path)")
+        } else {
+            DiagnosticLog.write("E2E: no WAV file found — set E2E_WAV_PATH or include e2e-test-audio.wav in bundle")
+            return
+        }
+
+        let stub = E2EAudioStub(fileURL: wavURL)
+        let controller = RecordingController(audioRecorder: stub, appState: appState)
+        onReplaceRecordingController(controller)
+
+        appState.selectedAudioFormat = .wav
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            DiagnosticLog.write("E2E: starting simulated recording")
+            onStartRecording()
+            try? await Task.sleep(for: .milliseconds(200))
+            DiagnosticLog.write("E2E: stopping simulated recording")
+            onStopRecording()
+        }
+        #endif
+    }
+
     // MARK: - Automation smoke
 
     @objc private func runAutomationMockSuccess() {
