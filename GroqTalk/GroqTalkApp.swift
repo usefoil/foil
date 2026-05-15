@@ -552,7 +552,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             var setupSuccessDetail = "Ready to record"
 
             do {
-                if appState.selectedTranscriptionProviderID == .openAICompatible,
+                if appState.selectedTranscriptionProviderPresetID == .customOpenAICompatible,
                    appState.customTranscriptionBaseURLValue == nil {
                     appState.failSetupCheck("Invalid OpenAI-compatible base URL")
                     return
@@ -629,7 +629,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupCheckErrorMessage(from error: Error) -> String {
-        if appState.selectedTranscriptionProviderID == .openAICompatible {
+        if appState.selectedTranscriptionProvider.id == .openAICompatible {
             if error is URLError {
                 return "Could not reach OpenAI-compatible transcription server"
             }

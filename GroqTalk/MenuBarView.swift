@@ -212,26 +212,53 @@ struct MenuBarView: View {
                     }
                     .accessibilityIdentifier("menu.settings.changeApiKeyButton")
 
-                    Picker("Provider", selection: $appState.selectedTranscriptionProviderID) {
-                        Text("Groq").tag(TranscriptionProviderID.groq)
-                        Text("OpenAI-compatible").tag(TranscriptionProviderID.openAICompatible)
+                    Picker("Provider", selection: $appState.selectedTranscriptionProviderPresetID) {
+                        Text("Groq").tag(TranscriptionProviderPresetID.groq)
+                        Text("Local whisper.cpp").tag(TranscriptionProviderPresetID.localWhisperCPP)
+                        Text("Custom OpenAI-compatible").tag(TranscriptionProviderPresetID.customOpenAICompatible)
                     }
                     .accessibilityIdentifier("menu.settings.transcriptionProviderPicker")
-                    .onChange(of: appState.selectedTranscriptionProviderID) { _, _ in
+                    .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
                         appState.refreshApiKeyState()
                     }
 
-                    if appState.selectedTranscriptionProviderID == .groq {
+                    if appState.selectedTranscriptionProviderPresetID == .groq {
                         Picker("Whisper model", selection: $appState.selectedModel) {
                             Text("Large V3 Turbo").tag("whisper-large-v3-turbo")
                             Text("Large V3").tag("whisper-large-v3")
                         }
                         .accessibilityIdentifier("menu.settings.whisperModelPicker")
+                    } else if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
+                        LabeledContent("Base URL", value: "127.0.0.1:8080/v1")
+                        LabeledContent("Model", value: "whisper-1")
+                        Text("API key is optional for local OpenAI-compatible transcription.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("menu.settings.localProviderHelp")
                     } else {
                         TextField("Base URL", text: $appState.customTranscriptionBaseURL)
                             .accessibilityIdentifier("menu.settings.customTranscriptionBaseURL")
                         TextField("Model", text: $appState.customTranscriptionModel)
                             .accessibilityIdentifier("menu.settings.customTranscriptionModel")
+                        Text("API key is optional for custom OpenAI-compatible transcription.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("menu.settings.customProviderHelp")
+                    }
+
+                    if appState.selectedTranscriptionProvider.id == .openAICompatible {
+                        Button {
+                            Task {
+                                await appState.testSelectedProviderConnection()
+                            }
+                        } label: {
+                            Label("Test connection", systemImage: "network")
+                        }
+                        .disabled(appState.providerConnectionTestState.isRunning)
+                        .accessibilityIdentifier("menu.settings.testProviderConnectionButton")
+                        providerConnectionStatus
                     }
 
                     if appState.supportsSelectedTranscriptProcessing {
@@ -342,10 +369,10 @@ struct MenuBarView: View {
                 action: onOpenMicrophone
             )
             permissionRow(
-                title: "Groq API key",
+                title: "\(appState.selectedTranscriptionProvider.displayName) API key",
                 state: appState.apiKeyState,
                 actionTitle: "Add Key",
-                recoveryDetail: "Add your Groq API key to enable transcription.",
+                recoveryDetail: apiKeyRecoveryDetail,
                 action: { openWindow(id: "api-key-setup") }
             )
 
@@ -790,6 +817,41 @@ struct MenuBarView: View {
         }
     }
 
+    @ViewBuilder
+    private var providerConnectionStatus: some View {
+        switch appState.providerConnectionTestState {
+        case .idle:
+            Text("Connection not tested")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("menu.settings.providerConnectionStatus")
+        case .running:
+            ProgressView("Testing...")
+                .controlSize(.small)
+                .font(.caption2)
+                .accessibilityIdentifier("menu.settings.providerConnectionStatus")
+        case .succeeded(let message):
+            Label(message, systemImage: "checkmark.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(.green)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("menu.settings.providerConnectionStatus")
+        case .warning(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("menu.settings.providerConnectionStatus")
+        case .failed(let message):
+            Label(message, systemImage: "xmark.circle.fill")
+                .font(.caption2)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("menu.settings.providerConnectionStatus")
+        }
+    }
+
     private var setupCheckButtonTitle: String {
         switch appState.setupCheckState {
         case .failed:
@@ -828,7 +890,7 @@ struct MenuBarView: View {
     private var setupCheckRecoveryDetail: String? {
         guard case .failed(let message) = appState.setupCheckState else { return nil }
         if message.localizedCaseInsensitiveContains("api key") {
-            return "Add a Groq API key, then run the setup test again."
+            return "Add a \(appState.selectedTranscriptionProvider.displayName) API key, then run the setup test again."
         }
         if message.localizedCaseInsensitiveContains("accessibility") {
             return "Open Accessibility settings, enable GroqTalk, then rerun the test."

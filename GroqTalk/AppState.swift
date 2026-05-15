@@ -34,6 +34,19 @@ final class AppState {
         case failed(String)
     }
 
+    enum ProviderConnectionTestState: Equatable {
+        case idle
+        case running
+        case succeeded(String)
+        case warning(String)
+        case failed(String)
+
+        var isRunning: Bool {
+            if case .running = self { return true }
+            return false
+        }
+    }
+
     enum SessionTone: Equatable {
         case neutral
         case active
@@ -90,6 +103,7 @@ final class AppState {
     var apiKeyState: PermissionState = .unknown
     var setupCheckState: SetupCheckState = .idle
     var setupCheckSuccessDetail = "Ready to record"
+    var providerConnectionTestState: ProviderConnectionTestState = .idle
 
     // MARK: - UserDefaults-backed preferences
     //
@@ -109,19 +123,49 @@ final class AppState {
     }
 
     var selectedModel: String = "whisper-large-v3-turbo" {
-        didSet { Self.defaults.set(selectedModel, forKey: "whisperModel") }
+        didSet {
+            Self.defaults.set(selectedModel, forKey: "whisperModel")
+            resetProviderConnectionTest()
+        }
     }
 
     var selectedTranscriptionProviderID: TranscriptionProviderID = .groq {
-        didSet { Self.defaults.set(selectedTranscriptionProviderID.rawValue, forKey: "transcriptionProvider") }
+        didSet {
+            Self.defaults.set(selectedTranscriptionProviderID.rawValue, forKey: "transcriptionProvider")
+            guard !isSynchronizingProviderSelection else { return }
+            isSynchronizingProviderSelection = true
+            selectedTranscriptionProviderPresetID = selectedTranscriptionProviderID == .groq
+                ? .groq
+                : .customOpenAICompatible
+            isSynchronizingProviderSelection = false
+            resetProviderConnectionTest()
+        }
+    }
+
+    var selectedTranscriptionProviderPresetID: TranscriptionProviderPresetID = .groq {
+        didSet {
+            Self.defaults.set(selectedTranscriptionProviderPresetID.rawValue, forKey: "transcriptionProviderPreset")
+            guard !isSynchronizingProviderSelection else { return }
+            isSynchronizingProviderSelection = true
+            selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
+            isSynchronizingProviderSelection = false
+            resetProviderConnectionTest()
+            refreshApiKeyState()
+        }
     }
 
     var customTranscriptionBaseURL: String = "http://127.0.0.1:8080/v1" {
-        didSet { Self.defaults.set(customTranscriptionBaseURL, forKey: "customTranscriptionBaseURL") }
+        didSet {
+            Self.defaults.set(customTranscriptionBaseURL, forKey: "customTranscriptionBaseURL")
+            resetProviderConnectionTest()
+        }
     }
 
     var customTranscriptionModel: String = "whisper-1" {
-        didSet { Self.defaults.set(customTranscriptionModel, forKey: "customTranscriptionModel") }
+        didSet {
+            Self.defaults.set(customTranscriptionModel, forKey: "customTranscriptionModel")
+            resetProviderConnectionTest()
+        }
     }
 
     var selectedAudioFormat: AudioFormat = .m4a {
@@ -197,10 +241,26 @@ final class AppState {
         }
     }
 
+    private var isSynchronizingProviderSelection = false
+
     var hasApiKey: Bool { KeychainHelper.readApiKey(for: selectedTranscriptionProviderID) != nil }
 
+    var selectedTranscriptionProviderPreset: TranscriptionProviderPreset {
+        switch selectedTranscriptionProviderPresetID {
+        case .groq:
+            return .groq
+        case .localWhisperCPP:
+            return .localWhisperCPP
+        case .customOpenAICompatible:
+            return .customOpenAICompatible(
+                baseURL: customTranscriptionBaseURLValue,
+                model: customTranscriptionModel
+            )
+        }
+    }
+
     var selectedTranscriptionProvider: TranscriptionProvider {
-        switch selectedTranscriptionProviderID {
+        switch selectedTranscriptionProviderPresetID {
         case .groq:
             var provider = TranscriptionProvider.groq
             provider = TranscriptionProvider(
@@ -213,7 +273,15 @@ final class AppState {
                 supportsTranscriptProcessing: provider.supportsTranscriptProcessing
             )
             return provider
-        case .openAICompatible:
+        case .localWhisperCPP:
+            let preset = TranscriptionProviderPreset.localWhisperCPP
+            return .openAICompatible(
+                baseURL: preset.baseURL!,
+                model: preset.model,
+                displayName: preset.displayName,
+                requiresAPIKey: preset.requiresAPIKey
+            )
+        case .customOpenAICompatible:
             let fallback = URL(string: "http://127.0.0.1:8080/v1")!
             let baseURL = customTranscriptionBaseURLValue ?? fallback
             return .openAICompatible(
@@ -221,6 +289,7 @@ final class AppState {
                 model: customTranscriptionModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     ? "whisper-1"
                     : customTranscriptionModel,
+                displayName: "Custom OpenAI-compatible",
                 requiresAPIKey: false
             )
         }
@@ -239,7 +308,8 @@ final class AppState {
     }
 
     var customTranscriptionBaseURLValue: URL? {
-        guard selectedTranscriptionProviderID == .openAICompatible else {
+        guard selectedTranscriptionProviderPresetID == .customOpenAICompatible
+                || selectedTranscriptionProviderID == .openAICompatible else {
             return nil
         }
         let trimmed = customTranscriptionBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -468,7 +538,9 @@ final class AppState {
     private func apiKeySetupDetail() -> String {
         switch apiKeyState {
         case .unknown:
-            "Check Groq API key before recording"
+            selectedTranscriptionProvider.requiresAPIKey
+                ? "Check \(selectedTranscriptionProvider.displayName) API key before recording"
+                : "\(selectedTranscriptionProvider.displayName) API key is optional"
         case .needsAction(let message):
             message
         case .ready:
@@ -534,7 +606,9 @@ final class AppState {
 
     private func errorDetail(for message: String, hasRetryableFailure: Bool) -> String {
         if message.localizedCaseInsensitiveContains("api key") {
-            return "Add a Groq API key to transcribe"
+            return selectedTranscriptionProvider.requiresAPIKey
+                ? "Add a \(selectedTranscriptionProvider.displayName) API key to transcribe"
+                : "\(selectedTranscriptionProvider.displayName) API key is optional"
         }
         if message.localizedCaseInsensitiveContains("accessibility") {
             return "Enable GroqTalk in Privacy & Security"
@@ -560,10 +634,13 @@ final class AppState {
 
     init() {
         let defaults = Self.defaults
+        var persistedPresetRawValue = defaults
+            .persistentDomain(forName: Bundle.main.bundleIdentifier ?? "com.neonwatty.GroqTalk")?["transcriptionProviderPreset"] as? String
         if ProcessInfo.processInfo.arguments.contains("--reset-defaults") {
             for key in [
                 "soundEffectsEnabled",
                 "transcriptionProvider",
+                "transcriptionProviderPreset",
                 "whisperModel",
                 "customTranscriptionBaseURL",
                 "customTranscriptionModel",
@@ -586,11 +663,13 @@ final class AppState {
             ] {
                 defaults.removeObject(forKey: key)
             }
+            persistedPresetRawValue = nil
         }
 
         defaults.register(defaults: [
             "soundEffectsEnabled": true,
             "transcriptionProvider": TranscriptionProviderID.groq.rawValue,
+            "transcriptionProviderPreset": TranscriptionProviderPresetID.groq.rawValue,
             "whisperModel": "whisper-large-v3-turbo",
             "customTranscriptionBaseURL": "http://127.0.0.1:8080/v1",
             "customTranscriptionModel": "whisper-1",
@@ -610,7 +689,18 @@ final class AppState {
         // Load persisted values into stored properties.
         // didSet does NOT fire during init, so no redundant writes.
         soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
-        selectedTranscriptionProviderID = TranscriptionProviderID(rawValue: defaults.string(forKey: "transcriptionProvider") ?? "") ?? .groq
+        let persistedProviderID = TranscriptionProviderID(rawValue: defaults.string(forKey: "transcriptionProvider") ?? "") ?? .groq
+        let persistedPresetID: TranscriptionProviderPresetID
+        if let rawPreset = persistedPresetRawValue,
+           let preset = TranscriptionProviderPresetID(rawValue: rawPreset) {
+            persistedPresetID = preset
+        } else {
+            persistedPresetID = persistedProviderID == .groq ? .groq : .customOpenAICompatible
+        }
+        isSynchronizingProviderSelection = true
+        selectedTranscriptionProviderID = persistedProviderID
+        selectedTranscriptionProviderPresetID = persistedPresetID
+        isSynchronizingProviderSelection = false
         selectedModel = defaults.string(forKey: "whisperModel") ?? "whisper-large-v3-turbo"
         customTranscriptionBaseURL = defaults.string(forKey: "customTranscriptionBaseURL") ?? "http://127.0.0.1:8080/v1"
         customTranscriptionModel = defaults.string(forKey: "customTranscriptionModel") ?? "whisper-1"
@@ -631,6 +721,9 @@ final class AppState {
         customHotkeyModifiers = UInt64(bitPattern: Int64(defaults.integer(forKey: "customHotkeyModifiers")))
         customHotkeyLabel = defaults.string(forKey: "customHotkeyLabel") ?? ""
         selectedInputDeviceUID = Self.defaults.string(forKey: "selectedInputDeviceUID")
+        isSynchronizingProviderSelection = true
+        selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
+        isSynchronizingProviderSelection = false
     }
 
     func setStatus(_ newStatus: Status) {
@@ -688,6 +781,51 @@ final class AppState {
             apiKeyState = hasApiKey ? .ready : .needsAction("Add \(selectedTranscriptionProvider.displayName) API key")
         } else {
             apiKeyState = .ready
+        }
+    }
+
+    func resetProviderConnectionTest() {
+        providerConnectionTestState = .idle
+    }
+
+    func testSelectedProviderConnection(
+        service: TranscriptionService = TranscriptionService(),
+        apiKey: String? = nil
+    ) async {
+        guard selectedTranscriptionProvider.id == .openAICompatible else {
+            providerConnectionTestState = .warning("Connection test is only needed for custom or local providers.")
+            return
+        }
+
+        if selectedTranscriptionProviderPresetID == .customOpenAICompatible,
+           customTranscriptionBaseURLValue == nil {
+            providerConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+            return
+        }
+
+        providerConnectionTestState = .running
+        let key = apiKey ?? KeychainHelper.readApiKey(for: selectedTranscriptionProviderID)
+        do {
+            let result = try await service
+                .withProvider(selectedTranscriptionProvider)
+                .validateProviderConfiguration(
+                    apiKey: key,
+                    requiredModels: [selectedTranscriptionModel]
+                )
+            switch result {
+            case .modelsValidated:
+                providerConnectionTestState = .succeeded("Server reachable. Model \(selectedTranscriptionModel) is available.")
+            case .reachableWithoutModelValidation:
+                providerConnectionTestState = .warning("Server reachable. Model availability was not checked.")
+            }
+        } catch TranscriptionService.TranscriptionError.modelUnavailable(let model) {
+            providerConnectionTestState = .failed("Server reachable, but model \(model) was not listed.")
+        } catch TranscriptionService.TranscriptionError.invalidProviderURL {
+            providerConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+        } catch is URLError {
+            providerConnectionTestState = .failed("Could not reach OpenAI-compatible transcription server.")
+        } catch {
+            providerConnectionTestState = .failed("Connection test failed: \(error.localizedDescription)")
         }
     }
 

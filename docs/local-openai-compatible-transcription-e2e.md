@@ -3,6 +3,15 @@
 This opt-in check verifies GroqTalk against a local OpenAI-compatible Whisper endpoint.
 It does not require a Groq key and should not run in regular CI.
 
+In the app, select the `Local whisper.cpp` provider preset to use these defaults:
+
+- Base URL: `http://127.0.0.1:8080/v1`
+- Model: `whisper-1`
+- API key: optional; use a dummy value such as `local` only if your local server expects one
+
+The `Custom OpenAI-compatible` preset remains available for other local or hosted
+servers that expose the same `/v1/audio/transcriptions` shape.
+
 ## Server Setup
 
 Keep `whisper.cpp` and models outside this repo:

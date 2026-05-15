@@ -159,6 +159,22 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Retained failed audio"].exists)
     }
 
+    func testLocalProviderSettingsShowCleanupUnavailableCopy() {
+        app.terminate()
+        app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-local-provider"
+        ]
+        app.launch()
+
+        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        app.buttons["Settings"].click()
+        XCTAssertTrue(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].waitForExistence(timeout: 2))
+    }
+
     func testMockTogglePersistsAcrossLaunches() {
         let toggle = app.checkBoxes["Mock Transcription"]
         XCTAssertTrue(toggle.exists)

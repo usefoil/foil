@@ -86,6 +86,31 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(provider.supportsModelValidation)
     }
 
+    func testLocalWhisperPresetDefinesExpectedDefaults() {
+        let preset = TranscriptionProviderPreset.localWhisperCPP
+
+        XCTAssertEqual(preset.id, .localWhisperCPP)
+        XCTAssertEqual(preset.displayName, "Local whisper.cpp")
+        XCTAssertEqual(preset.providerID, .openAICompatible)
+        XCTAssertEqual(preset.baseURL?.absoluteString, "http://127.0.0.1:8080/v1")
+        XCTAssertEqual(preset.model, "whisper-1")
+        XCTAssertFalse(preset.requiresAPIKey)
+        XCTAssertFalse(preset.supportsTranscriptProcessing)
+        XCTAssertFalse(preset.isEditable)
+    }
+
+    func testCustomPresetTrimsEmptyModelToWhisperOne() {
+        let preset = TranscriptionProviderPreset.customOpenAICompatible(
+            baseURL: URL(string: "http://localhost:9000/v1"),
+            model: " "
+        )
+
+        XCTAssertEqual(preset.id, .customOpenAICompatible)
+        XCTAssertEqual(preset.displayName, "Custom OpenAI-compatible")
+        XCTAssertEqual(preset.model, "whisper-1")
+        XCTAssertTrue(preset.isEditable)
+    }
+
     func testMultipartBodyContainsAllFields() throws {
         let service = TranscriptionService()
 
