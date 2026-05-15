@@ -5,6 +5,20 @@ import XCTest
 final class AppStateTests: XCTestCase {
     private var testDirectory: URL!
 
+    private final class StubTransport: TranscriptionTransport {
+        var requests: [URLRequest] = []
+        let handler: (URLRequest) async throws -> (Data, URLResponse)
+
+        init(handler: @escaping (URLRequest) async throws -> (Data, URLResponse)) {
+            self.handler = handler
+        }
+
+        func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+            requests.append(request)
+            return try await handler(request)
+        }
+    }
+
     override func setUpWithError() throws {
         testDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GroqTalkAppStateTests-\(UUID().uuidString)", isDirectory: true)
@@ -16,6 +30,7 @@ final class AppStateTests: XCTestCase {
 
     override func tearDown() {
         KeychainHelper.delete()
+        KeychainHelper.delete(for: .openAICompatible)
         KeychainHelper.storageDirectoryOverride = nil
         KeychainHelper.serviceOverride = nil
         KeychainHelper.accountOverride = nil
@@ -36,8 +51,18 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupModel")
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
+        UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
         UserDefaults.standard.removeObject(forKey: "customTranscriptionBaseURL")
         UserDefaults.standard.removeObject(forKey: "customTranscriptionModel")
+    }
+
+    private static func httpResponse(statusCode: Int, url: URL = URL(string: "http://127.0.0.1:8080/v1/models")!) -> HTTPURLResponse {
+        HTTPURLResponse(
+            url: url,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil
+        )!
     }
 
     private func markSetupReady(_ state: AppState) {
@@ -329,7 +354,7 @@ final class AppStateTests: XCTestCase {
             hasLastSuccess: false
         )
 
-        XCTAssertEqual(presentation.detail, "OpenAI-compatible · whisper-1")
+        XCTAssertEqual(presentation.detail, "Custom OpenAI-compatible · whisper-1")
     }
 
     func testCustomProviderUsesRawEffectiveProcessingModeForPresentation() {
@@ -348,7 +373,7 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
-        XCTAssertEqual(presentation.detail, "OpenAI-compatible · whisper-1")
+        XCTAssertEqual(presentation.detail, "Custom OpenAI-compatible · whisper-1")
     }
 
     func testCleaningSessionPresentationShowsCleanupModel() {
@@ -875,26 +900,170 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         let provider = state.selectedTranscriptionProvider
 
+        XCTAssertEqual(state.selectedTranscriptionProviderPresetID, .groq)
         XCTAssertEqual(state.selectedTranscriptionProviderID, .groq)
         XCTAssertEqual(provider.id, .groq)
         XCTAssertEqual(provider.displayName, "Groq")
         XCTAssertEqual(provider.transcriptionModel, "whisper-large-v3-turbo")
         XCTAssertEqual(provider.audioTranscriptionsEndpoint.absoluteString, "https://api.groq.com/openai/v1/audio/transcriptions")
+        XCTAssertEqual(provider.chatCompletionsEndpoint.absoluteString, "https://api.groq.com/openai/v1/chat/completions")
+        XCTAssertEqual(provider.modelsEndpoint.absoluteString, "https://api.groq.com/openai/v1/models")
     }
 
     func testCustomOpenAICompatibleProviderPersists() {
         let state = AppState()
-        state.selectedTranscriptionProviderID = .openAICompatible
+        state.selectedTranscriptionProviderPresetID = .customOpenAICompatible
         state.customTranscriptionBaseURL = "http://127.0.0.1:8080/v1"
         state.customTranscriptionModel = "whisper-1"
 
         let reloaded = AppState()
         let provider = reloaded.selectedTranscriptionProvider
 
+        XCTAssertEqual(reloaded.selectedTranscriptionProviderPresetID, .customOpenAICompatible)
         XCTAssertEqual(reloaded.selectedTranscriptionProviderID, .openAICompatible)
         XCTAssertEqual(provider.id, .openAICompatible)
+        XCTAssertEqual(provider.displayName, "Custom OpenAI-compatible")
         XCTAssertEqual(provider.transcriptionModel, "whisper-1")
         XCTAssertEqual(provider.audioTranscriptionsEndpoint.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
+    }
+
+    func testLocalWhisperPresetBuildsExpectedProvider() {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+
+        let provider = state.selectedTranscriptionProvider
+
+        XCTAssertEqual(state.selectedTranscriptionProviderID, .openAICompatible)
+        XCTAssertEqual(provider.displayName, "Local whisper.cpp")
+        XCTAssertEqual(provider.transcriptionModel, "whisper-1")
+        XCTAssertEqual(provider.audioTranscriptionsEndpoint.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
+        XCTAssertFalse(provider.requiresAPIKey)
+        XCTAssertFalse(provider.supportsTranscriptProcessing)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+    }
+
+    func testLegacyOpenAICompatibleProviderMigratesToCustomPreset() {
+        UserDefaults.standard.set(TranscriptionProviderID.openAICompatible.rawValue, forKey: "transcriptionProvider")
+        UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
+        UserDefaults.standard.set("http://localhost:9000/v1", forKey: "customTranscriptionBaseURL")
+        UserDefaults.standard.set("tiny", forKey: "customTranscriptionModel")
+
+        let state = AppState()
+
+        XCTAssertEqual(state.selectedTranscriptionProviderPresetID, .customOpenAICompatible)
+        XCTAssertEqual(state.selectedTranscriptionProviderID, .openAICompatible)
+        XCTAssertEqual(state.selectedTranscriptionProvider.audioTranscriptionsEndpoint.absoluteString, "http://localhost:9000/v1/audio/transcriptions")
+        XCTAssertEqual(state.selectedTranscriptionProvider.transcriptionModel, "tiny")
+    }
+
+    func testPresetSwitchingUpdatesProviderNameModelAndCleanupAvailability() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+
+        XCTAssertEqual(state.selectedTranscriptionProvider.displayName, "Groq")
+        XCTAssertTrue(state.supportsSelectedTranscriptProcessing)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .cleanUp)
+
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+
+        XCTAssertEqual(state.selectedTranscriptionProvider.displayName, "Local whisper.cpp")
+        XCTAssertEqual(state.selectedTranscriptionModel, "whisper-1")
+        XCTAssertFalse(state.supportsSelectedTranscriptProcessing)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+    }
+
+    func testGroqAndOpenAICompatibleAPIKeysAreIndependent() throws {
+        try KeychainHelper.save(apiKey: "groq-key", for: .groq)
+        try KeychainHelper.save(apiKey: "local-key", for: .openAICompatible)
+
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .groq), "groq-key")
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .openAICompatible), "local-key")
+    }
+
+    func testProviderConnectionInvalidBaseURLFailsBeforeNetwork() async {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+        state.customTranscriptionBaseURL = "file:///tmp/whisper"
+        let service = TranscriptionService(transport: StubTransport { request in
+            XCTFail("Invalid URL should not make a request: \(String(describing: request.url))")
+            return (Data(), Self.httpResponse(statusCode: 500))
+        })
+
+        await state.testSelectedProviderConnection(service: service)
+
+        XCTAssertEqual(
+            state.providerConnectionTestState,
+            .failed("Invalid base URL. Use an http:// or https:// URL.")
+        )
+    }
+
+    func testProviderConnectionReportsReachableModelAvailable() async {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        let service = TranscriptionService(transport: StubTransport { request in
+            (
+                Data(#"{"data":[{"id":"whisper-1"}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        })
+
+        await state.testSelectedProviderConnection(service: service)
+
+        XCTAssertEqual(
+            state.providerConnectionTestState,
+            .succeeded("Server reachable. Model whisper-1 is available.")
+        )
+    }
+
+    func testProviderConnectionReportsReachableWithoutModelValidation() async {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        let service = TranscriptionService(transport: StubTransport { request in
+            (
+                Data("not found".utf8),
+                Self.httpResponse(statusCode: 404, url: request.url!)
+            )
+        })
+
+        await state.testSelectedProviderConnection(service: service)
+
+        XCTAssertEqual(
+            state.providerConnectionTestState,
+            .warning("Server reachable. Model availability was not checked.")
+        )
+    }
+
+    func testProviderConnectionReportsMissingModel() async {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        let service = TranscriptionService(transport: StubTransport { request in
+            (
+                Data(#"{"data":[{"id":"other-model"}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        })
+
+        await state.testSelectedProviderConnection(service: service)
+
+        XCTAssertEqual(
+            state.providerConnectionTestState,
+            .failed("Server reachable, but model whisper-1 was not listed.")
+        )
+    }
+
+    func testProviderConnectionReportsUnreachableServer() async {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        let service = TranscriptionService(transport: StubTransport { _ in
+            throw URLError(.cannotConnectToHost)
+        })
+
+        await state.testSelectedProviderConnection(service: service)
+
+        XCTAssertEqual(
+            state.providerConnectionTestState,
+            .failed("Could not reach OpenAI-compatible transcription server.")
+        )
     }
 
     func testSetTranscriptProcessingMode() {

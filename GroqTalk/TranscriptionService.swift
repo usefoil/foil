@@ -22,6 +22,71 @@ enum TranscriptionProviderID: String, CaseIterable, Identifiable {
     }
 }
 
+enum TranscriptionProviderPresetID: String, CaseIterable, Identifiable {
+    case groq
+    case localWhisperCPP = "local-whisper-cpp"
+    case customOpenAICompatible = "custom-openai-compatible"
+
+    var id: String { rawValue }
+}
+
+struct TranscriptionProviderPreset: Equatable, Identifiable {
+    let id: TranscriptionProviderPresetID
+    let displayName: String
+    let providerID: TranscriptionProviderID
+    let baseURL: URL?
+    let model: String
+    let requiresAPIKey: Bool
+    let supportsTranscriptProcessing: Bool
+    let isEditable: Bool
+
+    static let groq = TranscriptionProviderPreset(
+        id: .groq,
+        displayName: "Groq",
+        providerID: .groq,
+        baseURL: URL(string: "https://api.groq.com/openai/v1")!,
+        model: "whisper-large-v3-turbo",
+        requiresAPIKey: true,
+        supportsTranscriptProcessing: true,
+        isEditable: false
+    )
+
+    static let localWhisperCPP = TranscriptionProviderPreset(
+        id: .localWhisperCPP,
+        displayName: "Local whisper.cpp",
+        providerID: .openAICompatible,
+        baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+        model: "whisper-1",
+        requiresAPIKey: false,
+        supportsTranscriptProcessing: false,
+        isEditable: false
+    )
+
+    static func customOpenAICompatible(baseURL: URL?, model: String) -> TranscriptionProviderPreset {
+        TranscriptionProviderPreset(
+            id: .customOpenAICompatible,
+            displayName: "Custom OpenAI-compatible",
+            providerID: .openAICompatible,
+            baseURL: baseURL,
+            model: model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "whisper-1" : model,
+            requiresAPIKey: false,
+            supportsTranscriptProcessing: false,
+            isEditable: true
+        )
+    }
+
+    static func builtIn(id: TranscriptionProviderPresetID) -> TranscriptionProviderPreset? {
+        switch id {
+        case .groq:
+            groq
+        case .localWhisperCPP:
+            localWhisperCPP
+        case .customOpenAICompatible:
+            nil
+        }
+    }
+}
+
 struct TranscriptionProvider: Equatable {
     let id: TranscriptionProviderID
     let displayName: String
@@ -44,11 +109,12 @@ struct TranscriptionProvider: Equatable {
     static func openAICompatible(
         baseURL: URL,
         model: String,
+        displayName: String = "OpenAI-compatible",
         requiresAPIKey: Bool = false
     ) -> TranscriptionProvider {
         TranscriptionProvider(
             id: .openAICompatible,
-            displayName: "OpenAI-compatible",
+            displayName: displayName,
             baseURL: baseURL,
             transcriptionModel: model,
             requiresAPIKey: requiresAPIKey,

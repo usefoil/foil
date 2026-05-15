@@ -152,25 +152,53 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.changeApiKeyButton")
             }
 
-            Picker("Provider", selection: $appState.selectedTranscriptionProviderID) {
-                Text("Groq").tag(TranscriptionProviderID.groq)
-                Text("OpenAI-compatible").tag(TranscriptionProviderID.openAICompatible)
+            Picker("Provider", selection: $appState.selectedTranscriptionProviderPresetID) {
+                Text("Groq").tag(TranscriptionProviderPresetID.groq)
+                Text("Local whisper.cpp").tag(TranscriptionProviderPresetID.localWhisperCPP)
+                Text("Custom OpenAI-compatible").tag(TranscriptionProviderPresetID.customOpenAICompatible)
             }
             .accessibilityIdentifier("settings.transcriptionProviderPicker")
-            .onChange(of: appState.selectedTranscriptionProviderID) { _, _ in
+            .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
                 appState.refreshApiKeyState()
             }
 
-            if appState.selectedTranscriptionProviderID == .groq {
+            if appState.selectedTranscriptionProviderPresetID == .groq {
                 Picker("Whisper model", selection: $appState.selectedModel) {
                     Text("Large V3 Turbo").tag("whisper-large-v3-turbo")
                     Text("Large V3").tag("whisper-large-v3")
                 }
+            } else if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
+                LabeledContent("Base URL", value: "http://127.0.0.1:8080/v1")
+                LabeledContent("Model", value: "whisper-1")
+                Text("Uses a local OpenAI-compatible whisper.cpp server. API key is optional; use a dummy value such as local only if your server expects one.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.localProviderHelp")
             } else {
                 TextField("Base URL", text: $appState.customTranscriptionBaseURL)
                     .accessibilityIdentifier("settings.customTranscriptionBaseURL")
                 TextField("Model", text: $appState.customTranscriptionModel)
                     .accessibilityIdentifier("settings.customTranscriptionModel")
+                Text("API key is optional for custom OpenAI-compatible transcription servers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.customProviderHelp")
+            }
+
+            if appState.selectedTranscriptionProvider.id == .openAICompatible {
+                HStack {
+                    Button("Test connection") {
+                        Task {
+                            await appState.testSelectedProviderConnection()
+                        }
+                    }
+                    .disabled(appState.providerConnectionTestState.isRunning)
+                    .accessibilityIdentifier("settings.testProviderConnectionButton")
+
+                    providerConnectionStatus
+                }
             }
 
             if appState.supportsSelectedTranscriptProcessing {
@@ -217,6 +245,32 @@ struct SettingsView: View {
     private var apiKeyStatusColor: Color {
         if appState.hasApiKey { return .green }
         return appState.selectedTranscriptionProvider.requiresAPIKey ? .orange : .secondary
+    }
+
+    @ViewBuilder
+    private var providerConnectionStatus: some View {
+        switch appState.providerConnectionTestState {
+        case .idle:
+            Text("Not tested")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("settings.providerConnectionStatus")
+        case .running:
+            ProgressView("Testing...")
+                .controlSize(.small)
+                .accessibilityIdentifier("settings.providerConnectionStatus")
+        case .succeeded(let message):
+            Label(message, systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .accessibilityIdentifier("settings.providerConnectionStatus")
+        case .warning(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("settings.providerConnectionStatus")
+        case .failed(let message):
+            Label(message, systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("settings.providerConnectionStatus")
+        }
     }
 
     private var pasteSettings: some View {

@@ -65,6 +65,12 @@ enum KeychainHelper {
     }
 
     static func readApiKey(for providerID: TranscriptionProviderID) -> String? {
+        #if DEBUG
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--ui-testing"), !args.contains("--e2e-transcribe") {
+            return nil
+        }
+        #endif
         if let key = readFromKeychain(for: providerID) {
             if providerID == .groq, let legacyURL = legacyPlaintextStorageURL {
                 try? FileManager.default.removeItem(at: legacyURL)

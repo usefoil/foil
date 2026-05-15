@@ -119,6 +119,10 @@ final class UITestingController {
             history.addFailure(error: "Seeded network failure", audioFileURL: nil)
         }
 
+        if args.contains("--seed-local-provider") {
+            appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        }
+
         showUITestWindow()
     }
 
