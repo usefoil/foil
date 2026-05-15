@@ -284,6 +284,9 @@ final class GroqTalkUITests: XCTestCase {
         } else if let model = env["E2E_TRANSCRIPTION_MODEL"] {
             app.launchEnvironment["E2E_TRANSCRIPTION_MODEL"] = model
         }
+        if let wavPath = env["E2E_WAV_PATH"], !wavPath.isEmpty {
+            app.launchEnvironment["E2E_WAV_PATH"] = wavPath
+        }
         app.launch()
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 10), "App should launch")
