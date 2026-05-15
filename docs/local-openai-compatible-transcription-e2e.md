@@ -44,19 +44,35 @@ Expected transcript:
 the quick brown fox jumps over the lazy dog.
 ```
 
-## App-Level E2E
+## XCUITest App-Level E2E
 
 ```sh
-E2E_TRANSCRIPTION_PROVIDER=openai-compatible \
+make test-local-transcription-e2e
+```
+
+The Make target:
+
+- posts `GroqTalk/e2e-test-audio.wav` to `/v1/audio/transcriptions`
+- requires HTTP `200`
+- builds for testing
+- patches the generated `.xctestrun` so `GroqTalkUITests/GroqTalkUITests/testE2ETranscription`
+  receives the local endpoint environment
+- runs the real XCUITest with `xcodebuild test-without-building`
+- fails if the test is skipped, `/tmp/groqtalk-e2e-result.txt` is empty, or fewer than
+  8 of 9 expected words are present
+
+Useful overrides:
+
+```sh
 E2E_TRANSCRIPTION_BASE_URL=http://127.0.0.1:8080/v1 \
 E2E_TRANSCRIPTION_MODEL=whisper-1 \
 E2E_API_KEY=local \
-xcodebuild test \
-  -scheme GroqTalk \
-  -configuration Debug \
-  -destination 'platform=macOS' \
-  -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription
+LOCAL_E2E_LATENCY_RUNS=10 \
+make test-local-transcription-e2e
 ```
+
+Regular `make test-ui` intentionally remains deterministic and skips this live local
+transcription path unless it is invoked through the dedicated opt-in target.
 
 ## 2026-05-14 Local Evidence
 
@@ -81,3 +97,27 @@ App-level E2E result:
 - Command: `testE2ETranscription` with the environment above
 - Result: `TEST SUCCEEDED`
 - `/tmp/groqtalk-e2e-result.txt`: `The quick brown fox jumps over the lazy dog.`
+
+## 2026-05-15 XCUITest Harness Evidence
+
+Command:
+
+```sh
+LOCAL_E2E_LATENCY_RUNS=10 make test-local-transcription-e2e
+```
+
+Endpoint result:
+
+- HTTP: `200` for all 10 runs
+- Transcript: `the quick brown fox jumps over the lazy dog.`
+- Word recall: `9/9`
+- 10-run median latency: `0.045898s`
+- 10-run p95 latency: `0.060236s`
+
+XCUITest result:
+
+- Test: `GroqTalkUITests/GroqTalkUITests/testE2ETranscription`
+- Runner: patched `.xctestrun` via `xcodebuild test-without-building`
+- Result: `TEST EXECUTE SUCCEEDED`
+- `/tmp/groqtalk-e2e-result.txt`: `the quick brown fox jumps over the lazy dog.`
+- App word recall: `9/9`
