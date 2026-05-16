@@ -425,6 +425,7 @@ struct MenuBarView: View {
                     onRunSetupCheck?()
                 }
                 .buttonStyle(.borderless)
+                .frame(minWidth: 48, minHeight: 18)
                 .disabled(appState.isSetupCheckRunning)
                 .accessibilityIdentifier("menu.setup.test.action")
             }
@@ -677,11 +678,13 @@ struct MenuBarView: View {
                     Button("Simulate Success") {
                         onSimulateSuccess?()
                     }
+                    .frame(minHeight: 18)
                     .accessibilityIdentifier("menu.simulateSuccessButton")
 
                     Button("Simulate Failure") {
                         onSimulateFailure?()
                     }
+                    .frame(minHeight: 18)
                     .accessibilityIdentifier("menu.simulateFailureButton")
                 }
                 .buttonStyle(.borderless)
