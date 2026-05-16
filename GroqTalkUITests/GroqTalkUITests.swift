@@ -24,24 +24,24 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Ready"].exists)
         XCTAssertTrue(app.staticTexts["Right Command · Pastes into current app"].exists)
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
-        XCTAssertTrue(app.buttons["History"].exists)
-        XCTAssertTrue(app.buttons["Settings"].exists)
-        XCTAssertTrue(app.buttons["Help"].exists)
-        XCTAssertTrue(app.buttons["Start recording"].exists)
-        XCTAssertTrue(app.buttons["Start recording"].isEnabled)
-        XCTAssertTrue(app.buttons["Stop recording"].exists)
-        XCTAssertFalse(app.buttons["Stop recording"].isEnabled)
-        XCTAssertTrue(app.buttons["Cancel recording"].exists)
-        XCTAssertFalse(app.buttons["Cancel recording"].isEnabled)
+        assertButtonExists(id: "menu.historyButton", fallbackLabel: "History")
+        assertButtonExists(id: "menu.settingsButton", fallbackLabel: "Settings")
+        assertButtonExists(id: "menu.helpButton", fallbackLabel: "Help")
+        XCTAssertTrue(button(id: "menu.recording.startButton", fallbackLabel: "Start recording").exists)
+        XCTAssertTrue(button(id: "menu.recording.startButton", fallbackLabel: "Start recording").isEnabled)
+        XCTAssertTrue(button(id: "menu.recording.stopButton", fallbackLabel: "Stop recording").exists)
+        XCTAssertFalse(button(id: "menu.recording.stopButton", fallbackLabel: "Stop recording").isEnabled)
+        XCTAssertTrue(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").exists)
+        XCTAssertFalse(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").isEnabled)
         XCTAssertTrue(app.staticTexts["Test Setup"].exists)
-        XCTAssertTrue(app.buttons["Test"].exists)
+        assertButtonExists(id: "menu.setup.test.action", fallbackLabel: "Test")
         XCTAssertTrue(app.checkBoxes["Paste where recording started"].exists)
         XCTAssertTrue(app.checkBoxes["Show floating status"].exists)
         XCTAssertTrue(app.checkBoxes["Mock Transcription"].exists)
     }
 
     func testSetupCheckCanBeRunInline() {
-        app.buttons["Test"].click()
+        clickButton(id: "menu.setup.test.action", fallbackLabel: "Test")
 
         XCTAssertTrue(app.staticTexts["Setup Tested"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Ready to record"].exists)
@@ -82,7 +82,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Setup needed"].exists)
         XCTAssertTrue(app.staticTexts["Check Accessibility before recording"].exists)
         XCTAssertTrue(app.staticTexts["Not checked"].exists)
-        XCTAssertTrue(app.buttons["Check"].exists)
+        assertButtonExists(id: "menu.setup.Accessibility.action", fallbackLabel: "Check")
         XCTAssertFalse(app.staticTexts["Right Command · Pastes into current app"].exists)
     }
 
@@ -99,7 +99,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Microphone"].exists)
         XCTAssertTrue(app.staticTexts["Not checked"].exists)
-        XCTAssertTrue(app.buttons["Check"].exists)
+        assertButtonExists(id: "menu.setup.Microphone.action", fallbackLabel: "Check")
     }
 
     func testMicrophoneDeniedShowsOpenSettingsAction() {
@@ -115,7 +115,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Microphone"].exists)
         XCTAssertTrue(app.staticTexts["Allow microphone access"].exists)
-        XCTAssertTrue(app.buttons["Open Settings"].exists)
+        assertButtonExists(id: "menu.setup.Microphone.action", fallbackLabel: "Open Settings")
     }
 
     func testOnboardingMicrophoneStepCanCheckPermission() {
@@ -130,14 +130,14 @@ final class GroqTalkUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 5), app.debugDescription)
-        app.buttons["Next"].click()
-        app.buttons["Next"].click()
+        clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
+        clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
 
         XCTAssertTrue(app.staticTexts["Microphone Access"].waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Checking status"].exists || app.staticTexts["Checking..."].exists)
-        XCTAssertTrue(app.buttons["Check Microphone Access"].exists)
+        assertButtonExists(id: "onboarding.checkMicrophoneButton", fallbackLabel: "Check Microphone Access")
 
-        app.buttons["Check Microphone Access"].click()
+        clickButton(id: "onboarding.checkMicrophoneButton", fallbackLabel: "Check Microphone Access")
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
     }
 
@@ -154,12 +154,12 @@ final class GroqTalkUITests: XCTestCase {
 
         XCTAssertTrue(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 5), app.debugDescription)
 
-        while app.buttons["Next"].exists {
-            app.buttons["Next"].click()
+        while button(id: "onboarding.nextButton", fallbackLabel: "Next").exists {
+            clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
         }
 
-        XCTAssertTrue(app.buttons["Get Started"].waitForExistence(timeout: 2), app.debugDescription)
-        app.buttons["Get Started"].click()
+        XCTAssertTrue(button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started").waitForExistence(timeout: 2), app.debugDescription)
+        clickButton(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
 
         XCTAssertFalse(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 2))
         XCTAssertEqual(app.state, .runningForeground)
@@ -167,7 +167,7 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testHistoryWindowOpensAndSearchesSeededRecords() {
-        app.buttons["History"].click()
+        openHistoryWindow()
         XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
 
         let searchField = app.textFields["Search transcriptions..."]
@@ -180,7 +180,7 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testHistoryFilterShowsFailedRecords() {
-        app.buttons["History"].click()
+        openHistoryWindow()
         XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
 
         XCTAssertTrue(app.buttons["All"].isEnabled)
@@ -191,29 +191,29 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testHistoryDeleteAndClearActions() {
-        app.buttons["History"].click()
+        openHistoryWindow()
         XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
 
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
-        app.buttons["Delete"].firstMatch.click()
+        app.buttons["history.row.deleteButton"].firstMatch.click()
         XCTAssertTrue(app.staticTexts["Delete History Item?"].waitForExistence(timeout: 2))
         clickAlertButton("Cancel")
         XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2))
 
         relaunchWithSeededHistory()
-        app.buttons["History"].click()
+        openHistoryWindow()
         XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
 
-        app.buttons["Clear"].click()
+        clickButton(id: "history.clearButton", fallbackLabel: "Clear")
         XCTAssertTrue(app.staticTexts["Clear History?"].waitForExistence(timeout: 2))
         clickAlertButton("Clear History")
         XCTAssertTrue(app.staticTexts["No transcriptions yet"].waitForExistence(timeout: 2))
     }
 
     func testHistoryDetailAllowsEditingAndExport() {
-        app.buttons["History"].click()
+        openHistoryWindow()
         XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["Export"].exists)
+        assertButtonExists(id: "history.exportButton", fallbackLabel: "Export")
 
         let detailsButtons = app.windows["History"].buttons.matching(NSPredicate(format: "label == %@", "Details"))
         XCTAssertGreaterThanOrEqual(detailsButtons.count, 2, app.debugDescription)
@@ -224,11 +224,11 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Copy"].exists)
         XCTAssertTrue(app.buttons["Paste"].exists)
         XCTAssertTrue(app.buttons["Delete"].exists)
-        app.buttons["Done"].click()
+        clickButton(id: "history.detail.doneButton", fallbackLabel: "Done")
     }
 
     func testSettingsPanelOpensInsideMenuBarPopover() {
-        app.buttons["Settings"].click()
+        openSettingsPanel()
         XCTAssertFalse(app.windows["Settings"].waitForExistence(timeout: 1))
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Recording"].exists)
@@ -314,7 +314,7 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testMockTogglePersistsAcrossLaunches() {
-        let toggle = app.checkBoxes["Mock Transcription"]
+        let toggle = checkBox(id: "menu.mockToggle", fallbackLabel: "Mock Transcription")
         XCTAssertTrue(toggle.exists)
         toggle.click()
 
@@ -327,13 +327,13 @@ final class GroqTalkUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.checkBoxes["Mock Transcription"].exists)
+        XCTAssertTrue(checkBox(id: "menu.mockToggle", fallbackLabel: "Mock Transcription").exists)
     }
 
     func testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff() {
         XCTAssertFalse(app.staticTexts["Mock async paste transcript"].exists)
 
-        app.buttons["Simulate Success"].click()
+        clickButton(id: "menu.simulateSuccessButton", fallbackLabel: "Simulate Success")
 
         XCTAssertTrue(app.staticTexts["Transcribing"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Cleaning up"].waitForExistence(timeout: 2))
@@ -346,8 +346,8 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testSimulatedRecordingUsesAsyncPasteWhenEnabled() {
-        app.checkBoxes["Paste where recording started"].click()
-        app.buttons["Simulate Success"].click()
+        checkBox(id: "menu.asyncPasteToggle", fallbackLabel: "Paste where recording started").click()
+        clickButton(id: "menu.simulateSuccessButton", fallbackLabel: "Simulate Success")
 
         XCTAssertTrue(app.staticTexts["Transcribing"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Pasting"].waitForExistence(timeout: 2))
@@ -358,27 +358,27 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testSimulatedRecordingFailureKeepsRetryVisibleInHistory() {
-        app.buttons["Simulate Failure"].click()
+        clickButton(id: "menu.simulateFailureButton", fallbackLabel: "Simulate Failure")
 
         XCTAssertTrue(app.staticTexts["Simulated transcription failure"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.staticTexts["Open History for details"].exists)
 
-        app.buttons["History"].click()
+        openHistoryWindow()
         XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Simulated transcription failure"].waitForExistence(timeout: 2))
     }
 
     func testFloatingStatusCanBeEnabled() {
-        app.checkBoxes["Show floating status"].click()
-        app.buttons["Simulate Success"].click()
+        checkBox(id: "menu.floatingStatusToggle", fallbackLabel: "Show floating status").click()
+        clickButton(id: "menu.simulateSuccessButton", fallbackLabel: "Simulate Success")
 
         XCTAssertTrue(app.staticTexts["Transcribing"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Paste command sent to the current app"].waitForExistence(timeout: 6))
     }
 
     func testFloatingStatusAutoHidesAfterSuccessWhenEnabled() {
-        app.checkBoxes["Show floating status"].click()
-        app.buttons["Simulate Success"].click()
+        checkBox(id: "menu.floatingStatusToggle", fallbackLabel: "Show floating status").click()
+        clickButton(id: "menu.simulateSuccessButton", fallbackLabel: "Simulate Success")
 
         XCTAssertTrue(app.staticTexts["Paste command sent to the current app"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.windows["GroqTalk Floating Status"].waitForNonExistence(timeout: 5))
@@ -387,7 +387,7 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testFloatingStatusIsDisabledByDefault() {
-        app.buttons["Simulate Success"].click()
+        clickButton(id: "menu.simulateSuccessButton", fallbackLabel: "Simulate Success")
 
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.windows["GroqTalk Floating Status"].waitForNonExistence(timeout: 2))
@@ -555,8 +555,32 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func openSettingsPanel() {
-        app.buttons["Settings"].click()
+        clickButton(id: "menu.settingsButton", fallbackLabel: "Settings")
         XCTAssertTrue(app.staticTexts["Transcription"].waitForExistence(timeout: 2), app.debugDescription)
+    }
+
+    private func openHistoryWindow() {
+        clickButton(id: "menu.historyButton", fallbackLabel: "History")
+    }
+
+    private func button(id: String, fallbackLabel: String) -> XCUIElement {
+        let identified = app.buttons[id]
+        return identified.exists ? identified : app.buttons[fallbackLabel]
+    }
+
+    private func checkBox(id: String, fallbackLabel: String) -> XCUIElement {
+        let identified = app.checkBoxes[id]
+        return identified.exists ? identified : app.checkBoxes[fallbackLabel]
+    }
+
+    private func assertButtonExists(id: String, fallbackLabel: String) {
+        XCTAssertTrue(button(id: id, fallbackLabel: fallbackLabel).exists, app.debugDescription)
+    }
+
+    private func clickButton(id: String, fallbackLabel: String) {
+        let target = button(id: id, fallbackLabel: fallbackLabel)
+        XCTAssertTrue(target.waitForExistence(timeout: 2), app.debugDescription)
+        target.click()
     }
 
     private func assertProviderPickerExists() {

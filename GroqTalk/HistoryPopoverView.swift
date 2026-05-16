@@ -239,6 +239,7 @@ struct HistoryPopoverView: View {
                 .accessibilityIdentifier("history.row.detailsButton")
                 .buttonStyle(.borderless)
                 .controlSize(.small)
+                .frame(minHeight: 18)
             }
 
             Spacer()
@@ -268,6 +269,7 @@ struct HistoryPopoverView: View {
                 .accessibilityLabel("Copy")
                 .accessibilityIdentifier("history.row.copyButton")
                 .help("Copy")
+                .frame(minWidth: 24, minHeight: 18)
 
                 Button {
                     onPaste?(text)
@@ -277,6 +279,7 @@ struct HistoryPopoverView: View {
                 .accessibilityLabel("Paste Again")
                 .accessibilityIdentifier("history.row.pasteAgainButton")
                 .help("Paste Again")
+                .frame(minWidth: 24, minHeight: 18)
             }
 
             if record.isFailure, record.audioFileURL != nil {
@@ -288,6 +291,7 @@ struct HistoryPopoverView: View {
                 .accessibilityLabel("Retry")
                 .accessibilityIdentifier("history.row.retryButton")
                 .help("Retry")
+                .frame(minWidth: 24, minHeight: 18)
             }
 
             Button(role: .destructive) {
@@ -298,6 +302,7 @@ struct HistoryPopoverView: View {
             .accessibilityLabel("Delete")
             .accessibilityIdentifier("history.row.deleteButton")
             .help("Delete")
+            .frame(minWidth: 24, minHeight: 18)
         }
         .buttonStyle(.borderless)
     }
@@ -331,6 +336,7 @@ struct HistoryPopoverView: View {
                         Label("Save", systemImage: "checkmark")
                     }
                     .accessibilityIdentifier("history.detail.saveButton")
+                    .frame(minHeight: 18)
 
                     Button {
                         copy(editedText)
@@ -338,6 +344,7 @@ struct HistoryPopoverView: View {
                         Label("Copy", systemImage: "doc.on.doc")
                     }
                     .accessibilityIdentifier("history.detail.copyButton")
+                    .frame(minHeight: 18)
 
                     Button {
                         onPaste?(editedText)
@@ -345,12 +352,14 @@ struct HistoryPopoverView: View {
                         Label("Paste", systemImage: "arrow.turn.down.left")
                     }
                     .accessibilityIdentifier("history.detail.pasteButton")
+                    .frame(minHeight: 18)
 
                     Spacer()
 
                     Button("Revert") {
                         editedText = text
                     }
+                    .frame(minHeight: 18)
                 }
                 .buttonStyle(.borderless)
             } else {
@@ -366,6 +375,7 @@ struct HistoryPopoverView: View {
                         Label("Retry", systemImage: "arrow.clockwise")
                     }
                     .accessibilityIdentifier("history.detail.retryButton")
+                    .frame(minHeight: 18)
                 }
             }
 
@@ -379,12 +389,15 @@ struct HistoryPopoverView: View {
                     Label("Delete", systemImage: "trash")
                 }
                 .accessibilityIdentifier("history.detail.deleteButton")
+                .frame(minHeight: 18)
 
                 Spacer()
 
                 Button("Done") {
                     selectedRecord = nil
                 }
+                .accessibilityIdentifier("history.detail.doneButton")
+                .frame(minHeight: 18)
                 .keyboardShortcut(.defaultAction)
             }
         }
