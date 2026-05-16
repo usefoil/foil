@@ -118,6 +118,13 @@ final class AppState {
         return .standard
     }
 
+    private static var defaultsDomainName: String {
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return "com.neonwatty.GroqTalk.UITests"
+        }
+        return Bundle.main.bundleIdentifier ?? "com.neonwatty.GroqTalk"
+    }
+
     var soundEffectsEnabled: Bool = true {
         didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
     }
@@ -635,7 +642,7 @@ final class AppState {
     init() {
         let defaults = Self.defaults
         var persistedPresetRawValue = defaults
-            .persistentDomain(forName: Bundle.main.bundleIdentifier ?? "com.neonwatty.GroqTalk")?["transcriptionProviderPreset"] as? String
+            .persistentDomain(forName: Self.defaultsDomainName)?["transcriptionProviderPreset"] as? String
         if ProcessInfo.processInfo.arguments.contains("--reset-defaults") {
             for key in [
                 "soundEffectsEnabled",

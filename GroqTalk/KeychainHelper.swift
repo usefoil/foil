@@ -67,7 +67,9 @@ enum KeychainHelper {
     static func readApiKey(for providerID: TranscriptionProviderID) -> String? {
         #if DEBUG
         let args = ProcessInfo.processInfo.arguments
-        if args.contains("--ui-testing"), !args.contains("--e2e-transcribe") {
+        let env = ProcessInfo.processInfo.environment
+        if args.contains("--ui-testing"),
+           (!args.contains("--e2e-transcribe") || env["E2E_API_KEY"]?.isEmpty == false) {
             return nil
         }
         #endif

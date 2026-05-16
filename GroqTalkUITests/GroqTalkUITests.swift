@@ -159,20 +159,77 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Retained failed audio"].exists)
     }
 
-    func testLocalProviderSettingsShowCleanupUnavailableCopy() {
+    func testProviderQADefaultsToGroqPreset() {
+        launchForProviderQA()
+        openSettingsPanel()
+
+        assertProviderPickerExists()
+        XCTAssertEqual(providerPicker.value as? String, "Groq")
+        XCTAssertTrue(
+            app.staticTexts["Large V3 Turbo"].exists
+                || app.staticTexts["Whisper model"].exists
+                || (app.popUpButtons["menu.settings.whisperModelPicker"].value as? String) == "Large V3 Turbo",
+            app.debugDescription
+        )
+        XCTAssertTrue(app.buttons["settings.changeApiKeyButton"].exists || app.buttons["menu.settings.changeApiKeyButton"].exists || app.buttons["Change API Key"].exists || app.buttons["Change..."].exists)
+        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists || app.staticTexts["Transcript cleanup"].exists, app.debugDescription)
+        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].exists)
+        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
+    }
+
+    func testProviderQALocalWhisperPresetShowsExpectedSettings() {
+        launchForProviderQA(extraArguments: ["--seed-local-provider"])
+        openSettingsPanel()
+
+        assertProviderPickerExists()
+        XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].exists || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["whisper-1"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["API key is optional for local OpenAI-compatible transcription."].exists
+                      || app.staticTexts["Uses a local OpenAI-compatible whisper.cpp server. API key is optional; use a dummy value such as local only if your server expects one."].exists,
+                      app.debugDescription)
+        XCTAssertTrue(app.buttons["Test connection"].exists || app.buttons["settings.testProviderConnectionButton"].exists || app.buttons["menu.settings.testProviderConnectionButton"].exists, app.debugDescription)
+        XCTAssertTrue(
+            app.staticTexts["Cleanup requires a Groq-compatible chat provider."].waitForExistence(timeout: 2)
+                || app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].waitForExistence(timeout: 2),
+            app.debugDescription
+        )
+    }
+
+    func testProviderQAInvalidCustomBaseURLShowsValidationStatus() {
+        launchForProviderQA(extraArguments: ["--seed-invalid-custom-provider"])
+        openSettingsPanel()
+
+        let testConnectionButton = providerConnectionButton()
+        XCTAssertTrue(testConnectionButton.waitForExistence(timeout: 2), app.debugDescription)
+        testConnectionButton.click()
+
+        XCTAssertTrue(
+            app.staticTexts["Invalid base URL. Use an http:// or https:// URL."].waitForExistence(timeout: 2),
+            app.debugDescription
+        )
+    }
+
+    func testProviderQACustomProviderPersistsAcrossRelaunch() {
+        launchForProviderQA(extraArguments: ["--seed-custom-provider"])
+        openSettingsPanel()
+
+        XCTAssertTrue(customBaseURLField.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(customBaseURLField.value as? String, "http://127.0.0.1:9090/v1")
+        XCTAssertEqual(customModelField.value as? String, "tiny-test-model")
+
         app.terminate()
         app = XCUIApplication()
         app.launchArguments = [
             "--ui-testing",
-            "--reset-defaults",
-            "--seed-history",
-            "--seed-local-provider"
+            "--seed-history"
         ]
         app.launch()
-
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
-        app.buttons["Settings"].click()
-        XCTAssertTrue(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].waitForExistence(timeout: 2))
+        openSettingsPanel()
+
+        XCTAssertTrue(customBaseURLField.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(customBaseURLField.value as? String, "http://127.0.0.1:9090/v1")
+        XCTAssertEqual(customModelField.value as? String, "tiny-test-model")
     }
 
     func testMockTogglePersistsAcrossLaunches() {
@@ -307,9 +364,10 @@ final class GroqTalkUITests: XCTestCase {
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 10), "App should launch")
 
+        let timeout = TimeInterval(env["E2E_TRANSCRIPTION_TIMEOUT_SECONDS"] ?? "") ?? 30
         let pasted = app.staticTexts["Paste command sent to the current app"]
-        XCTAssertTrue(pasted.waitForExistence(timeout: 30),
-                      "E2E transcription should complete and paste within 30 seconds")
+        XCTAssertTrue(pasted.waitForExistence(timeout: timeout),
+                      "E2E transcription should complete and paste within \(Int(timeout)) seconds")
 
         let transcript = (try? String(contentsOfFile: resultPath, encoding: .utf8)) ?? ""
         XCTAssertFalse(transcript.isEmpty, "E2E result file should contain the transcript")
@@ -354,6 +412,59 @@ final class GroqTalkUITests: XCTestCase {
         app.windows["GroqTalk UI Test"].exists
             ? app.windows["GroqTalk UI Test"]
             : app.staticTexts["Ready"]
+    }
+
+    private func launchForProviderQA(extraArguments: [String] = []) {
+        app.terminate()
+        app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history"
+        ] + extraArguments
+        app.launch()
+        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+    }
+
+    private func openSettingsPanel() {
+        app.buttons["Settings"].click()
+        XCTAssertTrue(app.staticTexts["Transcription"].waitForExistence(timeout: 2), app.debugDescription)
+    }
+
+    private func assertProviderPickerExists() {
+        XCTAssertTrue(
+            app.descendants(matching: .any)["settings.transcriptionProviderPicker"].waitForExistence(timeout: 2)
+                || app.descendants(matching: .any)["menu.settings.transcriptionProviderPicker"].waitForExistence(timeout: 2),
+            app.debugDescription
+        )
+    }
+
+    private var providerPicker: XCUIElement {
+        app.popUpButtons["settings.transcriptionProviderPicker"].exists
+            ? app.popUpButtons["settings.transcriptionProviderPicker"]
+            : app.popUpButtons["menu.settings.transcriptionProviderPicker"]
+    }
+
+    private var customBaseURLField: XCUIElement {
+        app.textFields["settings.customTranscriptionBaseURL"].exists
+            ? app.textFields["settings.customTranscriptionBaseURL"]
+            : app.textFields["menu.settings.customTranscriptionBaseURL"]
+    }
+
+    private var customModelField: XCUIElement {
+        app.textFields["settings.customTranscriptionModel"].exists
+            ? app.textFields["settings.customTranscriptionModel"]
+            : app.textFields["menu.settings.customTranscriptionModel"]
+    }
+
+    private func providerConnectionButton() -> XCUIElement {
+        if app.buttons["settings.testProviderConnectionButton"].exists {
+            return app.buttons["settings.testProviderConnectionButton"]
+        }
+        if app.buttons["menu.settings.testProviderConnectionButton"].exists {
+            return app.buttons["menu.settings.testProviderConnectionButton"]
+        }
+        return app.buttons["Test connection"]
     }
 
     private func clickAlertButton(_ title: String) {
