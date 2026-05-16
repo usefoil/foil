@@ -55,8 +55,8 @@ final class AppState {
             case .retry: "Retry"
             case .openAccessibility, .openMicrophone: "Open"
             case .addKey: "Add Key"
-            case .pasteAgain: "Again"
-            case .copy: "Copy"
+            case .pasteAgain: "Paste Again"
+            case .copy: "Copy Transcript"
             }
         }
     }
@@ -184,7 +184,14 @@ final class AppState {
         }
     }
 
-    var hasApiKey: Bool { KeychainHelper.readApiKey() != nil }
+    var hasApiKey: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return apiKeyState == .ready
+        }
+        #endif
+        return KeychainHelper.readApiKey() != nil
+    }
 
     var isSetupReady: Bool {
         accessibilityState == .ready
@@ -302,10 +309,10 @@ final class AppState {
                 return setupPresentation
             }
             switch transientResult {
-            case .pasted:
+            case .pasted(let delivery):
                 return SessionPresentation(
-                    title: lastPasteSummary ?? "Pasted",
-                    detail: clipboardFeedback ?? "Ready for the next dictation",
+                    title: delivery.userMessage,
+                    detail: deliveredDetail(for: delivery),
                     timerText: nil,
                     systemImage: "checkmark.circle.fill",
                     tone: .success,
@@ -313,8 +320,8 @@ final class AppState {
                 )
             case .clipboardFallback:
                 return SessionPresentation(
-                    title: "Copied to clipboard",
-                    detail: "Paste was blocked in the target app",
+                    title: "Fallback: copied to clipboard",
+                    detail: "Target unavailable; paste manually when ready",
                     timerText: nil,
                     systemImage: "clipboard",
                     tone: .warning,
@@ -323,7 +330,7 @@ final class AppState {
             case nil:
                 return SessionPresentation(
                     title: "Ready",
-                    detail: "\(hotkeyLabel) · \(asyncPasteEnabled ? "Pastes where recording starts" : "Pastes into current app")",
+                    detail: "\(hotkeyLabel) · \(readyPasteTargetDetail)",
                     timerText: nil,
                     systemImage: "waveform",
                     tone: .neutral,
@@ -430,7 +437,7 @@ final class AppState {
         case .transcribingAudio:
             return SessionPresentation(
                 title: "Transcribing",
-                detail: transcriptionDetail,
+                detail: [transcriptionDetail, pasteTargetDetail].compactMap { $0 }.joined(separator: " · "),
                 timerText: nil,
                 systemImage: "waveform.badge.magnifyingglass",
                 tone: .progress,
@@ -439,7 +446,7 @@ final class AppState {
         case .cleaningTranscript:
             return SessionPresentation(
                 title: "Cleaning up",
-                detail: "\(transcriptCleanupModel) · \(transcriptProcessingMode.displayName)",
+                detail: ["\(transcriptCleanupModel) · \(transcriptProcessingMode.displayName)", pasteTargetDetail].compactMap { $0 }.joined(separator: " · "),
                 timerText: nil,
                 systemImage: "sparkles",
                 tone: .progress,
@@ -455,6 +462,34 @@ final class AppState {
                 primaryAction: nil
             )
         }
+    }
+
+    private var readyPasteTargetDetail: String {
+        if asyncPasteEnabled {
+            return "Paste target captured when recording starts"
+        }
+        return "Paste target is the current app"
+    }
+
+    private var pasteTargetDetail: String? {
+        if let capturedTargetName {
+            return "Target: \(capturedTargetName)"
+        }
+        if asyncPasteEnabled {
+            return "Target not captured yet"
+        }
+        return "Target: current app"
+    }
+
+    private func deliveredDetail(for delivery: PasteDelivery) -> String {
+        var parts = ["Delivered"]
+        if let target = pasteTargetDetail {
+            parts.append(target)
+        }
+        if let clipboardFeedback {
+            parts.append(clipboardFeedback)
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var transcriptionDetail: String {
@@ -595,6 +630,17 @@ final class AppState {
         floatingStatusTransientVisible = false
     }
 
+    func recordNoAudioCaptured() {
+        status = .idle
+        transcriptionStage = nil
+        transientResult = nil
+        feedbackMessage = "No audio captured"
+        lastPasteSummary = nil
+        clipboardFeedback = "Try a longer recording or check your microphone"
+        floatingStatusDismissed = false
+        floatingStatusTransientVisible = true
+    }
+
     func updateAccessibilityState(
         isTrusted: Bool,
         message: String = "Enable Accessibility"
@@ -609,6 +655,11 @@ final class AppState {
     }
 
     func refreshApiKeyState() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return
+        }
+        #endif
         apiKeyState = hasApiKey ? .ready : .needsAction("Add Groq API key")
     }
 

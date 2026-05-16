@@ -225,7 +225,7 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.title, "Ready")
-        XCTAssertEqual(presentation.detail, "Right Command · Pastes into current app")
+        XCTAssertEqual(presentation.detail, "Right Command · Paste target is the current app")
         XCTAssertEqual(presentation.systemImage, "waveform")
         XCTAssertEqual(presentation.tone, .neutral)
         XCTAssertNil(presentation.primaryAction)
@@ -299,7 +299,7 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.title, "Transcribing")
-        XCTAssertEqual(presentation.detail, "Groq · whisper-large-v3-turbo")
+        XCTAssertEqual(presentation.detail, "Groq · whisper-large-v3-turbo · Target: current app")
         XCTAssertEqual(presentation.tone, .progress)
     }
 
@@ -317,7 +317,7 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.title, "Cleaning up")
-        XCTAssertEqual(presentation.detail, "llama-3.3-70b-versatile · Clean up")
+        XCTAssertEqual(presentation.detail, "llama-3.3-70b-versatile · Clean up · Target: current app")
         XCTAssertEqual(presentation.systemImage, "sparkles")
         XCTAssertEqual(presentation.tone, .progress)
     }
@@ -361,9 +361,26 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.title, "Pasted into the current app")
-        XCTAssertEqual(presentation.detail, "Clipboard restored")
+        XCTAssertEqual(presentation.detail, "Delivered · Target: current app · Clipboard restored")
         XCTAssertEqual(presentation.primaryAction, .pasteAgain)
         XCTAssertEqual(presentation.tone, .success)
+    }
+
+    func testClipboardFallbackSessionPresentationUsesRecoveryCopy() {
+        let state = AppState()
+        markSetupReady(state)
+        state.recordPaste(.clipboardFallback)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: true
+        )
+
+        XCTAssertEqual(presentation.title, "Fallback: copied to clipboard")
+        XCTAssertEqual(presentation.detail, "Target unavailable; paste manually when ready")
+        XCTAssertEqual(presentation.primaryAction, .copy)
+        XCTAssertEqual(presentation.tone, .warning)
     }
 
     func testErrorSessionPresentationRoutesRetryableFailure() {

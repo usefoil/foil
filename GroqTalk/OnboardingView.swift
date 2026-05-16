@@ -2,6 +2,11 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Bindable var appState: AppState
+    var onOpenApiKey: () -> Void
+    var onRunSetupCheck: () -> Void
+    var onRequestMicrophoneAccess: () -> Void
+    var onOpenAccessibility: () -> Void
+    var onOpenMicrophone: () -> Void
     var onComplete: () -> Void
 
     @State private var currentStep: Int = 0
@@ -64,18 +69,26 @@ struct OnboardingView: View {
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("onboarding.nextButton")
                 } else {
-                    Button("Get Started") {
-                        onComplete()
+                    if appState.isSetupReady {
+                        Button("Get Started") {
+                            onComplete()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("onboarding.getStartedButton")
+                    } else {
+                        Button(setupCheckButtonTitle) {
+                            onRunSetupCheck()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(appState.isSetupCheckRunning)
+                        .accessibilityIdentifier("onboarding.checkSetupButton")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!appState.isSetupReady)
-                    .accessibilityIdentifier("onboarding.getStartedButton")
                 }
             }
             .padding(.horizontal, 32)
             .padding(.bottom, 24)
         }
-        .frame(width: 420, height: 340)
+        .frame(width: 440, height: 460)
         .accessibilityIdentifier("onboarding.root")
     }
 
@@ -98,10 +111,21 @@ struct OnboardingView: View {
 
             permissionStatusBadge(state: appState.apiKeyState, readyLabel: "API key saved")
 
-            if let url = URL(string: "https://console.groq.com/keys") {
-                Link("Get a free API key at console.groq.com", destination: url)
-                    .font(.caption)
+            HStack(spacing: 10) {
+                Button("Add Key") {
+                    onOpenApiKey()
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("onboarding.addKeyButton")
+
+                if let url = URL(string: "https://console.groq.com/keys") {
+                    Link("Get free key", destination: url)
+                        .font(.caption)
+                        .accessibilityIdentifier("onboarding.getGroqKeyLink")
+                }
             }
+
+            setupCheckSummary
         }
     }
 
@@ -122,13 +146,21 @@ struct OnboardingView: View {
 
             permissionStatusBadge(state: appState.accessibilityState, readyLabel: "Accessibility enabled")
 
-            Button("Open Privacy & Security Settings") {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                    NSWorkspace.shared.open(url)
+            HStack(spacing: 10) {
+                Button("Open Settings") {
+                    onOpenAccessibility()
                 }
+                .accessibilityIdentifier("onboarding.openAccessibilityButton")
+
+                Button(setupCheckButtonTitle) {
+                    onRunSetupCheck()
+                }
+                .disabled(appState.isSetupCheckRunning)
+                .accessibilityIdentifier("onboarding.checkAccessibilityButton")
             }
             .font(.caption)
-            .accessibilityIdentifier("onboarding.openAccessibilityButton")
+
+            setupCheckSummary
         }
     }
 
@@ -149,13 +181,28 @@ struct OnboardingView: View {
 
             permissionStatusBadge(state: appState.microphoneState, readyLabel: "Microphone access granted")
 
-            Button("Open Privacy & Security Settings") {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-                    NSWorkspace.shared.open(url)
+            HStack(spacing: 10) {
+                Button(microphoneActionTitle) {
+                    onRequestMicrophoneAccess()
                 }
+                .disabled(appState.isSetupCheckRunning)
+                .accessibilityIdentifier("onboarding.requestMicrophoneButton")
+
+                Button("Open Settings") {
+                    onOpenMicrophone()
+                }
+                .accessibilityIdentifier("onboarding.openMicrophoneButton")
             }
             .font(.caption)
-            .accessibilityIdentifier("onboarding.openMicrophoneButton")
+
+            setupCheckSummary
+
+            Text("When setup is ready, hold your hotkey, speak, then release/stop. GroqTalk transcribes your speech and pastes the text into the active app.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("onboarding.workflowPayoff")
         }
     }
 
@@ -179,6 +226,103 @@ struct OnboardingView: View {
                 .foregroundStyle(.secondary)
                 .font(.caption)
                 .accessibilityLabel("Checking status")
+        }
+    }
+
+    private var setupCheckButtonTitle: String {
+        appState.isSetupCheckRunning ? "Checking..." : "Check Setup"
+    }
+
+    private var microphoneActionTitle: String {
+        switch appState.microphoneState {
+        case .ready:
+            "Check Microphone"
+        case .needsAction:
+            "Check Again"
+        case .unknown:
+            "Request Microphone Access"
+        }
+    }
+
+    private var setupCheckSummary: some View {
+        VStack(spacing: 4) {
+            Label(setupCheckTitle, systemImage: setupCheckIcon)
+                .foregroundStyle(setupCheckColor)
+                .font(.caption)
+                .accessibilityIdentifier("onboarding.setupCheckStatus")
+
+            if let detail = setupCheckDetail {
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("onboarding.setupCheckDetail")
+            }
+        }
+    }
+
+    private var setupCheckTitle: String {
+        switch appState.setupCheckState {
+        case .idle:
+            appState.isSetupReady ? "Setup ready" : "Check setup when each item is complete"
+        case .running:
+            "Checking setup..."
+        case .passed:
+            "Setup ready"
+        case .failed(let message):
+            "Setup needs attention: \(message)"
+        }
+    }
+
+    private var setupCheckDetail: String? {
+        if appState.isSetupReady {
+            return "You can start recording from the menu bar."
+        }
+        switch appState.setupCheckState {
+        case .idle:
+            return "Use Check Setup after adding a key and granting permissions."
+        case .running:
+            return "GroqTalk is checking your key, Accessibility, microphone permission, and audio input."
+        case .passed:
+            return "All setup checks passed."
+        case .failed(let message):
+            if message.localizedCaseInsensitiveContains("api key") {
+                return "Add or fix your API key, then check setup again."
+            }
+            if message.localizedCaseInsensitiveContains("accessibility") {
+                return "Enable Accessibility in Privacy & Security, then check setup again."
+            }
+            if message.localizedCaseInsensitiveContains("microphone") {
+                return "Allow Microphone access or choose an input device, then check setup again."
+            }
+            return "Resolve the setup item above, then check setup again."
+        }
+    }
+
+    private var setupCheckIcon: String {
+        switch appState.setupCheckState {
+        case .idle:
+            appState.isSetupReady ? "checkmark.circle.fill" : "checklist"
+        case .running:
+            "arrow.triangle.2.circlepath"
+        case .passed:
+            "checkmark.circle.fill"
+        case .failed:
+            "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var setupCheckColor: Color {
+        switch appState.setupCheckState {
+        case .passed:
+            .green
+        case .failed:
+            .orange
+        case .idle:
+            appState.isSetupReady ? .green : .secondary
+        case .running:
+            .secondary
         }
     }
 }

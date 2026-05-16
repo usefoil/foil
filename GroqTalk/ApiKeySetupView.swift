@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ApiKeySetupView: View {
     var onSaved: (() -> Void)?
+    var onFinished: (() -> Void)?
     var validateApiKey: (String) async throws -> Void = { key in
         try await TranscriptionService().validateApiKey(apiKey: key)
     }
@@ -85,6 +86,7 @@ struct ApiKeySetupView: View {
         .frame(width: 380)
         .accessibilityIdentifier("apiKeySetup.root")
         .onAppear {
+            guard shouldUseRealKeychain else { return }
             if let existing = KeychainHelper.readApiKey() {
                 apiKey = existing
             }
@@ -99,7 +101,9 @@ struct ApiKeySetupView: View {
         Task {
             do {
                 try await validateApiKey(key)
-                try KeychainHelper.save(apiKey: key)
+                if shouldUseRealKeychain {
+                    try KeychainHelper.save(apiKey: key)
+                }
                 await MainActor.run {
                     finishSaved()
                 }
@@ -116,11 +120,22 @@ struct ApiKeySetupView: View {
 
     private func saveKeyWithoutValidation() {
         do {
-            try KeychainHelper.save(apiKey: apiKey)
+            if shouldUseRealKeychain {
+                try KeychainHelper.save(apiKey: apiKey)
+            }
             finishSaved()
         } catch {
             errorMessage = "Failed to save: \(error.localizedDescription)"
         }
+    }
+
+    private var shouldUseRealKeychain: Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return false
+        }
+        #endif
+        return true
     }
 
     private func finishSaved() {
@@ -130,6 +145,7 @@ struct ApiKeySetupView: View {
         saved = true
         errorMessage = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            onFinished?()
             dismissWindow(id: "api-key-setup")
         }
     }

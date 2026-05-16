@@ -100,6 +100,7 @@ final class RecordingController {
             do {
                 guard let url = try await audioRecorder.stopRecordingAsync(format: format) else {
                     DiagnosticLog.write("RecordingController.stopRecording: no audio captured")
+                    appState.recordNoAudioCaptured()
                     delegate?.recordingControllerDidStopWithNoAudio(self)
                     return
                 }

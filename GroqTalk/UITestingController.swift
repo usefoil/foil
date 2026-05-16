@@ -5,7 +5,7 @@ import SwiftUI
 /// inlined in AppDelegate.  Create one instance in `applicationDidFinishLaunching`
 /// and call `configureUITestingIfNeeded()` / `configureAutomationSmokeIfNeeded()`.
 @MainActor
-final class UITestingController {
+final class UITestingController: NSObject {
 
     // MARK: - Public constant
 
@@ -81,6 +81,7 @@ final class UITestingController {
         self.onRetryRecord = onRetryRecord
         self.onPasteText = onPasteText
         self.onReplaceRecordingController = onReplaceRecordingController
+        super.init()
     }
 
     // MARK: - Configuration entry points
@@ -223,17 +224,25 @@ final class UITestingController {
         .frame(width: 360, height: 620)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 640),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 680),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "GroqTalk UI Test"
-        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 360, height: 620))
+        window.contentView = uiTestControlHost(rootView: view)
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         uiTestWindow = window
+    }
+
+    @objc private func openUITestHistoryFromButton(_ sender: NSButton) {
+        showUITestHistoryWindow()
+    }
+
+    @objc private func openUITestSettingsFromButton(_ sender: NSButton) {
+        NotificationCenter.default.post(name: .groqTalkUITestingShowSettingsPanel, object: nil)
     }
 
     private func showUITestHistoryWindow() {
@@ -339,4 +348,31 @@ final class UITestingController {
         }
         return hostingView
     }
+
+    private func uiTestControlHost<Content: View>(rootView: Content) -> NSView {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 680))
+
+        let hostingView = fixedHostingView(rootView: rootView, size: NSSize(width: 360, height: 620))
+        hostingView.frame = NSRect(x: 10, y: 0, width: 360, height: 620)
+        container.addSubview(hostingView)
+
+        let historyButton = NSButton(title: "History", target: self, action: #selector(openUITestHistoryFromButton(_:)))
+        historyButton.identifier = NSUserInterfaceItemIdentifier("uiTest.openHistoryButton")
+        historyButton.bezelStyle = .rounded
+        historyButton.frame = NSRect(x: 12, y: 632, width: 92, height: 30)
+        container.addSubview(historyButton)
+
+        let settingsButton = NSButton(title: "Settings", target: self, action: #selector(openUITestSettingsFromButton(_:)))
+        settingsButton.identifier = NSUserInterfaceItemIdentifier("uiTest.openSettingsButton")
+        settingsButton.bezelStyle = .rounded
+        settingsButton.frame = NSRect(x: 112, y: 632, width: 96, height: 30)
+        container.addSubview(settingsButton)
+
+        return container
+    }
+}
+
+extension Notification.Name {
+    static let groqTalkUITestingShowSettingsPanel =
+        Notification.Name("com.neonwatty.GroqTalk.uiTesting.showSettingsPanel")
 }
