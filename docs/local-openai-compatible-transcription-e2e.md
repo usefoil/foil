@@ -3,6 +3,9 @@
 This opt-in check verifies GroqTalk against a local OpenAI-compatible Whisper endpoint.
 It does not require a Groq key and should not run in regular CI.
 
+For provider setup UI automation that does not require a local server, see
+`docs/provider-qa-xcuitest.md`.
+
 In the app, select the `Local whisper.cpp` provider preset to use these defaults:
 
 - Base URL: `http://127.0.0.1:8080/v1`

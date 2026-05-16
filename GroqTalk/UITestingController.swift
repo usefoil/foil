@@ -123,6 +123,20 @@ final class UITestingController {
             appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         }
 
+        if args.contains("--seed-invalid-custom-provider") {
+            appState.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+            appState.customTranscriptionBaseURL = "file:///tmp/whisper"
+            appState.customTranscriptionModel = "whisper-1"
+        }
+
+        if args.contains("--seed-custom-provider") {
+            appState.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+            appState.customTranscriptionBaseURL = "http://127.0.0.1:9090/v1"
+            appState.customTranscriptionModel = "tiny-test-model"
+        }
+
+        UserDefaults(suiteName: "com.neonwatty.GroqTalk.UITests")?.synchronize()
+
         showUITestWindow()
     }
 
@@ -191,7 +205,11 @@ final class UITestingController {
         if let model = env["E2E_TRANSCRIPTION_MODEL"], !model.isEmpty {
             appState.selectedModel = model
         }
-        appState.refreshApiKeyState()
+        if env["E2E_API_KEY"]?.isEmpty == false {
+            appState.apiKeyState = .ready
+        } else {
+            appState.refreshApiKeyState()
+        }
         DiagnosticLog.write("E2E: provider=groq model=\(appState.selectedModel)")
     }
 
@@ -365,4 +383,5 @@ final class UITestingController {
         }
         return hostingView
     }
+
 }
