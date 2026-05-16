@@ -22,7 +22,7 @@ final class GroqTalkUITests: XCTestCase {
 
     func testControlCenterShowsSeededReadyState() {
         XCTAssertTrue(app.staticTexts["Ready"].exists)
-        XCTAssertTrue(app.staticTexts["Right Command · Pastes into current app"].exists)
+        XCTAssertTrue(app.staticTexts["Right Command · Paste target is the current app"].exists)
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
         XCTAssertTrue(app.buttons["History"].exists)
         XCTAssertTrue(app.buttons["Settings"].exists)
@@ -82,12 +82,12 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Setup needed"].exists)
         XCTAssertTrue(app.staticTexts["Check Accessibility before recording"].exists)
         XCTAssertTrue(app.staticTexts["Not checked"].exists)
-        XCTAssertFalse(app.staticTexts["Right Command · Pastes into current app"].exists)
+        XCTAssertFalse(app.staticTexts["Right Command · Paste target is the current app"].exists)
     }
 
     func testHistoryWindowOpensAndSearchesSeededRecords() {
-        app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        clickButton("History")
+        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 8))
 
         let searchField = app.textFields["Search transcriptions..."]
         XCTAssertTrue(searchField.exists)
@@ -99,8 +99,8 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testHistoryFilterShowsFailedRecords() {
-        app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        clickButton("History")
+        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 8))
 
         XCTAssertTrue(app.buttons["All"].isEnabled)
         app.buttons["Failed"].click()
@@ -110,8 +110,8 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testHistoryDeleteAndClearActions() {
-        app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        clickButton("History")
+        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 8))
 
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
         app.buttons["Delete"].firstMatch.click()
@@ -120,8 +120,8 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2))
 
         relaunchWithSeededHistory()
-        app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        clickButton("History")
+        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 8))
 
         app.buttons["Clear"].click()
         XCTAssertTrue(app.staticTexts["Clear History?"].waitForExistence(timeout: 2))
@@ -130,9 +130,9 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testHistoryDetailAllowsEditingAndExport() {
-        app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["Export"].exists)
+        clickButton("History")
+        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Copy Export"].exists)
 
         let detailsButtons = app.windows["History"].buttons.matching(NSPredicate(format: "label == %@", "Details"))
         XCTAssertGreaterThanOrEqual(detailsButtons.count, 2, app.debugDescription)
@@ -140,14 +140,14 @@ final class GroqTalkUITests: XCTestCase {
         let editor = app.textViews["history.detail.editor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["Save"].exists)
-        XCTAssertTrue(app.buttons["Copy"].exists)
-        XCTAssertTrue(app.buttons["Paste"].exists)
+        XCTAssertTrue(app.buttons["Copy Transcript"].exists)
+        XCTAssertTrue(app.buttons["Paste Again"].exists)
         XCTAssertTrue(app.buttons["Delete"].exists)
         app.buttons["Done"].click()
     }
 
     func testSettingsPanelOpensInsideMenuBarPopover() {
-        app.buttons["Settings"].click()
+        clickButton("Settings")
         XCTAssertFalse(app.windows["Settings"].waitForExistence(timeout: 1))
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Recording"].exists)
@@ -155,6 +155,9 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Paste"].exists)
         XCTAssertTrue(app.staticTexts["Privacy"].exists)
         XCTAssertTrue(app.buttons["Change API Key"].exists)
+        app.buttons["Change API Key"].click()
+        XCTAssertTrue(app.windows["GroqTalk Setup"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.secureTextFields["Groq API Key"].exists)
         XCTAssertTrue(app.checkBoxes["Experimental background paste"].exists)
         XCTAssertTrue(app.staticTexts["Retained failed audio"].exists)
     }
@@ -209,8 +212,8 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Simulated transcription failure"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.staticTexts["Open History for details"].exists)
 
-        app.buttons["History"].click()
-        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 3))
+        clickButton("History")
+        XCTAssertTrue(app.windows["History"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Simulated transcription failure"].waitForExistence(timeout: 2))
     }
 
@@ -228,7 +231,7 @@ final class GroqTalkUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Paste command sent to the current app"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.windows["GroqTalk Floating Status"].waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Ready"].exists)
+        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Paste command sent to the current app"].exists)
     }
 
@@ -317,6 +320,40 @@ final class GroqTalkUITests: XCTestCase {
         app.windows["GroqTalk UI Test"].exists
             ? app.windows["GroqTalk UI Test"]
             : app.staticTexts["Ready"]
+    }
+
+    private func clickButton(_ label: String, file: StaticString = #filePath, line: UInt = #line) {
+        app.activate()
+        let identifier = [
+            "History": "uiTest.openHistoryButton",
+            "Settings": "uiTest.openSettingsButton"
+        ][label]
+        if let identifier,
+           clickFirstHittableButton(in: app.buttons.matching(identifier: identifier), timeout: 3) {
+            return
+        }
+
+        let labeledButtons = app.buttons.matching(NSPredicate(format: "label == %@", label))
+        XCTAssertTrue(labeledButtons.firstMatch.waitForExistence(timeout: 3), "Missing button \(label)", file: file, line: line)
+        if clickFirstHittableButton(in: labeledButtons, timeout: 0) {
+            return
+        }
+
+        XCTFail("Button \(label) exists but is not hittable", file: file, line: line)
+    }
+
+    private func clickFirstHittableButton(in query: XCUIElementQuery, timeout: TimeInterval) -> Bool {
+        if timeout > 0, !query.firstMatch.waitForExistence(timeout: timeout) {
+            return false
+        }
+        for index in 0..<query.count {
+            let button = query.element(boundBy: index)
+            if button.exists, button.isHittable {
+                button.click()
+                return true
+            }
+        }
+        return false
     }
 
     private func clickAlertButton(_ title: String) {

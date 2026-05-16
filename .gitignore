@@ -6,6 +6,7 @@ DerivedData/
 # Build artifacts
 *.profraw
 .superpowers/
+docs/goals/**/.goalbuddy-board/
 
 # Node (semantic-release tooling)
 node_modules/

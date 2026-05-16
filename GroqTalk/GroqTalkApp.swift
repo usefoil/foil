@@ -86,6 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var transientSuccessAutoHideTimer: Timer?
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
+    private var apiKeySetupWindow: NSWindow?
     private var hasCompletedOnboarding: Bool {
         get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
@@ -216,14 +217,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showOnboarding() {
-        let onboardingView = OnboardingView(appState: appState) { [weak self] in
-            self?.hasCompletedOnboarding = true
-            self?.onboardingWindow?.close()
-            self?.onboardingWindow = nil
-        }
+        let onboardingView = OnboardingView(
+            appState: appState,
+            onOpenApiKey: { [weak self] in self?.showApiKeySetupFromOnboarding() },
+            onRunSetupCheck: { [weak self] in self?.runSetupCheck() },
+            onRequestMicrophoneAccess: { [weak self] in self?.requestMicrophoneAccessFromOnboarding() },
+            onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
+            onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
+            onComplete: { [weak self] in
+                self?.hasCompletedOnboarding = true
+                self?.onboardingWindow?.close()
+                self?.onboardingWindow = nil
+            }
+        )
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 450),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 460),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -234,6 +243,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         onboardingWindow = window
+    }
+
+    private func showApiKeySetupFromOnboarding() {
+        if let apiKeySetupWindow {
+            apiKeySetupWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let setupView = ApiKeySetupView(
+            onSaved: { [weak self] in
+                self?.appState.refreshApiKeyState()
+                self?.refreshSetupHealth()
+            },
+            onFinished: { [weak self] in
+                self?.apiKeySetupWindow?.close()
+                self?.apiKeySetupWindow = nil
+            }
+        )
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 280),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "GroqTalk Setup"
+        window.contentView = NSHostingView(rootView: setupView)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        apiKeySetupWindow = window
     }
 
     // MARK: - Floating status
@@ -609,6 +649,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func requestMicrophoneAccessIfNeeded() async -> Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return appState.microphoneState == .ready || appState.microphoneState == .unknown
+        }
+        #endif
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             return true
@@ -623,6 +668,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         @unknown default:
             return false
         }
+    }
+
+    func requestMicrophoneAccessFromOnboarding() {
+        guard !appState.isSetupCheckRunning else { return }
+        appState.startSetupCheck()
+
+        Task { @MainActor in
+            let microphoneReady = await requestMicrophoneAccessIfNeeded()
+            appState.updateMicrophoneState(isReady: microphoneReady)
+
+            if microphoneReady {
+                refreshSetupHealth()
+                if appState.isSetupReady {
+                    appState.completeSetupCheck()
+                } else {
+                    appState.failSetupCheck(nextSetupActionMessage())
+                }
+            } else {
+                appState.failSetupCheck("Allow microphone access")
+                openMicrophoneSettings()
+            }
+        }
+    }
+
+    private func nextSetupActionMessage() -> String {
+        if appState.apiKeyState != .ready {
+            return "Add Groq API key"
+        }
+        if appState.accessibilityState != .ready {
+            return "Enable Accessibility"
+        }
+        if appState.microphoneState != .ready {
+            return "Allow microphone access"
+        }
+        return "Run setup check"
     }
 
     func retryRecord(_ record: TranscriptionRecord) {

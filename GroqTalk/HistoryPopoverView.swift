@@ -20,6 +20,7 @@ struct HistoryPopoverView: View {
     @State private var deleteOlderDays: Int = 7
     @State private var pendingDeleteRecord: TranscriptionRecord?
     @State private var selectedRecord: TranscriptionRecord?
+    @State private var actionConfirmation: String?
     @State private var editedText = ""
 
     private var filteredRecords: [TranscriptionRecord] {
@@ -105,50 +106,59 @@ struct HistoryPopoverView: View {
     }
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("History")
-                    .font(.headline)
-                Text(history.isPersistenceEnabled ? "\(history.records.count) of \(history.retentionLimit) stored" : "History storage off")
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("History")
+                        .font(.headline)
+                    Text(history.isPersistenceEnabled ? "\(history.records.count) of \(history.retentionLimit) stored" : "History storage off")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    copy(history.exportMarkdown(), confirmation: "Export copied to clipboard")
+                } label: {
+                    Label("Copy Export", systemImage: "square.and.arrow.up")
+                }
+                .accessibilityIdentifier("history.exportButton")
+                .disabled(history.records.isEmpty)
+
+                Button("Clear", role: .destructive) {
+                    isShowingClearConfirmation = true
+                }
+                .accessibilityIdentifier("history.clearButton")
+                .disabled(history.records.isEmpty)
+
+                Menu {
+                    Button("Delete Older Than 7 Days") {
+                        deleteOlderDays = 7
+                        isShowingDeleteOlderConfirmation = true
+                    }
+                    Button("Delete Older Than 30 Days") {
+                        deleteOlderDays = 30
+                        isShowingDeleteOlderConfirmation = true
+                    }
+                    Divider()
+                    Button("Delete All Filtered", role: .destructive) {
+                        history.deleteFiltered(filteredRecords)
+                    }
+                    .disabled(filteredRecords.isEmpty)
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .accessibilityIdentifier("history.moreMenu")
+                .accessibilityLabel("More actions")
+            }
+
+            if let actionConfirmation {
+                Label(actionConfirmation, systemImage: "checkmark.circle.fill")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("history.actionConfirmation")
             }
-
-            Spacer()
-
-            Button {
-                copy(history.exportMarkdown())
-            } label: {
-                Label("Export", systemImage: "square.and.arrow.up")
-            }
-            .accessibilityIdentifier("history.exportButton")
-            .disabled(history.records.isEmpty)
-
-            Button("Clear", role: .destructive) {
-                isShowingClearConfirmation = true
-            }
-            .accessibilityIdentifier("history.clearButton")
-            .disabled(history.records.isEmpty)
-
-            Menu {
-                Button("Delete Older Than 7 Days") {
-                    deleteOlderDays = 7
-                    isShowingDeleteOlderConfirmation = true
-                }
-                Button("Delete Older Than 30 Days") {
-                    deleteOlderDays = 30
-                    isShowingDeleteOlderConfirmation = true
-                }
-                Divider()
-                Button("Delete All Filtered", role: .destructive) {
-                    history.deleteFiltered(filteredRecords)
-                }
-                .disabled(filteredRecords.isEmpty)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-            }
-            .accessibilityIdentifier("history.moreMenu")
-            .accessibilityLabel("More actions")
         }
         .padding(12)
         .accessibilityIdentifier("history.header")
@@ -230,6 +240,12 @@ struct HistoryPopoverView: View {
                 Text(record.relativeTimestamp)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if record.isFailure {
+                    Text(failureStatus(for: record))
+                        .font(.caption)
+                        .foregroundStyle(record.audioFileURL == nil ? Color.secondary : Color.orange)
+                        .accessibilityIdentifier("history.row.failureStatus")
+                }
                 Button {
                     selectedRecord = record
                     editedText = record.text ?? ""
@@ -261,13 +277,13 @@ struct HistoryPopoverView: View {
         HStack(spacing: 8) {
             if let text = record.text {
                 Button {
-                    copy(text)
+                    copy(text, confirmation: "Transcript copied")
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
-                .accessibilityLabel("Copy")
+                .accessibilityLabel("Copy Transcript")
                 .accessibilityIdentifier("history.row.copyButton")
-                .help("Copy")
+                .help("Copy transcript")
 
                 Button {
                     onPaste?(text)
@@ -303,14 +319,25 @@ struct HistoryPopoverView: View {
     }
 
     private func copy(_ text: String) {
+        copy(text, confirmation: "Copied to clipboard")
+    }
+
+    private func copy(_ text: String, confirmation: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        actionConfirmation = confirmation
+    }
+
+    private func failureStatus(for record: TranscriptionRecord) -> String {
+        record.audioFileURL == nil
+            ? "Failed · no saved audio for retry"
+            : "Failed · retry available"
     }
 
     private func detailView(for record: TranscriptionRecord) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(record.isFailure ? "Failure" : "Transcript")
+                Text(record.isFailure ? (record.audioFileURL == nil ? "Failure Details" : "Retryable Failure") : "Transcript")
                     .font(.headline)
                 Spacer()
                 Text(record.relativeTimestamp)
@@ -333,16 +360,16 @@ struct HistoryPopoverView: View {
                     .accessibilityIdentifier("history.detail.saveButton")
 
                     Button {
-                        copy(editedText)
+                        copy(editedText, confirmation: "Transcript copied")
                     } label: {
-                        Label("Copy", systemImage: "doc.on.doc")
+                        Label("Copy Transcript", systemImage: "doc.on.doc")
                     }
                     .accessibilityIdentifier("history.detail.copyButton")
 
                     Button {
                         onPaste?(editedText)
                     } label: {
-                        Label("Paste", systemImage: "arrow.turn.down.left")
+                        Label("Paste Again", systemImage: "arrow.turn.down.left")
                     }
                     .accessibilityIdentifier("history.detail.pasteButton")
 
@@ -359,14 +386,26 @@ struct HistoryPopoverView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("history.detail.error")
 
+                Text(failureStatus(for: record))
+                    .font(.caption)
+                    .foregroundStyle(record.audioFileURL == nil ? Color.secondary : Color.orange)
+                    .accessibilityIdentifier("history.detail.failureStatus")
+
                 if record.audioFileURL != nil {
                     Button {
                         onRetry?(record)
                     } label: {
-                        Label("Retry", systemImage: "arrow.clockwise")
+                        Label("Retry Transcription", systemImage: "arrow.clockwise")
                     }
                     .accessibilityIdentifier("history.detail.retryButton")
                 }
+            }
+
+            if let actionConfirmation {
+                Label(actionConfirmation, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("history.detail.actionConfirmation")
             }
 
             Divider()

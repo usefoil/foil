@@ -52,6 +52,22 @@ final class HistoryPopoverTests: XCTestCase {
         XCTAssertEqual(filtered.count, 1)
     }
 
+    func testRetryableRecordDistinguishesMissingAudio() {
+        let history = TranscriptionHistory(storageDirectory: testDir)
+        history.addFailure(error: "timeout", audioFileURL: nil)
+
+        XCTAssertNil(history.retryableRecord)
+    }
+
+    func testRetryableRecordExistsWhenAudioFileIsRetained() throws {
+        let audioURL = testDir.appendingPathComponent("retry.wav")
+        try Data("audio".utf8).write(to: audioURL)
+        let history = TranscriptionHistory(storageDirectory: testDir)
+        history.addFailure(error: "timeout", audioFileURL: audioURL)
+
+        XCTAssertNotNil(history.retryableRecord)
+    }
+
     func testFilteredRecordsCaseInsensitive() {
         let history = TranscriptionHistory(storageDirectory: testDir)
         history.addSuccess(text: "Hello World")

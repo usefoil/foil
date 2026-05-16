@@ -22,6 +22,7 @@ struct MenuBarView: View {
 
     @State private var selectedPanel: Panel = .control
     @State private var isShowingClearHistoryConfirmation = false
+    @State private var actionConfirmation: String?
 
     @Environment(\.openWindow) private var openWindow
 
@@ -48,8 +49,9 @@ struct MenuBarView: View {
             toolbarActions
             if selectedPanel == .control {
                 sessionStrip
-                setupPanel
-                feedbackPanel
+                if appState.needsSetupAttention || shouldShowSetupCheck {
+                    setupPanel
+                }
                 lastResultSection
                 quickControls
             } else if selectedPanel == .history {
@@ -70,6 +72,11 @@ struct MenuBarView: View {
         .onAppear {
             if !isUITesting {
                 appState.refreshApiKeyState()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .groqTalkUITestingShowSettingsPanel)) { _ in
+            if isUITesting {
+                selectedPanel = .settings
             }
         }
         .alert("Clear History?", isPresented: $isShowingClearHistoryConfirmation) {
@@ -329,6 +336,31 @@ struct MenuBarView: View {
         .accessibilityIdentifier("menu.setup.panel")
     }
 
+    private var shouldShowSetupCheck: Bool {
+        switch appState.setupCheckState {
+        case .idle:
+            false
+        case .running, .passed, .failed:
+            true
+        }
+    }
+
+    private var setupCheckCompactRow: some View {
+        HStack(spacing: 8) {
+            Label(setupCheckTitle, systemImage: setupCheckIcon)
+                .foregroundStyle(setupCheckColor)
+                .accessibilityIdentifier("menu.setup.test.compactLabel")
+            Spacer()
+            Button(setupCheckButtonTitle) {
+                onRunSetupCheck?()
+            }
+            .buttonStyle(.borderless)
+            .disabled(appState.isSetupCheckRunning)
+            .accessibilityIdentifier("menu.setup.test.compactAction")
+        }
+        .font(.caption)
+    }
+
     private var setupCheckRow: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 8) {
@@ -401,54 +433,67 @@ struct MenuBarView: View {
     }
 
     private var sessionStrip: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(sessionColor.opacity(0.14))
-                Image(systemName: session.systemImage)
-                    .font(.system(size: 16, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(sessionColor)
-            }
-            .frame(width: 32, height: 32)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(sessionColor.opacity(0.14))
+                    Image(systemName: session.systemImage)
+                        .font(.system(size: 16, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(sessionColor)
+                }
+                .frame(width: 32, height: 32)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Text(session.title)
-                        .font(.headline)
-                        .lineLimit(2)
-                        .accessibilityIdentifier("menu.status.title")
-                    if let timerText = session.timerText {
-                        Text(timerText)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("menu.status.timer")
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Text(session.title)
+                            .font(.headline)
+                            .lineLimit(2)
+                            .accessibilityIdentifier("menu.status.title")
+                        if let timerText = session.timerText {
+                            Text(timerText)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .accessibilityIdentifier("menu.status.timer")
+                        }
+                    }
+                    Text(session.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("menu.status.detail")
+                    if appState.isApproachingTimeLimit {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text("\(appState.formattedRemainingTime) remaining")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                        .accessibilityIdentifier("menu.status.timeLimitWarning")
                     }
                 }
-                Text(session.detail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let action = session.primaryAction {
+                    Button(action.title) {
+                        performSessionAction(action)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("menu.status.action")
+                }
+            }
+
+            if let feedback = secondaryWorkflowFeedback {
+                Divider()
+                    .opacity(0.45)
+                Label(feedback, systemImage: secondaryWorkflowFeedbackIcon)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-                    .accessibilityIdentifier("menu.status.detail")
-                if appState.isApproachingTimeLimit {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Text("\(appState.formattedRemainingTime) remaining")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                    .accessibilityIdentifier("menu.status.timeLimitWarning")
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if let action = session.primaryAction {
-                Button(action.title) {
-                    performSessionAction(action)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityIdentifier("menu.status.action")
+                    .accessibilityIdentifier("menu.status.secondary")
             }
         }
         .padding(10)
@@ -460,32 +505,21 @@ struct MenuBarView: View {
         .accessibilityIdentifier("menu.sessionStrip")
     }
 
-    private var feedbackPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let target = appState.capturedTargetName {
-                Label("Target: \(target)", systemImage: "scope")
-                    .accessibilityIdentifier("menu.feedback.target")
-            } else if appState.asyncPasteEnabled {
-                Label("Target will be captured when recording starts", systemImage: "scope")
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("menu.feedback.targetHelp")
-            }
-
-            if let message = appState.feedbackMessage {
-                Label(message, systemImage: feedbackIcon)
-                    .accessibilityIdentifier("menu.feedback.message")
-            }
-
-            if let clipboard = appState.clipboardFeedback {
-                Label(clipboard, systemImage: "clipboard")
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("menu.feedback.clipboard")
-            }
+    private var secondaryWorkflowFeedback: String? {
+        if let target = appState.capturedTargetName {
+            return "Target: \(target)"
         }
-        .font(.caption)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+        if let clipboard = appState.clipboardFeedback {
+            return clipboard
+        }
+        if let message = appState.feedbackMessage, message != session.title, !session.detail.contains(message) {
+            return message
+        }
+        return nil
+    }
+
+    private var secondaryWorkflowFeedbackIcon: String {
+        appState.clipboardFeedback == nil ? feedbackIcon : "clipboard"
     }
 
     private var lastResultSection: some View {
@@ -514,9 +548,9 @@ struct MenuBarView: View {
 
                 HStack {
                     Button {
-                        copy(text)
+                        copy(text, confirmation: "Last transcript copied")
                     } label: {
-                        Label("Copy", systemImage: "doc.on.doc")
+                        Label("Copy Transcript", systemImage: "doc.on.doc")
                     }
                     .accessibilityIdentifier("menu.lastResult.copyButton")
                     Button {
@@ -545,6 +579,13 @@ struct MenuBarView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("menu.lastPaste.summary")
             }
+
+            if let actionConfirmation {
+                Label(actionConfirmation, systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("menu.lastResult.actionConfirmation")
+            }
         }
         .padding(10)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
@@ -556,6 +597,9 @@ struct MenuBarView: View {
                 .font(.subheadline.weight(.semibold))
 
             recordingControls
+            if !appState.needsSetupAttention && !shouldShowSetupCheck {
+                setupCheckCompactRow
+            }
 
             Picker("Recording", selection: $appState.recordingMode) {
                 Text("Hold").tag(HotkeyMonitor.RecordingMode.hold)
@@ -673,7 +717,7 @@ struct MenuBarView: View {
             onPasteLast?()
         case .copy:
             if let text = lastSuccess?.text {
-                copy(text)
+                copy(text, confirmation: "Last transcript copied")
             }
         }
     }
@@ -816,8 +860,13 @@ struct MenuBarView: View {
     }
 
     private func copy(_ text: String) {
+        copy(text, confirmation: "Copied to clipboard")
+    }
+
+    private func copy(_ text: String, confirmation: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        actionConfirmation = confirmation
     }
 
     private func openTroubleshooting() {
