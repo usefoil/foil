@@ -468,9 +468,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         guard !accessibilityTrusted() else {
-            DiagnosticLog.write("HotkeyMonitor: start failed despite Accessibility trust")
-            appState.updateAccessibilityState(isTrusted: false, message: "Restart GroqTalk")
-            appState.showError("Failed to start hotkey monitor -- restart GroqTalk")
+            DiagnosticLog.write("HotkeyMonitor: start failed despite Accessibility trust; retrying")
+            appState.updateAccessibilityState(isTrusted: true)
+            Task { @MainActor in
+                for attempt in 1...5 {
+                    do {
+                        try await Task.sleep(for: .milliseconds(400))
+                    } catch {
+                        return
+                    }
+                    if hotkeyMonitor.start() {
+                        DiagnosticLog.write("HotkeyMonitor: trusted retry succeeded attempt=\(attempt)")
+                        appState.updateAccessibilityState(isTrusted: true)
+                        appState.setStatus(.idle)
+                        return
+                    }
+                }
+                DiagnosticLog.write("HotkeyMonitor: trusted retry exhausted")
+                appState.updateAccessibilityState(isTrusted: true)
+                appState.showError("Failed to start hotkey monitor -- restart GroqTalk")
+            }
             return
         }
 
