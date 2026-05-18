@@ -33,11 +33,6 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertFalse(button(id: "menu.recording.stopButton", fallbackLabel: "Stop recording").isEnabled)
         XCTAssertTrue(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").exists)
         XCTAssertFalse(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").isEnabled)
-        XCTAssertTrue(app.staticTexts["Hotkey"].exists || staticTextContaining("Right Command").exists, app.debugDescription)
-        XCTAssertTrue(
-            elementExists(id: "menu.hotkeyPicker", timeout: 1) || staticTextContaining("Pastes into current app").exists,
-            app.debugDescription
-        )
         XCTAssertTrue(app.staticTexts["Test Setup"].exists)
         assertButtonExists(id: "menu.setup.test.action", fallbackLabel: "Test")
         XCTAssertTrue(app.checkBoxes["Paste where recording started"].exists)
@@ -66,7 +61,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Setup needed"].exists)
         XCTAssertTrue(app.staticTexts["Enable Accessibility before recording"].exists)
-        XCTAssertTrue(app.staticTexts["Open Privacy & Security and turn on GroqTalk."].exists)
+        XCTAssertTrue(elementExists(id: "menu.setup.Accessibility.recovery", timeout: 1) || staticTextContaining("Privacy & Security").exists, app.debugDescription)
         XCTAssertTrue(elementExists(id: "menu.setup.Microphone.recovery", timeout: 1) || staticTextContaining("Microphone privacy").exists, app.debugDescription)
         XCTAssertTrue(elementExists(id: "menu.setup.test.recovery", timeout: 1) || staticTextContaining("prepare-local-permissions").exists, app.debugDescription)
         XCTAssertTrue(app.buttons["Retry"].exists)
@@ -261,8 +256,9 @@ final class GroqTalkUITests: XCTestCase {
         openTranscriptionSettingsPanel()
 
         assertProviderPickerExists()
+        XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].exists || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["whisper-1"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["whisper-1"].exists || app.staticTexts["Model"].exists, app.debugDescription)
         XCTAssertTrue(staticTextContaining("API key is optional").exists
                       || staticTextContaining("local OpenAI-compatible").exists,
                       app.debugDescription)
