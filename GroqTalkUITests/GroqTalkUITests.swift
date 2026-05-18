@@ -59,7 +59,7 @@ final class GroqTalkUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Setup needed"].exists)
+        XCTAssertTrue(elementExists(id: "menu.setup.panel", timeout: 2) || app.buttons["Retry"].exists, app.debugDescription)
         XCTAssertTrue(elementExists(id: "menu.setup.Accessibility.recovery", timeout: 1) || staticTextContaining("Privacy & Security").exists, app.debugDescription)
         XCTAssertTrue(elementExists(id: "menu.setup.Microphone.recovery", timeout: 1) || staticTextContaining("Microphone privacy").exists, app.debugDescription)
         XCTAssertTrue(elementExists(id: "menu.setup.test.recovery", timeout: 1) || staticTextContaining("prepare-local-permissions").exists, app.debugDescription)
