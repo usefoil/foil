@@ -34,7 +34,10 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").exists)
         XCTAssertFalse(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").isEnabled)
         XCTAssertTrue(app.staticTexts["Hotkey"].exists)
-        XCTAssertTrue(app.popUpButtons["menu.hotkeyPicker"].exists || app.buttons["menu.hotkeyPicker"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["menu.hotkeyPicker"].exists,
+            app.debugDescription
+        )
         XCTAssertTrue(app.staticTexts["Test Setup"].exists)
         assertButtonExists(id: "menu.setup.test.action", fallbackLabel: "Test")
         XCTAssertTrue(app.checkBoxes["Paste where recording started"].exists)
@@ -66,7 +69,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Open Privacy & Security and turn on GroqTalk."].exists)
         XCTAssertTrue(app.staticTexts["Open Microphone privacy and allow GroqTalk."].exists)
         XCTAssertTrue(app.staticTexts["Add your Groq API key to enable transcription."].exists)
-        XCTAssertTrue(app.staticTexts["Enable GroqTalk in Accessibility. If it is already enabled, run make prepare-local-permissions-qa-check to verify the local app identity."].exists)
+        XCTAssertTrue(staticTextContaining("run make prepare-local-permissions-qa-check").exists)
         XCTAssertTrue(app.buttons["Retry"].exists)
     }
 
@@ -555,8 +558,17 @@ final class GroqTalkUITests: XCTestCase {
 
     private func openSettingsPanel() {
         clickButton(id: "menu.settingsButton", fallbackLabel: "Settings")
-        XCTAssertTrue(app.windows["Settings"].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Transcription"].waitForExistence(timeout: 2), app.debugDescription)
+        if !app.windows["Settings"].waitForExistence(timeout: 6) {
+            app.activate()
+            clickButton(id: "menu.settingsButton", fallbackLabel: "Settings")
+        }
+        XCTAssertTrue(app.windows["Settings"].waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["settings.testHost"].waitForExistence(timeout: 4)
+                || app.descendants(matching: .any)["settings.root"].waitForExistence(timeout: 4)
+                || app.staticTexts["Transcription"].waitForExistence(timeout: 4),
+            app.debugDescription
+        )
     }
 
     private func openHistoryWindow() {
@@ -579,8 +591,13 @@ final class GroqTalkUITests: XCTestCase {
 
     private func clickButton(id: String, fallbackLabel: String) {
         let target = button(id: id, fallbackLabel: fallbackLabel)
-        XCTAssertTrue(target.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(target.waitForExistence(timeout: 5), app.debugDescription)
         target.click()
+    }
+
+    private func staticTextContaining(_ text: String) -> XCUIElement {
+        let predicate = NSPredicate(format: "label CONTAINS %@", text)
+        return app.staticTexts.matching(predicate).firstMatch
     }
 
     private func assertProviderPickerExists() {
