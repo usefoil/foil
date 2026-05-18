@@ -68,11 +68,9 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Enable Accessibility before recording"].exists)
         XCTAssertTrue(app.staticTexts["Open Privacy & Security and turn on GroqTalk."].exists)
         XCTAssertTrue(app.staticTexts["Open Microphone privacy and allow GroqTalk."].exists)
-        XCTAssertTrue(
-            app.descendants(matching: .any)["menu.setup.Groq API key.recovery"].exists
-                || staticTextContaining("API key").exists,
-            app.debugDescription
-        )
+        let apiKeyRecoveryExists = elementExists(id: "menu.setup.Groq API key.recovery")
+            || staticTextContaining("API key").exists
+        XCTAssertTrue(apiKeyRecoveryExists, app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["menu.setup.test.recovery"].exists)
         XCTAssertTrue(app.buttons["Retry"].exists)
     }
@@ -239,12 +237,12 @@ final class GroqTalkUITests: XCTestCase {
     func testSettingsButtonOpensSettingsWindow() {
         openSettingsPanel()
         XCTAssertTrue(app.windows["Settings"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.descendants(matching: .any)["settings.root"].waitForExistence(timeout: 4))
-        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.general"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.recording"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.transcription"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.paste"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.privacy"].exists)
+        XCTAssertTrue(elementExists(id: "settings.root", timeout: 4))
+        XCTAssertTrue(elementExists(id: "settings.tab.general"))
+        XCTAssertTrue(elementExists(id: "settings.tab.recording"))
+        XCTAssertTrue(elementExists(id: "settings.tab.transcription"))
+        XCTAssertTrue(elementExists(id: "settings.tab.paste"))
+        XCTAssertTrue(elementExists(id: "settings.tab.privacy"))
     }
 
     func testProviderQADefaultsToGroqPreset() {
@@ -568,12 +566,10 @@ final class GroqTalkUITests: XCTestCase {
             clickButton(id: "menu.settingsButton", fallbackLabel: "Settings")
         }
         XCTAssertTrue(app.windows["Settings"].waitForExistence(timeout: 8), app.debugDescription)
-        XCTAssertTrue(
-            app.descendants(matching: .any)["settings.testHost"].waitForExistence(timeout: 4)
-                || app.descendants(matching: .any)["settings.root"].waitForExistence(timeout: 4)
-                || app.staticTexts["Transcription"].waitForExistence(timeout: 4),
-            app.debugDescription
-        )
+        let settingsHostExists = elementExists(id: "settings.testHost", timeout: 4)
+        let settingsRootExists = elementExists(id: "settings.root", timeout: 4)
+        let transcriptionTextExists = app.staticTexts["Transcription"].waitForExistence(timeout: 4)
+        XCTAssertTrue(settingsHostExists || settingsRootExists || transcriptionTextExists, app.debugDescription)
     }
 
     private func openTranscriptionSettingsPanel() {
@@ -581,11 +577,7 @@ final class GroqTalkUITests: XCTestCase {
         let tab = app.descendants(matching: .any)["settings.tab.transcription"]
         XCTAssertTrue(tab.waitForExistence(timeout: 4), app.debugDescription)
         tab.click()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["settings.transcriptionProviderPicker"].waitForExistence(timeout: 6)
-                || app.descendants(matching: .any)["menu.settings.transcriptionProviderPicker"].waitForExistence(timeout: 6),
-            app.debugDescription
-        )
+        XCTAssertTrue(providerPickerExists(timeout: 6), app.debugDescription)
     }
 
     private func openHistoryWindow() {
@@ -617,12 +609,21 @@ final class GroqTalkUITests: XCTestCase {
         return app.staticTexts.matching(predicate).firstMatch
     }
 
+    private func elementExists(id: String, timeout: TimeInterval = 2) -> Bool {
+        app.descendants(matching: .any)[id].waitForExistence(timeout: timeout)
+    }
+
+    private func providerPickerExists(timeout: TimeInterval) -> Bool {
+        let settingsPicker = app.descendants(matching: .any)["settings.transcriptionProviderPicker"]
+        if settingsPicker.waitForExistence(timeout: timeout) {
+            return true
+        }
+        let menuPicker = app.descendants(matching: .any)["menu.settings.transcriptionProviderPicker"]
+        return menuPicker.waitForExistence(timeout: timeout)
+    }
+
     private func assertProviderPickerExists() {
-        XCTAssertTrue(
-            app.descendants(matching: .any)["settings.transcriptionProviderPicker"].waitForExistence(timeout: 6)
-                || app.descendants(matching: .any)["menu.settings.transcriptionProviderPicker"].waitForExistence(timeout: 6),
-            app.debugDescription
-        )
+        XCTAssertTrue(providerPickerExists(timeout: 6), app.debugDescription)
     }
 
     private var providerPicker: XCUIElement {
