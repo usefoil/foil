@@ -23,7 +23,7 @@ endif
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-provider-qa test-provider-qa-live test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-provider-qa test-provider-qa-live test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -133,6 +133,15 @@ test-paste-real: install
 	swift tests/test_app_mock_async_paste.swift
 
 qa-paste: test-paste-real
+
+prepare-local-permissions-qa:
+	scripts/prepare-local-permissions-qa.sh
+
+prepare-local-permissions-qa-check:
+	scripts/prepare-local-permissions-qa.sh --check
+
+test-local-permissions-qa-script:
+	scripts/test-prepare-local-permissions-qa.sh
 
 test-cleanup-quality:
 	swift tests/test_cleanup_quality.swift

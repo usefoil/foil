@@ -33,6 +33,8 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertFalse(button(id: "menu.recording.stopButton", fallbackLabel: "Stop recording").isEnabled)
         XCTAssertTrue(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").exists)
         XCTAssertFalse(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").isEnabled)
+        XCTAssertTrue(app.staticTexts["Hotkey"].exists)
+        XCTAssertTrue(app.popUpButtons["menu.hotkeyPicker"].exists || app.buttons["menu.hotkeyPicker"].exists)
         XCTAssertTrue(app.staticTexts["Test Setup"].exists)
         assertButtonExists(id: "menu.setup.test.action", fallbackLabel: "Test")
         XCTAssertTrue(app.checkBoxes["Paste where recording started"].exists)
@@ -64,7 +66,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Open Privacy & Security and turn on GroqTalk."].exists)
         XCTAssertTrue(app.staticTexts["Open Microphone privacy and allow GroqTalk."].exists)
         XCTAssertTrue(app.staticTexts["Add your Groq API key to enable transcription."].exists)
-        XCTAssertTrue(app.staticTexts["Open Accessibility settings, enable GroqTalk, then rerun the test."].exists)
+        XCTAssertTrue(app.staticTexts["Enable GroqTalk in Accessibility. If it is already enabled, run make prepare-local-permissions-qa-check to verify the local app identity."].exists)
         XCTAssertTrue(app.buttons["Retry"].exists)
     }
 
@@ -227,17 +229,14 @@ final class GroqTalkUITests: XCTestCase {
         clickButton(id: "history.detail.doneButton", fallbackLabel: "Done")
     }
 
-    func testSettingsPanelOpensInsideMenuBarPopover() {
+    func testSettingsButtonOpensSettingsWindow() {
         openSettingsPanel()
-        XCTAssertFalse(app.windows["Settings"].waitForExistence(timeout: 1))
+        XCTAssertTrue(app.windows["Settings"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Recording"].exists)
         XCTAssertTrue(app.staticTexts["Transcription"].exists)
         XCTAssertTrue(app.staticTexts["Paste"].exists)
         XCTAssertTrue(app.staticTexts["Privacy"].exists)
-        XCTAssertTrue(app.buttons["Change API Key"].exists)
-        XCTAssertTrue(app.checkBoxes["Experimental background paste"].exists)
-        XCTAssertTrue(app.staticTexts["Retained failed audio"].exists)
     }
 
     func testProviderQADefaultsToGroqPreset() {
@@ -556,6 +555,7 @@ final class GroqTalkUITests: XCTestCase {
 
     private func openSettingsPanel() {
         clickButton(id: "menu.settingsButton", fallbackLabel: "Settings")
+        XCTAssertTrue(app.windows["Settings"].waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Transcription"].waitForExistence(timeout: 2), app.debugDescription)
     }
 
