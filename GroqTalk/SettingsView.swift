@@ -2,36 +2,62 @@ import AppKit
 import SwiftUI
 
 struct SettingsView: View {
+    enum Tab: Hashable {
+        case general
+        case recording
+        case transcription
+        case paste
+        case privacy
+    }
+
     @Bindable var appState: AppState
     var history: TranscriptionHistory
     var onHotkeyChanged: (() -> Void)?
 
     @Environment(\.openWindow) private var openWindow
+    @State private var selectedTab: Tab
     @State private var isShowingClearHistoryConfirmation = false
     @State private var launchAtLoginManager = LaunchAtLoginManager()
     @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
 
+    init(
+        appState: AppState,
+        history: TranscriptionHistory,
+        initialTab: Tab = .general,
+        onHotkeyChanged: (() -> Void)? = nil
+    ) {
+        self.appState = appState
+        self.history = history
+        self.onHotkeyChanged = onHotkeyChanged
+        _selectedTab = State(initialValue: initialTab)
+    }
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             generalSettings
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag(Tab.general)
                 .accessibilityIdentifier("settings.tab.general")
 
             recordingSettings
                 .tabItem { Label("Recording", systemImage: "mic") }
+                .tag(Tab.recording)
                 .accessibilityIdentifier("settings.tab.recording")
 
             transcriptionSettings
                 .tabItem { Label("Transcription", systemImage: "waveform") }
+                .tag(Tab.transcription)
                 .accessibilityIdentifier("settings.tab.transcription")
 
             pasteSettings
                 .tabItem { Label("Paste", systemImage: "text.cursor") }
+                .tag(Tab.paste)
                 .accessibilityIdentifier("settings.tab.paste")
 
             privacySettings
                 .tabItem { Label("Privacy", systemImage: "lock") }
+                .tag(Tab.privacy)
                 .accessibilityIdentifier("settings.tab.privacy")
         }
         .accessibilityIdentifier("settings.root")

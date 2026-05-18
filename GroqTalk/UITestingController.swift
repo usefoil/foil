@@ -463,6 +463,7 @@ final class UITestingController {
         let view = SettingsView(
             appState: appState,
             history: history,
+            initialTab: .transcription,
             onHotkeyChanged: onHotkeyChanged
         )
         .accessibilityIdentifier("settings.testHost")
