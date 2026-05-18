@@ -161,8 +161,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Skip during UI testing (app is launched by the test harness) and during
         // unit/integration tests (the test runner hosts the app process, so the
         // real app may also be running alongside).
-        let isTesting = ProcessInfo.processInfo.arguments.contains("--ui-testing")
-            || NSClassFromString("XCTestCase") != nil
+        let isTesting = Self.isTestingProcess()
         if !isTesting, singleInstanceGuard.activateExistingInstanceIfRunning() {
             // terminate is deferred to the next run loop tick because calling it
             // during applicationDidFinishLaunching can cause AppKit issues.
@@ -173,12 +172,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         DiagnosticLog.write("applicationDidFinishLaunching")
         _ = SparkleUpdater.shared
+        DiagnosticLog.write("applicationDidFinishLaunching: updater ready")
         recordingController = RecordingController(audioRecorder: audioRecorder, appState: appState)
         recordingController.delegate = self
         transcriptionController = TranscriptionController(transcriptionService: transcriptionService, appState: appState)
         transcriptionController.delegate = self
         pasteController = PasteController(textInserter: textInserter, appState: appState)
         pasteController.delegate = self
+        DiagnosticLog.write("applicationDidFinishLaunching: controllers ready")
         let uiTestingCtrl = UITestingController(
             appState: appState,
             history: history,
@@ -204,15 +205,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         uiTestingCtrl.configureUITestingIfNeeded()
         uiTestingCtrl.configureAutomationSmokeIfNeeded()
         uiTestingCtrl.configureE2ETranscribeIfNeeded()
-        refreshSetupHealth()
+        DiagnosticLog.write("applicationDidFinishLaunching: ui testing configured")
         wireHotkeyMonitor()
         applyHotkeyConfig()
+        DiagnosticLog.write("applicationDidFinishLaunching: hotkey configured")
         startFloatingStatusSync()
         if isTesting {
+            DiagnosticLog.write("applicationDidFinishLaunching: testing mode, skipping hotkey monitor")
             appState.setStatus(.idle)
         } else {
+            DiagnosticLog.write("applicationDidFinishLaunching: starting hotkey monitor")
             startHotkeyMonitorWithRetry()
         }
+        refreshSetupHealth()
+        DiagnosticLog.write("applicationDidFinishLaunching: setup health refreshed")
         if shouldShowOnboarding(isTesting: isTesting) {
             showOnboarding()
         }
@@ -223,6 +229,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    static func isTestingProcess(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        arguments.contains("--ui-testing")
+            || environment["XCTestConfigurationFilePath"] != nil
+            || arguments.contains { $0.localizedCaseInsensitiveContains(".xctest") }
     }
 
     private func shouldShowOnboarding(isTesting: Bool) -> Bool {
@@ -459,15 +474,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Transcription flow (now delegated to TranscriptionController)
 
     private func startHotkeyMonitorWithRetry() {
-        appState.refreshApiKeyState()
-        appState.updateAccessibilityState(isTrusted: accessibilityTrusted())
+        let initialAccessibilityTrusted = accessibilityTrusted()
+        DiagnosticLog.write("AccessibilityTrust: launch initial=\(initialAccessibilityTrusted)")
+        appState.updateAccessibilityState(isTrusted: initialAccessibilityTrusted)
         if hotkeyMonitor.start() {
+            DiagnosticLog.write("HotkeyMonitor: start succeeded")
             appState.updateAccessibilityState(isTrusted: true)
             appState.setStatus(.idle)
             return
         }
 
-        guard !accessibilityTrusted() else {
+        let postFailureAccessibilityTrusted = accessibilityTrusted()
+        DiagnosticLog.write("AccessibilityTrust: after event tap failure=\(postFailureAccessibilityTrusted)")
+        guard !postFailureAccessibilityTrusted else {
             DiagnosticLog.write("HotkeyMonitor: start failed despite Accessibility trust; retrying")
             appState.updateAccessibilityState(isTrusted: true)
             Task { @MainActor in
@@ -492,7 +511,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
-        AXIsProcessTrustedWithOptions(options)
+        let promptedAccessibilityTrusted = AXIsProcessTrustedWithOptions(options)
+        DiagnosticLog.write("AccessibilityTrust: prompt requested result=\(promptedAccessibilityTrusted)")
         appState.updateAccessibilityState(isTrusted: false)
         appState.setStatus(.error("Enable Accessibility in Settings"))
 
@@ -504,6 +524,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     return
                 }
             }
+            DiagnosticLog.write("AccessibilityTrust: polling observed trusted=true")
             if hotkeyMonitor.start() {
                 appState.updateAccessibilityState(isTrusted: true)
                 appState.setStatus(.idle)
@@ -515,8 +536,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshSetupHealth() {
-        let isTestHost = ProcessInfo.processInfo.arguments.contains("--ui-testing")
-            || NSClassFromString("XCTestCase") != nil
+        let isTestHost = Self.isTestingProcess()
         if isTestHost {
             if ProcessInfo.processInfo.arguments.contains("--seed-setup-unknown") {
                 appState.accessibilityState = .unknown
@@ -548,18 +568,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.apiKeyState = .ready
             return
         }
-        appState.refreshApiKeyState()
-        appState.updateAccessibilityState(isTrusted: accessibilityTrusted())
+        let trusted = accessibilityTrusted()
+        DiagnosticLog.write("SetupHealth: accessibilityTrusted=\(trusted)")
+        appState.updateAccessibilityState(isTrusted: trusted)
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             appState.updateMicrophoneState(isReady: true)
+            DiagnosticLog.write("SetupHealth: microphone=authorized")
         case .denied, .restricted:
             appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
+            DiagnosticLog.write("SetupHealth: microphone=denied")
         case .notDetermined:
             appState.microphoneState = .unknown
+            DiagnosticLog.write("SetupHealth: microphone=notDetermined")
         @unknown default:
             appState.microphoneState = .unknown
+            DiagnosticLog.write("SetupHealth: microphone=unknown")
         }
+        DiagnosticLog.write("SetupHealth: refreshing API key state")
+        appState.refreshApiKeyState()
+        DiagnosticLog.write("SetupHealth: API key state refreshed")
     }
 
     func openAccessibilitySettings() {

@@ -54,17 +54,31 @@ final class SingleInstanceGuardTests: XCTestCase {
     // MARK: - AppDelegate integration
 
     func testGuardBypassedDuringUnitTests() {
-        // NSClassFromString("XCTestCase") is non-nil during unit tests,
-        // so the guard should be bypassed entirely — even if it would
-        // detect a duplicate.
-        XCTAssertNotNil(NSClassFromString("XCTestCase"),
-                        "XCTestCase must be loaded during unit tests")
+        XCTAssertTrue(
+            AppDelegate.isTestingProcess(
+                arguments: ["/tmp/GroqTalkTests.xctest"],
+                environment: [:]
+            ),
+            "xctest launch arguments should bypass the duplicate-app guard"
+        )
 
-        // Verify the bypass condition matches what AppDelegate checks.
-        let isTesting = ProcessInfo.processInfo.arguments.contains("--ui-testing")
-            || NSClassFromString("XCTestCase") != nil
-        XCTAssertTrue(isTesting,
-                      "isTesting should be true during unit tests, preventing the guard from firing")
+        XCTAssertTrue(
+            AppDelegate.isTestingProcess(
+                arguments: [],
+                environment: ["XCTestConfigurationFilePath": "/tmp/test.xctestconfiguration"]
+            ),
+            "XCTestConfigurationFilePath should bypass the duplicate-app guard"
+        )
+    }
+
+    func testNormalLaunchIsNotClassifiedAsTestingOnlyBecauseXCTestIsLoaded() {
+        XCTAssertFalse(
+            AppDelegate.isTestingProcess(
+                arguments: ["/Applications/GroqTalk.app/Contents/MacOS/GroqTalk"],
+                environment: [:]
+            ),
+            "normal app launches should start the hotkey monitor even if XCTest symbols are present"
+        )
     }
 
     func testAppDelegateAcceptsInjectedGuard() {
