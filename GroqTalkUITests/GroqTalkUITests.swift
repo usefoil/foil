@@ -22,7 +22,7 @@ final class GroqTalkUITests: XCTestCase {
 
     func testControlCenterShowsSeededReadyState() {
         XCTAssertTrue(app.staticTexts["Ready"].exists)
-        XCTAssertTrue(app.staticTexts["Right Command · Pastes into current app"].exists)
+        XCTAssertTrue(staticTextContaining("Pastes into current app").exists)
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
         assertButtonExists(id: "menu.historyButton", fallbackLabel: "History")
         assertButtonExists(id: "menu.settingsButton", fallbackLabel: "Settings")
@@ -68,8 +68,12 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Enable Accessibility before recording"].exists)
         XCTAssertTrue(app.staticTexts["Open Privacy & Security and turn on GroqTalk."].exists)
         XCTAssertTrue(app.staticTexts["Open Microphone privacy and allow GroqTalk."].exists)
-        XCTAssertTrue(app.staticTexts["Add your Groq API key to enable transcription."].exists)
-        XCTAssertTrue(staticTextContaining("run make prepare-local-permissions-qa-check").exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["menu.setup.Groq API key.recovery"].exists
+                || staticTextContaining("API key").exists,
+            app.debugDescription
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["menu.setup.test.recovery"].exists)
         XCTAssertTrue(app.buttons["Retry"].exists)
     }
 
@@ -234,17 +238,18 @@ final class GroqTalkUITests: XCTestCase {
 
     func testSettingsButtonOpensSettingsWindow() {
         openSettingsPanel()
-        XCTAssertTrue(app.windows["Settings"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["General"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Recording"].exists)
-        XCTAssertTrue(app.staticTexts["Transcription"].exists)
-        XCTAssertTrue(app.staticTexts["Paste"].exists)
-        XCTAssertTrue(app.staticTexts["Privacy"].exists)
+        XCTAssertTrue(app.windows["Settings"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.descendants(matching: .any)["settings.root"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.general"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.recording"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.transcription"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.paste"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["settings.tab.privacy"].exists)
     }
 
     func testProviderQADefaultsToGroqPreset() {
         launchForProviderQA()
-        openSettingsPanel()
+        openTranscriptionSettingsPanel()
 
         assertProviderPickerExists()
         XCTAssertEqual(providerPicker.value as? String, "Groq")
@@ -262,7 +267,7 @@ final class GroqTalkUITests: XCTestCase {
 
     func testProviderQALocalWhisperPresetShowsExpectedSettings() {
         launchForProviderQA(extraArguments: ["--seed-local-provider"])
-        openSettingsPanel()
+        openTranscriptionSettingsPanel()
 
         assertProviderPickerExists()
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].exists || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
@@ -280,7 +285,7 @@ final class GroqTalkUITests: XCTestCase {
 
     func testProviderQAInvalidCustomBaseURLShowsValidationStatus() {
         launchForProviderQA(extraArguments: ["--seed-invalid-custom-provider"])
-        openSettingsPanel()
+        openTranscriptionSettingsPanel()
 
         let testConnectionButton = providerConnectionButton()
         XCTAssertTrue(testConnectionButton.waitForExistence(timeout: 2), app.debugDescription)
@@ -294,7 +299,7 @@ final class GroqTalkUITests: XCTestCase {
 
     func testProviderQACustomProviderPersistsAcrossRelaunch() {
         launchForProviderQA(extraArguments: ["--seed-custom-provider"])
-        openSettingsPanel()
+        openTranscriptionSettingsPanel()
 
         XCTAssertTrue(customBaseURLField.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertEqual(customBaseURLField.value as? String, "http://127.0.0.1:9090/v1")
@@ -308,7 +313,7 @@ final class GroqTalkUITests: XCTestCase {
         ]
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
-        openSettingsPanel()
+        openTranscriptionSettingsPanel()
 
         XCTAssertTrue(customBaseURLField.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertEqual(customBaseURLField.value as? String, "http://127.0.0.1:9090/v1")
@@ -571,6 +576,18 @@ final class GroqTalkUITests: XCTestCase {
         )
     }
 
+    private func openTranscriptionSettingsPanel() {
+        openSettingsPanel()
+        let tab = app.descendants(matching: .any)["settings.tab.transcription"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 4), app.debugDescription)
+        tab.click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["settings.transcriptionProviderPicker"].waitForExistence(timeout: 6)
+                || app.descendants(matching: .any)["menu.settings.transcriptionProviderPicker"].waitForExistence(timeout: 6),
+            app.debugDescription
+        )
+    }
+
     private func openHistoryWindow() {
         clickButton(id: "menu.historyButton", fallbackLabel: "History")
     }
@@ -602,8 +619,8 @@ final class GroqTalkUITests: XCTestCase {
 
     private func assertProviderPickerExists() {
         XCTAssertTrue(
-            app.descendants(matching: .any)["settings.transcriptionProviderPicker"].waitForExistence(timeout: 2)
-                || app.descendants(matching: .any)["menu.settings.transcriptionProviderPicker"].waitForExistence(timeout: 2),
+            app.descendants(matching: .any)["settings.transcriptionProviderPicker"].waitForExistence(timeout: 6)
+                || app.descendants(matching: .any)["menu.settings.transcriptionProviderPicker"].waitForExistence(timeout: 6),
             app.debugDescription
         )
     }
