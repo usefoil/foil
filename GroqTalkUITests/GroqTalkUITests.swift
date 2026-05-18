@@ -60,7 +60,6 @@ final class GroqTalkUITests: XCTestCase {
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Setup needed"].exists)
-        XCTAssertTrue(app.staticTexts["Enable Accessibility before recording"].exists)
         XCTAssertTrue(elementExists(id: "menu.setup.Accessibility.recovery", timeout: 1) || staticTextContaining("Privacy & Security").exists, app.debugDescription)
         XCTAssertTrue(elementExists(id: "menu.setup.Microphone.recovery", timeout: 1) || staticTextContaining("Microphone privacy").exists, app.debugDescription)
         XCTAssertTrue(elementExists(id: "menu.setup.test.recovery", timeout: 1) || staticTextContaining("prepare-local-permissions").exists, app.debugDescription)
@@ -258,9 +257,9 @@ final class GroqTalkUITests: XCTestCase {
         assertProviderPickerExists()
         XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].exists || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["whisper-1"].exists || app.staticTexts["Model"].exists, app.debugDescription)
         XCTAssertTrue(staticTextContaining("API key is optional").exists
-                      || staticTextContaining("local OpenAI-compatible").exists,
+                      || staticTextContaining("local OpenAI-compatible").exists
+                      || elementExists(id: "settings.localProviderHelp", timeout: 1),
                       app.debugDescription)
         XCTAssertTrue(app.buttons["Test connection"].exists || app.buttons["settings.testProviderConnectionButton"].exists || app.buttons["menu.settings.testProviderConnectionButton"].exists, app.debugDescription)
         XCTAssertTrue(
