@@ -18,8 +18,12 @@ final class UITestingController {
         Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
     static let runSetupCheckNotification =
         Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
-    static let stateSnapshotURL =
-        URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("groqtalk-ui-tests-state.json")
+    static var stateSnapshotURL: URL {
+        if let path = ProcessInfo.processInfo.environment["GROQTALK_UITEST_STATE_PATH"], !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+        return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("groqtalk-ui-tests-state.json")
+    }
 
     // MARK: - Dependencies
 

@@ -29,6 +29,7 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-history"
         ]
+        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
         removeUITestStateSnapshot()
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
@@ -87,6 +88,7 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-setup-unknown"
         ]
+        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
         removeUITestStateSnapshot()
         app.launch()
 
@@ -106,6 +108,7 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-microphone-unknown"
         ]
+        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
         removeUITestStateSnapshot()
         app.launch()
 
@@ -124,6 +127,7 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-microphone-denied"
         ]
+        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
         removeUITestStateSnapshot()
         app.launch()
 
@@ -585,6 +589,7 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-history"
         ] + extraArguments
+        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
         removeUITestStateSnapshot()
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
@@ -814,6 +819,7 @@ final class GroqTalkUITests: XCTestCase {
         app.terminate()
         app = XCUIApplication()
         app.launchArguments = arguments
+        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
         removeUITestStateSnapshot()
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
