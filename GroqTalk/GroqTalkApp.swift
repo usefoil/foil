@@ -582,6 +582,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshSetupHealth() {
         let isTestHost = Self.isTestingProcess()
+        defer {
+            if isTestHost {
+                uiTestingController?.writeStateSnapshot()
+            }
+        }
         if isTestHost {
             if ProcessInfo.processInfo.arguments.contains("--seed-setup-unknown") {
                 appState.accessibilityState = .unknown

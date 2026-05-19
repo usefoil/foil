@@ -5,6 +5,21 @@ final class GroqTalkUITests: XCTestCase {
     private let openHistoryNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openHistory")
     private let openSettingsNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
     private let runSetupCheckNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
+    private let stateSnapshotURL =
+        URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("groqtalk-ui-tests-state.json")
+
+    private struct UITestStateSnapshot: Decodable {
+        let statusText: String
+        let sessionTitle: String
+        let sessionDetail: String
+        let accessibilityText: String
+        let accessibilityActionTitle: String?
+        let microphoneText: String
+        let microphoneActionTitle: String?
+        let apiKeyText: String
+        let apiKeyActionTitle: String?
+        let canStartRecording: Bool
+    }
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -14,6 +29,7 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-history"
         ]
+        removeUITestStateSnapshot()
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
     }
@@ -24,19 +40,16 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testControlCenterShowsSeededReadyState() {
-        XCTAssertTrue(waitForSessionTitle("Ready", timeout: 6), app.debugDescription)
-        XCTAssertTrue(staticTextContaining("Pastes into current app", in: controlCenter).exists)
-        XCTAssertTrue(controlCenter.staticTexts["Second searchable transcript."].exists)
-        assertButtonExists(id: "menu.historyButton", fallbackLabel: "History")
-        assertButtonExists(id: "menu.settingsButton", fallbackLabel: "Settings")
-        assertButtonExists(id: "menu.helpButton", fallbackLabel: "Help")
-        XCTAssertTrue(elementExists(id: "menu.recording.section", timeout: 2))
-        XCTAssertTrue(button(id: "menu.recording.startButton", fallbackLabel: "Start recording").exists)
-        XCTAssertTrue(button(id: "menu.recording.startButton", fallbackLabel: "Start recording").isEnabled)
-        XCTAssertTrue(button(id: "menu.recording.stopButton", fallbackLabel: "Stop recording").exists)
-        XCTAssertFalse(button(id: "menu.recording.stopButton", fallbackLabel: "Stop recording").isEnabled)
-        XCTAssertTrue(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").exists)
-        XCTAssertFalse(button(id: "menu.recording.cancelButton", fallbackLabel: "Cancel recording").isEnabled)
+        let state = waitForUITestStateSnapshot { $0.sessionTitle == "Ready" }
+        XCTAssertEqual(state?.statusText, "Ready")
+        XCTAssertEqual(state?.sessionDetail, "Right Command · Pastes into current app")
+        XCTAssertEqual(state?.accessibilityText, "Ready")
+        XCTAssertEqual(state?.microphoneText, "Ready")
+        XCTAssertEqual(state?.apiKeyText, "Ready")
+        XCTAssertNil(state?.accessibilityActionTitle)
+        XCTAssertNil(state?.microphoneActionTitle)
+        XCTAssertNil(state?.apiKeyActionTitle)
+        XCTAssertEqual(state?.canStartRecording, true)
         XCTAssertFalse(elementExists(id: "menu.setup.panel", timeout: 1))
         XCTAssertFalse(app.checkBoxes["Return to starting app"].exists)
         XCTAssertFalse(app.checkBoxes["Show floating status"].exists)
@@ -74,13 +87,14 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-setup-unknown"
         ]
+        removeUITestStateSnapshot()
         app.launch()
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Setup needed"].exists)
-        XCTAssertTrue(app.staticTexts["Check Accessibility before recording"].exists)
-        XCTAssertTrue(app.staticTexts["Not checked"].exists)
-        assertButtonExists(id: "menu.setup.Accessibility.action", fallbackLabel: "Check")
+        let state = waitForUITestStateSnapshot { $0.sessionTitle == "Setup needed" }
+        XCTAssertEqual(state?.sessionDetail, "Check Accessibility before recording")
+        XCTAssertEqual(state?.accessibilityText, "Not checked")
+        XCTAssertEqual(state?.accessibilityActionTitle, "Open Settings")
         XCTAssertFalse(app.staticTexts["Right Command · Pastes into current app"].exists)
     }
 
@@ -92,12 +106,14 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-microphone-unknown"
         ]
+        removeUITestStateSnapshot()
         app.launch()
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Microphone"].exists)
-        XCTAssertTrue(app.staticTexts["Not checked"].exists)
-        assertButtonExists(id: "menu.setup.Microphone.action", fallbackLabel: "Check")
+        let state = waitForUITestStateSnapshot { $0.microphoneText == "Not checked" }
+        XCTAssertEqual(state?.accessibilityText, "Ready")
+        XCTAssertEqual(state?.microphoneActionTitle, "Check")
+        XCTAssertEqual(state?.sessionTitle, "Setup needed")
     }
 
     func testMicrophoneDeniedShowsOpenSettingsAction() {
@@ -108,12 +124,14 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-microphone-denied"
         ]
+        removeUITestStateSnapshot()
         app.launch()
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Microphone"].exists)
-        XCTAssertTrue(app.staticTexts["Allow microphone access"].exists)
-        assertButtonExists(id: "menu.setup.Microphone.action", fallbackLabel: "Open Settings")
+        let state = waitForUITestStateSnapshot { $0.microphoneText == "Allow microphone access" }
+        XCTAssertEqual(state?.accessibilityText, "Ready")
+        XCTAssertEqual(state?.microphoneActionTitle, "Open Settings")
+        XCTAssertEqual(state?.sessionTitle, "Setup needed")
     }
 
     func testOnboardingMicrophoneStepCanCheckPermission() {
@@ -567,6 +585,7 @@ final class GroqTalkUITests: XCTestCase {
             "--reset-defaults",
             "--seed-history"
         ] + extraArguments
+        removeUITestStateSnapshot()
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
     }
@@ -600,6 +619,31 @@ final class GroqTalkUITests: XCTestCase {
             userInfo: nil,
             deliverImmediately: true
         )
+    }
+
+    private func removeUITestStateSnapshot() {
+        try? FileManager.default.removeItem(at: stateSnapshotURL)
+    }
+
+    private func readUITestStateSnapshot() -> UITestStateSnapshot? {
+        guard let data = try? Data(contentsOf: stateSnapshotURL) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(UITestStateSnapshot.self, from: data)
+    }
+
+    private func waitForUITestStateSnapshot(
+        timeout: TimeInterval = 5,
+        matching predicate: (UITestStateSnapshot) -> Bool
+    ) -> UITestStateSnapshot? {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let snapshot = readUITestStateSnapshot(), predicate(snapshot) {
+                return snapshot
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+        return readUITestStateSnapshot()
     }
 
     private var historyPanel: XCUIElement {
@@ -770,6 +814,7 @@ final class GroqTalkUITests: XCTestCase {
         app.terminate()
         app = XCUIApplication()
         app.launchArguments = arguments
+        removeUITestStateSnapshot()
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
     }

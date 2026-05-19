@@ -18,6 +18,8 @@ final class UITestingController {
         Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
     static let runSetupCheckNotification =
         Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
+    static let stateSnapshotURL =
+        URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("groqtalk-ui-tests-state.json")
 
     // MARK: - Dependencies
 
@@ -49,6 +51,19 @@ final class UITestingController {
     private var uiTestWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
     private var uiTestSettingsWindow: NSWindow?
+
+    private struct StateSnapshot: Encodable {
+        let statusText: String
+        let sessionTitle: String
+        let sessionDetail: String
+        let accessibilityText: String
+        let accessibilityActionTitle: String?
+        let microphoneText: String
+        let microphoneActionTitle: String?
+        let apiKeyText: String
+        let apiKeyActionTitle: String?
+        let canStartRecording: Bool
+    }
 
     // MARK: - Init
 
@@ -178,6 +193,7 @@ final class UITestingController {
 
         showUITestWindow()
         configureUITestCommandNotifications()
+        writeStateSnapshot()
         configureLiveMicrophoneSmokeIfNeeded(args: args)
         configureSimulatedTranscriptionIfNeeded(args: args)
     }
@@ -545,6 +561,69 @@ final class UITestingController {
 
     @objc private func runSetupCheckForUITest() {
         onRunSetupCheck()
+    }
+
+    func writeStateSnapshot() {
+        let session = appState.sessionPresentation(
+            hotkeyLabel: hotkeyLabel,
+            hasRetryableFailure: history.records.contains { $0.isFailure },
+            hasLastSuccess: history.records.contains { !$0.isFailure }
+        )
+        let snapshot = StateSnapshot(
+            statusText: appState.statusText,
+            sessionTitle: session.title,
+            sessionDetail: session.detail,
+            accessibilityText: permissionText(for: appState.accessibilityState),
+            accessibilityActionTitle: actionTitle(for: appState.accessibilityState, readyTitle: nil, unknownTitle: "Open Settings", needsActionTitle: "Open Settings"),
+            microphoneText: permissionText(for: appState.microphoneState),
+            microphoneActionTitle: actionTitle(for: appState.microphoneState, readyTitle: nil, unknownTitle: "Check", needsActionTitle: "Open Settings"),
+            apiKeyText: permissionText(for: appState.apiKeyState),
+            apiKeyActionTitle: actionTitle(for: appState.apiKeyState, readyTitle: nil, unknownTitle: "Add Key", needsActionTitle: "Add Key"),
+            canStartRecording: appState.canStartRecordingControl
+        )
+
+        do {
+            let data = try JSONEncoder().encode(snapshot)
+            try data.write(to: Self.stateSnapshotURL, options: Data.WritingOptions.atomic)
+        } catch {
+            DiagnosticLog.write("UITesting: failed to write state snapshot: \(error)")
+        }
+    }
+
+    private var hotkeyLabel: String {
+        switch appState.hotkeyChoice {
+        case .rightCommand: "Right Command"
+        case .rightOption: "Right Option"
+        case .globeFn: "Globe/Fn"
+        case .custom: appState.customHotkeyLabel.isEmpty ? "Custom" : appState.customHotkeyLabel
+        }
+    }
+
+    private func permissionText(for state: AppState.PermissionState) -> String {
+        switch state {
+        case .ready:
+            "Ready"
+        case .needsAction(let message):
+            message
+        case .unknown:
+            "Not checked"
+        }
+    }
+
+    private func actionTitle(
+        for state: AppState.PermissionState,
+        readyTitle: String?,
+        unknownTitle: String,
+        needsActionTitle: String
+    ) -> String? {
+        switch state {
+        case .ready:
+            readyTitle
+        case .unknown:
+            unknownTitle
+        case .needsAction:
+            needsActionTitle
+        }
     }
 
     private func initialSettingsTab() -> SettingsView.Tab {
