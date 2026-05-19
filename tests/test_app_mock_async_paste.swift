@@ -14,7 +14,12 @@ import Foundation
 
 let appBundleID = "com.neonwatty.GroqTalk"
 let appPath = "/Applications/GroqTalk.app"
-let diagnosticLog = "/tmp/groqtalk-diag.log"
+let diagnosticLogURL = FileManager.default
+    .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    .appendingPathComponent("GroqTalk", isDirectory: true)
+    .appendingPathComponent("Diagnostics", isDirectory: true)
+    .appendingPathComponent("groqtalk.log", isDirectory: false)
+var diagnosticLogStartOffset: UInt64 = 0
 let testTextPrefix = "Mock transcription automation smoke"
 
 @discardableResult
@@ -86,7 +91,12 @@ func waitUntil(timeout: TimeInterval, poll: TimeInterval = 0.25, _ condition: ()
 }
 
 func readDiagnosticLog() -> String {
-    (try? String(contentsOfFile: diagnosticLog, encoding: .utf8)) ?? ""
+    guard let handle = try? FileHandle(forReadingFrom: diagnosticLogURL) else { return "" }
+    defer { try? handle.close() }
+    let endOffset = (try? handle.seekToEnd()) ?? 0
+    try? handle.seek(toOffset: min(diagnosticLogStartOffset, endOffset))
+    let data = handle.readDataToEndOfFile()
+    return String(data: data, encoding: .utf8) ?? ""
 }
 
 print("=== GroqTalk Real-App Mock Async Paste Smoke Test ===")
@@ -104,7 +114,11 @@ guard FileManager.default.fileExists(atPath: appPath) else {
     exit(1)
 }
 
-try? "".write(toFile: diagnosticLog, atomically: true, encoding: .utf8)
+try? FileManager.default.createDirectory(
+    at: diagnosticLogURL.deletingLastPathComponent(),
+    withIntermediateDirectories: true
+)
+diagnosticLogStartOffset = ((try? diagnosticLogURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(UInt64.init)) ?? 0
 
 run("/usr/bin/defaults", ["write", appBundleID, "mockTranscriptionEnabled", "-bool", "true"])
 run("/usr/bin/defaults", ["write", appBundleID, "asyncPasteEnabled", "-bool", "true"])
