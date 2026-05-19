@@ -1,6 +1,28 @@
 import AppKit
 import AVFoundation
 
+enum RecordingSoundCue: String, CaseIterable, Identifiable {
+    case none
+    case recordingStart
+    case recordingStop
+    case softChime
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .none:
+            return "None"
+        case .recordingStart:
+            return "Start cue"
+        case .recordingStop:
+            return "Stop cue"
+        case .softChime:
+            return "Soft chime"
+        }
+    }
+}
+
 final class SoundPlayer {
     private let defaults: UserDefaults
     private let playCueNamed: (String) -> Void
@@ -32,20 +54,28 @@ final class SoundPlayer {
     }
 
     func playStartSound() {
-        playSound(named: "recordingStart")
+        play(cue: selectedCue(forKey: Self.startCueKey, defaultCue: .recordingStart))
     }
 
     func playStopSound() {
-        guard soundEffectsEnabled else { return }
-        playSystemSound(named: "Pop")
+        play(cue: selectedCue(forKey: Self.endCueKey, defaultCue: .recordingStop))
     }
 
-    private func playSound(named name: String) {
+    func preview(_ cue: RecordingSoundCue) {
+        play(cue: cue)
+    }
+
+    private func play(cue: RecordingSoundCue) {
         guard soundEffectsEnabled else { return }
-        if hasInjectedCuePlayer {
-            playCueNamed(name)
-        } else {
-            playRecordingStartCue()
+        switch cue {
+        case .none:
+            return
+        case .recordingStart:
+            playAppCue(named: cue.rawValue)
+        case .recordingStop:
+            playSystemSound(named: "Pop")
+        case .softChime:
+            playAppCue(named: cue.rawValue)
         }
     }
 
@@ -56,26 +86,58 @@ final class SoundPlayer {
         return defaults.bool(forKey: "soundEffectsEnabled")
     }
 
-    private func playRecordingStartCue() {
-        do {
-            let data = Self.makeToneWavData(
+    private func selectedCue(forKey key: String, defaultCue: RecordingSoundCue) -> RecordingSoundCue {
+        RecordingSoundCue(rawValue: defaults.string(forKey: key) ?? "") ?? defaultCue
+    }
+
+    private func playAppCue(named name: String) {
+        if hasInjectedCuePlayer {
+            playCueNamed(name)
+            return
+        }
+        switch RecordingSoundCue(rawValue: name) {
+        case .some(.softChime):
+            playToneCue(
+                name: name,
+                frequencies: [660, 990],
+                duration: 0.22,
+                amplitude: 0.62
+            )
+        case .some(.recordingStart), .some(.none), .some(.recordingStop), nil:
+            playToneCue(
+                name: "recordingStart",
                 frequencies: [880, 1320],
                 duration: 0.18,
-                sampleRate: 44_100,
                 amplitude: 0.85
+            )
+        }
+    }
+
+    private func playToneCue(
+        name: String,
+        frequencies: [Double],
+        duration: Double,
+        amplitude: Double
+    ) {
+        do {
+            let data = Self.makeToneWavData(
+                frequencies: frequencies,
+                duration: duration,
+                sampleRate: 44_100,
+                amplitude: amplitude
             )
             let player = try AVAudioPlayer(data: data)
             player.volume = 1.0
             player.prepareToPlay()
             players.append(player)
-            DiagnosticLog.write("SoundPlayer: playing recordingStart app cue")
+            DiagnosticLog.write("SoundPlayer: playing \(name) app cue")
             player.play()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 600_000_000)
                 players.removeAll { !$0.isPlaying }
             }
         } catch {
-            DiagnosticLog.write("SoundPlayer: recordingStart app cue failed \(error)")
+            DiagnosticLog.write("SoundPlayer: \(name) app cue failed \(error)")
         }
     }
 
@@ -138,4 +200,9 @@ private extension FixedWidthInteger {
         var value = littleEndian
         return Data(bytes: &value, count: MemoryLayout<Self>.size)
     }
+}
+
+private extension SoundPlayer {
+    static let startCueKey = "recordingStartSoundCue"
+    static let endCueKey = "recordingEndSoundCue"
 }

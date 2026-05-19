@@ -129,6 +129,14 @@ final class AppState {
         didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
     }
 
+    var recordingStartSoundCue: RecordingSoundCue = .recordingStart {
+        didSet { Self.defaults.set(recordingStartSoundCue.rawValue, forKey: "recordingStartSoundCue") }
+    }
+
+    var recordingEndSoundCue: RecordingSoundCue = .recordingStop {
+        didSet { Self.defaults.set(recordingEndSoundCue.rawValue, forKey: "recordingEndSoundCue") }
+    }
+
     var selectedModel: String = "whisper-large-v3-turbo" {
         didSet {
             Self.defaults.set(selectedModel, forKey: "whisperModel")
@@ -650,6 +658,8 @@ final class AppState {
         if ProcessInfo.processInfo.arguments.contains("--reset-defaults") {
             for key in [
                 "soundEffectsEnabled",
+                "recordingStartSoundCue",
+                "recordingEndSoundCue",
                 "transcriptionProvider",
                 "transcriptionProviderPreset",
                 "whisperModel",
@@ -679,6 +689,8 @@ final class AppState {
 
         defaults.register(defaults: [
             "soundEffectsEnabled": true,
+            "recordingStartSoundCue": RecordingSoundCue.recordingStart.rawValue,
+            "recordingEndSoundCue": RecordingSoundCue.recordingStop.rawValue,
             "transcriptionProvider": TranscriptionProviderID.groq.rawValue,
             "transcriptionProviderPreset": TranscriptionProviderPresetID.groq.rawValue,
             "whisperModel": "whisper-large-v3-turbo",
@@ -700,6 +712,10 @@ final class AppState {
         // Load persisted values into stored properties.
         // didSet does NOT fire during init, so no redundant writes.
         soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
+        recordingStartSoundCue = RecordingSoundCue(rawValue: defaults.string(forKey: "recordingStartSoundCue") ?? "")
+            ?? .recordingStart
+        recordingEndSoundCue = RecordingSoundCue(rawValue: defaults.string(forKey: "recordingEndSoundCue") ?? "")
+            ?? .recordingStop
         let persistedProviderID = TranscriptionProviderID(rawValue: defaults.string(forKey: "transcriptionProvider") ?? "") ?? .groq
         let persistedPresetID: TranscriptionProviderPresetID
         if let rawPreset = persistedPresetRawValue,

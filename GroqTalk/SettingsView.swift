@@ -63,6 +63,7 @@ struct SettingsView: View {
     @State private var launchAtLoginManager = LaunchAtLoginManager()
     @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
+    private let soundPreviewPlayer = SoundPlayer()
 
     init(
         appState: AppState,
@@ -213,6 +214,24 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.recordingModePicker")
             .onChange(of: appState.recordingMode) { _, _ in onHotkeyChanged?() }
 
+            Section("Recording Sounds") {
+                soundCuePicker(
+                    title: "Start",
+                    selection: $appState.recordingStartSoundCue,
+                    previewHelp: "Preview start sound",
+                    pickerIdentifier: "settings.recordingStartSoundPicker",
+                    previewIdentifier: "settings.recordingStartSoundPreviewButton"
+                )
+
+                soundCuePicker(
+                    title: "End",
+                    selection: $appState.recordingEndSoundCue,
+                    previewHelp: "Preview end sound",
+                    pickerIdentifier: "settings.recordingEndSoundPicker",
+                    previewIdentifier: "settings.recordingEndSoundPreviewButton"
+                )
+            }
+
             Picker("Audio format", selection: $appState.selectedAudioFormat) {
                 Text("M4A").tag(AudioFormat.m4a)
                 Text("WAV").tag(AudioFormat.wav)
@@ -228,6 +247,33 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings.inputDevicePicker")
         }
         .formStyle(.grouped)
+    }
+
+    private func soundCuePicker(
+        title: String,
+        selection: Binding<RecordingSoundCue>,
+        previewHelp: String,
+        pickerIdentifier: String,
+        previewIdentifier: String
+    ) -> some View {
+        HStack {
+            Picker(title, selection: selection) {
+                ForEach(RecordingSoundCue.allCases) { cue in
+                    Text(cue.displayName).tag(cue)
+                }
+            }
+            .accessibilityIdentifier(pickerIdentifier)
+
+            Spacer()
+
+            Button {
+                soundPreviewPlayer.preview(selection.wrappedValue)
+            } label: {
+                Label("Preview", systemImage: "play.fill")
+            }
+            .help(previewHelp)
+            .accessibilityIdentifier(previewIdentifier)
+        }
     }
 
     private var transcriptionSettings: some View {
