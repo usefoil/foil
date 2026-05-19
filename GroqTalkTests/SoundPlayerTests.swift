@@ -60,4 +60,70 @@ final class SoundPlayerTests: XCTestCase {
 
         XCTAssertTrue(requestedNames.isEmpty)
     }
+
+    func testStartSoundCanBeDisabledIndependently() {
+        defaults.set(RecordingSoundCue.none.rawValue, forKey: "recordingStartSoundCue")
+        var appCueNames: [String] = []
+        var systemCueNames: [String] = []
+        let player = SoundPlayer(
+            defaults: defaults,
+            playCueNamed: { appCueNames.append($0) },
+            playSystemSoundNamed: { systemCueNames.append($0) }
+        )
+
+        player.playStartSound()
+        player.playStopSound()
+
+        XCTAssertTrue(appCueNames.isEmpty)
+        XCTAssertEqual(systemCueNames, ["Pop"])
+    }
+
+    func testStopSoundCanBeDisabledIndependently() {
+        defaults.set(RecordingSoundCue.none.rawValue, forKey: "recordingEndSoundCue")
+        var appCueNames: [String] = []
+        var systemCueNames: [String] = []
+        let player = SoundPlayer(
+            defaults: defaults,
+            playCueNamed: { appCueNames.append($0) },
+            playSystemSoundNamed: { systemCueNames.append($0) }
+        )
+
+        player.playStartSound()
+        player.playStopSound()
+
+        XCTAssertEqual(appCueNames, ["recordingStart"])
+        XCTAssertTrue(systemCueNames.isEmpty)
+    }
+
+    func testStartAndStopCanUseSeparateSelectedCues() {
+        defaults.set(RecordingSoundCue.recordingStop.rawValue, forKey: "recordingStartSoundCue")
+        defaults.set(RecordingSoundCue.softChime.rawValue, forKey: "recordingEndSoundCue")
+        var appCueNames: [String] = []
+        var systemCueNames: [String] = []
+        let player = SoundPlayer(
+            defaults: defaults,
+            playCueNamed: { appCueNames.append($0) },
+            playSystemSoundNamed: { systemCueNames.append($0) }
+        )
+
+        player.playStartSound()
+        player.playStopSound()
+
+        XCTAssertEqual(systemCueNames, ["Pop"])
+        XCTAssertEqual(appCueNames, ["softChime"])
+    }
+
+    func testGlobalSoundEffectsToggleOverridesSelectedStartAndEndCues() {
+        defaults.set(false, forKey: "soundEffectsEnabled")
+        defaults.set(RecordingSoundCue.softChime.rawValue, forKey: "recordingStartSoundCue")
+        defaults.set(RecordingSoundCue.recordingStart.rawValue, forKey: "recordingEndSoundCue")
+        var appCueNames: [String] = []
+        let player = SoundPlayer(defaults: defaults, playCueNamed: { appCueNames.append($0) })
+
+        player.playStartSound()
+        player.playStopSound()
+        player.preview(.softChime)
+
+        XCTAssertTrue(appCueNames.isEmpty)
+    }
 }
