@@ -583,6 +583,17 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func button(id: String, fallbackLabel: String) -> XCUIElement {
+        if controlCenter.exists {
+            let identified = controlCenter.buttons[id]
+            if identified.exists {
+                return identified
+            }
+            let scopedFallback = controlCenter.buttons[fallbackLabel]
+            if scopedFallback.exists {
+                return scopedFallback
+            }
+        }
+
         let identified = app.buttons[id]
         return identified.exists ? identified : app.buttons[fallbackLabel]
     }
