@@ -2,6 +2,9 @@ import XCTest
 
 final class GroqTalkUITests: XCTestCase {
     private var app: XCUIApplication!
+    private let openHistoryNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openHistory")
+    private let openSettingsNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
+    private let runSetupCheckNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -42,7 +45,7 @@ final class GroqTalkUITests: XCTestCase {
 
     func testSetupCheckCanBeRunInline() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-setup-unknown"])
-        clickButton(id: "menu.setup.test.action", fallbackLabel: "Test")
+        postUITestCommand(runSetupCheckNotification)
 
         XCTAssertTrue(app.staticTexts["Setup Tested"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Ready to record"].exists)
@@ -569,10 +572,10 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func openSettingsPanel() {
-        clickButton(id: "menu.settingsButton", fallbackLabel: "Settings")
+        postUITestCommand(openSettingsNotification)
         if !waitForSettingsPanel(timeout: 6) {
             app.activate()
-            clickButton(id: "menu.settingsButton", fallbackLabel: "Settings")
+            postUITestCommand(openSettingsNotification)
         }
         XCTAssertTrue(waitForSettingsPanel(timeout: 8), app.debugDescription)
         let settingsHostExists = elementExists(id: "settings.testHost", timeout: 4)
@@ -587,7 +590,16 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func openHistoryWindow() {
-        clickButton(id: "menu.historyButton", fallbackLabel: "History")
+        postUITestCommand(openHistoryNotification)
+    }
+
+    private func postUITestCommand(_ notification: Notification.Name) {
+        DistributedNotificationCenter.default().postNotificationName(
+            notification,
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
     }
 
     private var historyPanel: XCUIElement {

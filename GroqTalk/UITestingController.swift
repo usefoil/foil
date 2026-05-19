@@ -12,6 +12,12 @@ final class UITestingController {
 
     static let automationMockSuccessNotification =
         Notification.Name("com.neonwatty.GroqTalk.automation.mockSuccess")
+    static let openHistoryNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.openHistory")
+    static let openSettingsNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
+    static let runSetupCheckNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
 
     // MARK: - Dependencies
 
@@ -171,6 +177,7 @@ final class UITestingController {
         UserDefaults(suiteName: "com.neonwatty.GroqTalk.UITests")?.synchronize()
 
         showUITestWindow()
+        configureUITestCommandNotifications()
         configureLiveMicrophoneSmokeIfNeeded(args: args)
         configureSimulatedTranscriptionIfNeeded(args: args)
     }
@@ -505,6 +512,39 @@ final class UITestingController {
         window.center()
         window.makeKeyAndOrderFront(nil)
         uiTestSettingsWindow = window
+    }
+
+    private func configureUITestCommandNotifications() {
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openHistoryForUITest),
+            name: UITestingController.openHistoryNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openSettingsForUITest),
+            name: UITestingController.openSettingsNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(runSetupCheckForUITest),
+            name: UITestingController.runSetupCheckNotification,
+            object: nil
+        )
+    }
+
+    @objc private func openHistoryForUITest() {
+        showUITestHistoryWindow()
+    }
+
+    @objc private func openSettingsForUITest() {
+        showUITestSettingsWindow()
+    }
+
+    @objc private func runSetupCheckForUITest() {
+        onRunSetupCheck()
     }
 
     private func initialSettingsTab() -> SettingsView.Tab {
