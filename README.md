@@ -24,11 +24,10 @@ brew install --cask groqtalk
 
 1. Get a free API key from [console.groq.com](https://console.groq.com/)
 2. Launch GroqTalk — it lives in your menu bar
-3. Click the menu bar icon and use the Setup panel to grant Accessibility and
-   Microphone permissions
-4. Click **Add Key** or Settings → Transcription → **Change API Key**, then paste
-   your Groq API key
-5. Use **Run Check** in the Setup panel to confirm the app is ready
+3. In the first-run setup window, click **Add API Key** and save/test your key
+4. Open Accessibility settings from GroqTalk and enable the current GroqTalk app
+5. Open Microphone settings from GroqTalk and allow microphone access
+6. Use the setup test to confirm the app is ready
 
 GroqTalk is a menu bar app (`LSUIElement`), so it does not keep a normal Dock
 window open. The built app includes macOS AppIcon assets for Finder,
@@ -57,6 +56,23 @@ app's Accessibility permission attached across rebuilds. `make setup-local-signi
 creates that identity once in a dedicated local keychain and removes stale
 GroqTalk-local copies from the login keychain.
 
+### Local Permission State Repair
+
+During development, macOS can keep Accessibility or Input Monitoring rows for an
+older local build. When that happens, System Settings may show GroqTalk enabled
+while the current app still cannot use the permission. Run:
+
+```sh
+make prepare-local-permissions-qa
+```
+
+Then launch GroqTalk, enable the newly opened GroqTalk row in System Settings,
+and restart the app. To inspect local permission state without changing it, run:
+
+```sh
+make prepare-local-permissions-qa-check
+```
+
 For a Developer ID install, pass your signing identity and team:
 
 ```sh
@@ -83,8 +99,8 @@ make setup-release-secrets
 - **Hold-to-record** — hold Right Command, Right Option, or Globe/Fn to record, release to transcribe
 - **Toggle mode** — press once to start, again to stop
 - **Auto-paste** — by default, sends a paste command to the app active when transcription finishes
-- **Async paste option** — can capture the app where recording started and paste there later; some apps may block automation, in which case GroqTalk falls back to clipboard handling
-- **Experimental background paste** — optional advanced paste routing for app-specific testing; disabled by default because it relies on private macOS behavior and command-posted results are not fully verifiable
+- **Return to starting app** — optional experimental paste routing that lets you dictate in one app, move on, and paste back where recording started
+- **Try background paste** — optional experimental paste method for app-specific testing; disabled by default because it relies on lower-level macOS behavior and command-posted results are not fully verifiable
 - **Clipboard safety** — by default, GroqTalk restores the previous clipboard after posting paste; Settings can keep final text on the clipboard instead
 - **3 audio formats** — M4A (smaller), WAV (lossless), FLAC (lossless, smaller)
 - **Language selection** — hint Whisper for better accuracy in 12 languages
@@ -107,9 +123,9 @@ paste, window-choreography paste, and clipboard fallback internally. A command
 being posted does not prove every target app accepted it; use History or the
 clipboard fallback when a target blocks paste automation.
 
-Experimental background paste is off by default. It uses private macOS routing
-when available and should be treated as an advanced compatibility option, not
-as the default reliability path.
+Try background paste is off by default. It uses lower-level macOS routing when
+available and should be treated as an experimental compatibility option, not as
+the default reliability path.
 
 ## Troubleshooting
 
@@ -122,9 +138,9 @@ key anyway and run the setup check later.
 Microphone and allow GroqTalk. Use **Run Check** after changing the permission.
 
 **Accessibility or hotkey not working:** Open System Settings → Privacy &
-Security → Accessibility and allow GroqTalk. If a local rebuild or reinstall
-changed the app identity, remove the old GroqTalk entry, add the installed app
-again, then restart GroqTalk.
+Security → Accessibility and allow GroqTalk. If GroqTalk is already enabled but
+still cannot record from the hotkey or paste text, remove the old GroqTalk row,
+reopen GroqTalk, enable the new row, and restart the app.
 
 **Paste command sent but no text appears:** The target app may block synthetic
 paste events. Open History to copy or paste the transcript again. If GroqTalk

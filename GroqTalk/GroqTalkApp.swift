@@ -23,6 +23,7 @@ struct GroqTalkApp: App {
                 onStopRecording: { [weak appDelegate] in appDelegate?.stopRecordingFromControl() },
                 onCancelRecording: { [weak appDelegate] in appDelegate?.cancelRecordingFromControl() },
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
+                onOpenSettings: { [weak appDelegate] in appDelegate?.showSettingsWindow() },
                 onOpenAccessibility: { [weak appDelegate] in appDelegate?.openAccessibilitySettings() },
                 onOpenMicrophone: { [weak appDelegate] in appDelegate?.openMicrophoneSettings() },
                 onCheckMicrophone: { [weak appDelegate] in appDelegate?.checkMicrophonePermission() },
@@ -90,8 +91,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var floatingStatusPanel: NSPanel?
     private var floatingStatusSyncTimer: Timer?
     private var transientSuccessAutoHideTimer: Timer?
+    private var setupRefreshTask: Task<Void, Never>?
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
+    private var settingsWindow: NSWindow?
     private var hasCompletedOnboarding: Bool {
         get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
@@ -210,8 +213,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         applyHotkeyConfig()
         DiagnosticLog.write("applicationDidFinishLaunching: hotkey configured")
         startFloatingStatusSync()
-        if isTesting {
-            DiagnosticLog.write("applicationDidFinishLaunching: testing mode, skipping hotkey monitor")
+        let shouldDisplayOnboarding = shouldShowOnboarding(isTesting: isTesting)
+        if isTesting || shouldDisplayOnboarding {
+            DiagnosticLog.write("applicationDidFinishLaunching: setup-first mode, skipping initial hotkey monitor")
             appState.setStatus(.idle)
         } else {
             DiagnosticLog.write("applicationDidFinishLaunching: starting hotkey monitor")
@@ -219,7 +223,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         refreshSetupHealth()
         DiagnosticLog.write("applicationDidFinishLaunching: setup health refreshed")
-        if shouldShowOnboarding(isTesting: isTesting) {
+        if shouldDisplayOnboarding {
             showOnboarding()
         }
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
@@ -229,6 +233,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard !Self.isTestingProcess() else { return }
+        refreshSetupHealth()
+        if accessibilityTrusted() {
+            retryHotkeyMonitorAfterPermissionChange()
+        }
     }
 
     static func isTestingProcess(
@@ -250,10 +262,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showOnboarding() {
         let onboardingView = OnboardingView(
             appState: appState,
+            onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
+            onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
             onCheckMicrophone: { [weak self] in self?.checkMicrophonePermission() }
         ) { [weak self] in
             guard let self else { return }
             self.hasCompletedOnboarding = true
+            if !Self.isTestingProcess(), !self.hotkeyMonitor.isRunning {
+                self.startHotkeyMonitorWithRetry()
+            }
             let window = self.onboardingWindow
             self.onboardingWindow = nil
             DispatchQueue.main.async {
@@ -276,6 +293,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         onboardingWindow = window
+    }
+
+    func showSettingsWindow() {
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let settingsView = SettingsView(
+            appState: appState,
+            history: history,
+            onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() }
+        )
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 430),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Settings"
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: settingsView)
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow = window
     }
 
     // MARK: - Floating status
@@ -595,6 +640,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSWorkspace.shared.open(url)
+        startSetupRefreshPolling()
     }
 
     func openMicrophoneSettings() {
@@ -602,6 +648,39 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSWorkspace.shared.open(url)
+        startSetupRefreshPolling()
+    }
+
+    private func startSetupRefreshPolling() {
+        guard !Self.isTestingProcess() else { return }
+        setupRefreshTask?.cancel()
+        setupRefreshTask = Task { @MainActor in
+            for _ in 0..<60 {
+                if Task.isCancelled { return }
+                refreshSetupHealth()
+                if accessibilityTrusted() {
+                    retryHotkeyMonitorAfterPermissionChange()
+                }
+                if appState.isSetupReady {
+                    return
+                }
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+            }
+        }
+    }
+
+    private func retryHotkeyMonitorAfterPermissionChange() {
+        guard !hotkeyMonitor.isRunning else { return }
+        guard appState.status == .idle || appState.isError else { return }
+        if hotkeyMonitor.start() {
+            DiagnosticLog.write("HotkeyMonitor: permission refresh start succeeded")
+            appState.updateAccessibilityState(isTrusted: true)
+            appState.clearError()
+        }
     }
 
     func checkMicrophonePermission() {

@@ -183,4 +183,12 @@ final class HotkeyMonitorTests: XCTestCase {
         monitor.handleKeyStateChange(pressed: true)
         XCTAssertEqual(events, ["started"], "After stop(), first press should start recording")
     }
+
+    func testIsRunningIsFalseUntilPlatformMonitorStarts() {
+        XCTAssertFalse(monitor.isRunning)
+
+        monitor.stop()
+
+        XCTAssertFalse(monitor.isRunning)
+    }
 }

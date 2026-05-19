@@ -154,10 +154,25 @@ final class UITestingController {
             appState.customTranscriptionModel = "tiny-test-model"
         }
 
+        if args.contains("--seed-async-paste-enabled") {
+            appState.asyncPasteEnabled = true
+        }
+
+        if args.contains("--seed-floating-status-enabled") {
+            appState.showFloatingStatus = true
+        }
+
+        #if DEBUG
+        if args.contains("--seed-mock-transcription-enabled") {
+            appState.mockTranscriptionEnabled = true
+        }
+        #endif
+
         UserDefaults(suiteName: "com.neonwatty.GroqTalk.UITests")?.synchronize()
 
         showUITestWindow()
         configureLiveMicrophoneSmokeIfNeeded(args: args)
+        configureSimulatedTranscriptionIfNeeded(args: args)
     }
 
     func configureAutomationSmokeIfNeeded() {
@@ -326,6 +341,16 @@ final class UITestingController {
         #endif
     }
 
+    private func configureSimulatedTranscriptionIfNeeded(args: [String]) {
+        guard args.contains("--simulate-success-after-launch")
+                || args.contains("--simulate-failure-after-launch") else { return }
+        let success = args.contains("--simulate-success-after-launch")
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            simulateUITestTranscription(success: success)
+        }
+    }
+
     nonisolated private static func writeLiveMicrophoneResult(
         path: String,
         status: String,
@@ -463,23 +488,35 @@ final class UITestingController {
         let view = SettingsView(
             appState: appState,
             history: history,
-            initialTab: .transcription,
+            initialTab: initialSettingsTab(),
             onHotkeyChanged: onHotkeyChanged
         )
         .accessibilityIdentifier("settings.testHost")
-        .frame(width: 560, height: 400)
+        .frame(width: 680, height: 430)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 430),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Settings"
-        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 560, height: 400))
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 680, height: 430))
         window.center()
         window.makeKeyAndOrderFront(nil)
         uiTestSettingsWindow = window
+    }
+
+    private func initialSettingsTab() -> SettingsView.Tab {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--settings-tab-general") { return .general }
+        if args.contains("--settings-tab-recording") { return .recording }
+        if args.contains("--settings-tab-paste") { return .paste }
+        if args.contains("--settings-tab-privacy") { return .privacy }
+        if args.contains("--settings-tab-experimental") || args.contains("--settings-tab-advanced") {
+            return .experimental
+        }
+        return .transcription
     }
 
     // MARK: - Simulate transcription (UI testing)

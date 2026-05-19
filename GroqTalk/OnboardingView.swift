@@ -2,10 +2,13 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Bindable var appState: AppState
+    var onOpenAccessibility: (() -> Void)?
+    var onOpenMicrophone: (() -> Void)?
     var onCheckMicrophone: (() -> Void)?
     var onComplete: () -> Void
 
     @State private var currentStep: Int = 0
+    @Environment(\.openWindow) private var openWindow
 
     private let steps = ["API Key", "Accessibility", "Microphone"]
 
@@ -104,6 +107,12 @@ struct OnboardingView: View {
 
             permissionStatusBadge(state: appState.apiKeyState, readyLabel: "API key saved")
 
+            Button("Add API Key") {
+                openWindow(id: "api-key-setup")
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("onboarding.addApiKeyButton")
+
             if let url = URL(string: "https://console.groq.com/keys") {
                 Link("Get a free API key at console.groq.com", destination: url)
                     .font(.caption)
@@ -129,9 +138,7 @@ struct OnboardingView: View {
             permissionStatusBadge(state: appState.accessibilityState, readyLabel: "Accessibility enabled")
 
             Button("Open Privacy & Security Settings") {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-                    NSWorkspace.shared.open(url)
-                }
+                onOpenAccessibility?()
             }
             .font(.caption)
             .accessibilityIdentifier("onboarding.openAccessibilityButton")
@@ -164,9 +171,7 @@ struct OnboardingView: View {
             }
 
             Button("Open Privacy & Security Settings") {
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-                    NSWorkspace.shared.open(url)
-                }
+                onOpenMicrophone?()
             }
             .font(.caption)
             .accessibilityIdentifier("onboarding.openMicrophoneButton")

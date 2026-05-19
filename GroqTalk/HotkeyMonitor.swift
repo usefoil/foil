@@ -62,6 +62,10 @@ final class HotkeyMonitor {
 
     private var hidManager: IOHIDManager?
 
+    var isRunning: Bool {
+        eventTap != nil || hidManager != nil
+    }
+
     // MARK: - Shared state machine
 
     private var keyDown = false
