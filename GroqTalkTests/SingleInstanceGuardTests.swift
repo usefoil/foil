@@ -87,4 +87,36 @@ final class SingleInstanceGuardTests: XCTestCase {
         let delegate = AppDelegate(singleInstanceGuard: stub)
         XCTAssertNotNil(delegate, "AppDelegate should accept an injected guard")
     }
+
+    func testAppDelegateCanOpenSettingsWindowExplicitly() {
+        let stub = NotRunningStub()
+        let delegate = AppDelegate(singleInstanceGuard: stub)
+
+        delegate.showSettingsWindow()
+
+        let settingsWindow = NSApp.windows.first { $0.title == "Settings" }
+        XCTAssertNotNil(settingsWindow)
+        XCTAssertTrue(settingsWindow?.isVisible == true)
+
+        settingsWindow?.close()
+    }
+
+    func testSettingsTabStripUsesCompactVisibleLabels() {
+        XCTAssertEqual(SettingsView.Tab.paste.title, "Paste")
+        XCTAssertEqual(SettingsView.Tab.privacy.title, "Storage")
+    }
+
+    func testSettingsTabStripLabelsExperimentalSettingsAsExperimental() {
+        XCTAssertTrue(SettingsView.Tab.allCases.contains(.experimental))
+        XCTAssertEqual(SettingsView.Tab.experimental.title, "Experimental")
+        XCTAssertEqual(SettingsView.Tab.experimental.accessibilityIdentifier, "settings.tab.experimental")
+    }
+
+    func testExperimentalPasteSettingCopyDistinguishesTargetFromPasteMethod() {
+        XCTAssertEqual(SettingsView.ExperimentalCopy.pasteRoutingPurpose, "Auto-pastes back into the app you started from while you keep working elsewhere.")
+        XCTAssertEqual(SettingsView.ExperimentalCopy.pasteTargetTitle, "Return to starting app")
+        XCTAssertEqual(SettingsView.ExperimentalCopy.pasteTargetOffDescription, "Pastes into the app active when transcription finishes.")
+        XCTAssertEqual(SettingsView.ExperimentalCopy.backgroundPasteTitle, "Try background paste")
+        XCTAssertEqual(SettingsView.ExperimentalCopy.backgroundPasteDescription, "Uses a lower-level paste route. Leave off unless normal paste fails.")
+    }
 }

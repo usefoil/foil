@@ -24,8 +24,8 @@ Usage: $(basename "$0") [--check]
 
 Modes:
   --check   Run non-mutating diagnostics for the installed app bundle.
-  default   Build, install, ad-hoc re-sign, reset app-scoped TCC records,
-            open macOS privacy panes, and launch the app for manual QA.
+  default   Ensure stable local signing, build, install, reset app-scoped TCC
+            records, open macOS privacy panes, and launch the app for manual QA.
 
 macOS privacy boundary:
   This script can verify bundle/signing preconditions and can reset this
@@ -172,7 +172,7 @@ diagnose_installed_app() {
     if [ -n "$authority" ]; then
       pass "codesign authority: $authority"
     else
-      warn "codesign authority is absent; this is expected for ad-hoc local QA signing"
+      warn "codesign authority is absent; ad-hoc signing can make TCC permissions appear enabled for a different app identity"
     fi
     if [ -n "$team_identifier" ] && [ "$team_identifier" != "not set" ]; then
       pass "codesign team identifier: $team_identifier"
@@ -210,18 +210,16 @@ section "Stop running app"
 "$PKILL" -x "$APP_NAME" 2>/dev/null || true
 "$SLEEP_CMD" 0.5
 
-section "Build and install unsigned local app"
-"$MAKE_CMD" install SIGN_IDENTITY="-" CONFIG="$CONFIG"
+section "Ensure stable local signing identity"
+"$MAKE_CMD" setup-local-signing
+
+section "Build and install local app"
+"$MAKE_CMD" install CONFIG="$CONFIG"
 
 if [ ! -d "$APP_PATH" ]; then
   echo "error: expected installed app at $APP_PATH" >&2
   exit 1
 fi
-
-BUNDLE_ID="$("$PLISTBUDDY" -c 'Print :CFBundleIdentifier' "$APP_PATH/Contents/Info.plist")"
-
-section "Re-sign installed app with bundle identifier: $BUNDLE_ID"
-"$CODESIGN" --force --deep --sign - --identifier "$BUNDLE_ID" "$APP_PATH"
 
 diagnose_installed_app
 if [ "$failures" -gt 0 ]; then

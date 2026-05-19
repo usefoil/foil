@@ -67,10 +67,14 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 14) {
             toolbarActions
             sessionStrip
-            setupPanel
-            feedbackPanel
+            if appState.needsSetupAttention {
+                setupPanel
+            }
+            if shouldShowFeedbackPanel {
+                feedbackPanel
+            }
+            recordingControlsSection
             lastResultSection
-            quickControls
         }
         .accessibilityIdentifier("menu.controlCenter")
         .padding(14)
@@ -154,7 +158,7 @@ struct MenuBarView: View {
                 title: "Accessibility",
                 state: appState.accessibilityState,
                 actionTitle: "Open Settings",
-                recoveryDetail: "Open Privacy & Security and turn on GroqTalk.",
+                recoveryDetail: accessibilityRecoveryDetail,
                 action: onOpenAccessibility
             )
             permissionRow(
@@ -343,6 +347,13 @@ struct MenuBarView: View {
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
     }
 
+    private var shouldShowFeedbackPanel: Bool {
+        appState.capturedTargetName != nil
+            || appState.feedbackMessage != nil
+            || appState.clipboardFeedback != nil
+            || (appState.asyncPasteEnabled && appState.status == .recording)
+    }
+
     private var lastResultSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -405,97 +416,13 @@ struct MenuBarView: View {
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private var quickControls: some View {
+    private var recordingControlsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Quick Controls")
+            Text("Record")
                 .font(.subheadline.weight(.semibold))
-
             recordingControls
-
-            hotkeyControls
-
-            Picker("Recording", selection: $appState.recordingMode) {
-                Text("Hold").tag(HotkeyMonitor.RecordingMode.hold)
-                Text("Toggle").tag(HotkeyMonitor.RecordingMode.toggle)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("menu.recordingModePicker")
-            .onChange(of: appState.recordingMode) { _, _ in onHotkeyChanged?() }
-
-            Toggle("Paste where recording started", isOn: $appState.asyncPasteEnabled)
-                .accessibilityIdentifier("menu.asyncPasteToggle")
-            Toggle("Keep final text on clipboard", isOn: $appState.keepOnClipboard)
-                .accessibilityIdentifier("menu.keepClipboardToggle")
-            Toggle("Show floating status", isOn: $appState.showFloatingStatus)
-                .accessibilityIdentifier("menu.floatingStatusToggle")
-
-            if appState.supportsSelectedTranscriptProcessing {
-                Picker("Cleanup", selection: $appState.transcriptProcessingMode) {
-                    ForEach(TranscriptProcessingMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .accessibilityIdentifier("menu.transcriptProcessingPicker")
-            } else {
-                Text("Cleanup unavailable for this provider")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("menu.transcriptProcessingUnavailable")
-            }
-
-            #if DEBUG
-            Toggle("Mock Transcription", isOn: $appState.mockTranscriptionEnabled)
-                .accessibilityIdentifier("menu.mockToggle")
-            #endif
-
-            if isUITesting {
-                HStack {
-                    Button("Simulate Success") {
-                        onSimulateSuccess?()
-                    }
-                    .frame(minHeight: 18)
-                    .accessibilityIdentifier("menu.simulateSuccessButton")
-
-                    Button("Simulate Failure") {
-                        onSimulateFailure?()
-                    }
-                    .frame(minHeight: 18)
-                    .accessibilityIdentifier("menu.simulateFailureButton")
-                }
-                .buttonStyle(.borderless)
-            }
         }
-    }
-
-    private var hotkeyControls: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text("Hotkey")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 62, alignment: .leading)
-
-                Picker("Hotkey", selection: $appState.hotkeyChoice) {
-                    ForEach(HotkeyMonitor.HotkeyChoice.allCases, id: \.self) { choice in
-                        Text(choice.label).tag(choice)
-                    }
-                }
-                .labelsHidden()
-                .accessibilityLabel("Hotkey")
-                .accessibilityIdentifier("menu.hotkeyPicker")
-                .onChange(of: appState.hotkeyChoice) { _, _ in onHotkeyChanged?() }
-            }
-
-            if appState.hotkeyChoice == .custom {
-                KeyRecorderView(
-                    keyCode: $appState.customHotkeyKeyCode,
-                    modifiers: $appState.customHotkeyModifiers,
-                    label: $appState.customHotkeyLabel
-                )
-                .onChange(of: appState.customHotkeyKeyCode) { _, _ in onHotkeyChanged?() }
-            }
-        }
-        .accessibilityIdentifier("menu.hotkey.controls")
+        .accessibilityIdentifier("menu.recording.section")
     }
 
     private var recordingControls: some View {
@@ -691,16 +618,20 @@ struct MenuBarView: View {
             return "Add a \(appState.selectedTranscriptionProvider.displayName) API key, then run the setup test again."
         }
         if message.localizedCaseInsensitiveContains("accessibility") {
-            #if DEBUG
-            return "Enable GroqTalk in Accessibility. If it is already enabled, run make prepare-local-permissions-qa-check to verify the local app identity."
-            #else
-            return "Open Accessibility settings, enable GroqTalk, then rerun the test."
-            #endif
+            return accessibilityRecoveryDetail
         }
         if message.localizedCaseInsensitiveContains("microphone") {
             return "Check Microphone privacy or audio input, then rerun the test."
         }
         return "Resolve the setup item above, then rerun the test."
+    }
+
+    private var accessibilityRecoveryDetail: String {
+        #if DEBUG
+        AppState.accessibilityRecoveryDetail(isDebugBuild: true)
+        #else
+        AppState.accessibilityRecoveryDetail(isDebugBuild: false)
+        #endif
     }
 
     private var hotkeyLabel: String {

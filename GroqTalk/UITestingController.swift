@@ -12,6 +12,18 @@ final class UITestingController {
 
     static let automationMockSuccessNotification =
         Notification.Name("com.neonwatty.GroqTalk.automation.mockSuccess")
+    static let openHistoryNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.openHistory")
+    static let openSettingsNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
+    static let runSetupCheckNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
+    static var stateSnapshotURL: URL {
+        if let path = ProcessInfo.processInfo.environment["GROQTALK_UITEST_STATE_PATH"], !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+        return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("groqtalk-ui-tests-state.json")
+    }
 
     // MARK: - Dependencies
 
@@ -43,6 +55,19 @@ final class UITestingController {
     private var uiTestWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
     private var uiTestSettingsWindow: NSWindow?
+
+    private struct StateSnapshot: Encodable {
+        let statusText: String
+        let sessionTitle: String
+        let sessionDetail: String
+        let accessibilityText: String
+        let accessibilityActionTitle: String?
+        let microphoneText: String
+        let microphoneActionTitle: String?
+        let apiKeyText: String
+        let apiKeyActionTitle: String?
+        let canStartRecording: Bool
+    }
 
     // MARK: - Init
 
@@ -154,10 +179,27 @@ final class UITestingController {
             appState.customTranscriptionModel = "tiny-test-model"
         }
 
+        if args.contains("--seed-async-paste-enabled") {
+            appState.asyncPasteEnabled = true
+        }
+
+        if args.contains("--seed-floating-status-enabled") {
+            appState.showFloatingStatus = true
+        }
+
+        #if DEBUG
+        if args.contains("--seed-mock-transcription-enabled") {
+            appState.mockTranscriptionEnabled = true
+        }
+        #endif
+
         UserDefaults(suiteName: "com.neonwatty.GroqTalk.UITests")?.synchronize()
 
         showUITestWindow()
+        configureUITestCommandNotifications()
+        writeStateSnapshot()
         configureLiveMicrophoneSmokeIfNeeded(args: args)
+        configureSimulatedTranscriptionIfNeeded(args: args)
     }
 
     func configureAutomationSmokeIfNeeded() {
@@ -326,6 +368,16 @@ final class UITestingController {
         #endif
     }
 
+    private func configureSimulatedTranscriptionIfNeeded(args: [String]) {
+        guard args.contains("--simulate-success-after-launch")
+                || args.contains("--simulate-failure-after-launch") else { return }
+        let success = args.contains("--simulate-success-after-launch")
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            simulateUITestTranscription(success: success)
+        }
+    }
+
     nonisolated private static func writeLiveMicrophoneResult(
         path: String,
         status: String,
@@ -463,23 +515,131 @@ final class UITestingController {
         let view = SettingsView(
             appState: appState,
             history: history,
-            initialTab: .transcription,
+            initialTab: initialSettingsTab(),
             onHotkeyChanged: onHotkeyChanged
         )
         .accessibilityIdentifier("settings.testHost")
-        .frame(width: 560, height: 400)
+        .frame(width: 680, height: 430)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 430),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Settings"
-        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 560, height: 400))
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 680, height: 430))
         window.center()
         window.makeKeyAndOrderFront(nil)
         uiTestSettingsWindow = window
+    }
+
+    private func configureUITestCommandNotifications() {
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openHistoryForUITest),
+            name: UITestingController.openHistoryNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openSettingsForUITest),
+            name: UITestingController.openSettingsNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(runSetupCheckForUITest),
+            name: UITestingController.runSetupCheckNotification,
+            object: nil
+        )
+    }
+
+    @objc private func openHistoryForUITest() {
+        showUITestHistoryWindow()
+    }
+
+    @objc private func openSettingsForUITest() {
+        showUITestSettingsWindow()
+    }
+
+    @objc private func runSetupCheckForUITest() {
+        onRunSetupCheck()
+    }
+
+    func writeStateSnapshot() {
+        let session = appState.sessionPresentation(
+            hotkeyLabel: hotkeyLabel,
+            hasRetryableFailure: history.records.contains { $0.isFailure },
+            hasLastSuccess: history.records.contains { !$0.isFailure }
+        )
+        let snapshot = StateSnapshot(
+            statusText: appState.statusText,
+            sessionTitle: session.title,
+            sessionDetail: session.detail,
+            accessibilityText: permissionText(for: appState.accessibilityState),
+            accessibilityActionTitle: actionTitle(for: appState.accessibilityState, readyTitle: nil, unknownTitle: "Open Settings", needsActionTitle: "Open Settings"),
+            microphoneText: permissionText(for: appState.microphoneState),
+            microphoneActionTitle: actionTitle(for: appState.microphoneState, readyTitle: nil, unknownTitle: "Check", needsActionTitle: "Open Settings"),
+            apiKeyText: permissionText(for: appState.apiKeyState),
+            apiKeyActionTitle: actionTitle(for: appState.apiKeyState, readyTitle: nil, unknownTitle: "Add Key", needsActionTitle: "Add Key"),
+            canStartRecording: appState.canStartRecordingControl
+        )
+
+        do {
+            let data = try JSONEncoder().encode(snapshot)
+            try data.write(to: Self.stateSnapshotURL, options: Data.WritingOptions.atomic)
+        } catch {
+            DiagnosticLog.write("UITesting: failed to write state snapshot: \(error)")
+        }
+    }
+
+    private var hotkeyLabel: String {
+        switch appState.hotkeyChoice {
+        case .rightCommand: "Right Command"
+        case .rightOption: "Right Option"
+        case .globeFn: "Globe/Fn"
+        case .custom: appState.customHotkeyLabel.isEmpty ? "Custom" : appState.customHotkeyLabel
+        }
+    }
+
+    private func permissionText(for state: AppState.PermissionState) -> String {
+        switch state {
+        case .ready:
+            "Ready"
+        case .needsAction(let message):
+            message
+        case .unknown:
+            "Not checked"
+        }
+    }
+
+    private func actionTitle(
+        for state: AppState.PermissionState,
+        readyTitle: String?,
+        unknownTitle: String,
+        needsActionTitle: String
+    ) -> String? {
+        switch state {
+        case .ready:
+            readyTitle
+        case .unknown:
+            unknownTitle
+        case .needsAction:
+            needsActionTitle
+        }
+    }
+
+    private func initialSettingsTab() -> SettingsView.Tab {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--settings-tab-general") { return .general }
+        if args.contains("--settings-tab-recording") { return .recording }
+        if args.contains("--settings-tab-paste") { return .paste }
+        if args.contains("--settings-tab-privacy") { return .privacy }
+        if args.contains("--settings-tab-experimental") || args.contains("--settings-tab-advanced") {
+            return .experimental
+        }
+        return .transcription
     }
 
     // MARK: - Simulate transcription (UI testing)

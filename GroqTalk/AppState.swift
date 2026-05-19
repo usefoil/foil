@@ -626,6 +626,10 @@ final class AppState {
         return hasRetryableFailure ? "Audio saved · Retry transcription" : "Open History for details"
     }
 
+    static func accessibilityRecoveryDetail(isDebugBuild: Bool) -> String {
+        "Enable GroqTalk in Accessibility. Return to GroqTalk. If it is already enabled but still fails, remove the old GroqTalk entry, quit, and reopen GroqTalk."
+    }
+
     private func errorAction(for message: String, hasRetryableFailure: Bool) -> SessionAction? {
         if message.localizedCaseInsensitiveContains("api key") {
             return .addKey

@@ -95,6 +95,10 @@ test:
 	rm -f "$$tmp"; exit $$status
 
 test-ui:
+	@echo "WARNING: make test-ui runs macOS XCUITests in the active desktop session."
+	@echo "It can take focus, open windows, and drive UI interactions. Run it on a separate machine or when this Mac is idle."
+	@sleep 3
+	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
 	@tmp=$$(mktemp); \
 	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkUITests >"$$tmp" 2>&1; \
 	status=$$?; tail -5 "$$tmp"; \

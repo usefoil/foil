@@ -20,6 +20,7 @@ final class AppStateTests: XCTestCase {
     }
 
     override func setUpWithError() throws {
+        clearPersistedAppStateDefaults()
         testDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("GroqTalkAppStateTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: testDirectory, withIntermediateDirectories: true)
@@ -37,6 +38,10 @@ final class AppStateTests: XCTestCase {
         try? FileManager.default.removeItem(at: testDirectory)
         testDirectory = nil
 
+        clearPersistedAppStateDefaults()
+    }
+
+    private func clearPersistedAppStateDefaults() {
         UserDefaults.standard.removeObject(forKey: "audioFormat")
         UserDefaults.standard.removeObject(forKey: "keepOnClipboard")
         UserDefaults.standard.removeObject(forKey: "recordingMode")
@@ -172,6 +177,24 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.accessibilityState, .needsAction("Enable Accessibility"))
         XCTAssertTrue(state.needsSetupAttention)
         XCTAssertEqual(state.menuBarIcon, "exclamationmark.triangle.fill")
+    }
+
+    func testAccessibilityRecoveryDetailExplainsStaleIdentityRepairPath() {
+        let detail = AppState.accessibilityRecoveryDetail(isDebugBuild: false)
+
+        XCTAssertTrue(detail.contains("Return to GroqTalk"))
+        XCTAssertTrue(detail.contains("remove the old GroqTalk entry"))
+        XCTAssertTrue(detail.contains("quit"))
+        XCTAssertTrue(detail.contains("reopen"))
+        XCTAssertFalse(detail.contains("make prepare-local-permissions-qa"))
+    }
+
+    func testDebugAccessibilityRecoveryDetailDoesNotExposeDeveloperCommand() {
+        let detail = AppState.accessibilityRecoveryDetail(isDebugBuild: true)
+
+        XCTAssertTrue(detail.contains("already enabled"))
+        XCTAssertTrue(detail.contains("remove the old GroqTalk entry"))
+        XCTAssertFalse(detail.contains("make prepare-local-permissions-qa"))
     }
 
     func testSetupHealthReadyClearsAttention() {
