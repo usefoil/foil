@@ -543,9 +543,14 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private var controlCenter: XCUIElement {
-        app.windows["GroqTalk UI Test"].exists
-            ? app.windows["GroqTalk UI Test"]
-            : app.staticTexts["Ready"]
+        let testHost = app.descendants(matching: .any)["uiTest.controlCenter"]
+        if testHost.exists {
+            return testHost
+        }
+        if app.windows["GroqTalk UI Test"].exists {
+            return app.windows["GroqTalk UI Test"]
+        }
+        return app.staticTexts["Ready"]
     }
 
     private func launchForProviderQA(extraArguments: [String] = []) {
