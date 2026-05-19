@@ -113,7 +113,7 @@ make setup-release-secrets
 - Transcription history stays on this Mac in Application Support. Retention can be set to off, 100, 500, or 1000 records.
 - Successful audio files are deleted after transcription.
 - Failed audio may be retained locally only for retryable transcription failures. Clearing history deletes retained retry files.
-- Normal diagnostics should not include API keys or full transcript text. Release builds write diagnostic logs only when `GROQTALK_DIAGNOSTICS=1` is set.
+- Local diagnostics are redacted before writing and should not include API keys, transcript text, raw audio, or clipboard contents. Diagnostics are enabled by default for supportability; set `GROQTALK_DIAGNOSTICS=0` to disable local diagnostic logging.
 
 ## Paste Caveats
 

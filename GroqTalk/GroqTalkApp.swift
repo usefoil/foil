@@ -1,6 +1,7 @@
 import AVFoundation
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct GroqTalkApp: App {
@@ -65,6 +66,14 @@ struct GroqTalkApp: App {
                 history: appDelegate.history,
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() }
             )
+        }
+        .commands {
+            CommandGroup(after: .help) {
+                Button("Export Diagnostics...") {
+                    appDelegate.exportDiagnostics()
+                }
+                .keyboardShortcut("d", modifiers: [.command, .option])
+            }
         }
     }
 }
@@ -239,6 +248,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    @MainActor
+    func exportDiagnostics() {
+        DiagnosticLog.write("diagnosticsExport: save panel opened")
+        let panel = NSSavePanel()
+        panel.title = "Export Diagnostics"
+        panel.prompt = "Export"
+        panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = "GroqTalk-Diagnostics-\(Self.diagnosticsFilenameTimestamp()).txt"
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            DiagnosticLog.write("diagnosticsExport: cancelled")
+            return
+        }
+
+        let text = DiagnosticLog.exportText(appState: appState)
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            DiagnosticLog.write("diagnosticsExport: wrote file=\(url.lastPathComponent) bytes=\(text.utf8.count)")
+        } catch {
+            DiagnosticLog.write("diagnosticsExport: failed error=\(error.localizedDescription)")
+            let alert = NSAlert()
+            alert.messageText = "Diagnostics export failed"
+            alert.informativeText = "GroqTalk could not write the diagnostics file. Choose another location and try again."
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         guard !Self.isTestingProcess() else { return }
         refreshSetupHealth()
@@ -254,6 +292,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         arguments.contains("--ui-testing")
             || environment["XCTestConfigurationFilePath"] != nil
             || arguments.contains { $0.localizedCaseInsensitiveContains(".xctest") }
+    }
+
+    private static func diagnosticsFilenameTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: Date())
     }
 
     private func shouldShowOnboarding(isTesting: Bool) -> Bool {
