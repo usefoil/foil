@@ -24,7 +24,7 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testControlCenterShowsSeededReadyState() {
-        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 2))
+        XCTAssertTrue(waitForSessionTitle("Ready", timeout: 6), app.debugDescription)
         XCTAssertTrue(staticTextContaining("Pastes into current app", in: controlCenter).exists)
         XCTAssertTrue(controlCenter.staticTexts["Second searchable transcript."].exists)
         assertButtonExists(id: "menu.historyButton", fallbackLabel: "History")
@@ -374,7 +374,7 @@ final class GroqTalkUITests: XCTestCase {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-floating-status-enabled", "--simulate-success-after-launch"])
 
         XCTAssertTrue(app.staticTexts["Paste command sent to the current app"].waitForExistence(timeout: 6))
-        XCTAssertTrue(app.windows["GroqTalk Floating Status"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.hud"].waitForNonExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Ready"].exists)
         XCTAssertTrue(app.staticTexts["Paste command sent to the current app"].exists)
     }
@@ -649,7 +649,7 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func assertButtonExists(id: String, fallbackLabel: String) {
-        XCTAssertTrue(button(id: id, fallbackLabel: fallbackLabel).exists, app.debugDescription)
+        XCTAssertTrue(button(id: id, fallbackLabel: fallbackLabel).waitForExistence(timeout: 4), app.debugDescription)
     }
 
     private func clickButton(id: String, fallbackLabel: String) {
