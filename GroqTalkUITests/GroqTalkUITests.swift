@@ -328,9 +328,9 @@ final class GroqTalkUITests: XCTestCase {
     func testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--simulate-success-after-launch"])
 
-        XCTAssertTrue(app.staticTexts["Transcribing"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Cleaning up"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Pasting"].waitForExistence(timeout: 2))
+        XCTAssertTrue(waitForSessionTitle("Transcribing", timeout: 2))
+        XCTAssertTrue(waitForSessionTitle("Cleaning up", timeout: 2))
+        XCTAssertTrue(waitForSessionTitle("Pasting", timeout: 2))
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 6))
         XCTAssertFalse(app.staticTexts["Done"].waitForExistence(timeout: 1))
         XCTAssertTrue(app.staticTexts["Mock async paste transcript"].waitForExistence(timeout: 2))
@@ -341,8 +341,8 @@ final class GroqTalkUITests: XCTestCase {
     func testSimulatedRecordingUsesAsyncPasteWhenEnabled() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-async-paste-enabled", "--simulate-success-after-launch"])
 
-        XCTAssertTrue(app.staticTexts["Transcribing"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Pasting"].waitForExistence(timeout: 2))
+        XCTAssertTrue(waitForSessionTitle("Transcribing", timeout: 2))
+        XCTAssertTrue(waitForSessionTitle("Pasting", timeout: 2))
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.staticTexts["Mock async paste transcript"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Pasted into the test target"].waitForExistence(timeout: 2))
@@ -363,7 +363,7 @@ final class GroqTalkUITests: XCTestCase {
     func testFloatingStatusCanBeEnabled() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-floating-status-enabled", "--simulate-success-after-launch"])
 
-        XCTAssertTrue(app.staticTexts["Transcribing"].waitForExistence(timeout: 2))
+        XCTAssertTrue(waitForSessionTitle("Transcribing", timeout: 2))
         XCTAssertTrue(app.staticTexts["Paste command sent to the current app"].waitForExistence(timeout: 6))
     }
 
@@ -599,7 +599,39 @@ final class GroqTalkUITests: XCTestCase {
     private func clickButton(id: String, fallbackLabel: String) {
         let target = button(id: id, fallbackLabel: fallbackLabel)
         XCTAssertTrue(target.waitForExistence(timeout: 5), app.debugDescription)
-        target.click()
+        clickElement(target)
+    }
+
+    private func clickElement(_ element: XCUIElement) {
+        if element.isHittable {
+            element.click()
+            return
+        }
+
+        app.activate()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+
+        if element.isHittable {
+            element.click()
+        } else {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        }
+    }
+
+    private func waitForSessionTitle(_ title: String, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        let identifiedTitle = app.staticTexts["menu.status.title"]
+        repeat {
+            if identifiedTitle.exists && identifiedTitle.label == title {
+                return true
+            }
+            if app.staticTexts[title].exists {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+
+        return false
     }
 
     private func staticTextContaining(_ text: String) -> XCUIElement {
