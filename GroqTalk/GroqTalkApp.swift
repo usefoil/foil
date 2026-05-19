@@ -80,6 +80,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let textInserter = TextInserter()
     private let soundPlayer = SoundPlayer()
     private let singleInstanceGuard: SingleInstanceGuarding
+    private lazy var recordingStartCueScheduler = RecordingStartCueScheduler(
+        isRecording: { [weak self] in self?.appState.status == .recording },
+        playStartSound: { [weak self] in self?.soundPlayer.playStartSound() }
+    )
 
     private var retryingRecordID: UUID?
 
@@ -989,7 +993,7 @@ extension AppDelegate: RecordingControllerDelegate {
     func recordingControllerDidStart(_ controller: RecordingController) {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStart")
         appState.updateMicrophoneState(isReady: true)
-        soundPlayer.playStartSound()
+        recordingStartCueScheduler.schedule()
     }
 
     func recordingController(
