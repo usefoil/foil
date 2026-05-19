@@ -483,14 +483,19 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("Browser Media") {
+                Toggle("Pause browser media while recording", isOn: $appState.pauseBrowserMediaWhileRecording)
+                    .accessibilityIdentifier("settings.pauseBrowserMediaToggle")
+                Text("Experimental. Chrome and Chromium only. Chrome must allow JavaScript from Apple Events.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             #if DEBUG
             Section("Debug") {
                 Toggle("Mock transcription", isOn: $appState.mockTranscriptionEnabled)
                     .accessibilityIdentifier("settings.mockToggle")
             }
-            #else
-            Text("No experimental settings are available in this build.")
-                .foregroundStyle(.secondary)
             #endif
         }
         .formStyle(.grouped)

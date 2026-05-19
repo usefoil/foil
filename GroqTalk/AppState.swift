@@ -220,6 +220,10 @@ final class AppState {
         didSet { Self.defaults.set(experimentalSkyLightPasteEnabled, forKey: "experimentalSkyLightPasteEnabled") }
     }
 
+    var pauseBrowserMediaWhileRecording: Bool = false {
+        didSet { Self.defaults.set(pauseBrowserMediaWhileRecording, forKey: "pauseBrowserMediaWhileRecording") }
+    }
+
     #if DEBUG
     var mockTranscriptionEnabled: Bool = false {
         didSet { Self.defaults.set(mockTranscriptionEnabled, forKey: "mockTranscriptionEnabled") }
@@ -671,6 +675,7 @@ final class AppState {
                 "showFloatingStatus",
                 "asyncPasteEnabled",
                 "experimentalSkyLightPasteEnabled",
+                "pauseBrowserMediaWhileRecording",
                 "mockTranscriptionEnabled",
                 "recordingMode",
                 "hotkeyChoice",
@@ -701,6 +706,7 @@ final class AppState {
             "showFloatingStatus": false,
             "asyncPasteEnabled": false,
             "experimentalSkyLightPasteEnabled": false,
+            "pauseBrowserMediaWhileRecording": false,
             "mockTranscriptionEnabled": false,
             "recordingMode": "hold",
             "hotkeyChoice": "rightCommand",
@@ -739,6 +745,7 @@ final class AppState {
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
         experimentalSkyLightPasteEnabled = defaults.bool(forKey: "experimentalSkyLightPasteEnabled")
+        pauseBrowserMediaWhileRecording = defaults.bool(forKey: "pauseBrowserMediaWhileRecording")
         #if DEBUG
         mockTranscriptionEnabled = defaults.bool(forKey: "mockTranscriptionEnabled")
         #endif
