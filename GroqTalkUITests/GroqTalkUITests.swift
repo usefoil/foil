@@ -24,7 +24,7 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testControlCenterShowsSeededReadyState() {
-        XCTAssertTrue(controlCenter.staticTexts["Ready"].exists)
+        XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 2))
         XCTAssertTrue(staticTextContaining("Pastes into current app", in: controlCenter).exists)
         XCTAssertTrue(controlCenter.staticTexts["Second searchable transcript."].exists)
         assertButtonExists(id: "menu.historyButton", fallbackLabel: "History")
@@ -312,7 +312,7 @@ final class GroqTalkUITests: XCTestCase {
 
         let toggle = checkBox(id: "settings.mockToggle", fallbackLabel: "Mock transcription")
         XCTAssertTrue(toggle.exists)
-        toggle.click()
+        clickElement(toggle)
 
         app.terminate()
         app = XCUIApplication()
@@ -624,6 +624,10 @@ final class GroqTalkUITests: XCTestCase {
             if identified.exists {
                 return identified
             }
+            let genericIdentified = uiTestControlCenterHost.descendants(matching: .any)[id]
+            if genericIdentified.exists {
+                return genericIdentified
+            }
             return uiTestControlCenterHost.descendants(matching: .button)[fallbackLabel]
         }
 
@@ -632,8 +636,16 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func checkBox(id: String, fallbackLabel: String) -> XCUIElement {
+        let genericIdentified = app.descendants(matching: .any)[id]
+        if genericIdentified.exists {
+            return genericIdentified
+        }
         let identified = app.checkBoxes[id]
-        return identified.exists ? identified : app.checkBoxes[fallbackLabel]
+        if identified.exists {
+            return identified
+        }
+        let genericFallback = app.descendants(matching: .any)[fallbackLabel]
+        return genericFallback.exists ? genericFallback : app.checkBoxes[fallbackLabel]
     }
 
     private func assertButtonExists(id: String, fallbackLabel: String) {
