@@ -43,7 +43,7 @@ final class GroqTalkUITests: XCTestCase {
     func testControlCenterShowsSeededReadyState() {
         let state = waitForUITestStateSnapshot { $0.sessionTitle == "Ready" }
         XCTAssertEqual(state?.statusText, "Ready")
-        XCTAssertEqual(state?.sessionDetail, "Right Command · Pastes into current app")
+        XCTAssertEqual(state?.sessionDetail, "Right Command · Paste target is the current app")
         XCTAssertEqual(state?.accessibilityText, "Ready")
         XCTAssertEqual(state?.microphoneText, "Ready")
         XCTAssertEqual(state?.apiKeyText, "Ready")
