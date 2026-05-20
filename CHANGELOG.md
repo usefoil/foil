@@ -1,3 +1,16 @@
+# [1.12.0](https://github.com/mean-weasel/groqtalk/compare/v1.11.0...v1.12.0) (2026-05-20)
+
+
+### Bug Fixes
+
+* validate custom providers and skip unsupported cleanup ([451f9c3](https://github.com/mean-weasel/groqtalk/commit/451f9c312292bc5b682a4d27299bcb8600cf8f0f))
+
+
+### Features
+
+* add OpenAI-compatible transcription provider ([0c72b2e](https://github.com/mean-weasel/groqtalk/commit/0c72b2e5d8aa4f4641751a1606d5fa58a0ff6fc7))
+* polish transcription provider setup presets ([#79](https://github.com/mean-weasel/groqtalk/issues/79)) ([78711b9](https://github.com/mean-weasel/groqtalk/commit/78711b9b7154e01b54a4eda9c2009596909d0e6f))
+
 # [1.11.0](https://github.com/mean-weasel/groqtalk/compare/v1.10.2...v1.11.0) (2026-05-14)
 
 
