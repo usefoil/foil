@@ -22,6 +22,8 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>GroqTalk needs microphone access to record audio for speech-to-text.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>GroqTalk uses Apple Events to pause browser media in Chrome and Chromium while recording, when you enable this experimental setting.</string>
 	<key>SUFeedURL</key>
 	<string>https://github.com/neonwatty/groqtalk/releases/latest/download/appcast.xml</string>
 </dict>

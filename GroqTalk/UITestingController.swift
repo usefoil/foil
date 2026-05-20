@@ -132,6 +132,7 @@ final class UITestingController {
             appState.updateMicrophoneState(isReady: true)
             appState.apiKeyState = .ready
             appState.experimentalSkyLightPasteEnabled = false
+            appState.pauseBrowserMediaWhileRecording = false
             appState.lastPasteSummary = nil
             #if DEBUG
             appState.mockTranscriptionEnabled = false

@@ -89,6 +89,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let textInserter = TextInserter()
     private let soundPlayer = SoundPlayer()
     private let singleInstanceGuard: SingleInstanceGuarding
+    private lazy var browserMediaController = BrowserMediaController(
+        isEnabled: { [weak self] in self?.appState.pauseBrowserMediaWhileRecording == true }
+    )
     private lazy var recordingStartCueScheduler = RecordingStartCueScheduler(
         isRecording: { [weak self] in self?.appState.status == .recording },
         playStartSound: { [weak self] in self?.soundPlayer.playStartSound() }
@@ -1038,6 +1041,11 @@ extension AppDelegate: RecordingControllerDelegate {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStart")
         appState.updateMicrophoneState(isReady: true)
         recordingStartCueScheduler.schedule()
+        if let browserMediaSessionID = browserMediaController.recordingDidStart() {
+            Task {
+                await browserMediaController.pausePlayingMedia(for: browserMediaSessionID)
+            }
+        }
     }
 
     func recordingController(
@@ -1046,6 +1054,7 @@ extension AppDelegate: RecordingControllerDelegate {
         format: AudioFormat
     ) {
         DiagnosticLog.write("AppDelegate: recordingController didStopWithURL=\(audioURL.lastPathComponent)")
+        browserMediaController.recordingDidEnd(reason: .stopped)
         Task { @MainActor in
             await transcriptionController.transcribe(audioURL: audioURL, format: format)
         }
@@ -1053,12 +1062,14 @@ extension AppDelegate: RecordingControllerDelegate {
 
     func recordingControllerDidStopWithNoAudio(_ controller: RecordingController) {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStopWithNoAudio")
+        browserMediaController.recordingDidEnd(reason: .noAudio)
         stopTranscribingAnimation()
         appState.setStatus(.idle)
     }
 
     func recordingControllerDidCancel(_ controller: RecordingController) {
         DiagnosticLog.write("AppDelegate: recordingControllerDidCancel")
+        browserMediaController.recordingDidEnd(reason: .cancelled)
         appState.setStatus(.idle)
         appState.feedbackMessage = "Recording cancelled"
         pasteController.clearPendingTarget()
@@ -1066,6 +1077,7 @@ extension AppDelegate: RecordingControllerDelegate {
 
     func recordingController(_ controller: RecordingController, didFailWithError error: Error) {
         DiagnosticLog.write("AppDelegate: recordingController didFailWithError=\(error)")
+        browserMediaController.recordingDidEnd(reason: .failed)
         pasteController.clearPendingTarget()
         appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
         appState.showError("Microphone unavailable")

@@ -72,6 +72,8 @@
 		AB33445566778899001122DD /* SoundPlayerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB33445566778899001122CC /* SoundPlayerTests.swift */; };
 		AC33445566778899001122DD /* RecordingStartCueSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC33445566778899001122CC /* RecordingStartCueSchedulerTests.swift */; };
 		AD33445566778899001122DD /* DiagnosticLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD33445566778899001122CC /* DiagnosticLogTests.swift */; };
+		AF33445566778899001122DD /* BrowserMediaController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF33445566778899001122CC /* BrowserMediaController.swift */; };
+		AF44445566778899001122DD /* BrowserMediaControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF44445566778899001122CC /* BrowserMediaControllerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -120,6 +122,8 @@
 		AB33445566778899001122CC /* SoundPlayerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundPlayerTests.swift; sourceTree = "<group>"; };
 		AC33445566778899001122CC /* RecordingStartCueSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingStartCueSchedulerTests.swift; sourceTree = "<group>"; };
 		AD33445566778899001122CC /* DiagnosticLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogTests.swift; sourceTree = "<group>"; };
+		AF33445566778899001122CC /* BrowserMediaController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserMediaController.swift; sourceTree = "<group>"; };
+		AF44445566778899001122CC /* BrowserMediaControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserMediaControllerTests.swift; sourceTree = "<group>"; };
 		5A61E71A6E8082B95B8BFFBB /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		5DA6DFA9E20871913651ECEB /* HistoryPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverView.swift; sourceTree = "<group>"; };
 		7015BB4F30AB39CCD14AD34B /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
@@ -191,6 +195,7 @@
 				DF970AE548B49F2AD02AE742 /* AppStateTests.swift */,
 				B6B0DA7F2F73D239BFCA2B39 /* AudioRecorderTests.swift */,
 				8438CCC3D27E03B7AE3815F7 /* BackgroundPasteTests.swift */,
+				AF44445566778899001122CC /* BrowserMediaControllerTests.swift */,
 				AD33445566778899001122CC /* DiagnosticLogTests.swift */,
 				BB11223344556677889900BB /* MockAudioRecorder.swift */,
 				0B60032CCB98D3746C131217 /* HistoryPopoverTests.swift */,
@@ -246,6 +251,7 @@
 				583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */,
 				AA11223344556677889900AA /* AudioRecording.swift */,
 				F22AD03CCE8B0FD7392A3D02 /* BackgroundPaste.swift */,
+				AF33445566778899001122CC /* BrowserMediaController.swift */,
 				0BE6B85DF059FB4B645DFB8C /* DiagnosticLog.swift */,
 				EE11223344556677889900AA /* E2EAudioStub.swift */,
 				FF11223344556677889900AA /* e2e-test-audio.wav */,
@@ -409,6 +415,7 @@
 				0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */,
 				AA11223344556677889900CC /* AudioRecording.swift in Sources */,
 				F7B066205963C05411DD0875 /* BackgroundPaste.swift in Sources */,
+				AF33445566778899001122DD /* BrowserMediaController.swift in Sources */,
 				667DAE95FBD5D705DAB0040E /* DiagnosticLog.swift in Sources */,
 				EE11223344556677889900CC /* E2EAudioStub.swift in Sources */,
 				C9B86E4CF5B41FC449096567 /* FloatingStatusView.swift in Sources */,
@@ -448,6 +455,7 @@
 				A02E3739EF61ABCCE34BF29F /* AppStateTests.swift in Sources */,
 				A415CE9E58748D266755EEFC /* AudioRecorderTests.swift in Sources */,
 				0077C5AE095BD3D6ED05268A /* BackgroundPasteTests.swift in Sources */,
+				AF44445566778899001122DD /* BrowserMediaControllerTests.swift in Sources */,
 				AD33445566778899001122DD /* DiagnosticLogTests.swift in Sources */,
 				BB11223344556677889900CC /* MockAudioRecorder.swift in Sources */,
 				59670AD3B35A6E862511D3B5 /* HistoryPopoverTests.swift in Sources */,
