@@ -291,6 +291,29 @@ final class GroqTalkUITests: XCTestCase {
         )
     }
 
+    func testProviderQALocalWhisperCanBeSelectedFromDefaultSettings() {
+        launchForProviderQA()
+        openTranscriptionSettingsPanel()
+
+        assertProviderPickerExists()
+        XCTAssertEqual(providerPicker.value as? String, "Groq")
+
+        selectProviderPreset("Local whisper.cpp")
+
+        XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].waitForExistence(timeout: 2) || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["whisper-1"].exists || staticTextContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextContaining("Install whisper.cpp").waitForExistence(timeout: 2)
+                      || elementExists(id: "settings.localProviderHelp", timeout: 2),
+                      app.debugDescription)
+        XCTAssertTrue(providerConnectionButton().waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(
+            app.staticTexts["Cleanup requires a Groq-compatible chat provider."].waitForExistence(timeout: 2)
+                || app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].waitForExistence(timeout: 2),
+            app.debugDescription
+        )
+    }
+
     func testProviderQAInvalidCustomBaseURLShowsValidationStatus() {
         launchForProviderQA(extraArguments: ["--seed-invalid-custom-provider"])
         openTranscriptionSettingsPanel()
@@ -764,6 +787,22 @@ final class GroqTalkUITests: XCTestCase {
         app.popUpButtons["settings.transcriptionProviderPicker"].exists
             ? app.popUpButtons["settings.transcriptionProviderPicker"]
             : app.popUpButtons["menu.settings.transcriptionProviderPicker"]
+    }
+
+    private func selectProviderPreset(_ name: String) {
+        let picker = providerPicker
+        XCTAssertTrue(picker.waitForExistence(timeout: 4), app.debugDescription)
+        clickElement(picker)
+
+        let menuItem = app.menuItems[name].firstMatch
+        if menuItem.waitForExistence(timeout: 2) {
+            clickElement(menuItem)
+            return
+        }
+
+        let matchingElement = app.descendants(matching: .any)[name].firstMatch
+        XCTAssertTrue(matchingElement.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(matchingElement)
     }
 
     private var customBaseURLField: XCUIElement {

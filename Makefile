@@ -110,6 +110,7 @@ test-provider-qa:
 	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' \
 		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQADefaultsToGroqPreset \
 		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
+		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings \
 		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus \
 		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQACustomProviderPersistsAcrossRelaunch >"$$tmp" 2>&1; \
 	status=$$?; tail -8 "$$tmp"; \

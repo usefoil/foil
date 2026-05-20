@@ -324,7 +324,7 @@ struct SettingsView: View {
                 } else if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
                     LabeledContent("Base URL", value: "http://127.0.0.1:8080/v1")
                     LabeledContent("Model", value: "whisper-1")
-                    Text("Uses a local OpenAI-compatible whisper.cpp server. API key is optional; use a dummy value such as local only if your server expects one.")
+                    Text("Install whisper.cpp, download a model, then start whisper-server on 127.0.0.1:8080 with --inference-path /v1/audio/transcriptions. API key is optional; use a dummy value such as local only if your server expects one.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
