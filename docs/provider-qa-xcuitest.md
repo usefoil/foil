@@ -15,10 +15,17 @@ This covers:
 - Groq default provider UI
 - Local whisper.cpp preset copy and cleanup-unavailable state
 - Local whisper.cpp selection from default Settings state
+- Local whisper.cpp setup helper model guidance, generated commands, and copy buttons
+- Local whisper.cpp selection persistence across relaunch
 - Custom OpenAI-compatible invalid base URL validation
 - Custom OpenAI-compatible persistence across relaunch
 
 This target does not require network access, Groq credentials, whisper.cpp, or model files.
+
+The setup helper assertion is
+`GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands`.
+It checks the CI-safe Settings surface only; the real local transcription path
+remains covered by the opt-in local E2E target below.
 
 ## Live Groq Provider QA
 

@@ -141,6 +141,133 @@ struct TranscriptionProvider: Equatable {
     }
 }
 
+enum LocalWhisperSetupModelID: String, CaseIterable, Identifiable {
+    case tinyEN = "tiny.en"
+    case baseEN = "base.en"
+    case smallEN = "small.en"
+    case mediumEN = "medium.en"
+    case largeV3Turbo = "large-v3-turbo"
+    case largeV3 = "large-v3"
+
+    var id: String { rawValue }
+}
+
+struct LocalWhisperSetupModel: Equatable, Identifiable {
+    let id: LocalWhisperSetupModelID
+    let displayName: String
+    let languageScope: String
+    let diskGuidance: String
+    let performanceGuidance: String
+
+    var downloadIdentifier: String { id.rawValue }
+    var ggmlFilename: String { "ggml-\(downloadIdentifier).bin" }
+
+    static let all: [LocalWhisperSetupModel] = [
+        LocalWhisperSetupModel(
+            id: .tinyEN,
+            displayName: "Tiny English",
+            languageScope: "English-only",
+            diskGuidance: "Smallest download",
+            performanceGuidance: "Fastest local smoke-test option with the lowest accuracy."
+        ),
+        LocalWhisperSetupModel(
+            id: .baseEN,
+            displayName: "Base English",
+            languageScope: "English-only",
+            diskGuidance: "Small download",
+            performanceGuidance: "Recommended starter model for English transcription."
+        ),
+        LocalWhisperSetupModel(
+            id: .smallEN,
+            displayName: "Small English",
+            languageScope: "English-only",
+            diskGuidance: "Moderate download",
+            performanceGuidance: "Better English accuracy with still-manageable local performance."
+        ),
+        LocalWhisperSetupModel(
+            id: .mediumEN,
+            displayName: "Medium English",
+            languageScope: "English-only",
+            diskGuidance: "Large download",
+            performanceGuidance: "Higher English accuracy with slower local transcription."
+        ),
+        LocalWhisperSetupModel(
+            id: .largeV3Turbo,
+            displayName: "Large V3 Turbo",
+            languageScope: "Multilingual",
+            diskGuidance: "Large download",
+            performanceGuidance: "Strong multilingual quality with faster large-v3-family performance."
+        ),
+        LocalWhisperSetupModel(
+            id: .largeV3,
+            displayName: "Large V3",
+            languageScope: "Multilingual",
+            diskGuidance: "Largest download",
+            performanceGuidance: "Highest standard large-v3 quality with the slowest local performance."
+        )
+    ]
+
+    static let recommendedDefaultID: LocalWhisperSetupModelID = .baseEN
+
+    static func option(id: LocalWhisperSetupModelID) -> LocalWhisperSetupModel {
+        all.first { $0.id == id }!
+    }
+}
+
+struct LocalWhisperSetupCommands: Equatable {
+    static let defaultInstallPath = "~/Developer/whisper.cpp"
+    static let defaultHost = "127.0.0.1"
+    static let defaultPort = 8080
+    static let apiCompatibilityModel = "whisper-1"
+
+    let model: LocalWhisperSetupModel
+    var installPath: String = Self.defaultInstallPath
+    var host: String = Self.defaultHost
+    var port: Int = Self.defaultPort
+
+    var cloneCommand: String {
+        """
+        mkdir -p ~/Developer
+        git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git \(installPath)
+        """
+    }
+
+    var buildCommand: String {
+        """
+        cd \(installPath)
+        cmake -B build -DWHISPER_BUILD_TESTS=OFF
+        cmake --build build -j --config Release
+        """
+    }
+
+    var downloadCommand: String {
+        """
+        cd \(installPath)
+        sh ./models/download-ggml-model.sh \(model.downloadIdentifier)
+        """
+    }
+
+    var startServerCommand: String {
+        """
+        \(installPath)/build/bin/whisper-server \\
+          --host \(host) \\
+          --port \(port) \\
+          --model \(installPath)/models/\(model.ggmlFilename) \\
+          --inference-path /v1/audio/transcriptions \\
+          --convert \\
+          --no-timestamps
+        """
+    }
+
+    var localBaseURL: String {
+        "http://\(host):\(port)/v1"
+    }
+
+    var modelSelectionExplanation: String {
+        "GroqTalk sends \(Self.apiCompatibilityModel) for OpenAI-compatible API shape; whisper-server uses --model \(model.ggmlFilename) as the real local model."
+    }
+}
+
 struct TranscriptionService {
     static let maxUploadBytes = 25 * 1024 * 1024
     static let providerValidationTimeout: TimeInterval = 3

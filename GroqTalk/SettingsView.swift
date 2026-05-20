@@ -62,6 +62,7 @@ struct SettingsView: View {
     @State private var isShowingClearHistoryConfirmation = false
     @State private var launchAtLoginManager = LaunchAtLoginManager()
     @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
+    @State private var selectedLocalWhisperSetupModelID = LocalWhisperSetupModel.recommendedDefaultID
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
     private let soundPreviewPlayer = SoundPlayer()
 
@@ -329,6 +330,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("settings.localProviderHelp")
+                    localWhisperSetupHelper
                 } else {
                     TextField("Base URL", text: $appState.customTranscriptionBaseURL)
                         .accessibilityIdentifier("settings.customTranscriptionBaseURL")
@@ -374,6 +376,90 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var selectedLocalWhisperSetupModel: LocalWhisperSetupModel {
+        LocalWhisperSetupModel.option(id: selectedLocalWhisperSetupModelID)
+    }
+
+    private var selectedLocalWhisperSetupCommands: LocalWhisperSetupCommands {
+        LocalWhisperSetupCommands(model: selectedLocalWhisperSetupModel)
+    }
+
+    private var localWhisperSetupHelper: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
+
+            Picker("Local model", selection: $selectedLocalWhisperSetupModelID) {
+                ForEach(LocalWhisperSetupModel.all) { option in
+                    Text(option.displayName).tag(option.id)
+                }
+            }
+            .accessibilityIdentifier("settings.localWhisperSetupModelPicker")
+
+            Text("\(selectedLocalWhisperSetupModel.languageScope). \(selectedLocalWhisperSetupModel.diskGuidance). \(selectedLocalWhisperSetupModel.performanceGuidance)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.localWhisperSetupModelGuidance")
+
+            Text(selectedLocalWhisperSetupCommands.modelSelectionExplanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.localWhisperSetupModelExplanation")
+
+            commandBlock(
+                title: "Install whisper.cpp",
+                command: selectedLocalWhisperSetupCommands.cloneCommand,
+                identifier: "settings.localWhisperCloneCommand"
+            )
+
+            commandBlock(
+                title: "Build server",
+                command: selectedLocalWhisperSetupCommands.buildCommand,
+                identifier: "settings.localWhisperBuildCommand"
+            )
+
+            commandBlock(
+                title: "Download model",
+                command: selectedLocalWhisperSetupCommands.downloadCommand,
+                identifier: "settings.localWhisperDownloadCommand"
+            )
+
+            commandBlock(
+                title: "Start server",
+                command: selectedLocalWhisperSetupCommands.startServerCommand,
+                identifier: "settings.localWhisperStartServerCommand"
+            )
+        }
+    }
+
+    private func commandBlock(title: String, command: String, identifier: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Spacer()
+                Button("Copy") {
+                    copyToPasteboard(command)
+                }
+                .accessibilityIdentifier("\(identifier).copyButton")
+            }
+
+            Text(command)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(identifier)
+                .accessibilityLabel(command)
+        }
+    }
+
+    private func copyToPasteboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     private var apiKeyStatusLabel: String {

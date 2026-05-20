@@ -6,7 +6,7 @@ final class GroqTalkUITests: XCTestCase {
     private let openSettingsNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
     private let runSetupCheckNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
     private let stateSnapshotURL =
-        URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("groqtalk-ui-tests-state.json")
+        URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-state-\(ProcessInfo.processInfo.processIdentifier).json")
 
     private struct UITestStateSnapshot: Decodable {
         let statusText: String
@@ -303,15 +303,56 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].waitForExistence(timeout: 2) || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["whisper-1"].exists || staticTextContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextContaining("Install whisper.cpp").waitForExistence(timeout: 2)
-                      || elementExists(id: "settings.localProviderHelp", timeout: 2),
-                      app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Install whisper.cpp").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(providerConnectionButton().waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(
             app.staticTexts["Cleanup requires a Groq-compatible chat provider."].waitForExistence(timeout: 2)
                 || app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].waitForExistence(timeout: 2),
             app.debugDescription
         )
+    }
+
+    func testProviderQALocalWhisperSetupHelperShowsModelCommands() {
+        launchForProviderQA(extraArguments: ["--seed-local-provider"])
+        openTranscriptionSettingsPanel()
+
+        XCTAssertTrue(elementExists(id: "settings.localWhisperSetupModelPicker", timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Recommended starter model").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("--model ggml-base.en.bin").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("mkdir -p ~/Developer").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git ~/Developer/whisper.cpp").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("cmake -B build -DWHISPER_BUILD_TESTS=OFF").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("download-ggml-model.sh base.en").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("--inference-path /v1/audio/transcriptions").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.localWhisperCloneCommand.copyButton", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.localWhisperBuildCommand.copyButton", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.localWhisperDownloadCommand.copyButton", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.localWhisperStartServerCommand.copyButton", timeout: 2), app.debugDescription)
+    }
+
+    func testProviderQALocalWhisperSelectionPersistsAcrossRelaunch() {
+        launchForProviderQA()
+        openTranscriptionSettingsPanel()
+
+        selectProviderPreset("Local whisper.cpp")
+        XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
+
+        app.terminate()
+        app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--seed-history"
+        ]
+        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
+        removeUITestStateSnapshot()
+        app.launch()
+        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        openTranscriptionSettingsPanel()
+
+        XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].waitForExistence(timeout: 2) || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["whisper-1"].exists || staticTextContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
     }
 
     func testProviderQAInvalidCustomBaseURLShowsValidationStatus() {
@@ -763,6 +804,11 @@ final class GroqTalkUITests: XCTestCase {
 
     private func staticTextContaining(_ text: String, in root: XCUIElement? = nil) -> XCUIElement {
         let predicate = NSPredicate(format: "label CONTAINS %@", text)
+        return (root ?? app).staticTexts.matching(predicate).firstMatch
+    }
+
+    private func staticTextLabelOrValueContaining(_ text: String, in root: XCUIElement? = nil) -> XCUIElement {
+        let predicate = NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text)
         return (root ?? app).staticTexts.matching(predicate).firstMatch
     }
 

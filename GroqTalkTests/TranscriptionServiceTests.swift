@@ -99,6 +99,62 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(preset.isEditable)
     }
 
+    func testLocalWhisperSetupModelsCoverApprovedSourceVerifiedOptions() {
+        let options = LocalWhisperSetupModel.all
+
+        XCTAssertEqual(
+            options.map(\.id),
+            [.tinyEN, .baseEN, .smallEN, .mediumEN, .largeV3Turbo, .largeV3]
+        )
+        XCTAssertEqual(LocalWhisperSetupModel.recommendedDefaultID, .baseEN)
+        XCTAssertEqual(options.map(\.downloadIdentifier), [
+            "tiny.en",
+            "base.en",
+            "small.en",
+            "medium.en",
+            "large-v3-turbo",
+            "large-v3"
+        ])
+        XCTAssertEqual(options.map(\.ggmlFilename), [
+            "ggml-tiny.en.bin",
+            "ggml-base.en.bin",
+            "ggml-small.en.bin",
+            "ggml-medium.en.bin",
+            "ggml-large-v3-turbo.bin",
+            "ggml-large-v3.bin"
+        ])
+        XCTAssertEqual(LocalWhisperSetupModel.option(id: .baseEN).languageScope, "English-only")
+        XCTAssertEqual(LocalWhisperSetupModel.option(id: .largeV3Turbo).languageScope, "Multilingual")
+    }
+
+    func testLocalWhisperSetupCommandsUseSelectedModelFile() {
+        let model = LocalWhisperSetupModel.option(id: .smallEN)
+        let commands = LocalWhisperSetupCommands(model: model)
+
+        XCTAssertTrue(commands.cloneCommand.contains("mkdir -p ~/Developer"))
+        XCTAssertTrue(commands.cloneCommand.contains("git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git ~/Developer/whisper.cpp"))
+        XCTAssertTrue(commands.buildCommand.contains("cmake -B build -DWHISPER_BUILD_TESTS=OFF"))
+        XCTAssertTrue(commands.buildCommand.contains("cmake --build build -j --config Release"))
+        XCTAssertTrue(commands.downloadCommand.contains("sh ./models/download-ggml-model.sh small.en"))
+        XCTAssertTrue(commands.startServerCommand.contains("--host 127.0.0.1"))
+        XCTAssertTrue(commands.startServerCommand.contains("--port 8080"))
+        XCTAssertTrue(commands.startServerCommand.contains("--model ~/Developer/whisper.cpp/models/ggml-small.en.bin"))
+        XCTAssertFalse(commands.startServerCommand.contains("--language"))
+        XCTAssertTrue(commands.startServerCommand.contains("--inference-path /v1/audio/transcriptions"))
+        XCTAssertTrue(commands.startServerCommand.contains("--convert"))
+        XCTAssertTrue(commands.startServerCommand.contains("--no-timestamps"))
+        XCTAssertEqual(commands.localBaseURL, "http://127.0.0.1:8080/v1")
+    }
+
+    func testLocalWhisperSetupExplanationSeparatesAPIModelFromServerModelFile() {
+        let model = LocalWhisperSetupModel.option(id: .largeV3Turbo)
+        let commands = LocalWhisperSetupCommands(model: model)
+
+        XCTAssertTrue(commands.modelSelectionExplanation.contains("whisper-1"))
+        XCTAssertTrue(commands.modelSelectionExplanation.contains("--model ggml-large-v3-turbo.bin"))
+        XCTAssertFalse(commands.modelSelectionExplanation.contains("changes the GroqTalk model picker"))
+    }
+
     func testCustomPresetTrimsEmptyModelToWhisperOne() {
         let preset = TranscriptionProviderPreset.customOpenAICompatible(
             baseURL: URL(string: "http://localhost:9000/v1"),
