@@ -6,6 +6,7 @@ DerivedData/
 # Build artifacts
 *.profraw
 .superpowers/
+docs/goals/**/.goalbuddy-board/
 
 # GoalBuddy local board state
 docs/goals/**/.goalbuddy-board/

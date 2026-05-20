@@ -460,7 +460,11 @@ final class AppState {
             case .pasted:
                 return SessionPresentation(
                     title: lastPasteSummary ?? "Pasted",
-                    detail: clipboardFeedback ?? "Ready for the next dictation",
+                    detail: [
+                        "Delivered",
+                        currentTargetDetail,
+                        clipboardFeedback
+                    ].compactMap { $0 }.joined(separator: " · "),
                     timerText: nil,
                     systemImage: "checkmark.circle.fill",
                     tone: .success,
@@ -468,8 +472,8 @@ final class AppState {
                 )
             case .clipboardFallback:
                 return SessionPresentation(
-                    title: "Copied to clipboard",
-                    detail: "Paste was blocked in the target app",
+                    title: "Fallback: copied to clipboard",
+                    detail: "Target unavailable; paste manually when ready",
                     timerText: nil,
                     systemImage: "clipboard",
                     tone: .warning,
@@ -478,7 +482,7 @@ final class AppState {
             case nil:
                 return SessionPresentation(
                     title: "Ready",
-                    detail: "\(hotkeyLabel) · \(asyncPasteEnabled ? "Pastes where recording starts" : "Pastes into current app")",
+                    detail: "\(hotkeyLabel) · \(asyncPasteEnabled ? "Paste target is captured when recording starts" : "Paste target is the current app")",
                     timerText: nil,
                     systemImage: "waveform",
                     tone: .neutral,
@@ -510,6 +514,10 @@ final class AppState {
                 primaryAction: errorAction(for: message, hasRetryableFailure: hasRetryableFailure)
             )
         }
+    }
+
+    private var currentTargetDetail: String {
+        capturedTargetName.map { "Target: \($0)" } ?? "Target: current app"
     }
 
     private func setupSessionPresentation() -> SessionPresentation? {
@@ -596,7 +604,7 @@ final class AppState {
         case .cleaningTranscript:
             return SessionPresentation(
                 title: "Cleaning up",
-                detail: "\(transcriptCleanupModel) · \(transcriptProcessingMode.displayName)",
+                detail: "\(transcriptCleanupModel) · \(transcriptProcessingMode.displayName) · \(currentTargetDetail)",
                 timerText: nil,
                 systemImage: "sparkles",
                 tone: .progress,
@@ -615,12 +623,14 @@ final class AppState {
     }
 
     private var transcriptionDetail: String {
+        let baseDetail: String
         switch effectiveTranscriptProcessingMode {
         case .raw:
-            "\(selectedTranscriptionProvider.displayName) · \(selectedTranscriptionModel)"
+            baseDetail = "\(selectedTranscriptionProvider.displayName) · \(selectedTranscriptionModel)"
         case .cleanUp, .rewriteClearly:
-            "\(selectedTranscriptionProvider.displayName) · cleanup next"
+            baseDetail = "\(selectedTranscriptionProvider.displayName) · cleanup next"
         }
+        return "\(baseDetail) · \(currentTargetDetail)"
     }
 
     private func errorDetail(for message: String, hasRetryableFailure: Bool) -> String {
@@ -795,6 +805,17 @@ final class AppState {
         transientResult = nil
         floatingStatusDismissed = false
         floatingStatusTransientVisible = false
+    }
+
+    func recordNoAudioCaptured() {
+        status = .idle
+        transcriptionStage = nil
+        transientResult = nil
+        feedbackMessage = "No audio captured"
+        lastPasteSummary = nil
+        clipboardFeedback = "Try a longer recording or check your microphone"
+        floatingStatusDismissed = false
+        floatingStatusTransientVisible = true
     }
 
     func updateAccessibilityState(

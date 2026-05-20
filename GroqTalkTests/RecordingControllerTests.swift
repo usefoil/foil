@@ -235,6 +235,9 @@ final class RecordingControllerMockTests: XCTestCase {
         XCTAssertEqual(spy.didStopWithNoAudioCount, 1)
         XCTAssertTrue(spy.didStopCalls.isEmpty)
         XCTAssertTrue(spy.didFailErrors.isEmpty)
+        XCTAssertEqual(appState.status, .idle)
+        XCTAssertEqual(appState.feedbackMessage, "No audio captured")
+        XCTAssertEqual(appState.clipboardFeedback, "Try a longer recording or check your microphone")
     }
 
     // MARK: - testStopRecordingErrorCallsDelegate
