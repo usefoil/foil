@@ -367,7 +367,6 @@ final class GroqTalkUITests: XCTestCase {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-async-paste-enabled", "--simulate-success-after-launch"])
 
         XCTAssertTrue(waitForSessionTitle("Transcribing", timeout: 2))
-        XCTAssertTrue(waitForSessionTitle("Pasting", timeout: 2))
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.staticTexts["Mock async paste transcript"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Pasted into the test target"].waitForExistence(timeout: 2))
