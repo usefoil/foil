@@ -1,0 +1,258 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Local whisper.cpp Setup Coverage"
+  slug: "local-whisper-setup-coverage"
+  kind: specific
+  tranche: "Add product guidance and measurable tests for the installed-app Local whisper.cpp setup and transcription path."
+  status: active
+  oracle:
+    signal: "Targeted unit/UI tests prove the default Settings -> Local whisper.cpp selection/setup journey, and the opt-in live E2E proves local transcription when a server is available."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Receipts list changed files and passing commands for CI-safe local-provider setup tests plus the live local E2E command or a documented blocked reason if no server is available."
+  intake:
+    original_request: "Use GoalBuddy prep to create granular, measurable tasks for local whisper.cpp setup coverage."
+    interpreted_outcome: "GroqTalk should help installed users set up a local whisper.cpp server and have tests that cover that app flow."
+    input_shape: specific
+    audience: "GroqTalk installed-app users and maintainers"
+    authority: requested
+    proof_type: test
+    completion_proof: "A final Judge/PM audit maps receipts to in-app setup guidance, CI-safe Settings-flow tests, connection behavior tests, and opt-in live local transcription E2E verification."
+    likely_misfire: "Adding seeded/config-only tests or docs-only instructions while still not covering a real user selecting Local whisper.cpp from default Settings."
+    blind_spots_considered:
+      - "Regular CI may not have whisper.cpp installed or model files available."
+      - "Installed users need in-app setup help, not only repo docs."
+      - "Seeded UI tests do not prove the picker/change flow works."
+      - "Live local E2E should stay explicit if it requires a manually started server."
+    existing_plan_facts:
+      - "Existing app has a Local whisper.cpp preset with local defaults and a Test connection action."
+      - "Existing CI covers unit tests and seeded provider QA UI tests."
+      - "Existing opt-in local E2E requires a running OpenAI-compatible local server."
+      - "The target missing journey is Settings default state -> select Local whisper.cpp -> setup guidance -> test connection -> local transcription."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/local-whisper-setup-coverage/"
+    command: "npx goalbuddy board docs/goals/local-whisper-setup-coverage"
+
+active_task: T002
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: low
+    objective: "Map the current Local whisper.cpp UI, docs, tests, Makefile targets, and CI workflows against the target installed-user journey."
+    inputs:
+      - "GroqTalk/SettingsView.swift"
+      - "GroqTalkTests"
+      - "GroqTalkUITests"
+      - "docs/local-openai-compatible-transcription-e2e.md"
+      - "docs/provider-qa-xcuitest.md"
+      - "Makefile"
+      - ".github/workflows"
+    constraints:
+      - "Read-only."
+      - "Do not edit implementation files."
+      - "Identify evidence with exact file paths and, where useful, test names."
+      - "Compare findings to the explicit journey: default Settings -> select Local whisper.cpp -> setup guidance -> test connection -> local transcription."
+    expected_output:
+      - "Coverage map: covered, partially covered, missing."
+      - "Current commands that verify each covered area."
+      - "Recommended first Worker package with measurable success criteria."
+    receipt:
+      result: done
+      note: "notes/T001-coverage-map.md"
+      summary: "Mapped current local-provider UI/docs/tests/CI. Unit and seeded UI coverage exist, live local E2E exists opt-in, but the default Settings -> select Local whisper.cpp journey and stronger in-app setup guidance are missing."
+      evidence:
+        - "GroqTalk/SettingsView.swift"
+        - "GroqTalkUITests/GroqTalkUITests.swift"
+        - "GroqTalkTests/AppStateTests.swift"
+        - "GroqTalkTests/TranscriptionServiceTests.swift"
+        - "Makefile"
+        - ".github/workflows/ci.yml"
+        - "docs/local-openai-compatible-transcription-e2e.md"
+        - "docs/provider-qa-xcuitest.md"
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Choose the first safe implementation package from the Scout map."
+    inputs:
+      - "T001 receipt"
+      - "Goal oracle"
+    constraints:
+      - "Do not implement."
+      - "Reject plans that only add docs or seeded tests."
+      - "Pick the largest safe useful slice with explicit allowed_files, verify commands, and stop conditions."
+    expected_output:
+      - "Decision: approved package or request more Scout evidence."
+      - "Exact Worker objective."
+      - "allowed_files."
+      - "verify commands."
+      - "stop_if conditions."
+      - "Granular measurable success criteria."
+    receipt:
+      result: done
+      decision: approved
+      full_outcome_complete: false
+      rationale: "The first useful slice should close the main CI-safe gap, not add another seeded/config-only test. Implement local-provider setup guidance and a UI test that starts from default Groq, selects Local whisper.cpp, and asserts the resulting local setup surface."
+      worker_task: T003
+      allowed_files:
+        - "GroqTalk/SettingsView.swift"
+        - "GroqTalkUITests/GroqTalkUITests.swift"
+        - "Makefile"
+        - "docs/provider-qa-xcuitest.md"
+      verify:
+        - "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings"
+        - "make test-provider-qa"
+      stop_if:
+        - "Need to change app state model or transcription service behavior."
+        - "The SwiftUI picker cannot be reliably controlled in XCUITest after two focused attempts."
+        - "Verification fails twice for the same unexplained reason."
+      success_criteria:
+        - "New UI test launches from reset/default provider state, not --seed-local-provider."
+        - "New UI test selects Local whisper.cpp from the Settings provider picker."
+        - "New UI test asserts local base URL, model, setup guidance, Test connection, and cleanup-unavailable state."
+        - "make test-provider-qa includes the new UI test."
+        - "Changes remain CI-safe: no network, Groq key, whisper.cpp checkout, or model files required."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Implement the first approved package: likely in-app Local whisper.cpp setup guidance plus a CI-safe UI test that selects the provider from default Settings."
+    allowed_files:
+      - "GroqTalk/SettingsView.swift"
+      - "GroqTalkUITests/GroqTalkUITests.swift"
+      - "Makefile"
+      - "docs/provider-qa-xcuitest.md"
+    verify:
+      - "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings"
+      - "make test-provider-qa"
+    stop_if:
+      - "Need files outside allowed_files."
+      - "The intended UX copy or product behavior is ambiguous."
+      - "The UI test cannot reliably interact with the Settings provider picker after two focused attempts."
+      - "Verification fails twice for the same unexplained reason."
+    receipt: null
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Add or tighten measurable tests for local-provider connection-test states and persistence that are not already covered."
+    allowed_files: []
+    verify: []
+    stop_if:
+      - "Scout/Judge finds existing coverage is already sufficient."
+      - "Need files outside allowed_files."
+      - "Verification fails twice for the same unexplained reason."
+    expected_output:
+      - "Tests prove reachable, unreachable, invalid URL, and persistence behavior where applicable."
+      - "Receipts name the exact commands and test cases."
+    receipt: null
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Validate and, if needed, improve the opt-in live local transcription E2E harness and documentation so manual QA has a deterministic setup and pass/fail signal."
+    allowed_files: []
+    verify: []
+    stop_if:
+      - "A local whisper.cpp server or model is required and unavailable; block only the live run and continue with docs/script improvements."
+      - "Need files outside allowed_files."
+      - "Verification fails twice for the same unexplained reason."
+    expected_output:
+      - "Command path for starting or checking a local server."
+      - "Command path for running app E2E against that server."
+      - "Clear skip/block behavior when no server is available."
+    receipt: null
+
+  - id: T006
+    type: pm
+    assignee: PM
+    status: queued
+    reasoning_hint: low
+    objective: "Update developer-facing notes or Makefile discoverability only if prior receipts show the test commands are hard to find or easy to misuse."
+    inputs:
+      - "T001-T005 receipts"
+    constraints:
+      - "Only edit docs/goals control files unless activated with explicit repo-doc allowed files by PM board update."
+      - "Do not duplicate setup docs unnecessarily."
+    expected_output:
+      - "Either a receipt explaining no discoverability change is needed, or a bounded follow-up Worker task with allowed_files and verify commands."
+    receipt: null
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Audit whether local whisper.cpp setup coverage satisfies the original owner outcome."
+    inputs:
+      - "All done task receipts"
+      - "Last verification"
+      - "Current dirty diff"
+      - "Goal oracle"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if the Local whisper.cpp flow is still only seeded/config-tested."
+      - "Reject completion if in-app setup guidance is absent or not covered by a UI assertion."
+      - "Reject completion if the live local E2E path is not documented with a measurable pass/fail command."
+      - "Reject completion if required Worker tasks remain queued or active."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Mapping from original request to evidence."
+      - "Missing evidence."
+      - "Next task if not complete."
+    receipt: null
+
+checks:
+  dirty_fingerprint: unknown
+  last_verification:
+    result: partial_pass
+    task: T003
+    commands:
+      - cmd: "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings"
+        status: pass
+      - cmd: "make test-provider-qa"
+        status: stopped_by_user
