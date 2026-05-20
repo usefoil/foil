@@ -12,29 +12,54 @@ In the app, select the `Local whisper.cpp` provider preset to use these defaults
 - Model: `whisper-1`
 - API key: optional; use a dummy value such as `local` only if your local server expects one
 
+The `Model` field is the OpenAI-compatible request field sent to the local
+server. For `whisper.cpp`, the real model file is chosen when starting
+`whisper-server` with `--model /path/to/ggml-*.bin`. The Local provider Settings
+screen includes a setup helper that shows verified starter model options and
+copyable install, build, download, and start commands.
+
 The `Custom OpenAI-compatible` preset remains available for other local or hosted
 servers that expose the same `/v1/audio/transcriptions` shape.
 
+## Verified Starter Models
+
+These are the source-verified model options currently exposed by the in-app
+Local whisper.cpp setup helper:
+
+| Model | File | Scope | Use when |
+| --- | --- | --- | --- |
+| `tiny.en` | `ggml-tiny.en.bin` | English-only | You want the fastest smoke test or lowest resource use. |
+| `base.en` | `ggml-base.en.bin` | English-only | You want the recommended starter model for local setup. |
+| `small.en` | `ggml-small.en.bin` | English-only | You want better quality while keeping setup practical. |
+| `medium.en` | `ggml-medium.en.bin` | English-only | You can spend more disk and CPU/GPU for stronger accuracy. |
+| `large-v3-turbo` | `ggml-large-v3-turbo.bin` | Multilingual | You want a modern larger model with lower latency than full large-v3. |
+| `large-v3` | `ggml-large-v3.bin` | Multilingual | You want the highest-quality starter option and can tolerate heavier setup. |
+
+Model availability was verified against the upstream `whisper.cpp`
+`models/download-ggml-model.sh` script and the corresponding hosted
+`ggml-*.bin` files.
+
 ## Server Setup
 
-Keep `whisper.cpp` and models outside this repo:
+Keep `whisper.cpp` and models outside this repo. The in-app helper defaults to
+`~/Developer/whisper.cpp`; this standalone example uses the same location:
 
 ```sh
-git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git /tmp/whisper.cpp
-cd /tmp/whisper.cpp
+mkdir -p ~/Developer
+git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git ~/Developer/whisper.cpp
+cd ~/Developer/whisper.cpp
 cmake -B build -DWHISPER_BUILD_TESTS=OFF
 cmake --build build -j --config Release
-sh ./models/download-ggml-model.sh tiny.en
+sh ./models/download-ggml-model.sh base.en
 ```
 
 Start the local server:
 
 ```sh
-/tmp/whisper.cpp/build/bin/whisper-server \
+~/Developer/whisper.cpp/build/bin/whisper-server \
   --host 127.0.0.1 \
   --port 8080 \
-  --model /tmp/whisper.cpp/models/ggml-tiny.en.bin \
-  --language en \
+  --model ~/Developer/whisper.cpp/models/ggml-base.en.bin \
   --inference-path /v1/audio/transcriptions \
   --convert \
   --no-timestamps

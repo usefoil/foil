@@ -108,9 +108,12 @@ test-ui:
 test-provider-qa:
 	@tmp=$$(mktemp); \
 	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' \
+		-parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO \
 		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQADefaultsToGroqPreset \
 		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
 		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings \
+		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
+		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSelectionPersistsAcrossRelaunch \
 		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus \
 		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQACustomProviderPersistsAcrossRelaunch >"$$tmp" 2>&1; \
 	status=$$?; tail -8 "$$tmp"; \
