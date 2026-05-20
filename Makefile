@@ -23,7 +23,7 @@ endif
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-cross-app test-app-smoke test-paste-real qa-paste test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-provider-qa test-provider-qa-live test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -50,9 +50,21 @@ build: unlock-local-signing-keychain
 	if ! grep -q '\*\* BUILD SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
 	rm -f "$$tmp"; exit $$status
 
-run: build
-	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
-	open $(APP_PATH)
+build-warnings-as-errors:
+	@tmp=$$(mktemp); \
+	xcodebuild build -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-warnings-as-errors' >"$$tmp" 2>&1; \
+	status=$$?; tail -3 "$$tmp"; \
+	if ! grep -q '\*\* BUILD SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
+	rm -f "$$tmp"; exit $$status
+
+run:
+	@identity=$$(security find-identity -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application: Mean Weasel LLC (B3A6AN2HA4)\)".*/\1/p' | head -1); \
+	if [ -z "$$identity" ]; then \
+		$(MAKE) setup-local-signing; \
+		identity="$(LOCAL_SIGN_IDENTITY)"; \
+	fi; \
+	$(MAKE) install SIGN_IDENTITY="$$identity" DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)"
+	open /Applications/$(APP_NAME).app
 
 start:
 	@open /Applications/$(APP_NAME).app 2>/dev/null || open $(APP_PATH) 2>/dev/null || echo "Run 'make install' or 'make build' first"
@@ -83,11 +95,35 @@ test:
 	rm -f "$$tmp"; exit $$status
 
 test-ui:
+	@echo "WARNING: make test-ui runs macOS XCUITests in the active desktop session."
+	@echo "It can take focus, open windows, and drive UI interactions. Run it on a separate machine or when this Mac is idle."
+	@sleep 3
+	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
 	@tmp=$$(mktemp); \
 	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkUITests >"$$tmp" 2>&1; \
 	status=$$?; tail -5 "$$tmp"; \
 	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
 	rm -f "$$tmp"; exit $$status
+
+test-provider-qa:
+	@tmp=$$(mktemp); \
+	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' \
+		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQADefaultsToGroqPreset \
+		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
+		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus \
+		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQACustomProviderPersistsAcrossRelaunch >"$$tmp" 2>&1; \
+	status=$$?; tail -8 "$$tmp"; \
+	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
+	rm -f "$$tmp"; exit $$status
+
+test-provider-qa-live:
+	SCHEME="$(SCHEME)" CONFIG="$(CONFIG)" scripts/run-live-groq-provider-qa-xcuitest.sh
+
+test-local-transcription-e2e:
+	SCHEME="$(SCHEME)" CONFIG="$(CONFIG)" scripts/run-local-transcription-e2e-xcuitest.sh
+
+test-microphone-live:
+	RUN_LIVE_MICROPHONE_TESTS=1 SCHEME="$(SCHEME)" CONFIG="$(CONFIG)" scripts/run-live-microphone-qa.sh
 
 test-cross-app:
 	swift tests/test_async_paste.swift
@@ -102,10 +138,22 @@ test-paste-real: install
 
 qa-paste: test-paste-real
 
+prepare-local-permissions-qa:
+	scripts/prepare-local-permissions-qa.sh
+
+prepare-local-permissions-qa-check:
+	scripts/prepare-local-permissions-qa.sh --check
+
+test-local-permissions-qa-script:
+	scripts/test-prepare-local-permissions-qa.sh
+
 test-cleanup-quality:
 	swift tests/test_cleanup_quality.swift
 
 qa-ci:
+	@echo "=== Warnings-as-errors build ==="
+	$(MAKE) build-warnings-as-errors
+	@echo ""
 	@echo "=== Unit tests ==="
 	$(MAKE) test
 	@echo ""

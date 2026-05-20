@@ -16,21 +16,12 @@ struct MenuBarView: View {
     var onOpenSettings: (() -> Void)?
     var onOpenAccessibility: (() -> Void)?
     var onOpenMicrophone: (() -> Void)?
+    var onCheckMicrophone: (() -> Void)?
     var onRunSetupCheck: (() -> Void)?
     var onSimulateSuccess: (() -> Void)?
     var onSimulateFailure: (() -> Void)?
 
-    @State private var selectedPanel: Panel = .control
-    @State private var isShowingClearHistoryConfirmation = false
-    @State private var actionConfirmation: String?
-
     @Environment(\.openWindow) private var openWindow
-
-    private enum Panel {
-        case control
-        case settings
-        case history
-    }
 
     private var lastSuccess: TranscriptionRecord? {
         history.records.first { !$0.isFailure }
@@ -44,77 +35,77 @@ struct MenuBarView: View {
         )
     }
 
+    private var apiKeyRecoveryDetail: String {
+        appState.selectedTranscriptionProvider.requiresAPIKey
+            ? "Add your \(appState.selectedTranscriptionProvider.displayName) API key to enable transcription."
+            : "API key optional for this provider."
+    }
+
+    private var microphoneActionTitle: String? {
+        switch appState.microphoneState {
+        case .ready:
+            nil
+        case .unknown:
+            "Check"
+        case .needsAction:
+            "Open Settings"
+        }
+    }
+
+    private var microphoneAction: (() -> Void)? {
+        switch appState.microphoneState {
+        case .ready:
+            nil
+        case .unknown:
+            onCheckMicrophone
+        case .needsAction:
+            onOpenMicrophone
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             toolbarActions
-            if selectedPanel == .control {
-                sessionStrip
-                if appState.needsSetupAttention || shouldShowSetupCheck {
-                    setupPanel
-                }
-                lastResultSection
-                quickControls
-            } else if selectedPanel == .history {
-                HistoryPopoverView(
-                    history: history,
-                    onRetry: onRetryRecord,
-                    onPaste: onPasteText,
-                    showsHeader: false
-                )
-                .frame(maxHeight: 400)
-            } else {
-                embeddedSettings
+            sessionStrip
+            if appState.needsSetupAttention {
+                setupPanel
             }
+            if shouldShowFeedbackPanel {
+                feedbackPanel
+            }
+            recordingControlsSection
+            lastResultSection
         }
         .accessibilityIdentifier("menu.controlCenter")
         .padding(14)
-        .frame(width: selectedPanel == .history ? 480 : 360)
+        .frame(width: 360)
         .onAppear {
             if !isUITesting {
                 appState.refreshApiKeyState()
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .groqTalkUITestingShowSettingsPanel)) { _ in
-            if isUITesting {
-                selectedPanel = .settings
-            }
-        }
-        .alert("Clear History?", isPresented: $isShowingClearHistoryConfirmation) {
-            Button("Clear History", role: .destructive) {
-                history.clear()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This removes all stored transcripts and any retained failed-audio retry files from this Mac.")
         }
     }
 
     private var toolbarActions: some View {
         HStack(spacing: 8) {
             Button {
-                selectedPanel = .control
-            } label: {
-                Label("Control", systemImage: "waveform")
-            }
-            .accessibilityIdentifier("menu.controlButton")
-            .foregroundStyle(selectedPanel == .control ? .primary : .secondary)
-
-            Button {
-                selectedPanel = .settings
+                openSettings()
             } label: {
                 Label("Settings", systemImage: "gearshape")
             }
+            .labelStyle(.titleAndIcon)
             .accessibilityIdentifier("menu.settingsButton")
-            .foregroundStyle(selectedPanel == .settings ? .primary : .secondary)
+            .help("Open Settings")
 
             Button {
                 openHistory()
             } label: {
-                Image(systemName: "clock")
+                Label("History", systemImage: "clock")
             }
+            .labelStyle(.titleAndIcon)
             .accessibilityLabel("History")
             .accessibilityIdentifier("menu.historyButton")
-            .foregroundStyle(selectedPanel == .history ? .primary : .secondary)
+            .help("Open History")
 
             Button {
                 openTroubleshooting()
@@ -148,147 +139,6 @@ struct MenuBarView: View {
         .buttonStyle(.borderless)
     }
 
-    private var embeddedSettings: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                settingsSection("General") {
-                    Toggle("Sound effects", isOn: $appState.soundEffectsEnabled)
-                        .accessibilityIdentifier("menu.settings.soundEffectsToggle")
-                    Toggle("Show floating status", isOn: $appState.showFloatingStatus)
-                        .accessibilityIdentifier("menu.settings.floatingStatusToggle")
-                    Toggle("Keep final text on clipboard", isOn: $appState.keepOnClipboard)
-                        .accessibilityIdentifier("menu.settings.keepClipboardToggle")
-                }
-
-                settingsSection("Recording") {
-                    permissionRow(
-                        title: "Accessibility",
-                        state: appState.accessibilityState,
-                        actionTitle: "Open Settings",
-                        recoveryDetail: "Open Privacy & Security and turn on GroqTalk.",
-                        action: onOpenAccessibility
-                    )
-                    Picker("Hotkey", selection: $appState.hotkeyChoice) {
-                        Text("Right Command").tag(HotkeyMonitor.HotkeyChoice.rightCommand)
-                        Text("Right Option").tag(HotkeyMonitor.HotkeyChoice.rightOption)
-                        Text("Globe / Fn").tag(HotkeyMonitor.HotkeyChoice.globeFn)
-                    }
-                    .accessibilityIdentifier("menu.settings.hotkeyPicker")
-                    .onChange(of: appState.hotkeyChoice) { _, _ in onHotkeyChanged?() }
-
-                    Picker("Mode", selection: $appState.recordingMode) {
-                        Text("Hold to record").tag(HotkeyMonitor.RecordingMode.hold)
-                        Text("Toggle").tag(HotkeyMonitor.RecordingMode.toggle)
-                    }
-                    .accessibilityIdentifier("menu.settings.recordingModePicker")
-                    .onChange(of: appState.recordingMode) { _, _ in onHotkeyChanged?() }
-
-                    Picker("Audio format", selection: $appState.selectedAudioFormat) {
-                        Text("M4A").tag(AudioFormat.m4a)
-                        Text("WAV").tag(AudioFormat.wav)
-                        Text("FLAC").tag(AudioFormat.flac)
-                    }
-                    .accessibilityIdentifier("menu.settings.audioFormatPicker")
-
-                    Picker("Language", selection: $appState.selectedLanguage) {
-                        ForEach(Language.allCases, id: \.self) { lang in
-                            Text(lang.displayName).tag(lang)
-                        }
-                    }
-                    .accessibilityIdentifier("menu.settings.languagePicker")
-                }
-
-                settingsSection("Transcription") {
-                    permissionRow(
-                        title: "Groq API key",
-                        state: appState.apiKeyState,
-                        actionTitle: "Change",
-                        recoveryDetail: "Add your Groq API key to enable transcription.",
-                        action: { openWindow(id: "api-key-setup") }
-                    )
-                    Button {
-                        openWindow(id: "api-key-setup")
-                    } label: {
-                        Label("Change API Key", systemImage: "key")
-                    }
-                    .accessibilityIdentifier("menu.settings.changeApiKeyButton")
-
-                    Picker("Whisper model", selection: $appState.selectedModel) {
-                        Text("Large V3 Turbo").tag("whisper-large-v3-turbo")
-                        Text("Large V3").tag("whisper-large-v3")
-                    }
-                    .accessibilityIdentifier("menu.settings.whisperModelPicker")
-
-                    Picker("After transcription", selection: $appState.transcriptProcessingMode) {
-                        ForEach(TranscriptProcessingMode.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
-                    }
-                    .accessibilityIdentifier("menu.settings.transcriptProcessingPicker")
-
-                    if appState.transcriptProcessingMode != .raw {
-                        Picker("Cleanup model", selection: $appState.transcriptCleanupModel) {
-                            Text("Llama 3.3 70B Versatile").tag("llama-3.3-70b-versatile")
-                            Text("Llama 3.1 8B Instant").tag("llama-3.1-8b-instant")
-                        }
-                        .accessibilityIdentifier("menu.settings.cleanupModelPicker")
-                    }
-
-                    #if DEBUG
-                    Toggle("Mock Transcription", isOn: $appState.mockTranscriptionEnabled)
-                        .accessibilityIdentifier("menu.settings.mockToggle")
-                    #endif
-                }
-
-                settingsSection("Paste") {
-                    Toggle("Paste where recording started", isOn: $appState.asyncPasteEnabled)
-                        .accessibilityIdentifier("menu.settings.asyncPasteToggle")
-                    Text(appState.asyncPasteEnabled ? "Captures the target app when recording starts and returns focus after pasting." : "Pastes into the app active when transcription finishes.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Toggle("Experimental background paste", isOn: $appState.experimentalSkyLightPasteEnabled)
-                        .accessibilityIdentifier("menu.settings.experimentalSkyLightPasteToggle")
-                    Text("Uses private macOS paste routing when available. Command-posted results are not verified.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                settingsSection("Privacy") {
-                    LabeledContent(
-                        "History retention",
-                        value: history.isPersistenceEnabled ? "Last \(history.retentionLimit) records" : "Off"
-                    )
-                    LabeledContent("Stored records", value: "\(history.records.count)")
-                    LabeledContent("Retained failed audio", value: "\(history.retainedFailedAudioCount)")
-                    Text("History stays on this Mac. Successful audio is deleted after transcription. Failed audio may be retained locally only for retry, and Clear History deletes those retry files.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Button("Clear History", role: .destructive) {
-                        isShowingClearHistoryConfirmation = true
-                    }
-                    .accessibilityIdentifier("menu.settings.clearHistoryButton")
-                    .disabled(history.records.isEmpty)
-                }
-            }
-            .padding(.trailing, 4)
-        }
-        .frame(maxHeight: 560)
-        .accessibilityIdentifier("menu.settingsPanel")
-    }
-
-    private func settingsSection<Content: View>(
-        _ title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
     private var setupPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -308,21 +158,21 @@ struct MenuBarView: View {
                 title: "Accessibility",
                 state: appState.accessibilityState,
                 actionTitle: "Open Settings",
-                recoveryDetail: "Open Privacy & Security and turn on GroqTalk.",
+                recoveryDetail: accessibilityRecoveryDetail,
                 action: onOpenAccessibility
             )
             permissionRow(
                 title: "Microphone",
                 state: appState.microphoneState,
-                actionTitle: "Open Settings",
+                actionTitle: microphoneActionTitle,
                 recoveryDetail: "Open Microphone privacy and allow GroqTalk.",
-                action: onOpenMicrophone
+                action: microphoneAction
             )
             permissionRow(
-                title: "Groq API key",
+                title: "\(appState.selectedTranscriptionProvider.displayName) API key",
                 state: appState.apiKeyState,
                 actionTitle: "Add Key",
-                recoveryDetail: "Add your Groq API key to enable transcription.",
+                recoveryDetail: apiKeyRecoveryDetail,
                 action: { openWindow(id: "api-key-setup") }
             )
 
@@ -334,31 +184,6 @@ struct MenuBarView: View {
         .padding(10)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
         .accessibilityIdentifier("menu.setup.panel")
-    }
-
-    private var shouldShowSetupCheck: Bool {
-        switch appState.setupCheckState {
-        case .idle:
-            false
-        case .running, .passed, .failed:
-            true
-        }
-    }
-
-    private var setupCheckCompactRow: some View {
-        HStack(spacing: 8) {
-            Label(setupCheckTitle, systemImage: setupCheckIcon)
-                .foregroundStyle(setupCheckColor)
-                .accessibilityIdentifier("menu.setup.test.compactLabel")
-            Spacer()
-            Button(setupCheckButtonTitle) {
-                onRunSetupCheck?()
-            }
-            .buttonStyle(.borderless)
-            .disabled(appState.isSetupCheckRunning)
-            .accessibilityIdentifier("menu.setup.test.compactAction")
-        }
-        .font(.caption)
     }
 
     private var setupCheckRow: some View {
@@ -377,6 +202,7 @@ struct MenuBarView: View {
                     onRunSetupCheck?()
                 }
                 .buttonStyle(.borderless)
+                .frame(minWidth: 48, minHeight: 18)
                 .disabled(appState.isSetupCheckRunning)
                 .accessibilityIdentifier("menu.setup.test.action")
             }
@@ -386,7 +212,7 @@ struct MenuBarView: View {
                 Text(recoveryDetail)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("menu.setup.test.recovery")
             }
@@ -416,6 +242,7 @@ struct MenuBarView: View {
                         action()
                     }
                     .buttonStyle(.borderless)
+                    .frame(minWidth: 48, minHeight: 18)
                     .accessibilityIdentifier("menu.setup.\(title).action")
                 }
             }
@@ -433,67 +260,54 @@ struct MenuBarView: View {
     }
 
     private var sessionStrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(sessionColor.opacity(0.14))
-                    Image(systemName: session.systemImage)
-                        .font(.system(size: 16, weight: .semibold))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(sessionColor)
-                }
-                .frame(width: 32, height: 32)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 7) {
-                        Text(session.title)
-                            .font(.headline)
-                            .lineLimit(2)
-                            .accessibilityIdentifier("menu.status.title")
-                        if let timerText = session.timerText {
-                            Text(timerText)
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                                .accessibilityIdentifier("menu.status.timer")
-                        }
-                    }
-                    Text(session.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("menu.status.detail")
-                    if appState.isApproachingTimeLimit {
-                        HStack(spacing: 4) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
-                            Text("\(appState.formattedRemainingTime) remaining")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-                        .accessibilityIdentifier("menu.status.timeLimitWarning")
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                if let action = session.primaryAction {
-                    Button(action.title) {
-                        performSessionAction(action)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("menu.status.action")
-                }
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(sessionColor.opacity(0.14))
+                Image(systemName: session.systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(sessionColor)
             }
+            .frame(width: 32, height: 32)
 
-            if let feedback = secondaryWorkflowFeedback {
-                Divider()
-                    .opacity(0.45)
-                Label(feedback, systemImage: secondaryWorkflowFeedbackIcon)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(session.title)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .accessibilityIdentifier("menu.status.title")
+                    if let timerText = session.timerText {
+                        Text(timerText)
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("menu.status.timer")
+                    }
+                }
+                Text(session.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-                    .accessibilityIdentifier("menu.status.secondary")
+                    .accessibilityIdentifier("menu.status.detail")
+                if appState.isApproachingTimeLimit {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text("\(appState.formattedRemainingTime) remaining")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    .accessibilityIdentifier("menu.status.timeLimitWarning")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let action = session.primaryAction {
+                Button(action.title) {
+                    performSessionAction(action)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("menu.status.action")
             }
         }
         .padding(10)
@@ -505,21 +319,39 @@ struct MenuBarView: View {
         .accessibilityIdentifier("menu.sessionStrip")
     }
 
-    private var secondaryWorkflowFeedback: String? {
-        if let target = appState.capturedTargetName {
-            return "Target: \(target)"
+    private var feedbackPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let target = appState.capturedTargetName {
+                Label("Target: \(target)", systemImage: "scope")
+                    .accessibilityIdentifier("menu.feedback.target")
+            } else if appState.asyncPasteEnabled {
+                Label("Target will be captured when recording starts", systemImage: "scope")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("menu.feedback.targetHelp")
+            }
+
+            if let message = appState.feedbackMessage {
+                Label(message, systemImage: feedbackIcon)
+                    .accessibilityIdentifier("menu.feedback.message")
+            }
+
+            if let clipboard = appState.clipboardFeedback {
+                Label(clipboard, systemImage: "clipboard")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("menu.feedback.clipboard")
+            }
         }
-        if let clipboard = appState.clipboardFeedback {
-            return clipboard
-        }
-        if let message = appState.feedbackMessage, message != session.title, !session.detail.contains(message) {
-            return message
-        }
-        return nil
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private var secondaryWorkflowFeedbackIcon: String {
-        appState.clipboardFeedback == nil ? feedbackIcon : "clipboard"
+    private var shouldShowFeedbackPanel: Bool {
+        appState.capturedTargetName != nil
+            || appState.feedbackMessage != nil
+            || appState.clipboardFeedback != nil
+            || (appState.asyncPasteEnabled && appState.status == .recording)
     }
 
     private var lastResultSection: some View {
@@ -529,7 +361,7 @@ struct MenuBarView: View {
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Button {
-                    selectedPanel = .history
+                    openHistory()
                 } label: {
                     Image(systemName: "clock.arrow.circlepath")
                 }
@@ -548,9 +380,9 @@ struct MenuBarView: View {
 
                 HStack {
                     Button {
-                        copy(text, confirmation: "Last transcript copied")
+                        copy(text)
                     } label: {
-                        Label("Copy Transcript", systemImage: "doc.on.doc")
+                        Label("Copy", systemImage: "doc.on.doc")
                     }
                     .accessibilityIdentifier("menu.lastResult.copyButton")
                     Button {
@@ -579,70 +411,18 @@ struct MenuBarView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("menu.lastPaste.summary")
             }
-
-            if let actionConfirmation {
-                Label(actionConfirmation, systemImage: "checkmark.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("menu.lastResult.actionConfirmation")
-            }
         }
         .padding(10)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
     }
 
-    private var quickControls: some View {
+    private var recordingControlsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Quick Controls")
+            Text("Record")
                 .font(.subheadline.weight(.semibold))
-
             recordingControls
-            if !appState.needsSetupAttention && !shouldShowSetupCheck {
-                setupCheckCompactRow
-            }
-
-            Picker("Recording", selection: $appState.recordingMode) {
-                Text("Hold").tag(HotkeyMonitor.RecordingMode.hold)
-                Text("Toggle").tag(HotkeyMonitor.RecordingMode.toggle)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("menu.recordingModePicker")
-            .onChange(of: appState.recordingMode) { _, _ in onHotkeyChanged?() }
-
-            Toggle("Paste where recording started", isOn: $appState.asyncPasteEnabled)
-                .accessibilityIdentifier("menu.asyncPasteToggle")
-            Toggle("Keep final text on clipboard", isOn: $appState.keepOnClipboard)
-                .accessibilityIdentifier("menu.keepClipboardToggle")
-            Toggle("Show floating status", isOn: $appState.showFloatingStatus)
-                .accessibilityIdentifier("menu.floatingStatusToggle")
-
-            Picker("Cleanup", selection: $appState.transcriptProcessingMode) {
-                ForEach(TranscriptProcessingMode.allCases) { mode in
-                    Text(mode.displayName).tag(mode)
-                }
-            }
-            .accessibilityIdentifier("menu.transcriptProcessingPicker")
-
-            #if DEBUG
-            Toggle("Mock Transcription", isOn: $appState.mockTranscriptionEnabled)
-                .accessibilityIdentifier("menu.mockToggle")
-            #endif
-
-            if isUITesting {
-                HStack {
-                    Button("Simulate Success") {
-                        onSimulateSuccess?()
-                    }
-                    .accessibilityIdentifier("menu.simulateSuccessButton")
-
-                    Button("Simulate Failure") {
-                        onSimulateFailure?()
-                    }
-                    .accessibilityIdentifier("menu.simulateFailureButton")
-                }
-                .buttonStyle(.borderless)
-            }
         }
+        .accessibilityIdentifier("menu.recording.section")
     }
 
     private var recordingControls: some View {
@@ -717,7 +497,7 @@ struct MenuBarView: View {
             onPasteLast?()
         case .copy:
             if let text = lastSuccess?.text {
-                copy(text, confirmation: "Last transcript copied")
+                copy(text)
             }
         }
     }
@@ -791,7 +571,7 @@ struct MenuBarView: View {
         case .running:
             "Checking..."
         case .passed:
-            "Ready to record"
+            appState.setupCheckSuccessDetail
         case .failed(let message):
             message
         }
@@ -835,15 +615,23 @@ struct MenuBarView: View {
     private var setupCheckRecoveryDetail: String? {
         guard case .failed(let message) = appState.setupCheckState else { return nil }
         if message.localizedCaseInsensitiveContains("api key") {
-            return "Add a Groq API key, then run the setup test again."
+            return "Add a \(appState.selectedTranscriptionProvider.displayName) API key, then run the setup test again."
         }
         if message.localizedCaseInsensitiveContains("accessibility") {
-            return "Open Accessibility settings, enable GroqTalk, then rerun the test."
+            return accessibilityRecoveryDetail
         }
         if message.localizedCaseInsensitiveContains("microphone") {
             return "Check Microphone privacy or audio input, then rerun the test."
         }
         return "Resolve the setup item above, then rerun the test."
+    }
+
+    private var accessibilityRecoveryDetail: String {
+        #if DEBUG
+        AppState.accessibilityRecoveryDetail(isDebugBuild: true)
+        #else
+        AppState.accessibilityRecoveryDetail(isDebugBuild: false)
+        #endif
     }
 
     private var hotkeyLabel: String {
@@ -860,13 +648,8 @@ struct MenuBarView: View {
     }
 
     private func copy(_ text: String) {
-        copy(text, confirmation: "Copied to clipboard")
-    }
-
-    private func copy(_ text: String, confirmation: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        actionConfirmation = confirmation
     }
 
     private func openTroubleshooting() {
@@ -879,11 +662,15 @@ struct MenuBarView: View {
         if let onOpenHistory {
             onOpenHistory()
         } else {
-            selectedPanel = .history
+            openWindow(id: "history")
         }
     }
 
-    private func openSettingsView() {
-        selectedPanel = .settings
+    private func openSettings() {
+        if let onOpenSettings {
+            onOpenSettings()
+        } else {
+            NSApplication.shared.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
     }
 }

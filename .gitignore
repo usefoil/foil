@@ -8,5 +8,9 @@ DerivedData/
 .superpowers/
 docs/goals/**/.goalbuddy-board/
 
+# GoalBuddy local board state
+docs/goals/**/.goalbuddy-board/
+docs/goals/**/state.yaml
+
 # Node (semantic-release tooling)
 node_modules/

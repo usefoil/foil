@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct ApiKeySetupView: View {
+    var provider: TranscriptionProvider = .groq
     var onSaved: (() -> Void)?
-    var onFinished: (() -> Void)?
     var validateApiKey: (String) async throws -> Void = { key in
         try await TranscriptionService().validateApiKey(apiKey: key)
     }
@@ -23,15 +23,15 @@ struct ApiKeySetupView: View {
             Text("GroqTalk Setup")
                 .font(.headline)
 
-            Text("Enter your Groq API key to enable speech-to-text.")
+            Text(provider.requiresAPIKey ? "Enter your \(provider.displayName) API key to enable speech-to-text." : "\(provider.displayName) can run without a real API key when your server allows it.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            SecureField("gsk_...", text: $apiKey)
+            SecureField(provider.id == .groq ? "gsk_..." : "API key", text: $apiKey)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 320)
-                .accessibilityLabel("Groq API Key")
+                .accessibilityLabel("\(provider.displayName) API Key")
                 .accessibilityIdentifier("apiKeySetup.apiKeyField")
 
             if let errorMessage {
@@ -59,7 +59,7 @@ struct ApiKeySetupView: View {
             }
 
             HStack {
-                if let groqKeysURL = URL(string: "https://console.groq.com/keys") {
+                if provider.id == .groq, let groqKeysURL = URL(string: "https://console.groq.com/keys") {
                     Link("Get API Key", destination: groqKeysURL)
                         .font(.caption)
                         .accessibilityIdentifier("apiKeySetup.getKeyLink")
@@ -86,8 +86,8 @@ struct ApiKeySetupView: View {
         .frame(width: 380)
         .accessibilityIdentifier("apiKeySetup.root")
         .onAppear {
-            guard shouldUseRealKeychain else { return }
-            if let existing = KeychainHelper.readApiKey() {
+            guard !ProcessInfo.processInfo.arguments.contains("--ui-testing") else { return }
+            if let existing = KeychainHelper.readApiKey(for: provider.id) {
                 apiKey = existing
             }
         }
@@ -101,9 +101,7 @@ struct ApiKeySetupView: View {
         Task {
             do {
                 try await validateApiKey(key)
-                if shouldUseRealKeychain {
-                    try KeychainHelper.save(apiKey: key)
-                }
+                try KeychainHelper.save(apiKey: key, for: provider.id)
                 await MainActor.run {
                     finishSaved()
                 }
@@ -120,22 +118,11 @@ struct ApiKeySetupView: View {
 
     private func saveKeyWithoutValidation() {
         do {
-            if shouldUseRealKeychain {
-                try KeychainHelper.save(apiKey: apiKey)
-            }
+            try KeychainHelper.save(apiKey: apiKey, for: provider.id)
             finishSaved()
         } catch {
             errorMessage = "Failed to save: \(error.localizedDescription)"
         }
-    }
-
-    private var shouldUseRealKeychain: Bool {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
-            return false
-        }
-        #endif
-        return true
     }
 
     private func finishSaved() {
@@ -145,7 +132,6 @@ struct ApiKeySetupView: View {
         saved = true
         errorMessage = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            onFinished?()
             dismissWindow(id: "api-key-setup")
         }
     }
@@ -157,17 +143,17 @@ struct ApiKeySetupView: View {
     private func validationMessage(from error: Error) -> String {
         switch error {
         case TranscriptionService.TranscriptionError.invalidApiKey:
-            "Invalid Groq API key."
+            "Invalid \(provider.displayName) API key."
         case TranscriptionService.TranscriptionError.rateLimited:
-            "Groq rate limit reached. Try again shortly."
+            "\(provider.displayName) rate limit reached. Try again shortly."
         case TranscriptionService.TranscriptionError.quotaExceeded:
-            "Groq quota exceeded. Check your account limits."
+            "\(provider.displayName) quota exceeded. Check your account limits."
         case TranscriptionService.TranscriptionError.serverError:
-            "Groq is temporarily unavailable. Try again later."
+            "\(provider.displayName) is temporarily unavailable. Try again later."
         case let urlError as URLError where urlError.code == .notConnectedToInternet:
-            "Could not reach Groq. Check your connection, or save anyway and test later."
+            "Could not reach \(provider.displayName). Check your connection, or save anyway and test later."
         case let urlError as URLError where urlError.code == .timedOut:
-            "Groq validation timed out. You can save anyway and test later."
+            "\(provider.displayName) validation timed out. You can save anyway and test later."
         default:
             "Could not validate key: \(error.localizedDescription)"
         }

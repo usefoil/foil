@@ -34,6 +34,19 @@ final class AppState {
         case failed(String)
     }
 
+    enum ProviderConnectionTestState: Equatable {
+        case idle
+        case running
+        case succeeded(String)
+        case warning(String)
+        case failed(String)
+
+        var isRunning: Bool {
+            if case .running = self { return true }
+            return false
+        }
+    }
+
     enum SessionTone: Equatable {
         case neutral
         case active
@@ -55,8 +68,8 @@ final class AppState {
             case .retry: "Retry"
             case .openAccessibility, .openMicrophone: "Open"
             case .addKey: "Add Key"
-            case .pasteAgain: "Paste Again"
-            case .copy: "Copy Transcript"
+            case .pasteAgain: "Again"
+            case .copy: "Copy"
             }
         }
     }
@@ -89,6 +102,8 @@ final class AppState {
     var microphoneState: PermissionState = .unknown
     var apiKeyState: PermissionState = .unknown
     var setupCheckState: SetupCheckState = .idle
+    var setupCheckSuccessDetail = "Ready to record"
+    var providerConnectionTestState: ProviderConnectionTestState = .idle
 
     // MARK: - UserDefaults-backed preferences
     //
@@ -103,12 +118,69 @@ final class AppState {
         return .standard
     }
 
+    private static var defaultsDomainName: String {
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return "com.neonwatty.GroqTalk.UITests"
+        }
+        return Bundle.main.bundleIdentifier ?? "com.neonwatty.GroqTalk"
+    }
+
     var soundEffectsEnabled: Bool = true {
         didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
     }
 
+    var recordingStartSoundCue: RecordingSoundCue = .recordingStart {
+        didSet { Self.defaults.set(recordingStartSoundCue.rawValue, forKey: "recordingStartSoundCue") }
+    }
+
+    var recordingEndSoundCue: RecordingSoundCue = .recordingStop {
+        didSet { Self.defaults.set(recordingEndSoundCue.rawValue, forKey: "recordingEndSoundCue") }
+    }
+
     var selectedModel: String = "whisper-large-v3-turbo" {
-        didSet { Self.defaults.set(selectedModel, forKey: "whisperModel") }
+        didSet {
+            Self.defaults.set(selectedModel, forKey: "whisperModel")
+            resetProviderConnectionTest()
+        }
+    }
+
+    var selectedTranscriptionProviderID: TranscriptionProviderID = .groq {
+        didSet {
+            Self.defaults.set(selectedTranscriptionProviderID.rawValue, forKey: "transcriptionProvider")
+            guard !isSynchronizingProviderSelection else { return }
+            isSynchronizingProviderSelection = true
+            selectedTranscriptionProviderPresetID = selectedTranscriptionProviderID == .groq
+                ? .groq
+                : .customOpenAICompatible
+            isSynchronizingProviderSelection = false
+            resetProviderConnectionTest()
+        }
+    }
+
+    var selectedTranscriptionProviderPresetID: TranscriptionProviderPresetID = .groq {
+        didSet {
+            Self.defaults.set(selectedTranscriptionProviderPresetID.rawValue, forKey: "transcriptionProviderPreset")
+            guard !isSynchronizingProviderSelection else { return }
+            isSynchronizingProviderSelection = true
+            selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
+            isSynchronizingProviderSelection = false
+            resetProviderConnectionTest()
+            refreshApiKeyState()
+        }
+    }
+
+    var customTranscriptionBaseURL: String = "http://127.0.0.1:8080/v1" {
+        didSet {
+            Self.defaults.set(customTranscriptionBaseURL, forKey: "customTranscriptionBaseURL")
+            resetProviderConnectionTest()
+        }
+    }
+
+    var customTranscriptionModel: String = "whisper-1" {
+        didSet {
+            Self.defaults.set(customTranscriptionModel, forKey: "customTranscriptionModel")
+            resetProviderConnectionTest()
+        }
     }
 
     var selectedAudioFormat: AudioFormat = .m4a {
@@ -148,6 +220,10 @@ final class AppState {
         didSet { Self.defaults.set(experimentalSkyLightPasteEnabled, forKey: "experimentalSkyLightPasteEnabled") }
     }
 
+    var pauseBrowserMediaWhileRecording: Bool = false {
+        didSet { Self.defaults.set(pauseBrowserMediaWhileRecording, forKey: "pauseBrowserMediaWhileRecording") }
+    }
+
     #if DEBUG
     var mockTranscriptionEnabled: Bool = false {
         didSet { Self.defaults.set(mockTranscriptionEnabled, forKey: "mockTranscriptionEnabled") }
@@ -184,13 +260,85 @@ final class AppState {
         }
     }
 
-    var hasApiKey: Bool {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
-            return apiKeyState == .ready
+    private var isSynchronizingProviderSelection = false
+
+    var hasApiKey: Bool { KeychainHelper.readApiKey(for: selectedTranscriptionProviderID) != nil }
+
+    var selectedTranscriptionProviderPreset: TranscriptionProviderPreset {
+        switch selectedTranscriptionProviderPresetID {
+        case .groq:
+            return .groq
+        case .localWhisperCPP:
+            return .localWhisperCPP
+        case .customOpenAICompatible:
+            return .customOpenAICompatible(
+                baseURL: customTranscriptionBaseURLValue,
+                model: customTranscriptionModel
+            )
         }
-        #endif
-        return KeychainHelper.readApiKey() != nil
+    }
+
+    var selectedTranscriptionProvider: TranscriptionProvider {
+        switch selectedTranscriptionProviderPresetID {
+        case .groq:
+            var provider = TranscriptionProvider.groq
+            provider = TranscriptionProvider(
+                id: provider.id,
+                displayName: provider.displayName,
+                baseURL: provider.baseURL,
+                transcriptionModel: selectedModel,
+                requiresAPIKey: provider.requiresAPIKey,
+                supportsModelValidation: provider.supportsModelValidation,
+                supportsTranscriptProcessing: provider.supportsTranscriptProcessing
+            )
+            return provider
+        case .localWhisperCPP:
+            let preset = TranscriptionProviderPreset.localWhisperCPP
+            return .openAICompatible(
+                baseURL: preset.baseURL!,
+                model: preset.model,
+                displayName: preset.displayName,
+                requiresAPIKey: preset.requiresAPIKey
+            )
+        case .customOpenAICompatible:
+            let fallback = URL(string: "http://127.0.0.1:8080/v1")!
+            let baseURL = customTranscriptionBaseURLValue ?? fallback
+            return .openAICompatible(
+                baseURL: baseURL,
+                model: customTranscriptionModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "whisper-1"
+                    : customTranscriptionModel,
+                displayName: "Custom OpenAI-compatible",
+                requiresAPIKey: false
+            )
+        }
+    }
+
+    var selectedTranscriptionModel: String {
+        selectedTranscriptionProvider.transcriptionModel
+    }
+
+    var supportsSelectedTranscriptProcessing: Bool {
+        selectedTranscriptionProvider.supportsTranscriptProcessing
+    }
+
+    var effectiveTranscriptProcessingMode: TranscriptProcessingMode {
+        supportsSelectedTranscriptProcessing ? transcriptProcessingMode : .raw
+    }
+
+    var customTranscriptionBaseURLValue: URL? {
+        guard selectedTranscriptionProviderPresetID == .customOpenAICompatible
+                || selectedTranscriptionProviderID == .openAICompatible else {
+            return nil
+        }
+        let trimmed = customTranscriptionBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil else {
+            return nil
+        }
+        return url
     }
 
     var isSetupReady: Bool {
@@ -309,10 +457,14 @@ final class AppState {
                 return setupPresentation
             }
             switch transientResult {
-            case .pasted(let delivery):
+            case .pasted:
                 return SessionPresentation(
-                    title: delivery.userMessage,
-                    detail: deliveredDetail(for: delivery),
+                    title: lastPasteSummary ?? "Pasted",
+                    detail: [
+                        "Delivered",
+                        currentTargetDetail,
+                        clipboardFeedback
+                    ].compactMap { $0 }.joined(separator: " · "),
                     timerText: nil,
                     systemImage: "checkmark.circle.fill",
                     tone: .success,
@@ -330,7 +482,7 @@ final class AppState {
             case nil:
                 return SessionPresentation(
                     title: "Ready",
-                    detail: "\(hotkeyLabel) · \(readyPasteTargetDetail)",
+                    detail: "\(hotkeyLabel) · \(asyncPasteEnabled ? "Paste target is captured when recording starts" : "Paste target is the current app")",
                     timerText: nil,
                     systemImage: "waveform",
                     tone: .neutral,
@@ -362,6 +514,10 @@ final class AppState {
                 primaryAction: errorAction(for: message, hasRetryableFailure: hasRetryableFailure)
             )
         }
+    }
+
+    private var currentTargetDetail: String {
+        capturedTargetName.map { "Target: \($0)" } ?? "Target: current app"
     }
 
     private func setupSessionPresentation() -> SessionPresentation? {
@@ -409,7 +565,9 @@ final class AppState {
     private func apiKeySetupDetail() -> String {
         switch apiKeyState {
         case .unknown:
-            "Check Groq API key before recording"
+            selectedTranscriptionProvider.requiresAPIKey
+                ? "Check \(selectedTranscriptionProvider.displayName) API key before recording"
+                : "\(selectedTranscriptionProvider.displayName) API key is optional"
         case .needsAction(let message):
             message
         case .ready:
@@ -437,7 +595,7 @@ final class AppState {
         case .transcribingAudio:
             return SessionPresentation(
                 title: "Transcribing",
-                detail: [transcriptionDetail, pasteTargetDetail].compactMap { $0 }.joined(separator: " · "),
+                detail: transcriptionDetail,
                 timerText: nil,
                 systemImage: "waveform.badge.magnifyingglass",
                 tone: .progress,
@@ -446,7 +604,7 @@ final class AppState {
         case .cleaningTranscript:
             return SessionPresentation(
                 title: "Cleaning up",
-                detail: ["\(transcriptCleanupModel) · \(transcriptProcessingMode.displayName)", pasteTargetDetail].compactMap { $0 }.joined(separator: " · "),
+                detail: "\(transcriptCleanupModel) · \(transcriptProcessingMode.displayName) · \(currentTargetDetail)",
                 timerText: nil,
                 systemImage: "sparkles",
                 tone: .progress,
@@ -464,46 +622,22 @@ final class AppState {
         }
     }
 
-    private var readyPasteTargetDetail: String {
-        if asyncPasteEnabled {
-            return "Paste target captured when recording starts"
-        }
-        return "Paste target is the current app"
-    }
-
-    private var pasteTargetDetail: String? {
-        if let capturedTargetName {
-            return "Target: \(capturedTargetName)"
-        }
-        if asyncPasteEnabled {
-            return "Target not captured yet"
-        }
-        return "Target: current app"
-    }
-
-    private func deliveredDetail(for delivery: PasteDelivery) -> String {
-        var parts = ["Delivered"]
-        if let target = pasteTargetDetail {
-            parts.append(target)
-        }
-        if let clipboardFeedback {
-            parts.append(clipboardFeedback)
-        }
-        return parts.joined(separator: " · ")
-    }
-
     private var transcriptionDetail: String {
-        switch transcriptProcessingMode {
+        let baseDetail: String
+        switch effectiveTranscriptProcessingMode {
         case .raw:
-            "Groq · \(selectedModel)"
+            baseDetail = "\(selectedTranscriptionProvider.displayName) · \(selectedTranscriptionModel)"
         case .cleanUp, .rewriteClearly:
-            "Groq · cleanup next"
+            baseDetail = "\(selectedTranscriptionProvider.displayName) · cleanup next"
         }
+        return "\(baseDetail) · \(currentTargetDetail)"
     }
 
     private func errorDetail(for message: String, hasRetryableFailure: Bool) -> String {
         if message.localizedCaseInsensitiveContains("api key") {
-            return "Add a Groq API key to transcribe"
+            return selectedTranscriptionProvider.requiresAPIKey
+                ? "Add a \(selectedTranscriptionProvider.displayName) API key to transcribe"
+                : "\(selectedTranscriptionProvider.displayName) API key is optional"
         }
         if message.localizedCaseInsensitiveContains("accessibility") {
             return "Enable GroqTalk in Privacy & Security"
@@ -512,6 +646,10 @@ final class AppState {
             return "Check Microphone privacy or audio input"
         }
         return hasRetryableFailure ? "Audio saved · Retry transcription" : "Open History for details"
+    }
+
+    static func accessibilityRecoveryDetail(isDebugBuild: Bool) -> String {
+        "Enable GroqTalk in Accessibility. Return to GroqTalk. If it is already enabled but still fails, remove the old GroqTalk entry, quit, and reopen GroqTalk."
     }
 
     private func errorAction(for message: String, hasRetryableFailure: Bool) -> SessionAction? {
@@ -529,16 +667,25 @@ final class AppState {
 
     init() {
         let defaults = Self.defaults
+        var persistedPresetRawValue = defaults
+            .persistentDomain(forName: Self.defaultsDomainName)?["transcriptionProviderPreset"] as? String
         if ProcessInfo.processInfo.arguments.contains("--reset-defaults") {
             for key in [
                 "soundEffectsEnabled",
+                "recordingStartSoundCue",
+                "recordingEndSoundCue",
+                "transcriptionProvider",
+                "transcriptionProviderPreset",
                 "whisperModel",
+                "customTranscriptionBaseURL",
+                "customTranscriptionModel",
                 "audioFormat",
                 "keepOnClipboard",
                 "showLiveFeedbackHUD",
                 "showFloatingStatus",
                 "asyncPasteEnabled",
                 "experimentalSkyLightPasteEnabled",
+                "pauseBrowserMediaWhileRecording",
                 "mockTranscriptionEnabled",
                 "recordingMode",
                 "hotkeyChoice",
@@ -552,16 +699,24 @@ final class AppState {
             ] {
                 defaults.removeObject(forKey: key)
             }
+            persistedPresetRawValue = nil
         }
 
         defaults.register(defaults: [
             "soundEffectsEnabled": true,
+            "recordingStartSoundCue": RecordingSoundCue.recordingStart.rawValue,
+            "recordingEndSoundCue": RecordingSoundCue.recordingStop.rawValue,
+            "transcriptionProvider": TranscriptionProviderID.groq.rawValue,
+            "transcriptionProviderPreset": TranscriptionProviderPresetID.groq.rawValue,
             "whisperModel": "whisper-large-v3-turbo",
+            "customTranscriptionBaseURL": "http://127.0.0.1:8080/v1",
+            "customTranscriptionModel": "whisper-1",
             "audioFormat": "m4a",
             "keepOnClipboard": false,
             "showFloatingStatus": false,
             "asyncPasteEnabled": false,
             "experimentalSkyLightPasteEnabled": false,
+            "pauseBrowserMediaWhileRecording": false,
             "mockTranscriptionEnabled": false,
             "recordingMode": "hold",
             "hotkeyChoice": "rightCommand",
@@ -573,7 +728,25 @@ final class AppState {
         // Load persisted values into stored properties.
         // didSet does NOT fire during init, so no redundant writes.
         soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
+        recordingStartSoundCue = RecordingSoundCue(rawValue: defaults.string(forKey: "recordingStartSoundCue") ?? "")
+            ?? .recordingStart
+        recordingEndSoundCue = RecordingSoundCue(rawValue: defaults.string(forKey: "recordingEndSoundCue") ?? "")
+            ?? .recordingStop
+        let persistedProviderID = TranscriptionProviderID(rawValue: defaults.string(forKey: "transcriptionProvider") ?? "") ?? .groq
+        let persistedPresetID: TranscriptionProviderPresetID
+        if let rawPreset = persistedPresetRawValue,
+           let preset = TranscriptionProviderPresetID(rawValue: rawPreset) {
+            persistedPresetID = preset
+        } else {
+            persistedPresetID = persistedProviderID == .groq ? .groq : .customOpenAICompatible
+        }
+        isSynchronizingProviderSelection = true
+        selectedTranscriptionProviderID = persistedProviderID
+        selectedTranscriptionProviderPresetID = persistedPresetID
+        isSynchronizingProviderSelection = false
         selectedModel = defaults.string(forKey: "whisperModel") ?? "whisper-large-v3-turbo"
+        customTranscriptionBaseURL = defaults.string(forKey: "customTranscriptionBaseURL") ?? "http://127.0.0.1:8080/v1"
+        customTranscriptionModel = defaults.string(forKey: "customTranscriptionModel") ?? "whisper-1"
         selectedAudioFormat = AudioFormat(rawValue: defaults.string(forKey: "audioFormat") ?? "") ?? .m4a
         selectedLanguage = Language(rawValue: defaults.string(forKey: "language") ?? "") ?? .auto
         transcriptProcessingMode = TranscriptProcessingMode(rawValue: defaults.string(forKey: "transcriptProcessingMode") ?? "") ?? .raw
@@ -582,6 +755,7 @@ final class AppState {
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
         experimentalSkyLightPasteEnabled = defaults.bool(forKey: "experimentalSkyLightPasteEnabled")
+        pauseBrowserMediaWhileRecording = defaults.bool(forKey: "pauseBrowserMediaWhileRecording")
         #if DEBUG
         mockTranscriptionEnabled = defaults.bool(forKey: "mockTranscriptionEnabled")
         #endif
@@ -591,6 +765,9 @@ final class AppState {
         customHotkeyModifiers = UInt64(bitPattern: Int64(defaults.integer(forKey: "customHotkeyModifiers")))
         customHotkeyLabel = defaults.string(forKey: "customHotkeyLabel") ?? ""
         selectedInputDeviceUID = Self.defaults.string(forKey: "selectedInputDeviceUID")
+        isSynchronizingProviderSelection = true
+        selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
+        isSynchronizingProviderSelection = false
     }
 
     func setStatus(_ newStatus: Status) {
@@ -655,19 +832,64 @@ final class AppState {
     }
 
     func refreshApiKeyState() {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+        if selectedTranscriptionProvider.requiresAPIKey {
+            apiKeyState = hasApiKey ? .ready : .needsAction("Add \(selectedTranscriptionProvider.displayName) API key")
+        } else {
+            apiKeyState = .ready
+        }
+    }
+
+    func resetProviderConnectionTest() {
+        providerConnectionTestState = .idle
+    }
+
+    func testSelectedProviderConnection(
+        service: TranscriptionService = TranscriptionService(),
+        apiKey: String? = nil
+    ) async {
+        guard selectedTranscriptionProvider.id == .openAICompatible else {
+            providerConnectionTestState = .warning("Connection test is only needed for custom or local providers.")
             return
         }
-        #endif
-        apiKeyState = hasApiKey ? .ready : .needsAction("Add Groq API key")
+
+        if selectedTranscriptionProviderPresetID == .customOpenAICompatible,
+           customTranscriptionBaseURLValue == nil {
+            providerConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+            return
+        }
+
+        providerConnectionTestState = .running
+        let key = apiKey ?? KeychainHelper.readApiKey(for: selectedTranscriptionProviderID)
+        do {
+            let result = try await service
+                .withProvider(selectedTranscriptionProvider)
+                .validateProviderConfiguration(
+                    apiKey: key,
+                    requiredModels: [selectedTranscriptionModel]
+                )
+            switch result {
+            case .modelsValidated:
+                providerConnectionTestState = .succeeded("Server reachable. Model \(selectedTranscriptionModel) is available.")
+            case .reachableWithoutModelValidation:
+                providerConnectionTestState = .warning("Server reachable. Model availability was not checked.")
+            }
+        } catch TranscriptionService.TranscriptionError.modelUnavailable(let model) {
+            providerConnectionTestState = .failed("Server reachable, but model \(model) was not listed.")
+        } catch TranscriptionService.TranscriptionError.invalidProviderURL {
+            providerConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+        } catch is URLError {
+            providerConnectionTestState = .failed("Could not reach OpenAI-compatible transcription server.")
+        } catch {
+            providerConnectionTestState = .failed("Connection test failed: \(error.localizedDescription)")
+        }
     }
 
     func startSetupCheck() {
         setupCheckState = .running
     }
 
-    func completeSetupCheck() {
+    func completeSetupCheck(detail: String = "Ready to record") {
+        setupCheckSuccessDetail = detail
         setupCheckState = .passed(Date())
     }
 

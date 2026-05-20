@@ -6,28 +6,173 @@ protocol TranscriptionTransport {
 
 extension URLSession: TranscriptionTransport {}
 
+enum TranscriptionProviderID: String, CaseIterable, Identifiable {
+    case groq
+    case openAICompatible = "openai-compatible"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .groq:
+            "Groq"
+        case .openAICompatible:
+            "OpenAI-compatible"
+        }
+    }
+}
+
+enum TranscriptionProviderPresetID: String, CaseIterable, Identifiable {
+    case groq
+    case localWhisperCPP = "local-whisper-cpp"
+    case customOpenAICompatible = "custom-openai-compatible"
+
+    var id: String { rawValue }
+}
+
+struct TranscriptionProviderPreset: Equatable, Identifiable {
+    let id: TranscriptionProviderPresetID
+    let displayName: String
+    let providerID: TranscriptionProviderID
+    let baseURL: URL?
+    let model: String
+    let requiresAPIKey: Bool
+    let supportsTranscriptProcessing: Bool
+    let isEditable: Bool
+
+    static let groq = TranscriptionProviderPreset(
+        id: .groq,
+        displayName: "Groq",
+        providerID: .groq,
+        baseURL: URL(string: "https://api.groq.com/openai/v1")!,
+        model: "whisper-large-v3-turbo",
+        requiresAPIKey: true,
+        supportsTranscriptProcessing: true,
+        isEditable: false
+    )
+
+    static let localWhisperCPP = TranscriptionProviderPreset(
+        id: .localWhisperCPP,
+        displayName: "Local whisper.cpp",
+        providerID: .openAICompatible,
+        baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+        model: "whisper-1",
+        requiresAPIKey: false,
+        supportsTranscriptProcessing: false,
+        isEditable: false
+    )
+
+    static func customOpenAICompatible(baseURL: URL?, model: String) -> TranscriptionProviderPreset {
+        TranscriptionProviderPreset(
+            id: .customOpenAICompatible,
+            displayName: "Custom OpenAI-compatible",
+            providerID: .openAICompatible,
+            baseURL: baseURL,
+            model: model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "whisper-1" : model,
+            requiresAPIKey: false,
+            supportsTranscriptProcessing: false,
+            isEditable: true
+        )
+    }
+
+    static func builtIn(id: TranscriptionProviderPresetID) -> TranscriptionProviderPreset? {
+        switch id {
+        case .groq:
+            groq
+        case .localWhisperCPP:
+            localWhisperCPP
+        case .customOpenAICompatible:
+            nil
+        }
+    }
+}
+
+struct TranscriptionProvider: Equatable {
+    let id: TranscriptionProviderID
+    let displayName: String
+    let baseURL: URL
+    let transcriptionModel: String
+    let requiresAPIKey: Bool
+    let supportsModelValidation: Bool
+    let supportsTranscriptProcessing: Bool
+
+    static let groq = TranscriptionProvider(
+        id: .groq,
+        displayName: "Groq",
+        baseURL: URL(string: "https://api.groq.com/openai/v1")!,
+        transcriptionModel: "whisper-large-v3-turbo",
+        requiresAPIKey: true,
+        supportsModelValidation: true,
+        supportsTranscriptProcessing: true
+    )
+
+    static func openAICompatible(
+        baseURL: URL,
+        model: String,
+        displayName: String = "OpenAI-compatible",
+        requiresAPIKey: Bool = false
+    ) -> TranscriptionProvider {
+        TranscriptionProvider(
+            id: .openAICompatible,
+            displayName: displayName,
+            baseURL: baseURL,
+            transcriptionModel: model,
+            requiresAPIKey: requiresAPIKey,
+            supportsModelValidation: false,
+            supportsTranscriptProcessing: false
+        )
+    }
+
+    var audioTranscriptionsEndpoint: URL {
+        endpoint("audio/transcriptions")
+    }
+
+    var chatCompletionsEndpoint: URL {
+        endpoint("chat/completions")
+    }
+
+    var modelsEndpoint: URL {
+        endpoint("models")
+    }
+
+    private func endpoint(_ path: String) -> URL {
+        let root = baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return URL(string: "\(root)/\(path)")!
+    }
+}
+
 struct TranscriptionService {
     static let maxUploadBytes = 25 * 1024 * 1024
+    static let providerValidationTimeout: TimeInterval = 3
 
-    private let endpoint = URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
-    private let chatEndpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
-    private let modelsEndpoint = URL(string: "https://api.groq.com/openai/v1/models")!
+    private let provider: TranscriptionProvider
     private let transport: TranscriptionTransport
 
-    init(transport: TranscriptionTransport = URLSession.shared) {
+    init(provider: TranscriptionProvider = .groq, transport: TranscriptionTransport = URLSession.shared) {
+        self.provider = provider
         self.transport = transport
     }
 
-    func transcribe(audioFileURL: URL, apiKey: String, model: String, format: AudioFormat = .wav, language: Language = .auto) async throws -> String {
+    func withProvider(_ provider: TranscriptionProvider) -> TranscriptionService {
+        TranscriptionService(provider: provider, transport: transport)
+    }
+
+    func transcribe(
+        audioFileURL: URL,
+        apiKey: String?,
+        model: String,
+        format: AudioFormat = .wav,
+        language: Language = .auto
+    ) async throws -> String {
         guard fileSize(at: audioFileURL) <= Self.maxUploadBytes else {
             DiagnosticLog.write("transcribe: local file too large")
             throw TranscriptionError.fileTooLarge
         }
 
         let boundary = UUID().uuidString
-        var request = URLRequest(url: endpoint)
+        var request = URLRequest(url: provider.audioTranscriptionsEndpoint)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = try await buildMultipartBodyAsync(
             audioFileURL: audioFileURL, model: model, format: format, language: language, boundary: boundary
@@ -62,14 +207,14 @@ struct TranscriptionService {
 
     func processTranscript(
         _ transcript: String,
-        apiKey: String,
+        apiKey: String?,
         mode: TranscriptProcessingMode,
         model: String
     ) async throws -> String {
         guard mode != .raw else { return transcript }
-        var request = URLRequest(url: chatEndpoint)
+        var request = URLRequest(url: provider.chatCompletionsEndpoint)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try buildTranscriptProcessingBody(transcript: transcript, mode: mode, model: model)
 
@@ -102,12 +247,17 @@ struct TranscriptionService {
         throw error
     }
 
-    func validateApiKey(apiKey: String, requiredModels: [String] = []) async throws {
-        var request = URLRequest(url: modelsEndpoint)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+    func validateApiKey(apiKey: String?, requiredModels: [String] = []) async throws {
+        guard provider.supportsModelValidation else {
+            DiagnosticLog.write("validateApiKey: skipping model validation for provider=\(provider.id.rawValue)")
+            return
+        }
 
-        DiagnosticLog.write("validateApiKey: checking Groq API key requiredModels=\(requiredModels.count)")
+        var request = URLRequest(url: provider.modelsEndpoint)
+        request.httpMethod = "GET"
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
+
+        DiagnosticLog.write("validateApiKey: checking provider=\(provider.id.rawValue) requiredModels=\(requiredModels.count)")
         let (data, response) = try await transport.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             DiagnosticLog.write("validateApiKey: invalid response type")
@@ -132,6 +282,47 @@ struct TranscriptionService {
         let availableModels = Set(responseBody.data.map(\.id))
         for model in requiredModels where !availableModels.contains(model) {
             throw TranscriptionError.modelUnavailable(model)
+        }
+    }
+
+    func validateProviderConfiguration(apiKey: String?, requiredModels: [String] = []) async throws -> ProviderValidationResult {
+        guard provider.id == .openAICompatible else {
+            try await validateApiKey(apiKey: apiKey, requiredModels: requiredModels)
+            return .modelsValidated
+        }
+
+        guard isValidHTTPBaseURL(provider.baseURL) else {
+            DiagnosticLog.write("validateProviderConfiguration: invalid base URL provider=\(provider.id.rawValue)")
+            throw TranscriptionError.invalidProviderURL
+        }
+
+        var request = URLRequest(url: provider.modelsEndpoint)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Self.providerValidationTimeout
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
+
+        DiagnosticLog.write("validateProviderConfiguration: checking reachability provider=\(provider.id.rawValue)")
+        let (data, response) = try await transport.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            DiagnosticLog.write("validateProviderConfiguration: invalid response type")
+            throw TranscriptionError.invalidResponse
+        }
+        DiagnosticLog.write("validateProviderConfiguration: response status=\(http.statusCode) responseBytes=\(data.count)")
+
+        switch http.statusCode {
+        case 200:
+            guard let responseBody = try? JSONDecoder().decode(ModelsResponse.self, from: data) else {
+                return .reachableWithoutModelValidation
+            }
+            let availableModels = Set(responseBody.data.map(\.id))
+            for model in requiredModels where !availableModels.contains(model) {
+                throw TranscriptionError.modelUnavailable(model)
+            }
+            return .modelsValidated
+        case 404, 405:
+            return .reachableWithoutModelValidation
+        default:
+            throw mapAPIError(statusCode: http.statusCode, data: data)
         }
     }
 
@@ -208,6 +399,7 @@ struct TranscriptionService {
     enum TranscriptionError: Error, Equatable {
         case invalidResponse
         case invalidApiKey
+        case invalidProviderURL
         case fileTooLarge
         case rateLimited(String?)
         case quotaExceeded(String?)
@@ -220,6 +412,7 @@ struct TranscriptionService {
             switch self {
             case .invalidResponse: "invalidResponse"
             case .invalidApiKey: "invalidApiKey"
+            case .invalidProviderURL: "invalidProviderURL"
             case .fileTooLarge: "fileTooLarge"
             case .rateLimited: "rateLimited"
             case .quotaExceeded: "quotaExceeded"
@@ -229,6 +422,26 @@ struct TranscriptionService {
             case .apiError(let code, _): "apiError(\(code))"
             }
         }
+    }
+
+    enum ProviderValidationResult: Equatable {
+        case modelsValidated
+        case reachableWithoutModelValidation
+    }
+
+    private func setAuthorizationHeader(apiKey: String?, on request: inout URLRequest) {
+        let trimmed = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return }
+        request.setValue("Bearer \(trimmed)", forHTTPHeaderField: "Authorization")
+    }
+
+    private func isValidHTTPBaseURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil else {
+            return false
+        }
+        return true
     }
 
     private func mapAPIError(statusCode: Int, data: Data) -> TranscriptionError {

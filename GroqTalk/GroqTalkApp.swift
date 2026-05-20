@@ -1,6 +1,7 @@
 import AVFoundation
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct GroqTalkApp: App {
@@ -23,8 +24,10 @@ struct GroqTalkApp: App {
                 onStopRecording: { [weak appDelegate] in appDelegate?.stopRecordingFromControl() },
                 onCancelRecording: { [weak appDelegate] in appDelegate?.cancelRecordingFromControl() },
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
+                onOpenSettings: { [weak appDelegate] in appDelegate?.showSettingsWindow() },
                 onOpenAccessibility: { [weak appDelegate] in appDelegate?.openAccessibilitySettings() },
                 onOpenMicrophone: { [weak appDelegate] in appDelegate?.openMicrophoneSettings() },
+                onCheckMicrophone: { [weak appDelegate] in appDelegate?.checkMicrophonePermission() },
                 onRunSetupCheck: { [weak appDelegate] in appDelegate?.runSetupCheck() }
             )
         } label: {
@@ -34,8 +37,13 @@ struct GroqTalkApp: App {
 
         Window("GroqTalk Setup", id: "api-key-setup") {
             ApiKeySetupView(
+                provider: appDelegate.appState.selectedTranscriptionProvider,
                 onSaved: { [weak appDelegate] in
                     appDelegate?.appState.refreshApiKeyState()
+                },
+                validateApiKey: { [weak appDelegate] key in
+                    guard let appDelegate else { return }
+                    try await appDelegate.validateSelectedProviderApiKey(key)
                 }
             )
         }
@@ -59,6 +67,14 @@ struct GroqTalkApp: App {
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() }
             )
         }
+        .commands {
+            CommandGroup(after: .help) {
+                Button("Export Diagnostics...") {
+                    appDelegate.exportDiagnostics()
+                }
+                .keyboardShortcut("d", modifiers: [.command, .option])
+            }
+        }
     }
 }
 
@@ -73,6 +89,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let textInserter = TextInserter()
     private let soundPlayer = SoundPlayer()
     private let singleInstanceGuard: SingleInstanceGuarding
+    private lazy var browserMediaController = BrowserMediaController(
+        isEnabled: { [weak self] in self?.appState.pauseBrowserMediaWhileRecording == true }
+    )
+    private lazy var recordingStartCueScheduler = RecordingStartCueScheduler(
+        isRecording: { [weak self] in self?.appState.status == .recording },
+        playStartSound: { [weak self] in self?.soundPlayer.playStartSound() }
+    )
 
     private var retryingRecordID: UUID?
 
@@ -84,9 +107,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var floatingStatusPanel: NSPanel?
     private var floatingStatusSyncTimer: Timer?
     private var transientSuccessAutoHideTimer: Timer?
+    private var setupRefreshTask: Task<Void, Never>?
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
-    private var apiKeySetupWindow: NSWindow?
+    private var settingsWindow: NSWindow?
     private var hasCompletedOnboarding: Bool {
         get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
@@ -156,8 +180,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Skip during UI testing (app is launched by the test harness) and during
         // unit/integration tests (the test runner hosts the app process, so the
         // real app may also be running alongside).
-        let isTesting = ProcessInfo.processInfo.arguments.contains("--ui-testing")
-            || NSClassFromString("XCTestCase") != nil
+        let isTesting = Self.isTestingProcess()
         if !isTesting, singleInstanceGuard.activateExistingInstanceIfRunning() {
             // terminate is deferred to the next run loop tick because calling it
             // during applicationDidFinishLaunching can cause AppKit issues.
@@ -168,12 +191,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         DiagnosticLog.write("applicationDidFinishLaunching")
         _ = SparkleUpdater.shared
+        DiagnosticLog.write("applicationDidFinishLaunching: updater ready")
         recordingController = RecordingController(audioRecorder: audioRecorder, appState: appState)
         recordingController.delegate = self
         transcriptionController = TranscriptionController(transcriptionService: transcriptionService, appState: appState)
         transcriptionController.delegate = self
         pasteController = PasteController(textInserter: textInserter, appState: appState)
         pasteController.delegate = self
+        DiagnosticLog.write("applicationDidFinishLaunching: controllers ready")
         let uiTestingCtrl = UITestingController(
             appState: appState,
             history: history,
@@ -199,16 +224,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         uiTestingCtrl.configureUITestingIfNeeded()
         uiTestingCtrl.configureAutomationSmokeIfNeeded()
         uiTestingCtrl.configureE2ETranscribeIfNeeded()
-        refreshSetupHealth()
+        DiagnosticLog.write("applicationDidFinishLaunching: ui testing configured")
         wireHotkeyMonitor()
         applyHotkeyConfig()
+        DiagnosticLog.write("applicationDidFinishLaunching: hotkey configured")
         startFloatingStatusSync()
-        if isTesting {
+        let shouldDisplayOnboarding = shouldShowOnboarding(isTesting: isTesting)
+        if isTesting || shouldDisplayOnboarding {
+            DiagnosticLog.write("applicationDidFinishLaunching: setup-first mode, skipping initial hotkey monitor")
             appState.setStatus(.idle)
         } else {
+            DiagnosticLog.write("applicationDidFinishLaunching: starting hotkey monitor")
             startHotkeyMonitorWithRetry()
         }
-        if !hasCompletedOnboarding && !isTesting {
+        refreshSetupHealth()
+        DiagnosticLog.write("applicationDidFinishLaunching: setup health refreshed")
+        if shouldDisplayOnboarding {
             showOnboarding()
         }
         if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
@@ -216,28 +247,98 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    @MainActor
+    func exportDiagnostics() {
+        DiagnosticLog.write("diagnosticsExport: save panel opened")
+        let panel = NSSavePanel()
+        panel.title = "Export Diagnostics"
+        panel.prompt = "Export"
+        panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = "GroqTalk-Diagnostics-\(Self.diagnosticsFilenameTimestamp()).txt"
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            DiagnosticLog.write("diagnosticsExport: cancelled")
+            return
+        }
+
+        let text = DiagnosticLog.exportText(appState: appState)
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            DiagnosticLog.write("diagnosticsExport: wrote file=\(url.lastPathComponent) bytes=\(text.utf8.count)")
+        } catch {
+            DiagnosticLog.write("diagnosticsExport: failed error=\(error.localizedDescription)")
+            let alert = NSAlert()
+            alert.messageText = "Diagnostics export failed"
+            alert.informativeText = "GroqTalk could not write the diagnostics file. Choose another location and try again."
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard !Self.isTestingProcess() else { return }
+        refreshSetupHealth()
+        if accessibilityTrusted() {
+            retryHotkeyMonitorAfterPermissionChange()
+        }
+    }
+
+    static func isTestingProcess(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        arguments.contains("--ui-testing")
+            || environment["XCTestConfigurationFilePath"] != nil
+            || arguments.contains { $0.localizedCaseInsensitiveContains(".xctest") }
+    }
+
+    private static func diagnosticsFilenameTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: Date())
+    }
+
+    private func shouldShowOnboarding(isTesting: Bool) -> Bool {
+        if isTesting {
+            return ProcessInfo.processInfo.arguments.contains("--show-onboarding")
+        }
+        return !hasCompletedOnboarding
+    }
+
     private func showOnboarding() {
         let onboardingView = OnboardingView(
             appState: appState,
-            onOpenApiKey: { [weak self] in self?.showApiKeySetupFromOnboarding() },
-            onRunSetupCheck: { [weak self] in self?.runSetupCheck() },
-            onRequestMicrophoneAccess: { [weak self] in self?.requestMicrophoneAccessFromOnboarding() },
             onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
             onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
-            onComplete: { [weak self] in
-                self?.hasCompletedOnboarding = true
-                self?.onboardingWindow?.close()
-                self?.onboardingWindow = nil
+            onCheckMicrophone: { [weak self] in self?.checkMicrophonePermission() }
+        ) { [weak self] in
+            guard let self else { return }
+            self.hasCompletedOnboarding = true
+            if !Self.isTestingProcess(), !self.hotkeyMonitor.isRunning {
+                self.startHotkeyMonitorWithRetry()
             }
-        )
+            let window = self.onboardingWindow
+            self.onboardingWindow = nil
+            DispatchQueue.main.async {
+                window?.orderOut(nil)
+                window?.close()
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 450),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         window.title = "Welcome to GroqTalk"
+        window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: onboardingView)
         window.center()
         window.makeKeyAndOrderFront(nil)
@@ -245,35 +346,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         onboardingWindow = window
     }
 
-    private func showApiKeySetupFromOnboarding() {
-        if let apiKeySetupWindow {
-            apiKeySetupWindow.makeKeyAndOrderFront(nil)
+    func showSettingsWindow() {
+        if let settingsWindow {
+            settingsWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        let setupView = ApiKeySetupView(
-            onSaved: { [weak self] in
-                self?.appState.refreshApiKeyState()
-                self?.refreshSetupHealth()
-            },
-            onFinished: { [weak self] in
-                self?.apiKeySetupWindow?.close()
-                self?.apiKeySetupWindow = nil
-            }
+        let settingsView = SettingsView(
+            appState: appState,
+            history: history,
+            onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() }
         )
+
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 280),
-            styleMask: [.titled, .closable],
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 430),
+            styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
-        window.title = "GroqTalk Setup"
-        window.contentView = NSHostingView(rootView: setupView)
+        window.title = "Settings"
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: settingsView)
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        apiKeySetupWindow = window
+        settingsWindow = window
     }
 
     // MARK: - Floating status
@@ -472,34 +570,57 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Transcription flow (now delegated to TranscriptionController)
 
     private func startHotkeyMonitorWithRetry() {
-        appState.refreshApiKeyState()
-        appState.updateAccessibilityState(isTrusted: AXIsProcessTrusted())
+        let initialAccessibilityTrusted = accessibilityTrusted()
+        DiagnosticLog.write("AccessibilityTrust: launch initial=\(initialAccessibilityTrusted)")
+        appState.updateAccessibilityState(isTrusted: initialAccessibilityTrusted)
         if hotkeyMonitor.start() {
+            DiagnosticLog.write("HotkeyMonitor: start succeeded")
             appState.updateAccessibilityState(isTrusted: true)
             appState.setStatus(.idle)
             return
         }
 
-        guard !AXIsProcessTrusted() else {
-            DiagnosticLog.write("HotkeyMonitor: start failed despite Accessibility trust")
-            appState.updateAccessibilityState(isTrusted: false, message: "Restart GroqTalk")
-            appState.showError("Failed to start hotkey monitor -- restart GroqTalk")
+        let postFailureAccessibilityTrusted = accessibilityTrusted()
+        DiagnosticLog.write("AccessibilityTrust: after event tap failure=\(postFailureAccessibilityTrusted)")
+        guard !postFailureAccessibilityTrusted else {
+            DiagnosticLog.write("HotkeyMonitor: start failed despite Accessibility trust; retrying")
+            appState.updateAccessibilityState(isTrusted: true)
+            Task { @MainActor in
+                for attempt in 1...5 {
+                    do {
+                        try await Task.sleep(for: .milliseconds(400))
+                    } catch {
+                        return
+                    }
+                    if hotkeyMonitor.start() {
+                        DiagnosticLog.write("HotkeyMonitor: trusted retry succeeded attempt=\(attempt)")
+                        appState.updateAccessibilityState(isTrusted: true)
+                        appState.setStatus(.idle)
+                        return
+                    }
+                }
+                DiagnosticLog.write("HotkeyMonitor: trusted retry exhausted")
+                appState.updateAccessibilityState(isTrusted: true)
+                appState.showError("Failed to start hotkey monitor -- restart GroqTalk")
+            }
             return
         }
 
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
-        AXIsProcessTrustedWithOptions(options)
+        let promptedAccessibilityTrusted = AXIsProcessTrustedWithOptions(options)
+        DiagnosticLog.write("AccessibilityTrust: prompt requested result=\(promptedAccessibilityTrusted)")
         appState.updateAccessibilityState(isTrusted: false)
         appState.setStatus(.error("Enable Accessibility in Settings"))
 
         Task {
-            while !AXIsProcessTrusted() {
+            while !accessibilityTrusted() {
                 do {
                     try await Task.sleep(for: .seconds(2))
                 } catch {
                     return
                 }
             }
+            DiagnosticLog.write("AccessibilityTrust: polling observed trusted=true")
             if hotkeyMonitor.start() {
                 appState.updateAccessibilityState(isTrusted: true)
                 appState.setStatus(.idle)
@@ -511,8 +632,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshSetupHealth() {
-        let isTestHost = ProcessInfo.processInfo.arguments.contains("--ui-testing")
-            || NSClassFromString("XCTestCase") != nil
+        let isTestHost = Self.isTestingProcess()
+        defer {
+            if isTestHost {
+                uiTestingController?.writeStateSnapshot()
+            }
+        }
         if isTestHost {
             if ProcessInfo.processInfo.arguments.contains("--seed-setup-unknown") {
                 appState.accessibilityState = .unknown
@@ -527,23 +652,43 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState.failSetupCheck("Enable Accessibility")
                 return
             }
+            if ProcessInfo.processInfo.arguments.contains("--seed-microphone-unknown") {
+                appState.updateAccessibilityState(isTrusted: true)
+                appState.microphoneState = .unknown
+                appState.apiKeyState = .ready
+                return
+            }
+            if ProcessInfo.processInfo.arguments.contains("--seed-microphone-denied") {
+                appState.updateAccessibilityState(isTrusted: true)
+                appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
+                appState.apiKeyState = .ready
+                return
+            }
             appState.updateAccessibilityState(isTrusted: true)
             appState.updateMicrophoneState(isReady: true)
             appState.apiKeyState = .ready
             return
         }
-        appState.refreshApiKeyState()
-        appState.updateAccessibilityState(isTrusted: AXIsProcessTrusted())
+        let trusted = accessibilityTrusted()
+        DiagnosticLog.write("SetupHealth: accessibilityTrusted=\(trusted)")
+        appState.updateAccessibilityState(isTrusted: trusted)
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             appState.updateMicrophoneState(isReady: true)
+            DiagnosticLog.write("SetupHealth: microphone=authorized")
         case .denied, .restricted:
             appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
+            DiagnosticLog.write("SetupHealth: microphone=denied")
         case .notDetermined:
             appState.microphoneState = .unknown
+            DiagnosticLog.write("SetupHealth: microphone=notDetermined")
         @unknown default:
             appState.microphoneState = .unknown
+            DiagnosticLog.write("SetupHealth: microphone=unknown")
         }
+        DiagnosticLog.write("SetupHealth: refreshing API key state")
+        appState.refreshApiKeyState()
+        DiagnosticLog.write("SetupHealth: API key state refreshed")
     }
 
     func openAccessibilitySettings() {
@@ -551,6 +696,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSWorkspace.shared.open(url)
+        startSetupRefreshPolling()
     }
 
     func openMicrophoneSettings() {
@@ -558,6 +704,53 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         NSWorkspace.shared.open(url)
+        startSetupRefreshPolling()
+    }
+
+    private func startSetupRefreshPolling() {
+        guard !Self.isTestingProcess() else { return }
+        setupRefreshTask?.cancel()
+        setupRefreshTask = Task { @MainActor in
+            for _ in 0..<60 {
+                if Task.isCancelled { return }
+                refreshSetupHealth()
+                if accessibilityTrusted() {
+                    retryHotkeyMonitorAfterPermissionChange()
+                }
+                if appState.isSetupReady {
+                    return
+                }
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+            }
+        }
+    }
+
+    private func retryHotkeyMonitorAfterPermissionChange() {
+        guard !hotkeyMonitor.isRunning else { return }
+        guard appState.status == .idle || appState.isError else { return }
+        if hotkeyMonitor.start() {
+            DiagnosticLog.write("HotkeyMonitor: permission refresh start succeeded")
+            appState.updateAccessibilityState(isTrusted: true)
+            appState.clearError()
+        }
+    }
+
+    func checkMicrophonePermission() {
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            appState.updateMicrophoneState(isReady: true)
+            DiagnosticLog.write("MicrophonePermission: ui-testing ready=true")
+            return
+        }
+
+        Task { @MainActor in
+            let ready = await requestMicrophoneAccessIfNeeded()
+            appState.updateMicrophoneState(isReady: ready)
+            DiagnosticLog.write("MicrophonePermission: checked ready=\(ready)")
+        }
     }
 
     func runSetupCheck() {
@@ -577,36 +770,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
 
-            guard appState.hasApiKey else {
+            appState.refreshApiKeyState()
+            if appState.selectedTranscriptionProvider.requiresAPIKey && !appState.hasApiKey {
                 appState.refreshApiKeyState()
-                appState.failSetupCheck("Add Groq API key")
+                appState.failSetupCheck("Add \(appState.selectedTranscriptionProvider.displayName) API key")
                 return
             }
-
-            guard let apiKey = KeychainHelper.readApiKey() else {
-                appState.refreshApiKeyState()
-                appState.failSetupCheck("Add Groq API key")
-                return
-            }
+            let apiKey = KeychainHelper.readApiKey(for: appState.selectedTranscriptionProviderID)
+            var setupSuccessDetail = "Ready to record"
 
             do {
+                if appState.selectedTranscriptionProviderPresetID == .customOpenAICompatible,
+                   appState.customTranscriptionBaseURLValue == nil {
+                    appState.failSetupCheck("Invalid OpenAI-compatible base URL")
+                    return
+                }
                 let requiredModels = requiredModelsForSetupCheck()
-                try await transcriptionService.validateApiKey(
+                let validation = try await transcriptionService.withProvider(appState.selectedTranscriptionProvider).validateProviderConfiguration(
                     apiKey: apiKey,
                     requiredModels: requiredModels
                 )
+                if validation == .reachableWithoutModelValidation {
+                    DiagnosticLog.write("setupCheck: provider reachable but model validation skipped")
+                    setupSuccessDetail = "Server reachable; model availability was not checked"
+                }
                 appState.apiKeyState = .ready
             } catch TranscriptionService.TranscriptionError.invalidApiKey {
-                appState.apiKeyState = .needsAction("Invalid Groq API key")
-                appState.failSetupCheck("Invalid Groq API key")
+                appState.apiKeyState = .needsAction("Invalid \(appState.selectedTranscriptionProvider.displayName) API key")
+                appState.failSetupCheck("Invalid \(appState.selectedTranscriptionProvider.displayName) API key")
+                return
+            } catch TranscriptionService.TranscriptionError.invalidProviderURL {
+                appState.failSetupCheck("Invalid OpenAI-compatible base URL")
                 return
             } catch {
-                let message = transcriptionController.errorMessage(from: error)
+                let message = setupCheckErrorMessage(from: error)
                 appState.failSetupCheck(message)
                 return
             }
 
-            guard AXIsProcessTrusted() else {
+            guard accessibilityTrusted() else {
                 appState.updateAccessibilityState(isTrusted: false)
                 appState.failSetupCheck("Enable Accessibility")
                 return
@@ -628,7 +830,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if let testRecordingURL {
                     try? FileManager.default.removeItem(at: testRecordingURL)
                 }
-                appState.completeSetupCheck()
+                appState.completeSetupCheck(detail: setupSuccessDetail)
             } catch is CancellationError {
                 audioRecorder.cancelRecording()
                 appState.failSetupCheck("Setup check cancelled")
@@ -640,21 +842,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func validateSelectedProviderApiKey(_ key: String) async throws {
+        _ = try await transcriptionService
+            .withProvider(appState.selectedTranscriptionProvider)
+            .validateProviderConfiguration(apiKey: key)
+    }
+
     private func requiredModelsForSetupCheck() -> [String] {
-        var models = [appState.selectedModel]
-        if appState.transcriptProcessingMode != .raw {
+        var models = [appState.selectedTranscriptionModel]
+        if appState.effectiveTranscriptProcessingMode != .raw {
             models.append(appState.transcriptCleanupModel)
         }
         return Array(Set(models))
     }
 
-    private func requestMicrophoneAccessIfNeeded() async -> Bool {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
-            return appState.microphoneState == .ready || appState.microphoneState == .unknown
+    private func setupCheckErrorMessage(from error: Error) -> String {
+        if appState.selectedTranscriptionProvider.id == .openAICompatible {
+            if error is URLError {
+                return "Could not reach OpenAI-compatible transcription server"
+            }
+            if let transcriptionError = error as? TranscriptionService.TranscriptionError,
+               transcriptionError == .invalidResponse {
+                return "OpenAI-compatible transcription server returned an invalid response"
+            }
         }
-        #endif
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        return transcriptionController.errorMessage(from: error)
+    }
+
+    private func accessibilityTrusted() -> Bool {
+        AXIsProcessTrusted()
+    }
+
+    private func requestMicrophoneAccessIfNeeded() async -> Bool {
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        DiagnosticLog.write("MicrophonePermission: authorizationStatus=\(status.rawValue)")
+        switch status {
         case .authorized:
             return true
         case .denied, .restricted:
@@ -662,47 +884,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case .notDetermined:
             return await withCheckedContinuation { continuation in
                 AVCaptureDevice.requestAccess(for: .audio) { granted in
+                    DiagnosticLog.write("MicrophonePermission: requestAccess granted=\(granted)")
                     continuation.resume(returning: granted)
                 }
             }
         @unknown default:
             return false
         }
-    }
-
-    func requestMicrophoneAccessFromOnboarding() {
-        guard !appState.isSetupCheckRunning else { return }
-        appState.startSetupCheck()
-
-        Task { @MainActor in
-            let microphoneReady = await requestMicrophoneAccessIfNeeded()
-            appState.updateMicrophoneState(isReady: microphoneReady)
-
-            if microphoneReady {
-                refreshSetupHealth()
-                if appState.isSetupReady {
-                    appState.completeSetupCheck()
-                } else {
-                    appState.failSetupCheck(nextSetupActionMessage())
-                }
-            } else {
-                appState.failSetupCheck("Allow microphone access")
-                openMicrophoneSettings()
-            }
-        }
-    }
-
-    private func nextSetupActionMessage() -> String {
-        if appState.apiKeyState != .ready {
-            return "Add Groq API key"
-        }
-        if appState.accessibilityState != .ready {
-            return "Enable Accessibility"
-        }
-        if appState.microphoneState != .ready {
-            return "Allow microphone access"
-        }
-        return "Run setup check"
     }
 
     func retryRecord(_ record: TranscriptionRecord) {
@@ -852,7 +1040,12 @@ extension AppDelegate: RecordingControllerDelegate {
     func recordingControllerDidStart(_ controller: RecordingController) {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStart")
         appState.updateMicrophoneState(isReady: true)
-        soundPlayer.playStartSound()
+        recordingStartCueScheduler.schedule()
+        if let browserMediaSessionID = browserMediaController.recordingDidStart() {
+            Task {
+                await browserMediaController.pausePlayingMedia(for: browserMediaSessionID)
+            }
+        }
     }
 
     func recordingController(
@@ -861,6 +1054,7 @@ extension AppDelegate: RecordingControllerDelegate {
         format: AudioFormat
     ) {
         DiagnosticLog.write("AppDelegate: recordingController didStopWithURL=\(audioURL.lastPathComponent)")
+        browserMediaController.recordingDidEnd(reason: .stopped)
         Task { @MainActor in
             await transcriptionController.transcribe(audioURL: audioURL, format: format)
         }
@@ -868,12 +1062,14 @@ extension AppDelegate: RecordingControllerDelegate {
 
     func recordingControllerDidStopWithNoAudio(_ controller: RecordingController) {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStopWithNoAudio")
+        browserMediaController.recordingDidEnd(reason: .noAudio)
         stopTranscribingAnimation()
         appState.setStatus(.idle)
     }
 
     func recordingControllerDidCancel(_ controller: RecordingController) {
         DiagnosticLog.write("AppDelegate: recordingControllerDidCancel")
+        browserMediaController.recordingDidEnd(reason: .cancelled)
         appState.setStatus(.idle)
         appState.feedbackMessage = "Recording cancelled"
         pasteController.clearPendingTarget()
@@ -881,6 +1077,7 @@ extension AppDelegate: RecordingControllerDelegate {
 
     func recordingController(_ controller: RecordingController, didFailWithError error: Error) {
         DiagnosticLog.write("AppDelegate: recordingController didFailWithError=\(error)")
+        browserMediaController.recordingDidEnd(reason: .failed)
         pasteController.clearPendingTarget()
         appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
         appState.showError("Microphone unavailable")

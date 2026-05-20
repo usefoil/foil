@@ -41,6 +41,76 @@ final class TranscriptionServiceTests: XCTestCase {
         return try! JSONSerialization.data(withJSONObject: payload)
     }
 
+    // MARK: - Providers
+
+    func testGroqProviderBuildsExpectedDefaultEndpoints() {
+        let provider = TranscriptionProvider.groq
+
+        XCTAssertEqual(
+            provider.audioTranscriptionsEndpoint.absoluteString,
+            "https://api.groq.com/openai/v1/audio/transcriptions"
+        )
+        XCTAssertEqual(
+            provider.chatCompletionsEndpoint.absoluteString,
+            "https://api.groq.com/openai/v1/chat/completions"
+        )
+        XCTAssertEqual(
+            provider.modelsEndpoint.absoluteString,
+            "https://api.groq.com/openai/v1/models"
+        )
+        XCTAssertEqual(provider.transcriptionModel, "whisper-large-v3-turbo")
+        XCTAssertTrue(provider.requiresAPIKey)
+        XCTAssertTrue(provider.supportsModelValidation)
+    }
+
+    func testOpenAICompatibleProviderBuildsEndpointsFromCustomBaseURL() {
+        let provider = TranscriptionProvider.openAICompatible(
+            baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+            model: "whisper-1"
+        )
+
+        XCTAssertEqual(
+            provider.audioTranscriptionsEndpoint.absoluteString,
+            "http://127.0.0.1:8080/v1/audio/transcriptions"
+        )
+        XCTAssertEqual(
+            provider.chatCompletionsEndpoint.absoluteString,
+            "http://127.0.0.1:8080/v1/chat/completions"
+        )
+        XCTAssertEqual(
+            provider.modelsEndpoint.absoluteString,
+            "http://127.0.0.1:8080/v1/models"
+        )
+        XCTAssertEqual(provider.transcriptionModel, "whisper-1")
+        XCTAssertFalse(provider.requiresAPIKey)
+        XCTAssertFalse(provider.supportsModelValidation)
+    }
+
+    func testLocalWhisperPresetDefinesExpectedDefaults() {
+        let preset = TranscriptionProviderPreset.localWhisperCPP
+
+        XCTAssertEqual(preset.id, .localWhisperCPP)
+        XCTAssertEqual(preset.displayName, "Local whisper.cpp")
+        XCTAssertEqual(preset.providerID, .openAICompatible)
+        XCTAssertEqual(preset.baseURL?.absoluteString, "http://127.0.0.1:8080/v1")
+        XCTAssertEqual(preset.model, "whisper-1")
+        XCTAssertFalse(preset.requiresAPIKey)
+        XCTAssertFalse(preset.supportsTranscriptProcessing)
+        XCTAssertFalse(preset.isEditable)
+    }
+
+    func testCustomPresetTrimsEmptyModelToWhisperOne() {
+        let preset = TranscriptionProviderPreset.customOpenAICompatible(
+            baseURL: URL(string: "http://localhost:9000/v1"),
+            model: " "
+        )
+
+        XCTAssertEqual(preset.id, .customOpenAICompatible)
+        XCTAssertEqual(preset.displayName, "Custom OpenAI-compatible")
+        XCTAssertEqual(preset.model, "whisper-1")
+        XCTAssertTrue(preset.isEditable)
+    }
+
     func testMultipartBodyContainsAllFields() throws {
         let service = TranscriptionService()
 
@@ -225,6 +295,58 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(text, "hello world")
         XCTAssertEqual(transport.requests.count, 1)
         XCTAssertEqual(transport.requests.first?.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+    }
+
+    func testTranscribeUsesCustomOpenAICompatibleEndpointAndCanOmitAuthorization() async throws {
+        let provider = TranscriptionProvider.openAICompatible(
+            baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+            model: "whisper-1"
+        )
+        let transport = StubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            return (
+                Data("local transcript".utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(provider: provider, transport: transport)
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let text = try await service.transcribe(
+            audioFileURL: tempURL,
+            apiKey: nil,
+            model: provider.transcriptionModel,
+            format: .wav
+        )
+
+        XCTAssertEqual(text, "local transcript")
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testTranscribeTrimsDummyAuthorizationForLocalProvider() async throws {
+        let provider = TranscriptionProvider.openAICompatible(
+            baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+            model: "whisper-1"
+        )
+        let transport = StubTransport { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer local")
+            return (
+                Data("local transcript".utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(provider: provider, transport: transport)
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        _ = try await service.transcribe(
+            audioFileURL: tempURL,
+            apiKey: " local ",
+            model: provider.transcriptionModel,
+            format: .wav
+        )
     }
 
     func testTranscribeMapsHTTP401ToInvalidApiKey() async throws {
@@ -463,6 +585,116 @@ final class TranscriptionServiceTests: XCTestCase {
 
         XCTAssertEqual(transport.requests.count, 1)
         XCTAssertEqual(transport.requests.first?.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+    }
+
+    func testValidateApiKeySkipsModelsEndpointForOpenAICompatibleProvider() async throws {
+        var transportCalled = false
+        let provider = TranscriptionProvider.openAICompatible(
+            baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+            model: "whisper-1"
+        )
+        let service = TranscriptionService(provider: provider, transport: StubTransport { request in
+            transportCalled = true
+            return (Data("unexpected".utf8), Self.httpResponse(statusCode: 500, url: request.url!))
+        })
+
+        try await service.validateApiKey(apiKey: nil, requiredModels: ["whisper-1"])
+
+        XCTAssertFalse(transportCalled)
+    }
+
+    func testValidateProviderConfigurationChecksCustomModelsEndpoint() async throws {
+        let provider = TranscriptionProvider.openAICompatible(
+            baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+            model: "whisper-1"
+        )
+        let transport = StubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.timeoutInterval, TranscriptionService.providerValidationTimeout)
+            return (
+                Data(#"{"data":[{"id":"whisper-1"}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(provider: provider, transport: transport)
+
+        let result = try await service.validateProviderConfiguration(apiKey: nil, requiredModels: ["whisper-1"])
+
+        XCTAssertEqual(result, .modelsValidated)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testValidateProviderConfigurationAllowsReachableCustomServerWithoutModelsEndpoint() async throws {
+        let provider = TranscriptionProvider.openAICompatible(
+            baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+            model: "whisper-1"
+        )
+        let service = TranscriptionService(provider: provider, transport: StubTransport { request in
+            (
+                Data("not found".utf8),
+                Self.httpResponse(statusCode: 404, url: request.url!)
+            )
+        })
+
+        let result = try await service.validateProviderConfiguration(apiKey: nil, requiredModels: ["whisper-1"])
+
+        XCTAssertEqual(result, .reachableWithoutModelValidation)
+    }
+
+    func testValidateProviderConfigurationFailsWhenCustomServerIsUnreachable() async throws {
+        let provider = TranscriptionProvider.openAICompatible(
+            baseURL: URL(string: "http://127.0.0.1:9999/v1")!,
+            model: "whisper-1"
+        )
+        let service = TranscriptionService(provider: provider, transport: StubTransport { _ in
+            throw URLError(.cannotConnectToHost)
+        })
+
+        do {
+            _ = try await service.validateProviderConfiguration(apiKey: nil, requiredModels: ["whisper-1"])
+            XCTFail("Expected reachability failure")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .cannotConnectToHost)
+        }
+    }
+
+    func testValidateProviderConfigurationRejectsInvalidCustomBaseURL() async throws {
+        let provider = TranscriptionProvider.openAICompatible(
+            baseURL: URL(fileURLWithPath: "/tmp/whisper"),
+            model: "whisper-1"
+        )
+        let service = TranscriptionService(provider: provider, transport: StubTransport { request in
+            XCTFail("Invalid base URL should fail before request: \(String(describing: request.url))")
+            return (Data(), Self.httpResponse(statusCode: 500))
+        })
+
+        do {
+            _ = try await service.validateProviderConfiguration(apiKey: nil, requiredModels: ["whisper-1"])
+            XCTFail("Expected invalid provider URL")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .invalidProviderURL)
+        }
+    }
+
+    func testValidateProviderConfigurationFailsWhenCustomModelIsUnavailable() async throws {
+        let provider = TranscriptionProvider.openAICompatible(
+            baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+            model: "whisper-1"
+        )
+        let service = TranscriptionService(provider: provider, transport: StubTransport { request in
+            (
+                Data(#"{"data":[{"id":"other-model"}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        })
+
+        do {
+            _ = try await service.validateProviderConfiguration(apiKey: nil, requiredModels: ["whisper-1"])
+            XCTFail("Expected missing custom model failure")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .modelUnavailable("whisper-1"))
+        }
     }
 
     func testValidateApiKeyMapsHTTP401ToInvalidApiKey() async throws {

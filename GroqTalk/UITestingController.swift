@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import SwiftUI
 
@@ -5,12 +6,24 @@ import SwiftUI
 /// inlined in AppDelegate.  Create one instance in `applicationDidFinishLaunching`
 /// and call `configureUITestingIfNeeded()` / `configureAutomationSmokeIfNeeded()`.
 @MainActor
-final class UITestingController: NSObject {
+final class UITestingController {
 
     // MARK: - Public constant
 
     static let automationMockSuccessNotification =
         Notification.Name("com.neonwatty.GroqTalk.automation.mockSuccess")
+    static let openHistoryNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.openHistory")
+    static let openSettingsNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
+    static let runSetupCheckNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
+    static var stateSnapshotURL: URL {
+        if let path = ProcessInfo.processInfo.environment["GROQTALK_UITEST_STATE_PATH"], !path.isEmpty {
+            return URL(fileURLWithPath: path)
+        }
+        return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("groqtalk-ui-tests-state.json")
+    }
 
     // MARK: - Dependencies
 
@@ -42,6 +55,19 @@ final class UITestingController: NSObject {
     private var uiTestWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
     private var uiTestSettingsWindow: NSWindow?
+
+    private struct StateSnapshot: Encodable {
+        let statusText: String
+        let sessionTitle: String
+        let sessionDetail: String
+        let accessibilityText: String
+        let accessibilityActionTitle: String?
+        let microphoneText: String
+        let microphoneActionTitle: String?
+        let apiKeyText: String
+        let apiKeyActionTitle: String?
+        let canStartRecording: Bool
+    }
 
     // MARK: - Init
 
@@ -81,7 +107,6 @@ final class UITestingController: NSObject {
         self.onRetryRecord = onRetryRecord
         self.onPasteText = onPasteText
         self.onReplaceRecordingController = onReplaceRecordingController
-        super.init()
     }
 
     // MARK: - Configuration entry points
@@ -107,10 +132,29 @@ final class UITestingController: NSObject {
             appState.updateMicrophoneState(isReady: true)
             appState.apiKeyState = .ready
             appState.experimentalSkyLightPasteEnabled = false
+            appState.pauseBrowserMediaWhileRecording = false
             appState.lastPasteSummary = nil
             #if DEBUG
             appState.mockTranscriptionEnabled = false
             #endif
+        }
+
+        if args.contains("--seed-setup-ready") {
+            appState.updateAccessibilityState(isTrusted: true)
+            appState.updateMicrophoneState(isReady: true)
+            appState.apiKeyState = .ready
+        }
+
+        if args.contains("--seed-microphone-unknown") {
+            appState.updateAccessibilityState(isTrusted: true)
+            appState.microphoneState = .unknown
+            appState.apiKeyState = .ready
+        }
+
+        if args.contains("--seed-microphone-denied") {
+            appState.updateAccessibilityState(isTrusted: true)
+            appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
+            appState.apiKeyState = .ready
         }
 
         if args.contains("--seed-history") {
@@ -120,7 +164,43 @@ final class UITestingController: NSObject {
             history.addFailure(error: "Seeded network failure", audioFileURL: nil)
         }
 
+        if args.contains("--seed-local-provider") {
+            appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        }
+
+        if args.contains("--seed-invalid-custom-provider") {
+            appState.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+            appState.customTranscriptionBaseURL = "file:///tmp/whisper"
+            appState.customTranscriptionModel = "whisper-1"
+        }
+
+        if args.contains("--seed-custom-provider") {
+            appState.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+            appState.customTranscriptionBaseURL = "http://127.0.0.1:9090/v1"
+            appState.customTranscriptionModel = "tiny-test-model"
+        }
+
+        if args.contains("--seed-async-paste-enabled") {
+            appState.asyncPasteEnabled = true
+        }
+
+        if args.contains("--seed-floating-status-enabled") {
+            appState.showFloatingStatus = true
+        }
+
+        #if DEBUG
+        if args.contains("--seed-mock-transcription-enabled") {
+            appState.mockTranscriptionEnabled = true
+        }
+        #endif
+
+        UserDefaults(suiteName: "com.neonwatty.GroqTalk.UITests")?.synchronize()
+
         showUITestWindow()
+        configureUITestCommandNotifications()
+        writeStateSnapshot()
+        configureLiveMicrophoneSmokeIfNeeded(args: args)
+        configureSimulatedTranscriptionIfNeeded(args: args)
     }
 
     func configureAutomationSmokeIfNeeded() {
@@ -139,6 +219,7 @@ final class UITestingController: NSObject {
     func configureE2ETranscribeIfNeeded() {
         #if DEBUG
         guard ProcessInfo.processInfo.arguments.contains("--e2e-transcribe") else { return }
+        configureE2EProviderOverrides()
 
         let wavURL: URL
         if let envPath = ProcessInfo.processInfo.environment["E2E_WAV_PATH"],
@@ -168,6 +249,176 @@ final class UITestingController: NSObject {
             onStopRecording()
         }
         #endif
+    }
+
+    private func configureE2EProviderOverrides() {
+        let env = ProcessInfo.processInfo.environment
+        if env["E2E_TRANSCRIPTION_PROVIDER"] == TranscriptionProviderID.openAICompatible.rawValue {
+            appState.selectedTranscriptionProviderID = .openAICompatible
+            appState.customTranscriptionBaseURL = env["E2E_TRANSCRIPTION_BASE_URL"] ?? appState.customTranscriptionBaseURL
+            appState.customTranscriptionModel = env["E2E_TRANSCRIPTION_MODEL"] ?? appState.customTranscriptionModel
+            appState.apiKeyState = .ready
+            DiagnosticLog.write(
+                "E2E: provider=openai-compatible baseURL=\(appState.customTranscriptionBaseURL) model=\(appState.customTranscriptionModel)"
+            )
+            return
+        }
+
+        appState.selectedTranscriptionProviderID = .groq
+        if let model = env["E2E_TRANSCRIPTION_MODEL"], !model.isEmpty {
+            appState.selectedModel = model
+        }
+        if env["E2E_API_KEY"]?.isEmpty == false {
+            appState.apiKeyState = .ready
+        } else {
+            appState.refreshApiKeyState()
+        }
+        DiagnosticLog.write("E2E: provider=groq model=\(appState.selectedModel)")
+    }
+
+    // MARK: - Live microphone smoke
+
+    private func configureLiveMicrophoneSmokeIfNeeded(args: [String]) {
+        #if DEBUG
+        guard args.contains("--live-microphone-smoke") else { return }
+
+        let env = ProcessInfo.processInfo.environment
+        let resultPath = env["LIVE_MICROPHONE_RESULT_PATH"] ?? "/tmp/groqtalk-live-microphone-result.txt"
+        let duration = TimeInterval(env["LIVE_MICROPHONE_DURATION_SECONDS"] ?? "") ?? 2
+        let signingIdentity = env["LIVE_MICROPHONE_SIGNING_IDENTITY"] ?? "unknown"
+        try? FileManager.default.removeItem(atPath: resultPath)
+
+        DiagnosticLog.write("live microphone smoke: starting duration=\(duration) resultPath=\(resultPath)")
+        Task.detached {
+            let recorder = AudioRecorder()
+            let startedAt = Date()
+            let appPath = Bundle.main.bundlePath
+            let permissionStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+            Self.writeLiveMicrophoneResult(
+                path: resultPath,
+                status: "started",
+                detail: "Recorder start requested; waiting for stop result.",
+                elapsed: 0,
+                bytes: 0,
+                appPath: appPath,
+                signingIdentity: signingIdentity,
+                microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
+                recordingStarted: false,
+                recordingStopped: false
+            )
+            do {
+                try recorder.startRecording()
+                Self.writeLiveMicrophoneResult(
+                    path: resultPath,
+                    status: "recording",
+                    detail: "Recorder started; waiting to stop.",
+                    elapsed: Date().timeIntervalSince(startedAt),
+                    bytes: 0,
+                    appPath: appPath,
+                    signingIdentity: signingIdentity,
+                    microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
+                    recordingStarted: true,
+                    recordingStopped: false
+                )
+                try await Task.sleep(for: .milliseconds(Int(duration * 1000)))
+                guard let audioURL = try await recorder.stopRecordingAsync(format: .wav) else {
+                    Self.writeLiveMicrophoneResult(
+                        path: resultPath,
+                        status: "fail",
+                        detail: "No audio buffers were captured. Check microphone permission, selected input device, and input level.",
+                        elapsed: Date().timeIntervalSince(startedAt),
+                        bytes: 0,
+                        appPath: appPath,
+                        signingIdentity: signingIdentity,
+                        microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
+                        recordingStarted: true,
+                        recordingStopped: true
+                    )
+                    return
+                }
+                let bytes = (try? audioURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                try? FileManager.default.removeItem(at: audioURL)
+                Self.writeLiveMicrophoneResult(
+                    path: resultPath,
+                    status: bytes > 0 ? "pass" : "fail",
+                    detail: bytes > 0 ? "Captured microphone audio." : "Captured audio file was empty.",
+                    elapsed: Date().timeIntervalSince(startedAt),
+                    bytes: bytes,
+                    appPath: appPath,
+                    signingIdentity: signingIdentity,
+                    microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
+                    recordingStarted: true,
+                    recordingStopped: true
+                )
+            } catch {
+                recorder.cancelRecording()
+                Self.writeLiveMicrophoneResult(
+                    path: resultPath,
+                    status: "fail",
+                    detail: "Recorder failed: \(error.localizedDescription)",
+                    elapsed: Date().timeIntervalSince(startedAt),
+                    bytes: 0,
+                    appPath: appPath,
+                    signingIdentity: signingIdentity,
+                    microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
+                    recordingStarted: false,
+                    recordingStopped: false
+                )
+            }
+        }
+        #endif
+    }
+
+    private func configureSimulatedTranscriptionIfNeeded(args: [String]) {
+        guard args.contains("--simulate-success-after-launch")
+                || args.contains("--simulate-failure-after-launch") else { return }
+        let success = args.contains("--simulate-success-after-launch")
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(500))
+            simulateUITestTranscription(success: success)
+        }
+    }
+
+    nonisolated private static func writeLiveMicrophoneResult(
+        path: String,
+        status: String,
+        detail: String,
+        elapsed: TimeInterval,
+        bytes: Int,
+        appPath: String,
+        signingIdentity: String,
+        microphonePermissionStatus: String,
+        recordingStarted: Bool,
+        recordingStopped: Bool
+    ) {
+        let body = [
+            "status=\(status)",
+            "app_path=\(appPath)",
+            "signing_identity=\(signingIdentity)",
+            "microphone_permission_status=\(microphonePermissionStatus)",
+            "recording_started=\(recordingStarted)",
+            "recording_stopped=\(recordingStopped)",
+            "bytes=\(bytes)",
+            "elapsed_seconds=\(String(format: "%.3f", elapsed))",
+            "detail=\(detail)"
+        ].joined(separator: "\n") + "\n"
+        try? body.write(toFile: path, atomically: true, encoding: .utf8)
+        DiagnosticLog.write("live microphone smoke: \(body.replacingOccurrences(of: "\n", with: " "))")
+    }
+
+    nonisolated private static func microphonePermissionDescription(_ status: AVAuthorizationStatus) -> String {
+        switch status {
+        case .authorized:
+            "authorized"
+        case .denied:
+            "denied"
+        case .restricted:
+            "restricted"
+        case .notDetermined:
+            "not_determined"
+        @unknown default:
+            "unknown"
+        }
     }
 
     // MARK: - Automation smoke
@@ -216,33 +467,26 @@ final class UITestingController: NSObject {
             onOpenSettings: { [weak self] in self?.showUITestSettingsWindow() },
             onOpenAccessibility: onOpenAccessibility,
             onOpenMicrophone: onOpenMicrophone,
+            onCheckMicrophone: { [weak self] in self?.appState.updateMicrophoneState(isReady: true) },
             onRunSetupCheck: onRunSetupCheck,
             onSimulateSuccess: { [weak self] in self?.simulateUITestTranscription(success: true) },
             onSimulateFailure: { [weak self] in self?.simulateUITestTranscription(success: false) }
         )
         .accessibilityIdentifier("uiTest.controlCenter")
-        .frame(width: 360, height: 620)
+        .frame(width: 460, height: 620)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 380, height: 680),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 640),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "GroqTalk UI Test"
-        window.contentView = uiTestControlHost(rootView: view)
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 460, height: 620))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         uiTestWindow = window
-    }
-
-    @objc private func openUITestHistoryFromButton(_ sender: NSButton) {
-        showUITestHistoryWindow()
-    }
-
-    @objc private func openUITestSettingsFromButton(_ sender: NSButton) {
-        NotificationCenter.default.post(name: .groqTalkUITestingShowSettingsPanel, object: nil)
     }
 
     private func showUITestHistoryWindow() {
@@ -272,22 +516,131 @@ final class UITestingController: NSObject {
         let view = SettingsView(
             appState: appState,
             history: history,
+            initialTab: initialSettingsTab(),
             onHotkeyChanged: onHotkeyChanged
         )
         .accessibilityIdentifier("settings.testHost")
-        .frame(width: 560, height: 400)
+        .frame(width: 680, height: 430)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 430),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Settings"
-        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 560, height: 400))
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 680, height: 430))
         window.center()
         window.makeKeyAndOrderFront(nil)
         uiTestSettingsWindow = window
+    }
+
+    private func configureUITestCommandNotifications() {
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openHistoryForUITest),
+            name: UITestingController.openHistoryNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openSettingsForUITest),
+            name: UITestingController.openSettingsNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(runSetupCheckForUITest),
+            name: UITestingController.runSetupCheckNotification,
+            object: nil
+        )
+    }
+
+    @objc private func openHistoryForUITest() {
+        showUITestHistoryWindow()
+    }
+
+    @objc private func openSettingsForUITest() {
+        showUITestSettingsWindow()
+    }
+
+    @objc private func runSetupCheckForUITest() {
+        onRunSetupCheck()
+    }
+
+    func writeStateSnapshot() {
+        let session = appState.sessionPresentation(
+            hotkeyLabel: hotkeyLabel,
+            hasRetryableFailure: history.records.contains { $0.isFailure },
+            hasLastSuccess: history.records.contains { !$0.isFailure }
+        )
+        let snapshot = StateSnapshot(
+            statusText: appState.statusText,
+            sessionTitle: session.title,
+            sessionDetail: session.detail,
+            accessibilityText: permissionText(for: appState.accessibilityState),
+            accessibilityActionTitle: actionTitle(for: appState.accessibilityState, readyTitle: nil, unknownTitle: "Open Settings", needsActionTitle: "Open Settings"),
+            microphoneText: permissionText(for: appState.microphoneState),
+            microphoneActionTitle: actionTitle(for: appState.microphoneState, readyTitle: nil, unknownTitle: "Check", needsActionTitle: "Open Settings"),
+            apiKeyText: permissionText(for: appState.apiKeyState),
+            apiKeyActionTitle: actionTitle(for: appState.apiKeyState, readyTitle: nil, unknownTitle: "Add Key", needsActionTitle: "Add Key"),
+            canStartRecording: appState.canStartRecordingControl
+        )
+
+        do {
+            let data = try JSONEncoder().encode(snapshot)
+            try data.write(to: Self.stateSnapshotURL, options: Data.WritingOptions.atomic)
+        } catch {
+            DiagnosticLog.write("UITesting: failed to write state snapshot: \(error)")
+        }
+    }
+
+    private var hotkeyLabel: String {
+        switch appState.hotkeyChoice {
+        case .rightCommand: "Right Command"
+        case .rightOption: "Right Option"
+        case .globeFn: "Globe/Fn"
+        case .custom: appState.customHotkeyLabel.isEmpty ? "Custom" : appState.customHotkeyLabel
+        }
+    }
+
+    private func permissionText(for state: AppState.PermissionState) -> String {
+        switch state {
+        case .ready:
+            "Ready"
+        case .needsAction(let message):
+            message
+        case .unknown:
+            "Not checked"
+        }
+    }
+
+    private func actionTitle(
+        for state: AppState.PermissionState,
+        readyTitle: String?,
+        unknownTitle: String,
+        needsActionTitle: String
+    ) -> String? {
+        switch state {
+        case .ready:
+            readyTitle
+        case .unknown:
+            unknownTitle
+        case .needsAction:
+            needsActionTitle
+        }
+    }
+
+    private func initialSettingsTab() -> SettingsView.Tab {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("--settings-tab-general") { return .general }
+        if args.contains("--settings-tab-recording") { return .recording }
+        if args.contains("--settings-tab-paste") { return .paste }
+        if args.contains("--settings-tab-privacy") { return .privacy }
+        if args.contains("--settings-tab-experimental") || args.contains("--settings-tab-advanced") {
+            return .experimental
+        }
+        return .transcription
     }
 
     // MARK: - Simulate transcription (UI testing)
@@ -349,30 +702,4 @@ final class UITestingController: NSObject {
         return hostingView
     }
 
-    private func uiTestControlHost<Content: View>(rootView: Content) -> NSView {
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 380, height: 680))
-
-        let hostingView = fixedHostingView(rootView: rootView, size: NSSize(width: 360, height: 620))
-        hostingView.frame = NSRect(x: 10, y: 0, width: 360, height: 620)
-        container.addSubview(hostingView)
-
-        let historyButton = NSButton(title: "History", target: self, action: #selector(openUITestHistoryFromButton(_:)))
-        historyButton.identifier = NSUserInterfaceItemIdentifier("uiTest.openHistoryButton")
-        historyButton.bezelStyle = .rounded
-        historyButton.frame = NSRect(x: 12, y: 632, width: 92, height: 30)
-        container.addSubview(historyButton)
-
-        let settingsButton = NSButton(title: "Settings", target: self, action: #selector(openUITestSettingsFromButton(_:)))
-        settingsButton.identifier = NSUserInterfaceItemIdentifier("uiTest.openSettingsButton")
-        settingsButton.bezelStyle = .rounded
-        settingsButton.frame = NSRect(x: 112, y: 632, width: 96, height: 30)
-        container.addSubview(settingsButton)
-
-        return container
-    }
-}
-
-extension Notification.Name {
-    static let groqTalkUITestingShowSettingsPanel =
-        Notification.Name("com.neonwatty.GroqTalk.uiTesting.showSettingsPanel")
 }

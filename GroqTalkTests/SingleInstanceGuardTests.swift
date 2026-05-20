@@ -54,17 +54,31 @@ final class SingleInstanceGuardTests: XCTestCase {
     // MARK: - AppDelegate integration
 
     func testGuardBypassedDuringUnitTests() {
-        // NSClassFromString("XCTestCase") is non-nil during unit tests,
-        // so the guard should be bypassed entirely — even if it would
-        // detect a duplicate.
-        XCTAssertNotNil(NSClassFromString("XCTestCase"),
-                        "XCTestCase must be loaded during unit tests")
+        XCTAssertTrue(
+            AppDelegate.isTestingProcess(
+                arguments: ["/tmp/GroqTalkTests.xctest"],
+                environment: [:]
+            ),
+            "xctest launch arguments should bypass the duplicate-app guard"
+        )
 
-        // Verify the bypass condition matches what AppDelegate checks.
-        let isTesting = ProcessInfo.processInfo.arguments.contains("--ui-testing")
-            || NSClassFromString("XCTestCase") != nil
-        XCTAssertTrue(isTesting,
-                      "isTesting should be true during unit tests, preventing the guard from firing")
+        XCTAssertTrue(
+            AppDelegate.isTestingProcess(
+                arguments: [],
+                environment: ["XCTestConfigurationFilePath": "/tmp/test.xctestconfiguration"]
+            ),
+            "XCTestConfigurationFilePath should bypass the duplicate-app guard"
+        )
+    }
+
+    func testNormalLaunchIsNotClassifiedAsTestingOnlyBecauseXCTestIsLoaded() {
+        XCTAssertFalse(
+            AppDelegate.isTestingProcess(
+                arguments: ["/Applications/GroqTalk.app/Contents/MacOS/GroqTalk"],
+                environment: [:]
+            ),
+            "normal app launches should start the hotkey monitor even if XCTest symbols are present"
+        )
     }
 
     func testAppDelegateAcceptsInjectedGuard() {
@@ -72,5 +86,37 @@ final class SingleInstanceGuardTests: XCTestCase {
         let stub = NotRunningStub()
         let delegate = AppDelegate(singleInstanceGuard: stub)
         XCTAssertNotNil(delegate, "AppDelegate should accept an injected guard")
+    }
+
+    func testAppDelegateCanOpenSettingsWindowExplicitly() {
+        let stub = NotRunningStub()
+        let delegate = AppDelegate(singleInstanceGuard: stub)
+
+        delegate.showSettingsWindow()
+
+        let settingsWindow = NSApp.windows.first { $0.title == "Settings" }
+        XCTAssertNotNil(settingsWindow)
+        XCTAssertTrue(settingsWindow?.isVisible == true)
+
+        settingsWindow?.close()
+    }
+
+    func testSettingsTabStripUsesCompactVisibleLabels() {
+        XCTAssertEqual(SettingsView.Tab.paste.title, "Paste")
+        XCTAssertEqual(SettingsView.Tab.privacy.title, "Storage")
+    }
+
+    func testSettingsTabStripLabelsExperimentalSettingsAsExperimental() {
+        XCTAssertTrue(SettingsView.Tab.allCases.contains(.experimental))
+        XCTAssertEqual(SettingsView.Tab.experimental.title, "Experimental")
+        XCTAssertEqual(SettingsView.Tab.experimental.accessibilityIdentifier, "settings.tab.experimental")
+    }
+
+    func testExperimentalPasteSettingCopyDistinguishesTargetFromPasteMethod() {
+        XCTAssertEqual(SettingsView.ExperimentalCopy.pasteRoutingPurpose, "Auto-pastes back into the app you started from while you keep working elsewhere.")
+        XCTAssertEqual(SettingsView.ExperimentalCopy.pasteTargetTitle, "Return to starting app")
+        XCTAssertEqual(SettingsView.ExperimentalCopy.pasteTargetOffDescription, "Pastes into the app active when transcription finishes.")
+        XCTAssertEqual(SettingsView.ExperimentalCopy.backgroundPasteTitle, "Try background paste")
+        XCTAssertEqual(SettingsView.ExperimentalCopy.backgroundPasteDescription, "Uses a lower-level paste route. Leave off unless normal paste fails.")
     }
 }
