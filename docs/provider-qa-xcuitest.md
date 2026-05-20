@@ -14,6 +14,7 @@ This covers:
 
 - Groq default provider UI
 - Local whisper.cpp preset copy and cleanup-unavailable state
+- Local whisper.cpp selection from default Settings state
 - Custom OpenAI-compatible invalid base URL validation
 - Custom OpenAI-compatible persistence across relaunch
 
