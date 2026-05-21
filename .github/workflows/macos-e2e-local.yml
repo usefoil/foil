@@ -1,0 +1,96 @@
+name: Local macOS E2E
+
+on:
+  merge_group:
+    branches: [main]
+  push:
+    branches:
+      - "gh-readonly-queue/main/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: Live Groq transcription on local Mac
+    runs-on: [self-hosted, macOS, ARM64, trusted-macos-e2e, e2e, gui, browser]
+    timeout-minutes: 45
+    steps:
+      - name: Host proof
+        run: |
+          hostname
+          sw_vers
+          uname -m
+          xcodebuild -version
+
+      - name: Workspace cleanup before
+        working-directory: /
+        run: |
+          set -euo pipefail
+
+          case "${GITHUB_WORKSPACE:-}" in
+            "$HOME/actions-runner/_work/"*)
+              rm -rf "$GITHUB_WORKSPACE"
+              mkdir -p "$GITHUB_WORKSPACE"
+              ;;
+            *)
+              echo "Refusing to clean unexpected GITHUB_WORKSPACE: ${GITHUB_WORKSPACE:-<unset>}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Healthcheck before
+        working-directory: /
+        run: |
+          RUNNER_HOME="$HOME" \
+          RUNNER_WORK="$HOME/actions-runner/_work" \
+          /usr/local/ci/bin/macos-runner-healthcheck --json
+
+      - uses: actions/checkout@v6
+
+      - name: Verify live E2E secret
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          if [ -z "${GROQ_API_KEY:-}" ]; then
+            echo "::error::GROQ_API_KEY is required for local macOS E2E."
+            exit 1
+          fi
+
+      - name: Stop stale GroqTalk processes
+        run: |
+          pkill -x GroqTalk || true
+          pkill -f 'xcodebuild.*GroqTalk' || true
+
+      - name: Run live Groq API integration tests
+        timeout-minutes: 12
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          RUN_LIVE_GROQ_TESTS: "1"
+        run: |
+          xcodebuild test \
+            -scheme GroqTalk \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -only-testing:GroqTalkTests/IntegrationTests
+
+      - name: Run live transcription UI E2E
+        timeout-minutes: 20
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          RUN_LIVE_GROQ_TESTS: "1"
+          E2E_TRANSCRIPTION_TIMEOUT_SECONDS: "90"
+        run: scripts/run-live-groq-provider-qa-xcuitest.sh
+
+      - name: Healthcheck after
+        if: always()
+        working-directory: /
+        run: |
+          RUNNER_HOME="$HOME" \
+          RUNNER_WORK="$HOME/actions-runner/_work" \
+          /usr/local/ci/bin/macos-runner-healthcheck --json
