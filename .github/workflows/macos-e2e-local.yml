@@ -86,7 +86,29 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           RUN_LIVE_GROQ_TESTS: "1"
           E2E_TRANSCRIPTION_TIMEOUT_SECONDS: "90"
-        run: scripts/run-live-groq-provider-qa-xcuitest.sh
+        run: |
+          if [ -z "${GROQ_API_KEY:-}" ]; then
+            echo "::error::GROQ_API_KEY is required for local macOS UI E2E."
+            exit 1
+          fi
+
+          # Match the hosted E2E workflow's proven environment/keychain path.
+          launchctl setenv RUN_LIVE_GROQ_TESTS 1
+          launchctl setenv GROQ_API_KEY "$GROQ_API_KEY"
+          launchctl setenv E2E_TRANSCRIPTION_TIMEOUT_SECONDS "$E2E_TRANSCRIPTION_TIMEOUT_SECONDS"
+          security add-generic-password \
+            -s "com.neonwatty.GroqTalk" \
+            -a "groq-api-key" \
+            -w "$GROQ_API_KEY" -U 2>/dev/null || true
+
+          xcodebuild test \
+            -scheme GroqTalk \
+            -configuration Debug \
+            -destination 'platform=macOS,arch=arm64' \
+            -parallel-testing-enabled NO \
+            -maximum-concurrent-test-device-destinations 1 \
+            -enableCodeCoverage NO \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription
 
       - name: Healthcheck after
         if: always()
