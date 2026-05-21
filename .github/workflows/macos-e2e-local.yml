@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches:
+      - main
       - "gh-readonly-queue/main/**"
   workflow_dispatch:
 
