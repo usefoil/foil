@@ -1,0 +1,403 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Local Setup Automation Diagnostics"
+  slug: "local-setup-automation-diagnostics"
+  kind: existing_plan # specific | open_ended | existing_plan | recovery | audit
+  tranche: "Harden developer local setup automation with diagnostics, safe tests, and explicit macOS privacy boundaries."
+  status: done # active | blocked | done
+  oracle:
+    signal: "Non-mutating setup diagnostics and shell tests prove local permissions QA reports bundle, signing, executable, usage-string, process-state, and privacy-boundary failures without granting protected permissions."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Receipts map implementation to passing bash syntax checks, fixture-based shell tests, make test-local-permissions-qa-script, make prepare-local-permissions-qa-check, make test, and explicit no-bypass privacy boundaries."
+  intake:
+    original_request: "Make a detailed GoalBuddy plan to add setup automation, diagnostics, and tests for setup."
+    interpreted_outcome: "Create and execute a verified board that makes local setup/permission QA repeatable, diagnosable, and testable without unsafe privacy bypasses."
+    input_shape: existing_plan # vague | specific | existing_plan | recovery | audit
+    audience: "GroqTalk developers and maintainers"
+    authority: approved # requested | approved | inferred | needs_approval | blocked
+    proof_type: test # test | demo | artifact | metric | review | source_backed_answer | decision
+    completion_proof: "Setup automation emits clear diagnostics, verifies controllable preconditions, has safe automated coverage where practical, and documents the protected manual permission-toggle boundary."
+    likely_misfire: "Adding a helper/checklist that does not diagnose signing/TCC identity problems, or attempting unsafe privacy bypasses."
+    blind_spots_considered:
+      - "Developer setup automation and end-user in-app guidance are related but distinct."
+      - "macOS Accessibility/Input Monitoring consent cannot be silently granted safely."
+      - "Signing identity, bundle identifier, installed app path, and TCC records can drift apart."
+      - "Script behavior needs testable output, not only a manual checklist."
+      - "Direct TCC database writes, MDM, and PPPC profile installation are out of scope."
+    existing_plan_facts:
+      - "Prioritize developer setup automation first."
+      - "Use script/test/output proof."
+      - "No unsafe privacy bypasses."
+      - "Fresh local live board requested."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  # installed | bundled_not_installed | missing | unknown
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  # none | local | github_projects | both | unknown
+  selected: local
+  local:
+    status: live # not_requested | starting | live | generated | blocked
+    url: "http://goalbuddy.localhost:41737/local-setup-automation-diagnostics/"
+    command: "npx goalbuddy board docs/goals/local-setup-automation-diagnostics"
+  github_projects:
+    status: not_requested # not_requested | needs_approval | dry_run_ready | synced | blocked
+    url: null
+    command: "npx goalbuddy extend github-projects"
+    missing: []
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: default # default | low | medium | high | xhigh
+    objective: "Map the current local setup automation, setup-check behavior, tests, signing/TCC assumptions, and failure modes."
+    inputs:
+      - "Makefile"
+      - "scripts/"
+      - "GroqTalk/GroqTalkApp.swift"
+      - "GroqTalk/AppState.swift"
+      - "GroqTalk/HotkeyMonitor.swift"
+      - "GroqTalkTests"
+      - "GroqTalkUITests"
+      - "Recent conversation context about Accessibility/Input Monitoring and local signing/TCC mismatch."
+    constraints:
+      - "Read-only."
+      - "Do not edit implementation files."
+      - "Do not run commands that mutate TCC, signing state, installed apps, or privacy settings."
+      - "Prefer concrete file-path evidence over generic setup advice."
+      - "Distinguish safe automation from protected manual macOS consent steps."
+    expected_output:
+      - "Map of setup scripts and Make targets."
+      - "Map of setup-check and permission detection code paths."
+      - "Existing tests or gaps for setup automation."
+      - "Known signing/TCC failure modes and which are controllable."
+      - "Ranked candidate Worker slices."
+    success_criteria:
+      - "Findings cite exact files and line numbers for setup automation and setup-check behavior."
+      - "Findings identify at least one safe Worker slice and at least one stop condition."
+      - "Findings identify test/verification commands or explain why a check cannot be automated."
+      - "Findings explicitly separate allowed automation from out-of-scope privacy bypasses."
+    receipt: |
+      result: done
+      summary: Mapped current setup automation, app setup-check behavior, tests, and macOS signing/TCC boundaries. Existing automation can build/install/sign, reset app-scoped TCC records, open privacy panes, and run opt-in live QA, but it cannot grant protected permissions. Main gaps are deterministic preflight/diagnostic coverage for installed bundle/signature/TCC identity drift and safe script-level tests for failure messaging.
+      evidence:
+        - Makefile:4-24 defines app/bundle/signing defaults and APP_PATH; Makefile:45-83 builds, installs to /Applications, and opens the installed app.
+        - Makefile:90-122 maps automated tests and opt-in live QA targets.
+        - scripts/setup-local-signing.sh:18-107 creates/imports/trusts a local signing identity and grants codesign partition access.
+        - scripts/prepare-local-permissions-qa.sh:14-31 builds/installs unsigned, re-signs ad-hoc with the Info.plist bundle id, and verifies codesign Identifier matches bundle id.
+        - scripts/prepare-local-permissions-qa.sh:33-61 resets Accessibility/ListenEvent for the bundle id, opens privacy panes, launches the app, and states manual consent is still required.
+        - GroqTalk/GroqTalkApp.swift:500-545 refreshes setup health from real or UI-test-seeded Accessibility and microphone state.
+        - GroqTalk/GroqTalkApp.swift:576-713 runs setup checks for provider/API key, Accessibility, microphone authorization, and a recorder probe.
+        - GroqTalk/HotkeyMonitor.swift:111-129 logs CGEvent tap creation failures as hotkey/accessibility symptoms.
+        - GroqTalkUITests/GroqTalkUITests.swift:43-142 covers seeded setup success/failure states; GroqTalkUITests/GroqTalkUITests.swift:402-446 covers opt-in live microphone smoke diagnostics.
+      facts:
+        - Safe automation can check files, Info.plist bundle id, codesign Identifier, build/test results, provider reachability, and UI-test seeded setup states.
+        - Protected manual steps remain Accessibility, Input Monitoring/ListenEvent, and Microphone consent in System Settings.
+        - TCC records can drift across bundle id, path, signature, or stale denied state; scripts can reset app-scoped records and open panes but cannot grant consent.
+      candidate_worker_slices:
+        - Harden prepare-local-permissions-qa with deterministic preflights and diagnostics for installed path, bundle id, signature identity, executable, usage description, process status, and manual consent boundaries.
+        - Add safe shell-level coverage using fixture bundles or command shims so diagnostic/failure messaging is tested without touching real TCC, keychains, /Applications, or privacy settings.
+        - Add a read-only setup-check Make target for installed-app/signature/bundle preconditions.
+      stop_conditions:
+        - Stop if work would require direct TCC database writes, MDM/PPPC profiles, silent privacy grants, signing/keychain mutation during tests, or overwriting unrelated dirty files.
+        - Stop live verification if it requires missing credentials, real privacy grants, or local services; record manual prerequisites instead.
+      verification_commands:
+        - make test
+        - make test-ui
+        - make test-provider-qa
+        - Script verification should use a non-mutating dry-run/check mode or command-shim tests; current prepare-local-permissions-qa mutates install/TCC/panes/app launch and is opt-in only.
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Select the first largest safe useful Worker slice for developer setup automation diagnostics."
+    inputs:
+      - "T001 receipt"
+      - "docs/goals/local-setup-automation-diagnostics/goal.md"
+      - "docs/goals/local-setup-automation-diagnostics/state.yaml"
+    constraints:
+      - "Read-only."
+      - "Do not implement."
+      - "Reject any slice that writes directly to TCC databases, installs MDM/PPPC profiles, or silently grants privacy permissions."
+      - "Prioritize deterministic script diagnostics and verification over manual-only documentation."
+      - "Pick one coherent Worker package with exact allowed_files, verify commands, and stop_if conditions."
+    expected_output:
+      - "Decision: approved, rejected, or needs_more_evidence."
+      - "Exact Worker objective."
+      - "allowed_files."
+      - "verify commands."
+      - "stop_if conditions."
+      - "Acceptance criteria tied to the goal's likely misfire."
+    success_criteria:
+      - "Worker objective can be executed without further product interpretation."
+      - "allowed_files are narrow enough to protect unrelated work but broad enough for a complete useful slice."
+      - "Verification includes script-level checks or tests where practical."
+      - "Decision explicitly addresses macOS privacy boundaries."
+    receipt: |
+      result: done
+      decision: approved
+      full_outcome_complete: false
+      rationale: Approve one vertical Worker slice to harden the existing local permissions QA script and add non-mutating shell coverage. This is the largest safe useful first package because the likely misfire is poor diagnosis of signing/bundle/path/TCC identity drift, not missing manual docs.
+      worker_contract:
+        objective: Harden scripts/prepare-local-permissions-qa.sh so it has deterministic preflight/check diagnostics for installed app path, bundle id, executable, Info.plist privacy usage strings, codesign identifier/signature identity, stale/running process state, and explicit manual Accessibility/Input Monitoring/Microphone boundaries; add safe shell-level tests using fixtures or command shims so common failure messages are verified without touching real TCC, keychains, /Applications, or privacy panes.
+        allowed_files:
+          - scripts/prepare-local-permissions-qa.sh
+          - scripts/test-prepare-local-permissions-qa.sh
+          - Makefile
+        verify:
+          - bash -n scripts/prepare-local-permissions-qa.sh
+          - bash -n scripts/test-prepare-local-permissions-qa.sh
+          - scripts/test-prepare-local-permissions-qa.sh
+          - make test
+        stop_if:
+          - Need files outside allowed_files.
+          - Need direct TCC database writes.
+          - Need MDM/PPPC profile installation.
+          - Need silent privacy grants.
+          - Shell tests would mutate real TCC, keychains, /Applications, or privacy panes.
+          - Need to overwrite unrelated dirty user work.
+          - Verification fails twice for related reasons.
+          - Behavior ambiguity around real bundle id or install path cannot be resolved from existing repo facts.
+        acceptance:
+          - Check/preflight mode is non-mutating.
+          - Opt-in live QA path clearly labels tccutil reset, privacy-pane launch, and manual consent behavior.
+          - Diagnostics distinguish bundle id, installed path, executable, codesign identifier/signature, and missing usage-description failures.
+          - Tests exercise success plus multiple failure cases through fixtures or shims.
+          - Output addresses identity drift instead of only giving a checklist.
+          - No unsafe privacy bypass is introduced.
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: default
+    objective: "Harden scripts/prepare-local-permissions-qa.sh so it has deterministic preflight/check diagnostics for installed app path, bundle id, executable, Info.plist privacy usage strings, codesign identifier/signature identity, stale/running process state, and explicit manual Accessibility/Input Monitoring/Microphone boundaries; add safe shell-level tests using fixtures or command shims so common failure messages are verified without touching real TCC, keychains, /Applications, or privacy panes."
+    allowed_files:
+      - "scripts/prepare-local-permissions-qa.sh"
+      - "scripts/test-prepare-local-permissions-qa.sh"
+      - "Makefile"
+    verify:
+      - "bash -n scripts/prepare-local-permissions-qa.sh"
+      - "bash -n scripts/test-prepare-local-permissions-qa.sh"
+      - "scripts/test-prepare-local-permissions-qa.sh"
+      - "make test"
+    stop_if:
+      - "Need files outside allowed_files."
+      - "Need to write directly to TCC databases or install MDM/PPPC profiles."
+      - "Need to silently grant macOS privacy permissions."
+      - "Shell tests would mutate real TCC, keychains, /Applications, or privacy panes."
+      - "Behavior is ambiguous."
+      - "Verification fails twice for related reasons."
+      - "Need to overwrite unrelated dirty user work."
+    expected_output:
+      - "Implemented setup automation/diagnostics slice."
+      - "Changed files list."
+      - "Verification command results."
+      - "Clear statement of what remains manual and why."
+    success_criteria:
+      - "All edits stay inside Judge-approved allowed_files."
+      - "Script or command output diagnoses key controllable setup preconditions."
+      - "Workflow clearly explains protected manual privacy-toggle steps."
+      - "No unsafe privacy bypasses are introduced."
+      - "Relevant tests or script checks pass or exact blockers are recorded."
+      - "Check/preflight mode is non-mutating."
+      - "Diagnostics distinguish bundle id, installed path, executable, codesign identifier/signature, and missing usage-description failures."
+      - "Tests exercise success plus multiple failure cases through fixtures or shims."
+    receipt: |
+      result: done
+      changed_files:
+        - scripts/prepare-local-permissions-qa.sh
+        - scripts/test-prepare-local-permissions-qa.sh
+        - Makefile
+      summary: Hardened the local permissions QA workflow with a non-mutating --check mode, deterministic installed-app identity diagnostics, explicit macOS privacy boundaries, and shell tests that use fixture app bundles plus command shims instead of touching real TCC, keychains, /Applications, or privacy panes.
+      implementation:
+        - scripts/prepare-local-permissions-qa.sh:21-53 adds --check/help mode and documents the live versus non-mutating behavior.
+        - scripts/prepare-local-permissions-qa.sh:114-193 diagnoses installed app path, Info.plist, bundle id, executable, NSMicrophoneUsageDescription, codesign identifier/authority/team, process state, and privacy boundaries.
+        - scripts/prepare-local-permissions-qa.sh:195-207 makes --check exit with deterministic pass/fail output without build/install/sign/reset/open/launch side effects.
+        - scripts/prepare-local-permissions-qa.sh:209-253 keeps the opt-in live QA path, but runs diagnostics after ad-hoc signing and clearly states tccutil reset only clears app-scoped records and does not grant consent.
+        - scripts/test-prepare-local-permissions-qa.sh:37-210 covers success, signed-identifier mismatch, missing microphone usage string, missing executable, and running-process warning using fixtures and shims.
+        - Makefile:26 and Makefile:137-144 add prepare-local-permissions-qa-check and test-local-permissions-qa-script targets.
+      verification:
+        - bash -n scripts/prepare-local-permissions-qa.sh: passed
+        - bash -n scripts/test-prepare-local-permissions-qa.sh: passed
+        - scripts/test-prepare-local-permissions-qa.sh: passed; output "prepare-local-permissions-qa shell tests passed."
+        - make prepare-local-permissions-qa-check: passed non-mutating real-app diagnostics; warnings were expected for ad-hoc/no-team signing and currently running GroqTalk.
+        - make test: passed; xcodebuild reported "** TEST SUCCEEDED **" at 2026-05-17 13:35:15 -0700.
+      commands:
+        - command: bash -n scripts/prepare-local-permissions-qa.sh
+          status: pass
+        - command: bash -n scripts/test-prepare-local-permissions-qa.sh
+          status: pass
+        - command: scripts/test-prepare-local-permissions-qa.sh
+          status: pass
+        - command: make prepare-local-permissions-qa-check
+          status: pass
+        - command: make test
+          status: pass
+      manual_boundary: Accessibility, Input Monitoring, and Microphone consent remain user-controlled in System Settings. No direct TCC database writes, MDM/PPPC profiles, or silent privacy grants were added.
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: default
+    objective: "Add or update safe automated tests/checks for the setup automation if not fully covered by T003."
+    allowed_files:
+      - "scripts/test-prepare-local-permissions-qa.sh"
+    verify: []
+    stop_if:
+      - "T003 already added sufficient coverage."
+      - "Coverage would require real macOS permission grants."
+      - "Need files outside Judge-approved scope."
+      - "Verification fails twice for related reasons."
+    expected_output:
+      - "Test/check changes or receipt explaining why no additional coverage is needed."
+      - "Verification command results."
+    success_criteria:
+      - "Tests/checks validate deterministic behavior without needing actual permission grants."
+      - "Tests/checks do not mutate real user privacy state unexpectedly."
+      - "No test is loosened to hide failures."
+    receipt: |
+      result: done
+      changed_files:
+        - scripts/test-prepare-local-permissions-qa.sh
+      summary: No additional Worker changes were needed because T003 added the safe automated shell coverage this task requested.
+      evidence:
+        - scripts/test-prepare-local-permissions-qa.sh covers success and multiple deterministic failure/warning cases through fixture bundles and shims.
+        - The shell test sets MAKE_CMD, PKILL, TCCUTIL, OPEN_CMD, and SLEEP_CMD to forbidden shims in --check mode, proving the tested path does not mutate real TCC, keychains, /Applications, privacy panes, or app launch state.
+        - Verification command scripts/test-prepare-local-permissions-qa.sh passed.
+      commands:
+        - command: scripts/test-prepare-local-permissions-qa.sh
+          status: pass
+        - command: make test-local-permissions-qa-script
+          status: pass
+
+  - id: T005
+    type: pm
+    assignee: PM
+    status: done
+    reasoning_hint: default
+    objective: "Collect final verification evidence for the setup automation diagnostics tranche."
+    inputs:
+      - "T003 receipt"
+      - "T004 receipt if applicable"
+      - "Current dirty diff"
+    constraints:
+      - "Do not implement product changes unless the active task is explicitly converted to Worker with allowed_files."
+      - "Do not overwrite unrelated dirty files."
+    expected_output:
+      - "Build/test/script-check summary."
+      - "Known residual risks and manual macOS steps."
+      - "Evidence that no unsafe privacy bypass was introduced."
+    success_criteria:
+      - "Verification evidence is fresh after final code changes."
+      - "Any skipped or manual checks have concrete reasons."
+      - "Evidence is sufficient for final Judge audit."
+    receipt: |
+      result: done
+      summary: Fresh verification covers the implemented setup automation diagnostics tranche. The deterministic --check path and shell tests pass, the project unit test target passes, and the GoalBuddy state checker accepts the board.
+      verification:
+        - bash -n scripts/prepare-local-permissions-qa.sh: pass
+        - bash -n scripts/test-prepare-local-permissions-qa.sh: pass
+        - scripts/test-prepare-local-permissions-qa.sh: pass
+        - make test-local-permissions-qa-script: pass
+        - make prepare-local-permissions-qa-check: pass; real installed app diagnostics passed with expected warnings for ad-hoc/no-team signing and currently running GroqTalk.
+        - make test: pass; xcodebuild reported "** TEST SUCCEEDED **".
+        - git diff --check -- scripts/prepare-local-permissions-qa.sh scripts/test-prepare-local-permissions-qa.sh Makefile docs/goals/local-setup-automation-diagnostics/state.yaml: pass
+        - node .../check-goal-state.mjs docs/goals/local-setup-automation-diagnostics/state.yaml: pass
+      residual_risks:
+        - Live privacy grants remain manual by macOS design; the automation can reset app-scoped records and open panes but cannot grant consent.
+        - The real installed app currently reports ad-hoc/no-team signing, so the check warns that TCC rows can differ from Developer ID builds.
+      unsafe_bypass_check: No direct TCC database writes, MDM/PPPC installation, or silent Accessibility/Input Monitoring/Microphone grants were introduced.
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit whether the setup automation diagnostics tranche fully satisfies the original outcome."
+    inputs:
+      - "All done task receipts"
+      - "Last verification"
+      - "Current dirty diff"
+      - "docs/goals/local-setup-automation-diagnostics/goal.md"
+    constraints:
+      - "Read-only."
+      - "Do not implement."
+      - "Reject completion if required Worker work is still queued or active."
+      - "Reject completion if the result is only a manual checklist without deterministic diagnostics/checks."
+      - "Reject completion if an unsafe privacy bypass was introduced."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Mapping from success criteria to receipts and verification."
+      - "Missing evidence or next task if not complete."
+    success_criteria:
+      - "Audit explicitly checks original request, likely misfire, non-goals, and proof requirements."
+      - "Audit sets full_outcome_complete true only when all required Worker work is done or no longer required."
+      - "If not complete, audit names the next safe task."
+    receipt: |
+      result: done
+      decision: complete
+      full_outcome_complete: true
+      rationale: The tranche satisfies the original outcome. Diagnostics are deterministic, covered by safe shell tests, verified by project tests, and preserve macOS privacy boundaries. No required Worker task remains queued or active.
+      mapping:
+        - criterion: Discovery mapped current setup automation and risks.
+          receipt: T001
+          verification: Cites Makefile, scripts, app setup checks, UI tests, signing/TCC drift, safe automation limits, and stop conditions.
+        - criterion: Safe Worker slice selected.
+          receipt: T002
+          verification: Approved bounded allowed_files, verify commands, stop_if privacy boundaries, and acceptance criteria.
+        - criterion: Automation hardening implemented.
+          receipt: T003
+          verification: Added non-mutating --check diagnostics for installed path, bundle id, executable, microphone usage string, codesign identity, process state, and manual privacy boundary.
+        - criterion: Deterministic tests/checks exist.
+          receipt: T003/T004
+          verification: scripts/test-prepare-local-permissions-qa.sh covers success, identifier mismatch, missing microphone usage, missing executable, and running-process warning using fixtures/shims.
+        - criterion: Final verification passed.
+          receipt: T005
+          verification: bash -n checks, shell test, make test-local-permissions-qa-script, make prepare-local-permissions-qa-check, make test, git diff --check, and GoalBuddy state check passed.
+        - criterion: No unsafe privacy bypass.
+          receipt: T003/T005
+          verification: Script states it cannot grant Accessibility/Input Monitoring/Microphone consent; default mode only uses app-scoped tccutil reset and opens panes for manual consent; tests forbid TCC/open/launch calls in --check.
+      missing_evidence: []
+
+checks:
+  dirty_fingerprint: unknown
+  last_verification:
+    result: unknown
+    task: null
+    commands: []
