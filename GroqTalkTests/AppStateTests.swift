@@ -982,6 +982,18 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
     }
 
+    func testLocalWhisperPresetPersists() {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+
+        let reloaded = AppState()
+
+        XCTAssertEqual(reloaded.selectedTranscriptionProviderPresetID, .localWhisperCPP)
+        XCTAssertEqual(reloaded.selectedTranscriptionProviderID, .openAICompatible)
+        XCTAssertEqual(reloaded.selectedTranscriptionProvider.displayName, "Local whisper.cpp")
+        XCTAssertEqual(reloaded.selectedTranscriptionProvider.transcriptionModel, "whisper-1")
+    }
+
     func testLegacyOpenAICompatibleProviderMigratesToCustomPreset() {
         UserDefaults.standard.set(TranscriptionProviderID.openAICompatible.rawValue, forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")

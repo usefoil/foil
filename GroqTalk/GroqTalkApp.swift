@@ -190,6 +190,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         DiagnosticLog.write("applicationDidFinishLaunching")
+        if isTesting {
+            NSApp.setActivationPolicy(.regular)
+        }
         _ = SparkleUpdater.shared
         DiagnosticLog.write("applicationDidFinishLaunching: updater ready")
         recordingController = RecordingController(audioRecorder: audioRecorder, appState: appState)

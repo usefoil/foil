@@ -8,7 +8,7 @@ goal:
   slug: "local-whisper-setup-coverage"
   kind: specific
   tranche: "Add product guidance and measurable tests for the installed-app Local whisper.cpp setup and transcription path."
-  status: active
+  status: complete
   oracle:
     signal: "Targeted unit/UI tests prove the default Settings -> Local whisper.cpp selection/setup journey, and the opt-in live E2E proves local transcription when a server is available."
     cadence: "after each Worker package and at final audit"
@@ -65,7 +65,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/local-whisper-setup-coverage/"
     command: "npx goalbuddy board docs/goals/local-whisper-setup-coverage"
 
-active_task: T002
+active_task: null
 
 tasks:
   - id: T001
@@ -153,7 +153,7 @@ tasks:
   - id: T003
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Implement the first approved package: likely in-app Local whisper.cpp setup guidance plus a CI-safe UI test that selects the provider from default Settings."
     allowed_files:
@@ -169,16 +169,45 @@ tasks:
       - "The intended UX copy or product behavior is ambiguous."
       - "The UI test cannot reliably interact with the Settings provider picker after two focused attempts."
       - "Verification fails twice for the same unexplained reason."
-    receipt: null
+    receipt:
+      result: done
+      summary: "PR #95 implementation was imported onto this branch as commit 0d7f966, then the local XCUITest infrastructure blocker was fixed. The app now uses a regular activation policy during UI tests, UI test state snapshots are written to a shared /tmp path, and provider QA disables coverage/parallelism to avoid local testmanagerd/profile-data failures."
+      changed_files:
+        - "GroqTalk/GroqTalkApp.swift"
+        - "GroqTalk/SettingsView.swift"
+        - "GroqTalkUITests/GroqTalkUITests.swift"
+        - "Makefile"
+        - "docs/provider-qa-xcuitest.md"
+        - "docs/goals/local-whisper-setup-coverage/goal.md"
+        - "docs/goals/local-whisper-setup-coverage/notes/T001-coverage-map.md"
+        - "docs/goals/local-whisper-setup-coverage/state.yaml"
+      verification:
+        - cmd: "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests"
+          status: pass
+          note: "446 XCTest cases executed with 4 skipped plus 9 Swift Testing cases; 0 failures."
+        - cmd: "make test-provider-qa"
+          status: pass
+          note: "Provider QA XCUITest target passed after disabling coverage and serializing UI execution."
+        - cmd: "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings"
+          status: pass
+          note: "Focused default Settings -> Local whisper.cpp selection UI test passed."
+      next_step: "Activate T004 to audit/tighten local-provider connection-state and persistence coverage."
 
   - id: T004
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Add or tighten measurable tests for local-provider connection-test states and persistence that are not already covered."
-    allowed_files: []
-    verify: []
+    allowed_files:
+      - "GroqTalkTests/AppStateTests.swift"
+      - "GroqTalkUITests/GroqTalkUITests.swift"
+      - "Makefile"
+      - "docs/goals/local-whisper-setup-coverage/state.yaml"
+    verify:
+      - "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests/AppStateTests/testLocalWhisperPresetPersists"
+      - "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSelectionPersistsAcrossRelaunch"
+      - "make test-provider-qa"
     stop_if:
       - "Scout/Judge finds existing coverage is already sufficient."
       - "Need files outside allowed_files."
@@ -186,12 +215,27 @@ tasks:
     expected_output:
       - "Tests prove reachable, unreachable, invalid URL, and persistence behavior where applicable."
       - "Receipts name the exact commands and test cases."
-    receipt: null
+    receipt:
+      result: done
+      summary: "Audited existing local-provider connection coverage and added the missing Local whisper.cpp persistence assertions. Connection states were already covered for invalid base URL, reachable model, reachable without model validation, missing model, and unreachable server."
+      changed_files:
+        - "GroqTalkTests/AppStateTests.swift"
+        - "GroqTalkUITests/GroqTalkUITests.swift"
+        - "Makefile"
+        - "docs/goals/local-whisper-setup-coverage/state.yaml"
+      verification:
+        - cmd: "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests/AppStateTests/testLocalWhisperPresetPersists"
+          status: pass
+        - cmd: "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSelectionPersistsAcrossRelaunch"
+          status: pass
+        - cmd: "make test-provider-qa"
+          status: pass
+      next_step: "Activate T005 to validate the opt-in live local transcription E2E harness and docs."
 
   - id: T005
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Validate and, if needed, improve the opt-in live local transcription E2E harness and documentation so manual QA has a deterministic setup and pass/fail signal."
     allowed_files: []
@@ -204,12 +248,27 @@ tasks:
       - "Command path for starting or checking a local server."
       - "Command path for running app E2E against that server."
       - "Clear skip/block behavior when no server is available."
-    receipt: null
+    receipt:
+      result: done
+      summary: "Validated the opt-in live local transcription E2E command path and docs. The script already provides a deterministic endpoint smoke check, app-level XCUITest run, result-file assertion, and word-recall threshold. No script or doc change was needed."
+      changed_files:
+        - "docs/goals/local-whisper-setup-coverage/state.yaml"
+      verification:
+        - cmd: "lsof -nP -iTCP:8080 -sTCP:LISTEN"
+          status: blocked
+          note: "No local whisper.cpp/OpenAI-compatible server was listening on 127.0.0.1:8080."
+        - cmd: "LOCAL_E2E_LATENCY_RUNS=1 make test-local-transcription-e2e"
+          status: blocked
+          note: "Blocked at endpoint smoke: curl failed to connect to 127.0.0.1:8080. This is the expected live-run boundary when the local server/model is unavailable."
+      evidence:
+        - "docs/local-openai-compatible-transcription-e2e.md documents server setup, curl smoke test, make test-local-transcription-e2e, pass/fail assertions, overrides, and prior passing evidence."
+        - "scripts/run-local-transcription-e2e-xcuitest.sh fails before app testing if the endpoint is absent or returns non-200, then fails if XCUITest skips, fails, omits a result file, or misses the word-recall threshold."
+      next_step: "Activate T006/T999 audit; live run can be rerun once whisper.cpp is started locally."
 
   - id: T006
     type: pm
     assignee: PM
-    status: queued
+    status: done
     reasoning_hint: low
     objective: "Update developer-facing notes or Makefile discoverability only if prior receipts show the test commands are hard to find or easy to misuse."
     inputs:
@@ -219,12 +278,16 @@ tasks:
       - "Do not duplicate setup docs unnecessarily."
     expected_output:
       - "Either a receipt explaining no discoverability change is needed, or a bounded follow-up Worker task with allowed_files and verify commands."
-    receipt: null
+    receipt:
+      result: done
+      summary: "No discoverability edit is needed. Provider QA is discoverable through make test-provider-qa and docs/provider-qa-xcuitest.md, while live local transcription E2E is discoverable through make test-local-transcription-e2e and docs/local-openai-compatible-transcription-e2e.md."
+      changed_files:
+        - "docs/goals/local-whisper-setup-coverage/state.yaml"
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Audit whether local whisper.cpp setup coverage satisfies the original owner outcome."
     inputs:
@@ -244,15 +307,36 @@ tasks:
       - "Mapping from original request to evidence."
       - "Missing evidence."
       - "Next task if not complete."
-    receipt: null
+    receipt:
+      result: complete
+      full_outcome_complete: true
+      summary: "The Local whisper.cpp setup coverage goal is complete with CI-safe setup-flow tests, persistence coverage, existing connection-state coverage, in-app setup guidance from PR #95, and a documented opt-in live E2E path. The live run was not executed to success because no local server/model was available, which is an accepted final-proof condition in the goal oracle."
+      mapping:
+        - outcome: "Installed user can find Local whisper.cpp setup guidance in Settings."
+          evidence: "GroqTalk/SettingsView.swift from PR #95 plus UI assertion in testProviderQALocalWhisperCanBeSelectedFromDefaultSettings."
+        - outcome: "Default Settings -> select Local whisper.cpp flow is covered without seeding."
+          evidence: "GroqTalkUITests/GroqTalkUITests.swift testProviderQALocalWhisperCanBeSelectedFromDefaultSettings; make test-provider-qa includes it."
+        - outcome: "Local preset persistence is covered."
+          evidence: "GroqTalkTests/AppStateTests.swift testLocalWhisperPresetPersists and GroqTalkUITests/GroqTalkUITests.swift testProviderQALocalWhisperSelectionPersistsAcrossRelaunch."
+        - outcome: "Connection behavior is covered."
+          evidence: "Existing AppStateTests/TranscriptionServiceTests cover invalid URL, reachable model, reachable without model validation, missing model, and unreachable server."
+        - outcome: "Live local transcription E2E has a measurable manual command."
+          evidence: "docs/local-openai-compatible-transcription-e2e.md and scripts/run-local-transcription-e2e-xcuitest.sh; LOCAL_E2E_LATENCY_RUNS=1 make test-local-transcription-e2e blocked only because no server was listening."
+      missing_evidence:
+        - "A fresh successful live local E2E run on this machine remains pending until a whisper.cpp server/model is started."
 
 checks:
   dirty_fingerprint: unknown
   last_verification:
-    result: partial_pass
-    task: T003
+    result: complete_with_live_e2e_blocked
+    task: T999
     commands:
-      - cmd: "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings"
+      - cmd: "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests/AppStateTests/testLocalWhisperPresetPersists"
+        status: pass
+      - cmd: "xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSelectionPersistsAcrossRelaunch"
         status: pass
       - cmd: "make test-provider-qa"
-        status: stopped_by_user
+        status: pass
+      - cmd: "LOCAL_E2E_LATENCY_RUNS=1 make test-local-transcription-e2e"
+        status: blocked
+        note: "No local server listening on 127.0.0.1:8080."
