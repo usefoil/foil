@@ -101,6 +101,8 @@ jobs:
             -a "groq-api-key" \
             -w "$GROQ_API_KEY" -U 2>/dev/null || true
 
+          rm -rf LocalUITestResults.xcresult
+
           xcodebuild test \
             -scheme GroqTalk \
             -configuration Debug \
@@ -108,7 +110,42 @@ jobs:
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-device-destinations 1 \
             -enableCodeCoverage NO \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription \
+            -resultBundlePath LocalUITestResults.xcresult &
+          XCODE_PID=$!
+
+          caffeinate -dimsu -w "$XCODE_PID" &
+          CAFFEINATE_PID=$!
+
+          (
+            sleep 600 && kill -TERM "$XCODE_PID" 2>/dev/null
+            sleep 60 && kill -9 "$XCODE_PID" 2>/dev/null
+          ) &
+          WATCHDOG_PID=$!
+
+          set +e
+          wait "$XCODE_PID"
+          TEST_EXIT=$?
+          kill "$WATCHDOG_PID" "$CAFFEINATE_PID" 2>/dev/null
+          wait "$WATCHDOG_PID" "$CAFFEINATE_PID" 2>/dev/null
+          set -e
+
+          if [ -d LocalUITestResults.xcresult ]; then
+            xcrun xcresulttool get test-results summary \
+              --path LocalUITestResults.xcresult \
+              --compact 2>/dev/null || true
+          fi
+
+          exit "$TEST_EXIT"
+
+      - name: Upload local UI test results
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: local-ui-test-results
+          path: LocalUITestResults.xcresult
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Healthcheck after
         if: always()
