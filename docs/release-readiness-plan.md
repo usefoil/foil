@@ -396,7 +396,7 @@ Scope:
 Tasks:
 
 - Verify semantic-release config and output behavior.
-- Confirm release branch should be `main`, not `feat/initial-implementation`, when public-ready.
+- Confirm release branch is `main` for public beta release automation.
 - Verify DMG build, signing, notarization, and GitHub upload.
 - Verify Homebrew cask/tap update path.
 - Add a dry-run release checklist.
@@ -409,12 +409,12 @@ Acceptance:
 Current local verification notes:
 
 - `package.json` includes `semantic-release` and `@semantic-release/exec`.
-- `.releaserc.json` currently publishes from `feat/initial-implementation` and writes `new_release_published=true` plus `new_release_version=${nextRelease.version}` to `$GITHUB_OUTPUT` through `@semantic-release/exec`.
-- `.github/workflows/deploy.yml` also triggers release automation from `feat/initial-implementation`, so branch configuration is internally consistent for the current beta branch.
-- Public-ready release automation should move both `.releaserc.json` and `.github/workflows/deploy.yml` to `main` in the same change. Changing only one side will either prevent releases or prevent the DMG job from receiving the expected semantic-release output.
+- `.releaserc.json` publishes from `main` and writes `new_release_published=true` plus `new_release_version=${nextRelease.version}` to `$GITHUB_OUTPUT` through `@semantic-release/exec`.
+- `.github/workflows/deploy.yml` also triggers release automation from `main`, so branch configuration is internally consistent for public beta releases.
+- Future release-branch changes must update both `.releaserc.json` and `.github/workflows/deploy.yml` in the same change. Changing only one side will either prevent releases or prevent the DMG job from receiving the expected semantic-release output.
 - The automatic DMG job checks out `v${new_release_version}`, imports the Developer ID certificate, archives with `MARKETING_VERSION` set to the release version, exports with `ExportOptions.plist`, verifies bundle version/build, creates a DMG, signs it, notarizes it with App Store Connect API-key credentials, staples it, validates Gatekeeper/stapler status, and uploads `GroqTalk-${VERSION}-macos.dmg` to the GitHub release.
 - The manual DMG job builds an existing `v${inputs.version}` release and uploads the same DMG name. Use this when semantic-release already created the release but packaging needs to be re-run.
-- Homebrew is not verified from this repository alone. The supported beta install path is the manual DMG until `mean-weasel/homebrew-groqtalk` has been checked from a clean tap/install state against the actual uploaded DMG URL and SHA-256.
+- Homebrew is verified for the current public beta evidence in `docs/release-qa-log.md`: `mean-weasel/homebrew-groqtalk` points at the uploaded `v1.12.0` DMG, the cask SHA-256 matches the release asset digest, and clean cask install/launch/signature smoke checks passed. Re-verify this path for each new release.
 
 Release dry-run checklist:
 
