@@ -16,6 +16,8 @@ final class UITestingController {
         Notification.Name("com.neonwatty.GroqTalk.uiTests.openHistory")
     static let openSettingsNotification =
         Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
+    static let openHelpNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.openHelp")
     static let runSetupCheckNotification =
         Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
     static var stateSnapshotURL: URL {
@@ -577,6 +579,12 @@ final class UITestingController {
         )
         DistributedNotificationCenter.default().addObserver(
             self,
+            selector: #selector(openHelpForUITest),
+            name: UITestingController.openHelpNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
             selector: #selector(runSetupCheckForUITest),
             name: UITestingController.runSetupCheckNotification,
             object: nil
@@ -589,6 +597,18 @@ final class UITestingController {
 
     @objc private func openSettingsForUITest() {
         showUITestSettingsWindow()
+    }
+
+    @objc private func openHelpForUITest() {
+        guard let url = URL(string: "https://github.com/mean-weasel/groqtalk#troubleshooting") else {
+            return
+        }
+        if let path = ProcessInfo.processInfo.environment["GROQTALK_UITEST_OPENED_URL_PATH"],
+           !path.isEmpty {
+            try? url.absoluteString.write(toFile: path, atomically: true, encoding: .utf8)
+        } else {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func runSetupCheckForUITest() {

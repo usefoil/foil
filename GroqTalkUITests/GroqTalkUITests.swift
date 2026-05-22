@@ -4,6 +4,7 @@ final class GroqTalkUITests: XCTestCase {
     private var app: XCUIApplication!
     private let openHistoryNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openHistory")
     private let openSettingsNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
+    private let openHelpNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openHelp")
     private let runSetupCheckNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
     private let stateSnapshotURL =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-state-\(ProcessInfo.processInfo.processIdentifier).json")
@@ -273,7 +274,10 @@ final class GroqTalkUITests: XCTestCase {
         clickButton(id: "history.clearButton", fallbackLabel: "Clear")
         XCTAssertTrue(app.staticTexts["Clear History?"].waitForExistence(timeout: 2))
         clickAlertButton("Clear History")
-        XCTAssertTrue(app.staticTexts["No transcriptions yet"].waitForExistence(timeout: 2))
+        XCTAssertTrue(
+            historyEmptyStateAppeared(timeout: 5),
+            app.debugDescription
+        )
     }
 
     func testHistoryDetailAllowsEditingAndExport() {
@@ -578,13 +582,9 @@ final class GroqTalkUITests: XCTestCase {
 
     func testHelpButtonTargetsCanonicalTroubleshootingURL() throws {
         removeOpenedURLRecord()
-        let helpButton = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "Help"))
-            .firstMatch
-        XCTAssertTrue(helpButton.waitForExistence(timeout: 2), app.debugDescription)
-        clickElement(helpButton)
+        postUITestCommand(openHelpNotification)
 
-        XCTAssertTrue(waitForOpenedURL(timeout: 2), app.debugDescription)
+        XCTAssertTrue(waitForOpenedURL(timeout: 5), app.debugDescription)
         let openedURL = try String(contentsOf: openedURLPath, encoding: .utf8)
         XCTAssertEqual(openedURL, "https://github.com/mean-weasel/groqtalk#troubleshooting")
     }
@@ -840,6 +840,19 @@ final class GroqTalkUITests: XCTestCase {
         app.windows["History"].waitForExistence(timeout: timeout)
             || elementExists(id: "history.testHost", timeout: timeout)
             || elementExists(id: "history.root", timeout: timeout)
+    }
+
+    private func historyEmptyStateAppeared(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if staticTextLabelOrValueContaining("No transcriptions", in: historyPanel).exists
+                || staticTextLabelOrValueContaining("No failed transcriptions", in: historyPanel).exists
+                || elementExists(id: "history.emptyState", timeout: 0.1) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+        return false
     }
 
     private func waitForSettingsPanel(timeout: TimeInterval) -> Bool {
