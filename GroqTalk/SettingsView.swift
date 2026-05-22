@@ -289,6 +289,12 @@ struct SettingsView: View {
                 appState.refreshApiKeyState()
             }
 
+            Text(providerPrivacySummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.providerPrivacySummary")
+
             Section("Credentials") {
                 HStack {
                     Text("\(appState.selectedTranscriptionProvider.displayName) API key")
@@ -313,6 +319,11 @@ struct SettingsView: View {
 
                         providerConnectionStatus
                     }
+                    Text(providerConnectionHelp)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.providerConnectionHelp")
                 }
             }
 
@@ -380,6 +391,17 @@ struct SettingsView: View {
 
     private var selectedLocalWhisperSetupModel: LocalWhisperSetupModel {
         LocalWhisperSetupModel.option(id: selectedLocalWhisperSetupModelID)
+    }
+
+    private var providerPrivacySummary: String {
+        switch appState.selectedTranscriptionProviderPresetID {
+        case .groq:
+            "Audio is sent to Groq for transcription. Optional cleanup uses Groq chat models when enabled."
+        case .localWhisperCPP:
+            "Audio stays on this Mac when whisper.cpp is running at the local 127.0.0.1 endpoint shown below."
+        case .customOpenAICompatible:
+            "Audio is sent to the OpenAI-compatible endpoint you configure below. Use an endpoint you trust."
+        }
     }
 
     private var selectedLocalWhisperSetupCommands: LocalWhisperSetupCommands {
@@ -503,6 +525,17 @@ struct SettingsView: View {
         }
     }
 
+    private var providerConnectionHelp: String {
+        switch appState.selectedTranscriptionProviderPresetID {
+        case .localWhisperCPP:
+            "Start the local whisper-server first. If the test cannot reach it, copy the Start server command below and run it in Terminal."
+        case .customOpenAICompatible:
+            "Use Test connection after changing the base URL or model. The server must expose /v1/audio/transcriptions."
+        case .groq:
+            ""
+        }
+    }
+
     private var pasteSettings: some View {
         Form {
             Toggle("Keep final text on clipboard", isOn: $appState.keepOnClipboard)
@@ -523,7 +556,7 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.historyRetentionPicker")
                 LabeledContent("Stored records", value: "\(history.records.count)")
                 LabeledContent("Retained failed audio", value: "\(history.retainedFailedAudioCount)")
-                Text("History is stored locally on this Mac. Successful audio files are deleted after transcription. When transcription fails, the failed audio may be retained locally only so you can retry it.")
+                Text("History is stored locally on this Mac. Successful audio files are deleted after transcription. Failed audio may be retained in Application Support only so you can retry it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

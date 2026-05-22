@@ -9,17 +9,22 @@ struct KeyRecorderView: View {
 
     var body: some View {
         HStack {
-            Text(isRecording ? "Press a key..." : (label.isEmpty ? "Click to record" : label))
-                .foregroundStyle(isRecording ? Color.accentColor : Color.primary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isRecording ? Color.accentColor : Color.secondary.opacity(0.3))
-                )
-                .onTapGesture { isRecording = true }
-                .accessibilityIdentifier("settings.customHotkeyRecorder")
-                .accessibilityLabel("Custom keyboard shortcut: \(label.isEmpty ? "not set" : label)")
+            Button {
+                isRecording = true
+            } label: {
+                Text(isRecording ? "Press a key..." : (label.isEmpty ? "Record shortcut" : label))
+                    .foregroundStyle(isRecording ? Color.accentColor : Color.primary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(isRecording ? Color.accentColor : Color.secondary.opacity(0.3))
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.customHotkeyRecorder")
+            .accessibilityLabel("Custom keyboard shortcut: \(label.isEmpty ? "not set" : label)")
+            .accessibilityHint("Press to record a new keyboard shortcut.")
 
             if !label.isEmpty {
                 Button("Clear") {

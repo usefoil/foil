@@ -414,7 +414,7 @@ Current local verification notes:
 - Public-ready release automation should move both `.releaserc.json` and `.github/workflows/deploy.yml` to `main` in the same change. Changing only one side will either prevent releases or prevent the DMG job from receiving the expected semantic-release output.
 - The automatic DMG job checks out `v${new_release_version}`, imports the Developer ID certificate, archives with `MARKETING_VERSION` set to the release version, exports with `ExportOptions.plist`, verifies bundle version/build, creates a DMG, signs it, notarizes it with App Store Connect API-key credentials, staples it, validates Gatekeeper/stapler status, and uploads `GroqTalk-${VERSION}-macos.dmg` to the GitHub release.
 - The manual DMG job builds an existing `v${inputs.version}` release and uploads the same DMG name. Use this when semantic-release already created the release but packaging needs to be re-run.
-- Homebrew is not verified from this repository alone. The tap/cask must be checked against the actual uploaded DMG URL and SHA-256 before README Homebrew instructions are treated as public-ready.
+- Homebrew is not verified from this repository alone. The supported beta install path is the manual DMG until `mean-weasel/homebrew-groqtalk` has been checked from a clean tap/install state against the actual uploaded DMG URL and SHA-256.
 
 Release dry-run checklist:
 
@@ -438,16 +438,17 @@ Release dry-run checklist:
 Homebrew/DMG verification path:
 
 1. Confirm the release contains `GroqTalk-VERSION-macos.dmg`.
-2. Download the DMG and compute its checksum:
+2. Confirm the release asset digest or `GroqTalk-VERSION-macos.dmg.sha256`, then download the DMG and compute its checksum:
    `shasum -a 256 GroqTalk-VERSION-macos.dmg`
-3. Update the Homebrew tap cask URL to the exact release asset and the cask `sha256` to the computed value.
-4. Verify from a clean tap state:
-   `brew untap neonwatty/tap || true`
-5. Tap and install:
-   `brew tap neonwatty/tap`
+3. Verify the computed checksum matches the GitHub release asset digest or `GroqTalk-VERSION-macos.dmg.sha256`.
+4. Update the Homebrew tap cask URL to the exact release asset and the cask `sha256` to the computed value.
+5. Verify from a clean tap state:
+   `brew untap mean-weasel/groqtalk || true`
+6. Tap and install:
+   `brew tap mean-weasel/groqtalk`
    `brew install --cask groqtalk`
-6. Confirm `/Applications/GroqTalk.app` launches and Gatekeeper accepts the installed app.
-7. Record the workflow run URL, release URL, DMG checksum, cask commit, and local verification result in the release notes or QA log.
+7. Confirm `/Applications/GroqTalk.app` launches and Gatekeeper accepts the installed app.
+8. Record the workflow run URL, release URL, DMG checksum, cask commit, and local verification result in the release notes or QA log.
 
 ### Agent M: README And Docs Cleanup
 

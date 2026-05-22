@@ -18,6 +18,13 @@ server. For `whisper.cpp`, the real model file is chosen when starting
 screen includes a setup helper that shows verified starter model options and
 copyable install, build, download, and start commands.
 
+Use **Test connection** in Settings after starting `whisper-server`. If the
+server is not reachable, GroqTalk reports that Local whisper.cpp could not be
+reached and points back to the start-server command. A reachable server with a
+`/v1/models` response confirms the `whisper-1` compatibility model is listed;
+servers that do not expose model validation can still be marked reachable with a
+warning.
+
 The `Custom OpenAI-compatible` preset remains available for other local or hosted
 servers that expose the same `/v1/audio/transcriptions` shape.
 

@@ -6,33 +6,55 @@ Demo media has not been published yet.
 
 ## Install
 
-GroqTalk is still in beta. Verify the release artifact for the version you want
-before treating the install paths below as public-ready.
+GroqTalk is still in beta. The supported beta install path is the manual DMG.
+Verify the release artifact for the version you want before installing it.
 
 **Manual:** Download `GroqTalk-VERSION-macos.dmg` from
-[Releases](https://github.com/neonwatty/groqtalk/releases), verify the checksum
-published with that release, open it, and drag GroqTalk into Applications.
+[Releases](https://github.com/mean-weasel/groqtalk/releases), verify it against
+the release asset digest or matching `.sha256` checksum when one is published,
+open it, and drag GroqTalk into Applications.
 
-### Install via Homebrew
+### Homebrew
 
-```bash
-brew tap mean-weasel/groqtalk
-brew install --cask groqtalk
-```
+Homebrew install is planned but not currently a supported public beta install
+path. The `mean-weasel/homebrew-groqtalk` tap exists, but Homebrew should stay
+off the supported path until a clean tap/install launch is verified against the
+uploaded DMG checksum.
 
 ## Setup
 
-1. Get a free API key from [console.groq.com](https://console.groq.com/)
-2. Launch GroqTalk — it lives in your menu bar
-3. In the first-run setup window, click **Add API Key** and save/test your key
-4. Open Accessibility settings from GroqTalk and enable the current GroqTalk app
-5. Open Microphone settings from GroqTalk and allow microphone access
-6. Use the setup test to confirm the app is ready
+1. Launch GroqTalk — it lives in your menu bar
+2. Choose a transcription provider in first-run setup
+3. For Groq, get a free API key from [console.groq.com](https://console.groq.com/), then click **Add API Key** and save/test your key
+4. For Local whisper.cpp or a custom OpenAI-compatible server, open Transcription Settings, configure the endpoint, and use **Test connection**
+5. Open Accessibility settings from GroqTalk and enable the current GroqTalk app
+6. Open Microphone settings from GroqTalk and allow microphone access
+7. Use the setup test to confirm the app is ready
 
 GroqTalk is a menu bar app (`LSUIElement`), so it does not keep a normal Dock
 window open. The built app includes macOS AppIcon assets for Finder,
 Applications, and DMG presentation; the menu bar itself uses SF Symbol state
 icons.
+
+## Providers
+
+GroqTalk supports three transcription provider paths:
+
+- **Groq** is the default and requires a Groq API key. Audio is sent to Groq for
+  transcription, and optional cleanup can use Groq chat models.
+- **Local whisper.cpp** uses a local OpenAI-compatible `whisper-server` at
+  `http://127.0.0.1:8080/v1`. It does not need a Groq key. Settings includes
+  copyable install, build, model download, and start commands.
+- **Custom OpenAI-compatible** sends audio to the base URL and model you
+  configure. API keys are optional when your server allows unauthenticated
+  requests.
+
+Cleanup modes currently require Groq-compatible chat completions. Local and
+custom transcription providers use raw transcripts until a compatible cleanup
+provider is added.
+
+For local setup details and the opt-in local E2E check, see
+[`docs/local-openai-compatible-transcription-e2e.md`](docs/local-openai-compatible-transcription-e2e.md).
 
 ## Local Development
 
@@ -94,6 +116,11 @@ If the certificate files are in `~/Desktop/apple-developer-certificates`, run:
 make setup-release-secrets
 ```
 
+`make setup-release-secrets` uses `mean-weasel/groqtalk` by default. Set `REPO`,
+`CERT_DIR`, `P12_PATH`, `ISSUER_ID_PATH`, `PRIVATE_KEY_PATH`, `APPLE_TEAM_ID`,
+or `APP_STORE_CONNECT_KEY_ID` to target a different repository or certificate
+layout.
+
 ## Features
 
 - **Hold-to-record** — hold Right Command, Right Option, or Globe/Fn to record, release to transcribe
@@ -107,12 +134,15 @@ make setup-release-secrets
 - **Cleanup modes** — optionally clean up or rewrite transcripts after Whisper; if cleanup fails after Whisper succeeds, GroqTalk uses the raw transcript
 - **Transcription history** — browse, search, edit, export, copy, paste, delete, and retry past transcriptions
 
+GroqTalk's open beta is microphone-first. It does not currently include a
+user-facing audio-file import flow.
+
 ## Privacy
 
 - API keys are stored in the macOS Keychain. Older plaintext API-key files are migrated on read when possible.
 - Transcription history stays on this Mac in Application Support. Retention can be set to off, 100, 500, or 1000 records.
 - Successful audio files are deleted after transcription.
-- Failed audio may be retained locally only for retryable transcription failures. Clearing history deletes retained retry files.
+- Failed audio may be retained locally in Application Support only for retryable transcription failures. Clearing history deletes retained retry files.
 - Local diagnostics are redacted before writing and should not include API keys, transcript text, raw audio, or clipboard contents. Diagnostics are enabled by default for supportability; set `GROQTALK_DIAGNOSTICS=0` to disable local diagnostic logging.
 
 ## Paste Caveats
@@ -134,6 +164,15 @@ the default reliability path.
 available. If validation fails because Groq cannot be reached, you can save the
 key anyway and run the setup check later.
 
+**Local whisper.cpp not reachable:** Start `whisper-server` with the command
+shown in Settings → Transcription, then click **Test connection**. The local
+provider expects `http://127.0.0.1:8080/v1` and the compatibility model
+`whisper-1`.
+
+**Custom OpenAI-compatible server not reachable:** Check that the base URL uses
+`http://` or `https://`, that the server exposes `/v1/audio/transcriptions`,
+and that any required local network, firewall, or authentication setup is ready.
+
 **Microphone not available:** Open System Settings → Privacy & Security →
 Microphone and allow GroqTalk. Use **Run Check** after changing the permission.
 
@@ -152,6 +191,20 @@ not return usable text. GroqTalk uses the raw transcript and keeps going.
 **Recording too long:** GroqTalk stops oversized recordings before upload to
 avoid runaway memory use and Groq request-size failures. Try a shorter
 recording.
+
+**Export diagnostics:** Use the app Help menu command **Export Diagnostics...**
+or press Command-Option-D while GroqTalk is active. Diagnostics are written to a
+file you choose, with API keys, transcript text, audio, and clipboard contents
+redacted.
+
+**Reset local state:** Quit GroqTalk, then remove the GroqTalk app data folder
+from `~/Library/Application Support/GroqTalk` if you want to clear history,
+retained retry audio, and local diagnostics. API keys are stored separately in
+Keychain; use Settings → Transcription → **Change API Key** to replace them.
+
+**Updates or Homebrew:** Sparkle updates read the appcast from the
+`mean-weasel/groqtalk` GitHub releases. Homebrew is not a supported beta install
+path until the tap is verified against a signed, notarized DMG and checksum.
 
 ## Requirements
 

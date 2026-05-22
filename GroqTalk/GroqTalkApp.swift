@@ -23,6 +23,7 @@ struct GroqTalkApp: App {
                 onStartRecording: { [weak appDelegate] in appDelegate?.startRecordingFromControl() },
                 onStopRecording: { [weak appDelegate] in appDelegate?.stopRecordingFromControl() },
                 onCancelRecording: { [weak appDelegate] in appDelegate?.cancelRecordingFromControl() },
+                onCancelTranscription: { [weak appDelegate] in appDelegate?.cancelTranscriptionFromControl() },
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
                 onOpenSettings: { [weak appDelegate] in appDelegate?.showSettingsWindow() },
                 onOpenAccessibility: { [weak appDelegate] in appDelegate?.openAccessibilitySettings() },
@@ -108,6 +109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var floatingStatusSyncTimer: Timer?
     private var transientSuccessAutoHideTimer: Timer?
     private var setupRefreshTask: Task<Void, Never>?
+    private var transcriptionTask: Task<Void, Never>?
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
     private var settingsWindow: NSWindow?
@@ -213,6 +215,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onStartRecording: { [weak self] in self?.startRecordingFromControl() },
             onStopRecording: { [weak self] in self?.stopRecordingFromControl() },
             onCancelRecording: { [weak self] in self?.cancelRecordingFromControl() },
+            onCancelTranscription: { [weak self] in self?.cancelTranscriptionFromControl() },
             onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() },
             onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
             onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
@@ -235,7 +238,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let shouldDisplayOnboarding = shouldShowOnboarding(isTesting: isTesting)
         if isTesting || shouldDisplayOnboarding {
             DiagnosticLog.write("applicationDidFinishLaunching: setup-first mode, skipping initial hotkey monitor")
-            appState.setStatus(.idle)
+            if !ProcessInfo.processInfo.arguments.contains("--seed-transcribing") {
+                appState.setStatus(.idle)
+            }
         } else {
             DiagnosticLog.write("applicationDidFinishLaunching: starting hotkey monitor")
             startHotkeyMonitorWithRetry()
@@ -318,7 +323,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState: appState,
             onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
             onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
-            onCheckMicrophone: { [weak self] in self?.checkMicrophonePermission() }
+            onCheckMicrophone: { [weak self] in self?.checkMicrophonePermission() },
+            onOpenSettings: { [weak self] in self?.showSettingsWindow(initialTab: .transcription) }
         ) { [weak self] in
             guard let self else { return }
             self.hasCompletedOnboarding = true
@@ -349,7 +355,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         onboardingWindow = window
     }
 
-    func showSettingsWindow() {
+    func showSettingsWindow(initialTab: SettingsView.Tab = .general) {
         if let settingsWindow {
             settingsWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -359,6 +365,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let settingsView = SettingsView(
             appState: appState,
             history: history,
+            initialTab: initialTab,
             onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() }
         )
 
@@ -539,6 +546,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func cancelRecordingFromControl() {
         recordingController.cancelRecording()
+    }
+
+    func cancelTranscriptionFromControl() {
+        guard appState.status == .transcribing else { return }
+        transcriptionTask?.cancel()
+        transcriptionTask = nil
+        retryingRecordID = nil
+        stopTranscribingAnimation()
+        pasteController.clearPendingTarget()
+        appState.setStatus(.idle)
+        appState.feedbackMessage = "Transcription cancelled"
+        appState.floatingStatusTransientVisible = true
+        DiagnosticLog.write("transcription: cancelled by user")
     }
 
     func replaceRecordingController(with newController: RecordingController) {
@@ -848,7 +868,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func validateSelectedProviderApiKey(_ key: String) async throws {
         _ = try await transcriptionService
             .withProvider(appState.selectedTranscriptionProvider)
-            .validateProviderConfiguration(apiKey: key)
+            .validateProviderConfiguration(
+                apiKey: key,
+                requiredModels: requiredModelsForSetupCheck()
+            )
     }
 
     private func requiredModelsForSetupCheck() -> [String] {
@@ -915,7 +938,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Tag the record ID so TranscriptionControllerDelegate callbacks know this is a retry
         retryingRecordID = record.id
-        Task { @MainActor in
+        transcriptionTask = Task { @MainActor in
             await transcriptionController.retryTranscription(record: record)
         }
     }
@@ -959,6 +982,7 @@ extension AppDelegate: TranscriptionControllerDelegate {
         cleanupFailed: Bool
     ) {
         DiagnosticLog.write("AppDelegate: transcriptionController didTranscribe textLength=\(text.count) cleanupFailed=\(cleanupFailed)")
+        transcriptionTask = nil
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--e2e-transcribe") {
             try? text.write(toFile: "/tmp/groqtalk-e2e-result.txt", atomically: true, encoding: .utf8)
@@ -1011,6 +1035,7 @@ extension AppDelegate: TranscriptionControllerDelegate {
         format: AudioFormat
     ) {
         DiagnosticLog.write("AppDelegate: transcriptionController didFail errorMessage=\(errorMessage)")
+        transcriptionTask = nil
         stopTranscribingAnimation()
 
         if let retryID = retryingRecordID {
@@ -1058,7 +1083,7 @@ extension AppDelegate: RecordingControllerDelegate {
     ) {
         DiagnosticLog.write("AppDelegate: recordingController didStopWithURL=\(audioURL.lastPathComponent)")
         browserMediaController.recordingDidEnd(reason: .stopped)
-        Task { @MainActor in
+        transcriptionTask = Task { @MainActor in
             await transcriptionController.transcribe(audioURL: audioURL, format: format)
         }
     }

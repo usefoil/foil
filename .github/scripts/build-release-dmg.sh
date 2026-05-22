@@ -12,7 +12,9 @@ ARCHIVE_PATH="$RUNNER_TEMP/GroqTalk.xcarchive"
 EXPORT_PATH="$RUNNER_TEMP/export"
 DMG_ROOT="$RUNNER_TEMP/dmg-root"
 DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
+CHECKSUM_PATH="${DMG_PATH}.sha256"
 BUILD_NUMBER="${GITHUB_RUN_NUMBER:-1}"
+REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/groqtalk}}"
 
 sed -i '' "s/\$(APPLE_TEAM_ID)/$APPLE_TEAM_ID/" ExportOptions.plist
 
@@ -84,4 +86,6 @@ xcrun stapler staple "$DMG_PATH"
 spctl -a -vv -t open --context context:primary-signature "$DMG_PATH"
 xcrun stapler validate "$DMG_PATH"
 
-gh release upload "v${VERSION}" "$DMG_PATH" --clobber
+shasum -a 256 "$DMG_PATH" > "$CHECKSUM_PATH"
+
+gh release upload "v${VERSION}" "$DMG_PATH" "$CHECKSUM_PATH" --repo "$REPO" --clobber

@@ -190,17 +190,68 @@ struct HistoryPopoverView: View {
     }
 
     private var emptyState: some View {
-        VStack {
+        VStack(spacing: 8) {
             Spacer()
-            Image(systemName: searchText.isEmpty ? "clock" : "magnifyingglass")
+            Image(systemName: emptyStateImage)
                 .font(.title2)
                 .foregroundStyle(.secondary)
-            Text(searchText.isEmpty ? "No transcriptions yet" : "No matches")
+            Text(emptyStateTitle)
+                .font(.headline)
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier("history.emptyState.title")
+            Text(emptyStateDetail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 280)
+                .accessibilityIdentifier("history.emptyState.detail")
             Spacer()
         }
-        .accessibilityLabel("No transcriptions yet")
+        .accessibilityLabel("\(emptyStateTitle). \(emptyStateDetail)")
         .accessibilityIdentifier("history.emptyState")
+    }
+
+    private var emptyStateImage: String {
+        if !history.isPersistenceEnabled { return "clock.badge.xmark" }
+        if !searchText.isEmpty { return "magnifyingglass" }
+        switch filter {
+        case .all:
+            return "clock"
+        case .successful:
+            return "text.bubble"
+        case .failed:
+            return "exclamationmark.triangle"
+        }
+    }
+
+    private var emptyStateTitle: String {
+        if !history.isPersistenceEnabled { return "History storage is off" }
+        if !searchText.isEmpty { return "No matches" }
+        switch filter {
+        case .all:
+            return "No transcriptions yet"
+        case .successful:
+            return "No successful transcriptions"
+        case .failed:
+            return "No failed transcriptions"
+        }
+    }
+
+    private var emptyStateDetail: String {
+        if !history.isPersistenceEnabled {
+            return "Turn on history retention in Settings to keep future transcripts here."
+        }
+        if !searchText.isEmpty {
+            return "Clear the search or change the filter to see more history."
+        }
+        switch filter {
+        case .all:
+            return "Record with your hotkey or the Start button, then completed transcripts will appear here."
+        case .successful:
+            return "Successful transcripts will appear here after recording and transcription finish."
+        case .failed:
+            return "Retryable failures appear here with their retained audio when transcription fails."
+        }
     }
 
     private var recordsList: some View {

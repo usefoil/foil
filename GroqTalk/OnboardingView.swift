@@ -5,12 +5,13 @@ struct OnboardingView: View {
     var onOpenAccessibility: (() -> Void)?
     var onOpenMicrophone: (() -> Void)?
     var onCheckMicrophone: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
     var onComplete: () -> Void
 
     @State private var currentStep: Int = 0
     @Environment(\.openWindow) private var openWindow
 
-    private let steps = ["API Key", "Accessibility", "Microphone"]
+    private let steps = ["Provider", "Credentials", "Accessibility", "Microphone"]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,10 +33,12 @@ struct OnboardingView: View {
             Group {
                 switch currentStep {
                 case 0:
-                    apiKeyStep
+                    providerStep
                 case 1:
-                    accessibilityStep
+                    credentialStep
                 case 2:
+                    accessibilityStep
+                case 3:
                     microphoneStep
                 default:
                     EmptyView()
@@ -82,40 +85,83 @@ struct OnboardingView: View {
         .frame(width: 420, height: 340)
         .accessibilityIdentifier("onboarding.root")
         .onChange(of: currentStep) { _, step in
-            if step == 2 && !isUITesting {
+            if step == 3 && !isUITesting {
                 onCheckMicrophone?()
             }
+        }
+        .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
+            appState.refreshApiKeyState()
         }
     }
 
     // MARK: - Step Views
 
-    private var apiKeyStep: some View {
+    private var providerStep: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "waveform.badge.magnifyingglass")
+                .font(.system(size: 40))
+                .foregroundStyle(.tint)
+
+            Text("Transcription Provider")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Choose where GroqTalk sends audio for transcription. You can change this later in Settings.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            Picker("Provider", selection: $appState.selectedTranscriptionProviderPresetID) {
+                Text("Groq").tag(TranscriptionProviderPresetID.groq)
+                Text("Local whisper.cpp").tag(TranscriptionProviderPresetID.localWhisperCPP)
+                Text("Custom OpenAI-compatible").tag(TranscriptionProviderPresetID.customOpenAICompatible)
+            }
+            .frame(width: 260)
+            .accessibilityIdentifier("onboarding.providerPicker")
+
+            Text(providerPrivacySummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("onboarding.providerPrivacySummary")
+        }
+    }
+
+    private var credentialStep: some View {
         VStack(spacing: 16) {
             Image(systemName: "key.fill")
                 .font(.system(size: 40))
                 .foregroundStyle(.tint)
 
-            Text("Groq API Key")
+            Text(credentialTitle)
                 .font(.title2)
                 .fontWeight(.semibold)
 
-            Text("GroqTalk uses the Groq API to transcribe your voice. You'll need a free API key to get started.")
+            Text(credentialDescription)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            permissionStatusBadge(state: appState.apiKeyState, readyLabel: "API key saved")
+            permissionStatusBadge(state: appState.apiKeyState, readyLabel: credentialReadyLabel)
 
-            Button("Add API Key") {
-                openWindow(id: "api-key-setup")
-            }
-            .buttonStyle(.borderedProminent)
-            .accessibilityIdentifier("onboarding.addApiKeyButton")
+            if appState.selectedTranscriptionProvider.requiresAPIKey {
+                Button("Add API Key") {
+                    openWindow(id: "api-key-setup")
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("onboarding.addApiKeyButton")
 
-            if let url = URL(string: "https://console.groq.com/keys") {
-                Link("Get a free API key at console.groq.com", destination: url)
-                    .font(.caption)
+                if let url = URL(string: "https://console.groq.com/keys") {
+                    Link("Get a free API key at console.groq.com", destination: url)
+                        .font(.caption)
+                }
+            } else {
+                Button("Open Transcription Settings") {
+                    onOpenSettings?()
+                }
+                .font(.caption)
+                .accessibilityIdentifier("onboarding.openTranscriptionSettingsButton")
             }
         }
     }
@@ -182,6 +228,44 @@ struct OnboardingView: View {
 
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    }
+
+    private var providerPrivacySummary: String {
+        switch appState.selectedTranscriptionProviderPresetID {
+        case .groq:
+            "Audio is sent to Groq for Whisper transcription. Cleanup can use Groq chat models when enabled."
+        case .localWhisperCPP:
+            "Audio stays on this Mac when your whisper.cpp server is running at 127.0.0.1."
+        case .customOpenAICompatible:
+            "Audio is sent to the OpenAI-compatible endpoint you configure in Settings."
+        }
+    }
+
+    private var credentialTitle: String {
+        appState.selectedTranscriptionProvider.requiresAPIKey
+            ? "\(appState.selectedTranscriptionProvider.displayName) API Key"
+            : "Credentials Optional"
+    }
+
+    private var credentialDescription: String {
+        if appState.selectedTranscriptionProvider.requiresAPIKey {
+            return "GroqTalk needs a \(appState.selectedTranscriptionProvider.displayName) API key before it can transcribe with this provider."
+        }
+
+        switch appState.selectedTranscriptionProviderPresetID {
+        case .localWhisperCPP:
+            return "Local whisper.cpp does not need a Groq key. Start the local server, then use Settings to test the connection."
+        case .customOpenAICompatible:
+            return "Custom OpenAI-compatible servers can run without a key when the server allows it. Configure the endpoint in Settings."
+        case .groq:
+            return "API key saved."
+        }
+    }
+
+    private var credentialReadyLabel: String {
+        appState.selectedTranscriptionProvider.requiresAPIKey
+            ? "API key saved"
+            : "No API key required"
     }
 
     @ViewBuilder

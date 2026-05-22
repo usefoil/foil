@@ -145,12 +145,25 @@ final class TranscriptionControllerTests: XCTestCase {
 
     func testErrorMessageCannotConnectToHost() {
         let msg = controller.errorMessage(from: URLError(.cannotConnectToHost))
-        XCTAssertEqual(msg, "Cannot reach server")
+        XCTAssertEqual(msg, "Cannot reach Groq")
     }
 
     func testErrorMessageCannotFindHost() {
         let msg = controller.errorMessage(from: URLError(.cannotFindHost))
-        XCTAssertEqual(msg, "Cannot reach server")
+        XCTAssertEqual(msg, "Cannot reach Groq")
+    }
+
+    func testErrorMessageUsesSelectedProviderForLocalProvider() {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+
+        XCTAssertEqual(
+            controller.errorMessage(from: TranscriptionService.TranscriptionError.serverError(503)),
+            "Local whisper.cpp is temporarily unavailable"
+        )
+        XCTAssertEqual(
+            controller.errorMessage(from: URLError(.cannotConnectToHost)),
+            "Cannot reach Local whisper.cpp"
+        )
     }
 
     func testErrorMessageUnknownFallback() {

@@ -28,7 +28,7 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertNil(history.records.first?.error)
     }
 
-    func testAddFailure() {
+    func testAddFailure() throws {
         let audioURL = testDir.appendingPathComponent("test.wav")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
 
@@ -36,7 +36,10 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertEqual(history.records.count, 1)
         XCTAssertNil(history.records.first?.text)
         XCTAssertEqual(history.records.first?.error, "API error (429)")
-        XCTAssertNotNil(history.records.first?.audioFileURL)
+        let retainedURL = try XCTUnwrap(history.records.first?.audioFileURL)
+        XCTAssertTrue(retainedURL.path.contains("/retry-audio/"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: retainedURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
     func testCapsAt500() {
@@ -58,12 +61,31 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertEqual(history2.records.first?.text, "persisted")
     }
 
+    func testFailureAudioPersistsAcrossReloadFromRetryAudioDirectory() throws {
+        let audioURL = testDir.appendingPathComponent("reload-source.wav")
+        try Data([0x00, 0x01]).write(to: audioURL)
+
+        history.addFailure(error: "timeout", audioFileURL: audioURL)
+        let retainedURL = try XCTUnwrap(history.records.first?.audioFileURL)
+
+        XCTAssertTrue(retainedURL.path.contains("/retry-audio/"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: retainedURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+
+        let reloaded = TranscriptionHistory(storageDirectory: testDir)
+
+        XCTAssertEqual(reloaded.records.first?.error, "timeout")
+        XCTAssertEqual(reloaded.records.first?.audioFileURL, retainedURL)
+        XCTAssertNotNil(reloaded.retryableRecord)
+    }
+
     func testRetryUpdatesRecord() {
         let audioURL = testDir.appendingPathComponent("retry.wav")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
 
         history.addFailure(error: "timeout", audioFileURL: audioURL)
         let recordID = history.records.first!.id
+        let retainedURL = history.records.first!.audioFileURL!
 
         history.resolveRetry(id: recordID, text: "retried text")
 
@@ -71,6 +93,7 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertNil(history.records.first?.error)
         XCTAssertNil(history.records.first?.audioFileURL)
         // Audio file should be deleted
+        XCTAssertFalse(FileManager.default.fileExists(atPath: retainedURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
@@ -80,12 +103,13 @@ final class TranscriptionHistoryTests: XCTestCase {
 
         history.addFailure(error: "timeout", audioFileURL: audioURL)
         let recordID = history.records.first!.id
+        let retainedURL = history.records.first!.audioFileURL!
 
         history.resolveRetryFailure(id: recordID, error: "still broken")
 
         XCTAssertEqual(history.records.first?.error, "still broken")
         // Audio file should still exist for another retry attempt
-        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: retainedURL.path))
     }
 
     func testRetryableRecord() {
@@ -111,7 +135,7 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertEqual(history.records.count, TranscriptionHistory.maxRecords)
 
         // Adding one more should evict the oldest and delete its audio file
-        let evictedURL = testDir.appendingPathComponent("audio-0.wav")
+        let evictedURL = history.records.last!.audioFileURL!
         XCTAssertTrue(FileManager.default.fileExists(atPath: evictedURL.path))
 
         history.addSuccess(text: "new")
@@ -124,10 +148,12 @@ final class TranscriptionHistoryTests: XCTestCase {
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
         history.addFailure(error: "fail", audioFileURL: audioURL)
         let id = history.records.first!.id
+        let retainedURL = history.records.first!.audioFileURL!
 
         history.delete(id: id)
 
         XCTAssertTrue(history.records.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: retainedURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
@@ -135,11 +161,13 @@ final class TranscriptionHistoryTests: XCTestCase {
         let audioURL = testDir.appendingPathComponent("clear-me.wav")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
         history.addFailure(error: "fail", audioFileURL: audioURL)
+        let retainedURL = history.records.first!.audioFileURL!
         history.addSuccess(text: "ok")
 
         history.clear()
 
         XCTAssertTrue(history.records.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: retainedURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
@@ -267,9 +295,10 @@ final class TranscriptionHistoryTests: XCTestCase {
         let audioURL = testDir.appendingPathComponent("deleted.wav")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
         history.addFailure(error: "fail", audioFileURL: audioURL)
+        let retainedURL = history.records.first!.audioFileURL!
 
         // Delete the file externally
-        try? FileManager.default.removeItem(at: audioURL)
+        try? FileManager.default.removeItem(at: retainedURL)
 
         XCTAssertNil(history.retryableRecord, "Should not be retryable when file is gone")
     }
@@ -403,7 +432,7 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertTrue(history.records.first!.isFailure)
     }
 
-    func testResolveRetryFailurePreservesAudioFile() {
+    func testResolveRetryFailurePreservesAudioFile() throws {
         let audioURL = testDir.appendingPathComponent("preserve.wav")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))
         history.addFailure(error: "first error", audioFileURL: audioURL)
@@ -412,8 +441,10 @@ final class TranscriptionHistoryTests: XCTestCase {
         history.resolveRetryFailure(id: recordID, error: "second error")
 
         XCTAssertEqual(history.records.first?.error, "second error")
-        XCTAssertEqual(history.records.first?.audioFileURL, audioURL)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        let retainedURL = try XCTUnwrap(history.records.first?.audioFileURL)
+        XCTAssertNotEqual(retainedURL, audioURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: retainedURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
     // MARK: - Corrupted JSON resilience
