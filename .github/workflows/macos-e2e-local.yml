@@ -184,6 +184,11 @@ jobs:
           rm -rf LocalE2EDerivedData LocalCLIE2EDerivedData
           rm -f LocalAppE2E.log local-e2e-output.txt /tmp/groqtalk-e2e-result.txt
 
+          cleanup="$HOME/Library/Application Support/macos-e2e-runner/macos-runner-cleanup"
+          RUNNER_HOME="$HOME" \
+          RUNNER_WORK="$HOME/actions-runner/_work" \
+          "$cleanup" --github-actions-safe --json
+
       - name: Healthcheck after
         if: always()
         working-directory: /
