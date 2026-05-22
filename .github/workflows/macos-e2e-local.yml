@@ -74,11 +74,32 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           RUN_LIVE_GROQ_TESTS: "1"
         run: |
+          set -euo pipefail
+
           xcodebuild test \
             -scheme GroqTalk \
             -configuration Debug \
             -destination 'platform=macOS' \
-            -only-testing:GroqTalkTests/IntegrationTests
+            -only-testing:GroqTalkTests/IntegrationTests &
+          XCODE_PID=$!
+
+          caffeinate -dimsu -w "$XCODE_PID" &
+          CAFFEINATE_PID=$!
+
+          (
+            sleep 300 && kill -TERM "$XCODE_PID" 2>/dev/null
+            sleep 60 && kill -9 "$XCODE_PID" 2>/dev/null
+          ) &
+          WATCHDOG_PID=$!
+
+          set +e
+          wait "$XCODE_PID"
+          TEST_EXIT=$?
+          kill "$WATCHDOG_PID" "$CAFFEINATE_PID" 2>/dev/null
+          wait "$WATCHDOG_PID" "$CAFFEINATE_PID" 2>/dev/null
+          set -e
+
+          exit "$TEST_EXIT"
 
       - name: Run live transcription UI E2E
         timeout-minutes: 20
