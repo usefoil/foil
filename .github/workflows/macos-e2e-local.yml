@@ -69,7 +69,7 @@ jobs:
           pkill -f 'xcodebuild.*GroqTalk' || true
 
       - name: Run live Groq API integration tests
-        timeout-minutes: 12
+        timeout-minutes: 20
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           RUN_LIVE_GROQ_TESTS: "1"
@@ -87,7 +87,7 @@ jobs:
           CAFFEINATE_PID=$!
 
           (
-            sleep 300 && kill -TERM "$XCODE_PID" 2>/dev/null
+            sleep 900 && kill -TERM "$XCODE_PID" 2>/dev/null
             sleep 60 && kill -9 "$XCODE_PID" 2>/dev/null
           ) &
           WATCHDOG_PID=$!
