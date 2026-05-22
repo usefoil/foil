@@ -23,7 +23,7 @@ endif
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-provider-qa test-provider-qa-live test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -104,6 +104,14 @@ test-ui:
 	status=$$?; tail -5 "$$tmp"; \
 	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
 	rm -f "$$tmp"; exit $$status
+
+test-ui-diagnostics:
+	@echo "WARNING: make test-ui-diagnostics runs the full macOS XCUITest suite."
+	@echo "It is intended for idle desktops or dedicated CI runners and preserves diagnostics on failure."
+	FULL_UI_TIMEOUT_SECONDS="$${FULL_UI_TIMEOUT_SECONDS:-1200}" \
+	RESULT_BUNDLE_PATH="$${RESULT_BUNDLE_PATH:-FullUITestResults.xcresult}" \
+	LOG_PATH="$${LOG_PATH:-full-ui-diagnostics.log}" \
+	SCHEME="$(SCHEME)" CONFIG="$(CONFIG)" scripts/run-full-ui-diagnostics.sh
 
 test-provider-qa:
 	@tmp=$$(mktemp); \

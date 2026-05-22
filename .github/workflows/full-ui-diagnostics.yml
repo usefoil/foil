@@ -1,0 +1,65 @@
+name: Full UI Diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeout_seconds:
+        description: "Full UI suite timeout in seconds"
+        required: false
+        default: "1200"
+
+concurrency:
+  group: full-ui-diagnostics-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  full-ui-diagnostics:
+    name: Full UI Diagnostics
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
+
+      - name: Run full UI diagnostics
+        env:
+          FULL_UI_TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+          RESULT_BUNDLE_PATH: FullUITestResults.xcresult
+          LOG_PATH: full-ui-diagnostics.log
+        run: |
+          make test-ui-diagnostics
+
+      - name: Full UI summary
+        if: always()
+        run: |
+          echo "## Full UI Diagnostics" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f full-ui-summary.json ]; then
+            {
+              echo
+              echo '```json'
+              head -c 900000 full-ui-summary.json
+              echo
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_No parseable full UI summary was produced._" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload full UI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: full-ui-diagnostics
+          path: |
+            FullUITestResults.xcresult
+            full-ui-diagnostics.log
+            full-ui-summary.json
+          retention-days: 14
+          if-no-files-found: ignore
