@@ -1,12 +1,8 @@
 name: Local macOS E2E
 
 on:
-  merge_group:
-    branches: [main]
-  push:
-    branches:
-      - main
-      - "gh-readonly-queue/main/**"
+  # Manual while self-hosted macOS 26/Xcode 26 runners are unable to
+  # establish XCTest control sessions reliably.
   workflow_dispatch:
 
 permissions:
