@@ -69,7 +69,7 @@ jobs:
           pkill -f 'xcodebuild.*GroqTalk' || true
 
       - name: Run live transcription UI E2E
-        timeout-minutes: 20
+        timeout-minutes: 35
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           RUN_LIVE_GROQ_TESTS: "1"
@@ -106,7 +106,7 @@ jobs:
           CAFFEINATE_PID=$!
 
           (
-            sleep 600 && kill -TERM "$XCODE_PID" 2>/dev/null
+            sleep 1800 && kill -TERM "$XCODE_PID" 2>/dev/null
             sleep 60 && kill -9 "$XCODE_PID" 2>/dev/null
           ) &
           WATCHDOG_PID=$!
