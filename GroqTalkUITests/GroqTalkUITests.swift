@@ -267,6 +267,33 @@ final class GroqTalkUITests: XCTestCase {
         clickAlertButton("Cancel")
         XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2))
 
+        let detailsButtons = historyPanel.buttons.matching(NSPredicate(format: "label == %@", "Details"))
+        XCTAssertGreaterThanOrEqual(detailsButtons.count, 2, app.debugDescription)
+        detailsButtons.element(boundBy: 1).click()
+        let editor = app.textViews["history.detail.editor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
+        clickButton(id: "history.detail.deleteButton", fallbackLabel: "Delete")
+        XCTAssertTrue(app.staticTexts["Delete this history item?"].waitForExistence(timeout: 2))
+        clickButton(id: "history.detail.cancelDeleteButton", fallbackLabel: "Cancel")
+        XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
+        clickButton(id: "history.detail.doneButton", fallbackLabel: "Done")
+        XCTAssertFalse(editor.waitForExistence(timeout: 2), app.debugDescription)
+
+        let moreMenu = historyPanel.menuButtons
+            .matching(NSPredicate(format: "label == %@ OR title == %@", "More actions", "More"))
+            .firstMatch
+        if moreMenu.waitForExistence(timeout: 1) {
+            clickElement(moreMenu)
+        } else {
+            historyPanel.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.11)).click()
+        }
+        let deleteFilteredItem = app.menuItems["Delete All Filtered"].firstMatch
+        XCTAssertTrue(deleteFilteredItem.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(deleteFilteredItem)
+        XCTAssertTrue(app.staticTexts["Delete Filtered History?"].waitForExistence(timeout: 2))
+        clickAlertButton("Cancel")
+        XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2))
+
         relaunchWithSeededHistory()
         openHistoryWindow()
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))

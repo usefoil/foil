@@ -17,8 +17,10 @@ struct HistoryPopoverView: View {
     @State private var filter: Filter = .all
     @State private var isShowingClearConfirmation = false
     @State private var isShowingDeleteOlderConfirmation = false
+    @State private var isShowingDeleteFilteredConfirmation = false
     @State private var deleteOlderDays: Int = 7
     @State private var pendingDeleteRecord: TranscriptionRecord?
+    @State private var pendingDetailDeleteRecord: TranscriptionRecord?
     @State private var selectedRecord: TranscriptionRecord?
     @State private var editedText = ""
 
@@ -70,6 +72,9 @@ struct HistoryPopoverView: View {
             Button("Delete", role: .destructive) {
                 if let pendingDeleteRecord {
                     history.delete(id: pendingDeleteRecord.id)
+                    if selectedRecord?.id == pendingDeleteRecord.id {
+                        selectedRecord = nil
+                    }
                 }
                 pendingDeleteRecord = nil
             }
@@ -87,6 +92,14 @@ struct HistoryPopoverView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will permanently delete all transcriptions older than \(deleteOlderDays) days.")
+        }
+        .alert("Delete Filtered History?", isPresented: $isShowingDeleteFilteredConfirmation) {
+            Button("Delete Filtered", role: .destructive) {
+                history.deleteFiltered(filteredRecords)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently deletes the currently visible filtered transcripts and any retained failed-audio retry files from this Mac.")
         }
         .sheet(item: $selectedRecord) { record in
             detailView(for: history.records.first { $0.id == record.id } ?? record)
@@ -141,7 +154,7 @@ struct HistoryPopoverView: View {
                 }
                 Divider()
                 Button("Delete All Filtered", role: .destructive) {
-                    history.deleteFiltered(filteredRecords)
+                    isShowingDeleteFilteredConfirmation = true
                 }
                 .disabled(filteredRecords.isEmpty)
             } label: {
@@ -432,10 +445,36 @@ struct HistoryPopoverView: View {
 
             Divider()
 
+            if pendingDetailDeleteRecord?.id == record.id {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Delete this history item?")
+                        .font(.callout.weight(.semibold))
+                    Text("This removes the selected transcript and any retained failed-audio retry file from this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Button("Confirm Delete", role: .destructive) {
+                            history.delete(id: record.id)
+                            pendingDetailDeleteRecord = nil
+                            selectedRecord = nil
+                        }
+                        .accessibilityIdentifier("history.detail.confirmDeleteButton")
+
+                        Button("Cancel") {
+                            pendingDetailDeleteRecord = nil
+                        }
+                        .accessibilityIdentifier("history.detail.cancelDeleteButton")
+                    }
+                    .buttonStyle(.borderless)
+                }
+                .padding(10)
+                .background(.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                .accessibilityIdentifier("history.detail.deleteConfirmation")
+            }
+
             HStack {
                 Button(role: .destructive) {
-                    history.delete(id: record.id)
-                    selectedRecord = nil
+                    pendingDetailDeleteRecord = record
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }
