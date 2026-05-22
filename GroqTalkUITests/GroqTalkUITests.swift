@@ -26,18 +26,11 @@ final class GroqTalkUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--seed-history"
-        ]
-        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
-        app.launchEnvironment["GROQTALK_UITEST_OPENED_URL_PATH"] = openedURLPath.path
-        removeUITestStateSnapshot()
-        removeOpenedURLRecord()
-        app.launch()
-        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        ])
     }
 
     override func tearDownWithError() throws {
@@ -71,31 +64,23 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testSetupFailuresShowRecoveryDetails() {
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--seed-history",
             "--seed-setup-failures"
-        ]
-        app.launch()
+        ])
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertTrue(waitForAppForeground(timeout: 5), app.debugDescription)
     }
 
     func testUnknownSetupStateDoesNotShowReadySession() {
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--seed-setup-unknown"
-        ]
-        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
-        removeUITestStateSnapshot()
-        app.launch()
+        ])
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
         let state = waitForUITestStateSnapshot { $0.sessionTitle == "Setup needed" }
@@ -107,16 +92,11 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testMicrophoneUnknownShowsCheckAction() {
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--seed-microphone-unknown"
-        ]
-        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
-        removeUITestStateSnapshot()
-        app.launch()
+        ])
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
         let state = waitForUITestStateSnapshot { $0.microphoneText == "Not checked" }
@@ -127,16 +107,11 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testMicrophoneDeniedShowsOpenSettingsAction() {
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--seed-microphone-denied"
-        ]
-        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
-        removeUITestStateSnapshot()
-        app.launch()
+        ])
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
         let state = waitForUITestStateSnapshot { $0.microphoneText == "Allow microphone access" }
@@ -147,15 +122,12 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testOnboardingMicrophoneStepCanCheckPermission() {
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--show-onboarding",
             "--seed-microphone-unknown"
-        ]
-        app.launch()
+        ], requireControlCenter: false)
 
         XCTAssertTrue(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 5), app.debugDescription)
         clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
@@ -171,15 +143,12 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testOnboardingCompletionKeepsMenuBarAppRunning() {
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--show-onboarding",
             "--seed-setup-ready"
-        ]
-        app.launch()
+        ], requireControlCenter: false)
 
         XCTAssertTrue(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 5), app.debugDescription)
 
@@ -191,20 +160,17 @@ final class GroqTalkUITests: XCTestCase {
         clickButton(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
 
         XCTAssertFalse(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 2))
-        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertTrue(waitForAppForeground(timeout: 5), app.debugDescription)
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
     }
 
     func testOnboardingLocalProviderDoesNotRequireAPIKey() {
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--show-onboarding",
             "--seed-setup-ready"
-        ]
-        app.launch()
+        ], requireControlCenter: false)
 
         let onboardingWindow = app.windows["Welcome to GroqTalk"]
         XCTAssertTrue(onboardingWindow.waitForExistence(timeout: 5), app.debugDescription)
@@ -418,16 +384,10 @@ final class GroqTalkUITests: XCTestCase {
         selectProviderPreset("Local whisper.cpp")
         XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
 
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--seed-history"
-        ]
-        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
-        removeUITestStateSnapshot()
-        app.launch()
-        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        ])
         openTranscriptionSettingsPanel()
 
         XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
@@ -459,14 +419,10 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertEqual(customBaseURLField.value as? String, "http://127.0.0.1:9090/v1")
         XCTAssertEqual(customModelField.value as? String, "tiny-test-model")
 
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--seed-history"
-        ]
-        app.launch()
-        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        ])
         openTranscriptionSettingsPanel()
 
         XCTAssertTrue(customBaseURLField.waitForExistence(timeout: 2), app.debugDescription)
@@ -482,14 +438,11 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(toggle.exists)
         clickElement(toggle)
 
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--seed-history",
             "--settings-tab-experimental"
-        ]
-        app.launch()
+        ])
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5))
         openSettingsPanel()
@@ -617,9 +570,7 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     func testOnboardingNotShownForReturningUser() {
-        let app = XCUIApplication()
-        app.launchArguments += ["--ui-testing"]
-        app.launch()
+        launchApp(arguments: ["--ui-testing"], requireControlCenter: false)
         // UI testing mode should skip onboarding
         XCTAssertFalse(app.windows["Welcome to GroqTalk"].exists)
     }
@@ -633,22 +584,12 @@ final class GroqTalkUITests: XCTestCase {
             ?? "/tmp/groqtalk-live-microphone-result.txt"
         try? FileManager.default.removeItem(atPath: resultPath)
 
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--seed-setup-ready",
             "--live-microphone-smoke"
-        ]
-        app.launchEnvironment["LIVE_MICROPHONE_RESULT_PATH"] = resultPath
-        if let signingIdentity = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_SIGNING_IDENTITY"] {
-            app.launchEnvironment["LIVE_MICROPHONE_SIGNING_IDENTITY"] = signingIdentity
-        }
-        if let duration = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_DURATION_SECONDS"] {
-            app.launchEnvironment["LIVE_MICROPHONE_DURATION_SECONDS"] = duration
-        }
-        app.launch()
+        ], extraEnvironment: liveMicrophoneEnvironment(resultPath: resultPath))
 
         let deadline = Date().addingTimeInterval(20)
         var result = ""
@@ -692,25 +633,23 @@ final class GroqTalkUITests: XCTestCase {
         let resultPath = "/tmp/groqtalk-e2e-result.txt"
         try? FileManager.default.removeItem(atPath: resultPath)
 
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = [
+        var environment = ["E2E_API_KEY": apiKey]
+        if isOpenAICompatibleE2E {
+            environment["E2E_TRANSCRIPTION_PROVIDER"] = "openai-compatible"
+            environment["E2E_TRANSCRIPTION_BASE_URL"] = env["E2E_TRANSCRIPTION_BASE_URL"] ?? "http://127.0.0.1:8080/v1"
+            environment["E2E_TRANSCRIPTION_MODEL"] = env["E2E_TRANSCRIPTION_MODEL"] ?? "whisper-1"
+        } else if let model = env["E2E_TRANSCRIPTION_MODEL"] {
+            environment["E2E_TRANSCRIPTION_MODEL"] = model
+        }
+        if let wavPath = env["E2E_WAV_PATH"], !wavPath.isEmpty {
+            environment["E2E_WAV_PATH"] = wavPath
+        }
+
+        launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
             "--e2e-transcribe"
-        ]
-        app.launchEnvironment["E2E_API_KEY"] = apiKey
-        if isOpenAICompatibleE2E {
-            app.launchEnvironment["E2E_TRANSCRIPTION_PROVIDER"] = "openai-compatible"
-            app.launchEnvironment["E2E_TRANSCRIPTION_BASE_URL"] = env["E2E_TRANSCRIPTION_BASE_URL"] ?? "http://127.0.0.1:8080/v1"
-            app.launchEnvironment["E2E_TRANSCRIPTION_MODEL"] = env["E2E_TRANSCRIPTION_MODEL"] ?? "whisper-1"
-        } else if let model = env["E2E_TRANSCRIPTION_MODEL"] {
-            app.launchEnvironment["E2E_TRANSCRIPTION_MODEL"] = model
-        }
-        if let wavPath = env["E2E_WAV_PATH"], !wavPath.isEmpty {
-            app.launchEnvironment["E2E_WAV_PATH"] = wavPath
-        }
-        app.launch()
+        ], extraEnvironment: environment)
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 10), "App should launch")
 
@@ -772,26 +711,80 @@ final class GroqTalkUITests: XCTestCase {
         app.descendants(matching: .any)["uiTest.controlCenter"]
     }
 
-    private func launchForProviderQA(extraArguments: [String] = []) {
-        app.terminate()
+    private func launchApp(
+        arguments: [String],
+        extraEnvironment: [String: String] = [:],
+        requireControlCenter: Bool = true,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        terminateAppAndStaleInstances()
+
         app = XCUIApplication()
-        app.launchArguments = [
-            "--ui-testing",
-            "--reset-defaults",
-            "--seed-history"
-        ] + extraArguments
+        app.launchArguments = arguments
         app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
         app.launchEnvironment["GROQTALK_UITEST_OPENED_URL_PATH"] = openedURLPath.path
+        for (key, value) in extraEnvironment {
+            app.launchEnvironment[key] = value
+        }
         removeUITestStateSnapshot()
         removeOpenedURLRecord()
         app.launch()
-        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+
+        if requireControlCenter {
+            XCTAssertTrue(controlCenter.waitForExistence(timeout: 8), app.debugDescription, file: file, line: line)
+        }
+        XCTAssertTrue(waitForAppForeground(timeout: 6), app.debugDescription, file: file, line: line)
+    }
+
+    private func terminateAppAndStaleInstances() {
+        if app != nil {
+            app.terminate()
+            _ = app.wait(for: .notRunning, timeout: 3)
+        }
+        runQuietProcess("/usr/bin/pkill", arguments: ["-x", "GroqTalk"])
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+    }
+
+    @discardableResult
+    private func waitForAppForeground(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if app.state == .runningForeground {
+                return true
+            }
+            activateAppForInteraction()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        return app.state == .runningForeground
+    }
+
+    private func activateAppForInteraction() {
+        runQuietProcess("/usr/bin/open", arguments: ["-b", "com.neonwatty.GroqTalk"])
+    }
+
+    private func runQuietProcess(_ executable: String, arguments: [String]) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
+    }
+
+    private func launchForProviderQA(extraArguments: [String] = []) {
+        launchApp(arguments: [
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history"
+        ] + extraArguments)
     }
 
     private func openSettingsPanel() {
         postUITestCommand(openSettingsNotification)
         if !waitForSettingsPanel(timeout: 6) {
-            app.activate()
+            activateAppForInteraction()
             postUITestCommand(openSettingsNotification)
         }
         XCTAssertTrue(waitForSettingsPanel(timeout: 8), app.debugDescription)
@@ -934,7 +927,7 @@ final class GroqTalkUITests: XCTestCase {
             return
         }
 
-        app.activate()
+        activateAppForInteraction()
         RunLoop.current.run(until: Date().addingTimeInterval(0.2))
 
         if element.isHittable {
@@ -1065,14 +1058,17 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func relaunchWithArguments(_ arguments: [String]) {
-        app.terminate()
-        app = XCUIApplication()
-        app.launchArguments = arguments
-        app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
-        app.launchEnvironment["GROQTALK_UITEST_OPENED_URL_PATH"] = openedURLPath.path
-        removeUITestStateSnapshot()
-        removeOpenedURLRecord()
-        app.launch()
-        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        launchApp(arguments: arguments)
+    }
+
+    private func liveMicrophoneEnvironment(resultPath: String) -> [String: String] {
+        var environment = ["LIVE_MICROPHONE_RESULT_PATH": resultPath]
+        if let signingIdentity = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_SIGNING_IDENTITY"] {
+            environment["LIVE_MICROPHONE_SIGNING_IDENTITY"] = signingIdentity
+        }
+        if let duration = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_DURATION_SECONDS"] {
+            environment["LIVE_MICROPHONE_DURATION_SECONDS"] = duration
+        }
+        return environment
     }
 }
