@@ -66,6 +66,7 @@ jobs:
       - name: Stop stale GroqTalk processes
         run: |
           pkill -x GroqTalk || true
+          pkill -x GroqTalkE2E || true
           pkill -f 'xcodebuild.*GroqTalk' || true
 
       - name: Run live transcription app E2E
@@ -150,16 +151,38 @@ jobs:
 
           echo "E2E transcript: $transcript"
 
-      - name: Upload local UI test results
+      - name: Run live transcription CLI E2E
+        timeout-minutes: 20
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          RUN_LIVE_GROQ_TESTS: "1"
+          E2E_TRANSCRIPTION_TIMEOUT_SECONDS: "90"
+        run: |
+          scripts/run-live-transcription-e2e-cli.sh
+
+      - name: Upload local E2E results
         if: failure()
         uses: actions/upload-artifact@v5
         with:
-          name: local-app-e2e-artifacts
+          name: local-e2e-artifacts
           path: |
             /tmp/groqtalk-e2e-result.txt
             LocalAppE2E.log
+            local-e2e-output.txt
           retention-days: 14
           if-no-files-found: ignore
+
+      - name: Workspace cleanup after
+        if: always()
+        run: |
+          set -euo pipefail
+
+          pkill -x GroqTalk || true
+          pkill -x GroqTalkE2E || true
+          pkill -f 'xcodebuild.*GroqTalk' || true
+
+          rm -rf LocalE2EDerivedData LocalCLIE2EDerivedData
+          rm -f LocalAppE2E.log local-e2e-output.txt /tmp/groqtalk-e2e-result.txt
 
       - name: Healthcheck after
         if: always()

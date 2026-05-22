@@ -23,7 +23,7 @@ endif
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-provider-qa test-provider-qa-live test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-provider-qa test-provider-qa-live test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -122,6 +122,9 @@ test-provider-qa:
 
 test-provider-qa-live:
 	SCHEME="$(SCHEME)" CONFIG="$(CONFIG)" scripts/run-live-groq-provider-qa-xcuitest.sh
+
+test-live-transcription-e2e-cli:
+	CONFIG="$(CONFIG)" scripts/run-live-transcription-e2e-cli.sh
 
 test-local-transcription-e2e:
 	SCHEME="$(SCHEME)" CONFIG="$(CONFIG)" scripts/run-local-transcription-e2e-xcuitest.sh

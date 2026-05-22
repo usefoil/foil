@@ -25,9 +25,25 @@ targets:
     info:
       path: GroqTalk/Info.plist
       properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSUIElement: true
         NSMicrophoneUsageDescription: "GroqTalk needs microphone access to record audio for speech-to-text."
+        NSAppleEventsUsageDescription: "GroqTalk uses Apple Events to pause browser media in Chrome and Chromium while recording, when you enable this experimental setting."
         SUFeedURL: "https://github.com/mean-weasel/groqtalk/releases/latest/download/appcast.xml"
+  GroqTalkE2E:
+    type: tool
+    platform: macOS
+    sources:
+      - GroqTalkE2E
+      - GroqTalk/AudioRecording.swift
+      - GroqTalk/AudioRecorder.swift
+      - GroqTalk/TranscriptProcessingMode.swift
+      - GroqTalk/TranscriptionService.swift
+    settings:
+      base:
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_ALLOWED: NO
   GroqTalkTests:
     type: bundle.unit-test
     platform: macOS
