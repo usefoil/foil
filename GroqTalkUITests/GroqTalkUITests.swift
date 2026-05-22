@@ -4,9 +4,12 @@ final class GroqTalkUITests: XCTestCase {
     private var app: XCUIApplication!
     private let openHistoryNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openHistory")
     private let openSettingsNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
+    private let openHelpNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openHelp")
     private let runSetupCheckNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
     private let stateSnapshotURL =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-state-\(ProcessInfo.processInfo.processIdentifier).json")
+    private let openedURLPath =
+        URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-opened-url-\(ProcessInfo.processInfo.processIdentifier).txt")
 
     private struct UITestStateSnapshot: Decodable {
         let statusText: String
@@ -30,7 +33,9 @@ final class GroqTalkUITests: XCTestCase {
             "--seed-history"
         ]
         app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
+        app.launchEnvironment["GROQTALK_UITEST_OPENED_URL_PATH"] = openedURLPath.path
         removeUITestStateSnapshot()
+        removeOpenedURLRecord()
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
     }
@@ -97,6 +102,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertEqual(state?.sessionDetail, "Check Accessibility before recording")
         XCTAssertEqual(state?.accessibilityText, "Not checked")
         XCTAssertEqual(state?.accessibilityActionTitle, "Open Settings")
+        XCTAssertTrue(app.staticTexts["Enable Accessibility before recording."].waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertFalse(app.staticTexts["Right Command · Pastes into current app"].exists)
     }
 
@@ -117,6 +123,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertEqual(state?.accessibilityText, "Ready")
         XCTAssertEqual(state?.microphoneActionTitle, "Check")
         XCTAssertEqual(state?.sessionTitle, "Setup needed")
+        XCTAssertTrue(app.staticTexts["Check microphone access before recording."].waitForExistence(timeout: 2), app.debugDescription)
     }
 
     func testMicrophoneDeniedShowsOpenSettingsAction() {
@@ -136,6 +143,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertEqual(state?.accessibilityText, "Ready")
         XCTAssertEqual(state?.microphoneActionTitle, "Open Settings")
         XCTAssertEqual(state?.sessionTitle, "Setup needed")
+        XCTAssertTrue(app.staticTexts["Allow microphone access before recording."].waitForExistence(timeout: 2), app.debugDescription)
     }
 
     func testOnboardingMicrophoneStepCanCheckPermission() {
@@ -150,6 +158,7 @@ final class GroqTalkUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 5), app.debugDescription)
+        clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
         clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
         clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
 
@@ -186,17 +195,55 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
     }
 
+    func testOnboardingLocalProviderDoesNotRequireAPIKey() {
+        app.terminate()
+        app = XCUIApplication()
+        app.launchArguments = [
+            "--ui-testing",
+            "--reset-defaults",
+            "--show-onboarding",
+            "--seed-setup-ready"
+        ]
+        app.launch()
+
+        let onboardingWindow = app.windows["Welcome to GroqTalk"]
+        XCTAssertTrue(onboardingWindow.waitForExistence(timeout: 5), app.debugDescription)
+        let providerPicker = app.popUpButtons["onboarding.providerPicker"].exists
+            ? app.popUpButtons["onboarding.providerPicker"]
+            : onboardingWindow.popUpButtons.firstMatch
+        XCTAssertTrue(providerPicker.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(providerPicker)
+        let localProvider = app.menuItems["Local whisper.cpp"].firstMatch
+        XCTAssertTrue(localProvider.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(localProvider)
+
+        XCTAssertTrue(staticTextLabelOrValueContaining("Audio stays on this Mac").waitForExistence(timeout: 2), app.debugDescription)
+        clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
+
+        XCTAssertTrue(app.staticTexts["Credentials Optional"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["No API key required"].exists || app.staticTexts["Ready"].exists, app.debugDescription)
+        XCTAssertFalse(app.buttons["onboarding.addApiKeyButton"].exists || app.buttons["Add API Key"].exists)
+        XCTAssertTrue(
+            app.buttons["onboarding.openTranscriptionSettingsButton"].exists
+                || app.buttons["Open Transcription Settings"].exists,
+            app.debugDescription
+        )
+    }
+
     func testHistoryWindowOpensAndSearchesSeededRecords() {
         openHistoryWindow()
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
 
         let searchField = app.textFields["Search transcriptions..."]
         XCTAssertTrue(searchField.exists)
-        searchField.click()
-        searchField.typeText("Second searchable")
+        replaceText(in: searchField, with: "Second searchable")
 
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].waitForExistence(timeout: 2))
         XCTAssertFalse(app.staticTexts["Seeded transcript for UI testing."].exists)
+
+        replaceText(in: searchField, with: "no matching transcript")
+        XCTAssertTrue(staticTextLabelOrValueContaining("No matches", in: historyPanel).waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertFalse(historyPanel.staticTexts["Second searchable transcript."].exists)
     }
 
     func testHistoryFilterShowsFailedRecords() {
@@ -227,7 +274,10 @@ final class GroqTalkUITests: XCTestCase {
         clickButton(id: "history.clearButton", fallbackLabel: "Clear")
         XCTAssertTrue(app.staticTexts["Clear History?"].waitForExistence(timeout: 2))
         clickAlertButton("Clear History")
-        XCTAssertTrue(app.staticTexts["No transcriptions yet"].waitForExistence(timeout: 2))
+        XCTAssertTrue(
+            historyEmptyStateAppeared(timeout: 5),
+            app.debugDescription
+        )
     }
 
     func testHistoryDetailAllowsEditingAndExport() {
@@ -266,6 +316,7 @@ final class GroqTalkUITests: XCTestCase {
                 || (app.popUpButtons["menu.settings.whisperModelPicker"].value as? String) == "Large V3 Turbo",
             app.debugDescription
         )
+        XCTAssertTrue(staticTextLabelOrValueContaining("Audio is sent to Groq for transcription").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["settings.changeApiKeyButton"].exists || app.buttons["menu.settings.changeApiKeyButton"].exists || app.buttons["Change API Key"].exists || app.buttons["Change..."].exists)
         XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists || app.staticTexts["Transcript cleanup"].exists, app.debugDescription)
         XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].exists)
@@ -279,10 +330,12 @@ final class GroqTalkUITests: XCTestCase {
         assertProviderPickerExists()
         XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].exists || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
-        XCTAssertTrue(staticTextContaining("API key is optional").exists
-                      || staticTextContaining("local OpenAI-compatible").exists
+        XCTAssertTrue(staticTextLabelOrValueContaining("Audio stays on this Mac").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("API key is optional").exists
+                      || staticTextLabelOrValueContaining("local OpenAI-compatible").exists
                       || elementExists(id: "settings.localProviderHelp", timeout: 1),
                       app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Start the local whisper-server first").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["Test connection"].exists || app.buttons["settings.testProviderConnectionButton"].exists || app.buttons["menu.settings.testProviderConnectionButton"].exists, app.debugDescription)
         XCTAssertTrue(
             app.staticTexts["Cleanup requires a Groq-compatible chat provider."].waitForExistence(timeout: 2)
@@ -373,6 +426,8 @@ final class GroqTalkUITests: XCTestCase {
         launchForProviderQA(extraArguments: ["--seed-custom-provider"])
         openTranscriptionSettingsPanel()
 
+        XCTAssertTrue(staticTextLabelOrValueContaining("Audio is sent to the OpenAI-compatible endpoint").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Use Test connection after changing the base URL or model").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(customBaseURLField.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertEqual(customBaseURLField.value as? String, "http://127.0.0.1:9090/v1")
         XCTAssertEqual(customModelField.value as? String, "tiny-test-model")
@@ -448,11 +503,36 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Simulated transcription failure"].waitForExistence(timeout: 2))
     }
 
+    func testTranscribingStateShowsCancelTranscriptionAction() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-transcribing"])
+
+        XCTAssertTrue(waitForSessionTitle("Transcribing", timeout: 4), app.debugDescription)
+        let cancelButton = app.buttons["menu.recording.cancelButton"]
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(cancelButton.label, "Cancel transcription")
+        XCTAssertTrue(cancelButton.isEnabled)
+
+        clickElement(cancelButton)
+
+        XCTAssertTrue(waitForSessionTitle("Ready", timeout: 4), app.debugDescription)
+        XCTAssertFalse(cancelButton.isEnabled)
+    }
+
     func testFloatingStatusCanBeEnabled() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-floating-status-enabled", "--simulate-success-after-launch"])
 
         XCTAssertTrue(waitForSessionTitle("Transcribing", timeout: 2))
         XCTAssertTrue(app.staticTexts["Paste command sent to the current app"].waitForExistence(timeout: 6))
+    }
+
+    func testFloatingWarningShowsExpandedClipboardContext() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-floating-warning"])
+
+        XCTAssertTrue(app.descendants(matching: .any)["floatingStatus.window"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.hud"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.title"].exists, app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.detail"].exists, app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.clipboard"].exists, app.debugDescription)
     }
 
     func testFloatingStatusAutoHidesAfterSuccessWhenEnabled() {
@@ -486,6 +566,27 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(checkBox(id: "settings.asyncPasteToggle", fallbackLabel: "Return to starting app").exists)
         XCTAssertTrue(checkBox(id: "settings.experimentalSkyLightPasteToggle", fallbackLabel: "Try background paste").exists)
         XCTAssertTrue(checkBox(id: "settings.mockToggle", fallbackLabel: "Mock transcription").exists)
+    }
+
+    func testCustomHotkeyRecorderIsAccessibleButton() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-recording", "--seed-custom-hotkey"])
+        openSettingsPanel()
+
+        let recorder = app.buttons["settings.customHotkeyRecorder"].exists
+            ? app.buttons["settings.customHotkeyRecorder"]
+            : app.buttons["Record shortcut"]
+        XCTAssertTrue(recorder.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(recorder.isEnabled)
+        XCTAssertTrue(recorder.label.contains("Custom keyboard shortcut") || recorder.label == "Record shortcut", app.debugDescription)
+    }
+
+    func testHelpButtonTargetsCanonicalTroubleshootingURL() throws {
+        removeOpenedURLRecord()
+        postUITestCommand(openHelpNotification)
+
+        XCTAssertTrue(waitForOpenedURL(timeout: 5), app.debugDescription)
+        let openedURL = try String(contentsOf: openedURLPath, encoding: .utf8)
+        XCTAssertEqual(openedURL, "https://github.com/mean-weasel/groqtalk#troubleshooting")
     }
 
     func testOnboardingNotShownForReturningUser() {
@@ -653,7 +754,9 @@ final class GroqTalkUITests: XCTestCase {
             "--seed-history"
         ] + extraArguments
         app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
+        app.launchEnvironment["GROQTALK_UITEST_OPENED_URL_PATH"] = openedURLPath.path
         removeUITestStateSnapshot()
+        removeOpenedURLRecord()
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
     }
@@ -693,6 +796,21 @@ final class GroqTalkUITests: XCTestCase {
         try? FileManager.default.removeItem(at: stateSnapshotURL)
     }
 
+    private func removeOpenedURLRecord() {
+        try? FileManager.default.removeItem(at: openedURLPath)
+    }
+
+    private func waitForOpenedURL(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if FileManager.default.fileExists(atPath: openedURLPath.path) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+        return FileManager.default.fileExists(atPath: openedURLPath.path)
+    }
+
     private func readUITestStateSnapshot() -> UITestStateSnapshot? {
         guard let data = try? Data(contentsOf: stateSnapshotURL) else {
             return nil
@@ -722,6 +840,19 @@ final class GroqTalkUITests: XCTestCase {
         app.windows["History"].waitForExistence(timeout: timeout)
             || elementExists(id: "history.testHost", timeout: timeout)
             || elementExists(id: "history.root", timeout: timeout)
+    }
+
+    private func historyEmptyStateAppeared(timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if staticTextLabelOrValueContaining("No transcriptions", in: historyPanel).exists
+                || staticTextLabelOrValueContaining("No failed transcriptions", in: historyPanel).exists
+                || elementExists(id: "history.emptyState", timeout: 0.1) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+        return false
     }
 
     private func waitForSettingsPanel(timeout: TimeInterval) -> Bool {
@@ -810,6 +941,13 @@ final class GroqTalkUITests: XCTestCase {
     private func staticTextLabelOrValueContaining(_ text: String, in root: XCUIElement? = nil) -> XCUIElement {
         let predicate = NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text)
         return (root ?? app).staticTexts.matching(predicate).firstMatch
+    }
+
+    private func replaceText(in element: XCUIElement, with text: String) {
+        clickElement(element)
+        app.typeKey("a", modifierFlags: .command)
+        app.typeKey(.delete, modifierFlags: [])
+        element.typeText(text)
     }
 
     private func elementExists(id: String, timeout: TimeInterval = 2) -> Bool {
@@ -904,7 +1042,9 @@ final class GroqTalkUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = arguments
         app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
+        app.launchEnvironment["GROQTALK_UITEST_OPENED_URL_PATH"] = openedURLPath.path
         removeUITestStateSnapshot()
+        removeOpenedURLRecord()
         app.launch()
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
     }

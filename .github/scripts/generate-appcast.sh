@@ -15,7 +15,7 @@ set -euo pipefail
 : "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 
-REPO="mean-weasel/groqtalk"
+REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/groqtalk}}"
 DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
 DMG_FILENAME="GroqTalk-${VERSION}-macos.dmg"
 DMG_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${DMG_FILENAME}"
@@ -51,4 +51,4 @@ EOF
 echo "Generated appcast.xml:"
 cat "$APPCAST_PATH"
 
-gh release upload "v${VERSION}" "$APPCAST_PATH" --clobber
+gh release upload "v${VERSION}" "$APPCAST_PATH" --repo "$REPO" --clobber

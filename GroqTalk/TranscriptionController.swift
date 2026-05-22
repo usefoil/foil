@@ -116,6 +116,9 @@ final class TranscriptionController {
 
             DiagnosticLog.write("TranscriptionController: success textLength=\(text.count) cleanupFailed=\(cleanupFailed)")
             delegate?.transcriptionController(self, didTranscribe: text, audioURL: audioURL, cleanupFailed: cleanupFailed)
+        } catch is CancellationError {
+            DiagnosticLog.write("TranscriptionController: cancelled")
+            return
         } catch {
             let msg = errorMessage(from: error)
             DiagnosticLog.write("TranscriptionController: failed error=\(msg)")
@@ -177,6 +180,9 @@ final class TranscriptionController {
                 audioURL: audioURL,
                 cleanupFailed: processed.cleanupFailed
             )
+        } catch is CancellationError {
+            DiagnosticLog.write("TranscriptionController.retryTranscription: cancelled")
+            return
         } catch {
             let msg = errorMessage(from: error)
             DiagnosticLog.write("TranscriptionController.retryTranscription: failed error=\(msg)")
@@ -244,15 +250,15 @@ final class TranscriptionController {
         case AudioRecorder.RecordingError.deviceSelectionFailed:
             "Selected input device is unavailable"
         case TranscriptionService.TranscriptionError.rateLimited:
-            "Groq rate limit reached"
+            "\(appState.selectedTranscriptionProvider.displayName) rate limit reached"
         case TranscriptionService.TranscriptionError.quotaExceeded:
-            "Groq quota exceeded"
+            "\(appState.selectedTranscriptionProvider.displayName) quota exceeded"
         case TranscriptionService.TranscriptionError.modelUnavailable(let model):
             "Model unavailable: \(model)"
         case TranscriptionService.TranscriptionError.badRequest:
-            "Groq rejected the request"
+            "\(appState.selectedTranscriptionProvider.displayName) rejected the request"
         case TranscriptionService.TranscriptionError.serverError:
-            "Groq is temporarily unavailable"
+            "\(appState.selectedTranscriptionProvider.displayName) is temporarily unavailable"
         case TranscriptionService.TranscriptionError.apiError(let code, _):
             "API error (\(code))"
         case let urlError as URLError where urlError.code == .notConnectedToInternet:
@@ -261,7 +267,7 @@ final class TranscriptionController {
             "Request timed out"
         case let urlError as URLError where urlError.code == .cannotConnectToHost
             || urlError.code == .cannotFindHost:
-            "Cannot reach server"
+            "Cannot reach \(appState.selectedTranscriptionProvider.displayName)"
         default:
             "Transcription failed: \(error.localizedDescription)"
         }

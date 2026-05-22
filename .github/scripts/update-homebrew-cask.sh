@@ -15,7 +15,8 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
   exit 1
 fi
 
-TAP_REPO="mean-weasel/homebrew-groqtalk"
+SOURCE_REPO="${SOURCE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/groqtalk}}"
+TAP_REPO="${TAP_REPO:-mean-weasel/homebrew-groqtalk}"
 DMG_PATH="${RUNNER_TEMP:-/tmp}/GroqTalk-${VERSION}-macos.dmg"
 
 # Verify the DMG exists before attempting to hash it
@@ -59,10 +60,10 @@ cask "groqtalk" do
   version "${VERSION}"
   sha256 "${SHA256}"
 
-  url "https://github.com/mean-weasel/groqtalk/releases/download/v${VERSION}/GroqTalk-${VERSION}-macos.dmg"
+  url "https://github.com/${SOURCE_REPO}/releases/download/v${VERSION}/GroqTalk-${VERSION}-macos.dmg"
   name "GroqTalk"
   desc "Menu bar speech-to-text transcription powered by Groq"
-  homepage "https://github.com/mean-weasel/groqtalk"
+  homepage "https://github.com/${SOURCE_REPO}"
 
   auto_updates true
   depends_on macos: ">= :sonoma"

@@ -332,7 +332,8 @@ final class TranscriptionServiceTests: XCTestCase {
 
     func testTranscribeReturnsTrimmedTextForHTTP200() async throws {
         let transport = StubTransport { request in
-            (
+            XCTAssertEqual(request.timeoutInterval, TranscriptionService.transcriptionTimeout)
+            return (
                 Data("  hello world\n".utf8),
                 Self.httpResponse(statusCode: 200, url: request.url!)
             )
@@ -351,6 +352,52 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(text, "hello world")
         XCTAssertEqual(transport.requests.count, 1)
         XCTAssertEqual(transport.requests.first?.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
+    }
+
+    func testTranscribeAcceptsJSONTextResponseForOpenAICompatibleServers() async throws {
+        let transport = StubTransport { request in
+            (
+                Data(#"{"text":"  json transcript\n"}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(transport: transport)
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let text = try await service.transcribe(
+            audioFileURL: tempURL,
+            apiKey: "test-key",
+            model: "whisper-large-v3",
+            format: .wav
+        )
+
+        XCTAssertEqual(text, "json transcript")
+    }
+
+    func testTranscribeRetriesTransientServerErrorOnce() async throws {
+        var attempts = 0
+        let transport = StubTransport { request in
+            attempts += 1
+            if attempts == 1 {
+                return (
+                    Data("temporary outage".utf8),
+                    Self.httpResponse(statusCode: 503, url: request.url!)
+                )
+            }
+            return (
+                Data("recovered transcript".utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(transport: transport)
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let text = try await service.transcribe(audioFileURL: tempURL, apiKey: "key", model: "m")
+
+        XCTAssertEqual(text, "recovered transcript")
+        XCTAssertEqual(transport.requests.count, 2)
     }
 
     func testTranscribeUsesCustomOpenAICompatibleEndpointAndCanOmitAuthorization() async throws {

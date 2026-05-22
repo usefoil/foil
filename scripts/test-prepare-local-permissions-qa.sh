@@ -48,6 +48,10 @@ make_fixture_app() {
 <dict>
   <key>CFBundleIdentifier</key>
   <string>com.neonwatty.GroqTalk</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.12.0</string>
+  <key>CFBundleVersion</key>
+  <string>42</string>
   <key>CFBundleExecutable</key>
   <string>$executable_name</string>
 PLIST
@@ -90,9 +94,18 @@ SH
 
   cat >"$shim_dir/pgrep" <<SH
 #!/bin/bash
+if [ "$pgrep_status" -eq 0 ]; then
+  echo "\${PGREP_OUTPUT:-123}"
+fi
 exit $pgrep_status
 SH
   chmod +x "$shim_dir/pgrep"
+
+  cat >"$shim_dir/ps" <<'SH'
+#!/bin/bash
+echo "${RUNNING_APP_ARGS:-/tmp/fixture/GroqTalk.app/Contents/MacOS/GroqTalk}"
+SH
+  chmod +x "$shim_dir/ps"
 
   cat >"$shim_dir/forbidden" <<'SH'
 #!/bin/bash
@@ -113,6 +126,7 @@ run_check() {
     APP_PATH="$app_path" \
     CODESIGN="$shim_dir/codesign" \
     PGREP="$shim_dir/pgrep" \
+    PS_CMD="$shim_dir/ps" \
     MAKE_CMD="$shim_dir/forbidden" \
     PKILL="$shim_dir/forbidden" \
     TCCUTIL="$shim_dir/forbidden" \
@@ -120,6 +134,29 @@ run_check() {
     SLEEP_CMD="$shim_dir/forbidden" \
     "$@" \
     "$SCRIPT" --check >"$output" 2>&1
+}
+
+run_guide() {
+  local app_path="$1"
+  local shim_dir="$2"
+  local output="$3"
+  shift 3
+
+  env \
+    APP_NAME="GroqTalk" \
+    APP_PATH="$app_path" \
+    EXPECTED_VERSION="1.12.0" \
+    EXPECTED_BUILD="42" \
+    CODESIGN="$shim_dir/codesign" \
+    PGREP="$shim_dir/pgrep" \
+    PS_CMD="$shim_dir/ps" \
+    MAKE_CMD="$shim_dir/forbidden" \
+    PKILL="$shim_dir/forbidden" \
+    TCCUTIL="$shim_dir/forbidden" \
+    OPEN_CMD="$shim_dir/open" \
+    SLEEP_CMD="$shim_dir/sleep" \
+    "$@" \
+    "$SCRIPT" --guide-installed >"$output" 2>&1
 }
 
 expect_success() {
@@ -133,6 +170,8 @@ expect_success() {
 
   run_check "$app_path" "$shim_dir" "$output"
   assert_contains "$output" "Result: passed"
+  assert_contains "$output" "bundle version is 1.12.0"
+  assert_contains "$output" "bundle build is 42"
   assert_contains "$output" "codesign identifier matches bundle id: com.neonwatty.GroqTalk"
   assert_contains "$output" "NSMicrophoneUsageDescription is present"
   assert_contains "$output" "macOS does not allow scripts to silently grant"
@@ -196,9 +235,85 @@ expect_running_warning() {
   make_fixture_app "$app_path"
   make_shims "$shim_dir" 0
 
-  run_check "$app_path" "$shim_dir" "$output"
-  assert_contains "$output" "warning: GroqTalk is currently running"
+  run_check "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="$app_path/Contents/MacOS/GroqTalk"
+  assert_contains "$output" "warning: GroqTalk is currently running from the installed app"
   assert_contains "$output" "Result: passed with 1 warning(s)."
+}
+
+expect_running_wrong_app_warning() {
+  local name="running-wrong-app-warning"
+  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local shim_dir="$TMP_ROOT/$name/shims"
+  local output="$TMP_ROOT/$name/output.txt"
+  mkdir -p "$TMP_ROOT/$name"
+  make_fixture_app "$app_path"
+  make_shims "$shim_dir" 0
+
+  run_check "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="/tmp/DerivedData/GroqTalk.app/Contents/MacOS/GroqTalk"
+  assert_contains "$output" "warning: GroqTalk is running from a different path than the installed app"
+  assert_contains "$output" "Result: passed with 1 warning(s)."
+}
+
+expect_guide_installed_opens_panes_and_launches() {
+  local name="guide-installed"
+  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local shim_dir="$TMP_ROOT/$name/shims"
+  local output="$TMP_ROOT/$name/output.txt"
+  local open_log="$TMP_ROOT/$name/open.log"
+  mkdir -p "$TMP_ROOT/$name"
+  make_fixture_app "$app_path"
+  make_shims "$shim_dir" 1
+
+  cat >"$shim_dir/open" <<SH
+#!/bin/bash
+echo "\$*" >>"$open_log"
+SH
+  chmod +x "$shim_dir/open"
+
+  cat >"$shim_dir/sleep" <<'SH'
+#!/bin/bash
+exit 0
+SH
+  chmod +x "$shim_dir/sleep"
+
+  run_guide "$app_path" "$shim_dir" "$output"
+  assert_contains "$output" "Installed-app permissions QA guide"
+  assert_contains "$output" "Release-smoke checklist"
+  assert_contains "$output" "Result: guide opened"
+  assert_contains "$open_log" "$app_path"
+  assert_contains "$open_log" "Privacy_Accessibility"
+  assert_contains "$open_log" "Privacy_ListenEvent"
+  assert_contains "$open_log" "Privacy_Microphone"
+  assert_not_contains "$output" "forbidden command called"
+}
+
+expect_guide_installed_rejects_wrong_running_app() {
+  local name="guide-installed-wrong-app"
+  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local shim_dir="$TMP_ROOT/$name/shims"
+  local output="$TMP_ROOT/$name/output.txt"
+  mkdir -p "$TMP_ROOT/$name"
+  make_fixture_app "$app_path"
+  make_shims "$shim_dir" 0
+
+  cat >"$shim_dir/open" <<'SH'
+#!/bin/bash
+exit 0
+SH
+  chmod +x "$shim_dir/open"
+
+  cat >"$shim_dir/sleep" <<'SH'
+#!/bin/bash
+exit 0
+SH
+  chmod +x "$shim_dir/sleep"
+
+  if run_guide "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="/tmp/DerivedData/GroqTalk.app/Contents/MacOS/GroqTalk"; then
+    fail "guide-installed unexpectedly succeeded with a wrong running app"
+  fi
+  assert_contains "$output" "running from a different path"
+  assert_contains "$output" "Result: failed"
+  assert_not_contains "$output" "Release-smoke checklist"
 }
 
 expect_success "success"
@@ -206,5 +321,8 @@ expect_identifier_mismatch_failure
 expect_missing_microphone_failure
 expect_missing_executable_failure
 expect_running_warning
+expect_running_wrong_app_warning
+expect_guide_installed_opens_panes_and_launches
+expect_guide_installed_rejects_wrong_running_app
 
 echo "prepare-local-permissions-qa shell tests passed."

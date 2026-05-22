@@ -270,7 +270,9 @@ struct LocalWhisperSetupCommands: Equatable {
 
 struct TranscriptionService {
     static let maxUploadBytes = 25 * 1024 * 1024
+    static let transcriptionTimeout: TimeInterval = 120
     static let providerValidationTimeout: TimeInterval = 3
+    static let transientRetryDelayNanoseconds: UInt64 = 150_000_000
 
     private let provider: TranscriptionProvider
     private let transport: TranscriptionTransport
@@ -299,6 +301,7 @@ struct TranscriptionService {
         let boundary = UUID().uuidString
         var request = URLRequest(url: provider.audioTranscriptionsEndpoint)
         request.httpMethod = "POST"
+        request.timeoutInterval = Self.transcriptionTimeout
         setAuthorizationHeader(apiKey: apiKey, on: &request)
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = try await buildMultipartBodyAsync(
@@ -310,7 +313,7 @@ struct TranscriptionService {
             "transcribe: sending format=\(format.rawValue) audioBytes=\(audioSize) bodyBytes=\(bodySize) model=\(model) language=\(language.rawValue)"
         )
 
-        let (data, response) = try await transport.data(for: request)
+        let (data, response) = try await performTranscriptionRequestWithRetry(request)
         guard let http = response as? HTTPURLResponse else {
             DiagnosticLog.write("transcribe: invalid response type")
             throw TranscriptionError.invalidResponse
@@ -318,11 +321,7 @@ struct TranscriptionService {
         DiagnosticLog.write("transcribe: response status=\(http.statusCode) responseBytes=\(data.count)")
 
         if http.statusCode == 200 {
-            guard let text = String(data: data, encoding: .utf8) else {
-                DiagnosticLog.write("transcribe: failed to decode response as UTF-8")
-                throw TranscriptionError.invalidResponse
-            }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = try decodeTranscriptionText(data)
             DiagnosticLog.write("transcribe: success textLength=\(trimmed.count)")
             return trimmed
         }
@@ -330,6 +329,58 @@ struct TranscriptionService {
         let error = mapAPIError(statusCode: http.statusCode, data: data)
         DiagnosticLog.write("transcribe: API error status=\(http.statusCode) mapped=\(error.logName) bodyBytes=\(data.count)")
         throw error
+    }
+
+    private func performTranscriptionRequestWithRetry(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        var lastError: Error?
+        for attempt in 0...1 {
+            do {
+                let result = try await transport.data(for: request)
+                if attempt == 0,
+                   let http = result.1 as? HTTPURLResponse,
+                   (500...599).contains(http.statusCode) {
+                    DiagnosticLog.write("transcribe: transient server status=\(http.statusCode); retrying once")
+                    try await Task.sleep(nanoseconds: Self.transientRetryDelayNanoseconds)
+                    continue
+                }
+                return result
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as URLError where attempt == 0 && isTransientNetworkError(error) {
+                lastError = error
+                DiagnosticLog.write("transcribe: transient network error=\(error.code.rawValue); retrying once")
+                try await Task.sleep(nanoseconds: Self.transientRetryDelayNanoseconds)
+            } catch {
+                throw error
+            }
+        }
+        throw lastError ?? TranscriptionError.invalidResponse
+    }
+
+    private func isTransientNetworkError(_ error: URLError) -> Bool {
+        switch error.code {
+        case .timedOut, .cannotConnectToHost, .cannotFindHost, .networkConnectionLost, .notConnectedToInternet:
+            true
+        default:
+            false
+        }
+    }
+
+    private func decodeTranscriptionText(_ data: Data) throws -> String {
+        if let decoded = try? JSONDecoder().decode(TranscriptionTextResponse.self, from: data) {
+            let text = decoded.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else {
+                DiagnosticLog.write("transcribe: JSON response text was empty")
+                throw TranscriptionError.invalidResponse
+            }
+            return text
+        }
+
+        guard let text = String(data: data, encoding: .utf8) else {
+            DiagnosticLog.write("transcribe: failed to decode response as UTF-8")
+            throw TranscriptionError.invalidResponse
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func processTranscript(
@@ -657,6 +708,10 @@ struct TranscriptionService {
         struct Model: Decodable {
             let id: String
         }
+    }
+
+    private struct TranscriptionTextResponse: Decodable {
+        let text: String
     }
 
     private struct APIErrorPayload: Decodable {

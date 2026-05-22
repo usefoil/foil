@@ -56,7 +56,7 @@ struct FloatingStatusView: View {
                 Text(session.detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(allowsExpandedMessage ? 2 : 1)
                     .truncationMode(.tail)
                     .accessibilityIdentifier("liveFeedback.detail")
 
@@ -71,7 +71,7 @@ struct FloatingStatusView: View {
                     Label(clipboard, systemImage: "clipboard")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(allowsExpandedMessage ? 2 : 1)
                         .truncationMode(.tail)
                         .accessibilityIdentifier("liveFeedback.clipboard")
                 }
@@ -139,6 +139,15 @@ struct FloatingStatusView: View {
         case .idle, .error:
             true
         case .recording, .transcribing:
+            false
+        }
+    }
+
+    private var allowsExpandedMessage: Bool {
+        switch session.tone {
+        case .warning:
+            true
+        case .neutral, .active, .progress, .success:
             false
         }
     }

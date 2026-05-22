@@ -16,6 +16,8 @@ final class UITestingController {
         Notification.Name("com.neonwatty.GroqTalk.uiTests.openHistory")
     static let openSettingsNotification =
         Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
+    static let openHelpNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.openHelp")
     static let runSetupCheckNotification =
         Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
     static var stateSnapshotURL: URL {
@@ -42,6 +44,7 @@ final class UITestingController {
     private let onStartRecording: () -> Void
     private let onStopRecording: () -> Void
     private let onCancelRecording: () -> Void
+    private let onCancelTranscription: () -> Void
     private let onHotkeyChanged: () -> Void
     private let onOpenAccessibility: () -> Void
     private let onOpenMicrophone: () -> Void
@@ -82,6 +85,7 @@ final class UITestingController {
         onStartRecording: @escaping () -> Void,
         onStopRecording: @escaping () -> Void,
         onCancelRecording: @escaping () -> Void,
+        onCancelTranscription: @escaping () -> Void,
         onHotkeyChanged: @escaping () -> Void,
         onOpenAccessibility: @escaping () -> Void,
         onOpenMicrophone: @escaping () -> Void,
@@ -100,6 +104,7 @@ final class UITestingController {
         self.onStartRecording = onStartRecording
         self.onStopRecording = onStopRecording
         self.onCancelRecording = onCancelRecording
+        self.onCancelTranscription = onCancelTranscription
         self.onHotkeyChanged = onHotkeyChanged
         self.onOpenAccessibility = onOpenAccessibility
         self.onOpenMicrophone = onOpenMicrophone
@@ -188,6 +193,21 @@ final class UITestingController {
             appState.showFloatingStatus = true
         }
 
+        if args.contains("--seed-floating-warning") {
+            appState.showFloatingStatus = true
+            appState.floatingStatusTransientVisible = true
+            appState.transientResult = .clipboardFallback
+            appState.lastPasteSummary = "Fallback: copied to clipboard"
+            appState.clipboardFeedback = "Text is on the clipboard"
+        }
+
+        if args.contains("--seed-custom-hotkey") {
+            appState.hotkeyChoice = .custom
+            appState.customHotkeyKeyCode = 0
+            appState.customHotkeyModifiers = 0
+            appState.customHotkeyLabel = ""
+        }
+
         #if DEBUG
         if args.contains("--seed-mock-transcription-enabled") {
             appState.mockTranscriptionEnabled = true
@@ -198,9 +218,10 @@ final class UITestingController {
 
         showUITestWindow()
         configureUITestCommandNotifications()
-        writeStateSnapshot()
         configureLiveMicrophoneSmokeIfNeeded(args: args)
         configureSimulatedTranscriptionIfNeeded(args: args)
+        applyTransientUITestState(args: args)
+        writeStateSnapshot()
     }
 
     func configureAutomationSmokeIfNeeded() {
@@ -379,6 +400,13 @@ final class UITestingController {
         }
     }
 
+    private func applyTransientUITestState(args: [String]) {
+        if args.contains("--seed-transcribing") {
+            appState.transcriptionStage = .transcribingAudio
+            appState.setStatus(.transcribing)
+        }
+    }
+
     nonisolated private static func writeLiveMicrophoneResult(
         path: String,
         status: String,
@@ -462,6 +490,7 @@ final class UITestingController {
             onStartRecording: onStartRecording,
             onStopRecording: onStopRecording,
             onCancelRecording: onCancelRecording,
+            onCancelTranscription: onCancelTranscription,
             onHotkeyChanged: onHotkeyChanged,
             onOpenHistory: { [weak self] in self?.showUITestHistoryWindow() },
             onOpenSettings: { [weak self] in self?.showUITestSettingsWindow() },
@@ -550,6 +579,12 @@ final class UITestingController {
         )
         DistributedNotificationCenter.default().addObserver(
             self,
+            selector: #selector(openHelpForUITest),
+            name: UITestingController.openHelpNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
             selector: #selector(runSetupCheckForUITest),
             name: UITestingController.runSetupCheckNotification,
             object: nil
@@ -562,6 +597,18 @@ final class UITestingController {
 
     @objc private func openSettingsForUITest() {
         showUITestSettingsWindow()
+    }
+
+    @objc private func openHelpForUITest() {
+        guard let url = URL(string: "https://github.com/mean-weasel/groqtalk#troubleshooting") else {
+            return
+        }
+        if let path = ProcessInfo.processInfo.environment["GROQTALK_UITEST_OPENED_URL_PATH"],
+           !path.isEmpty {
+            try? url.absoluteString.write(toFile: path, atomically: true, encoding: .utf8)
+        } else {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func runSetupCheckForUITest() {

@@ -373,6 +373,10 @@ final class AppState {
         status == .recording
     }
 
+    var canCancelTranscriptionControl: Bool {
+        status == .transcribing
+    }
+
     var shouldShowFloatingStatus: Bool {
         // Always show during active transcription (user needs to know paste is coming)
         if status == .transcribing {
@@ -878,9 +882,20 @@ final class AppState {
         } catch TranscriptionService.TranscriptionError.invalidProviderURL {
             providerConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
         } catch is URLError {
-            providerConnectionTestState = .failed("Could not reach OpenAI-compatible transcription server.")
+            providerConnectionTestState = .failed(providerConnectionUnreachableMessage)
         } catch {
             providerConnectionTestState = .failed("Connection test failed: \(error.localizedDescription)")
+        }
+    }
+
+    private var providerConnectionUnreachableMessage: String {
+        switch selectedTranscriptionProviderPresetID {
+        case .localWhisperCPP:
+            "Could not reach Local whisper.cpp. Start whisper-server on 127.0.0.1:8080 and try again."
+        case .customOpenAICompatible:
+            "Could not reach Custom OpenAI-compatible. Check the base URL, server status, and network access."
+        case .groq:
+            "Could not reach \(selectedTranscriptionProvider.displayName). Check your network connection."
         }
     }
 

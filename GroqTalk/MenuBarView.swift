@@ -11,6 +11,7 @@ struct MenuBarView: View {
     var onStartRecording: (() -> Void)?
     var onStopRecording: (() -> Void)?
     var onCancelRecording: (() -> Void)?
+    var onCancelTranscription: (() -> Void)?
     var onHotkeyChanged: (() -> Void)?
     var onOpenHistory: (() -> Void)?
     var onOpenSettings: (() -> Void)?
@@ -421,6 +422,23 @@ struct MenuBarView: View {
             Text("Record")
                 .font(.subheadline.weight(.semibold))
             recordingControls
+            if let blocker = recordingBlocker {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(blocker.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("menu.recording.blockedReason")
+                    Spacer()
+                    if let actionTitle = blocker.actionTitle, let action = blocker.action {
+                        Button(actionTitle) {
+                            action()
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("menu.recording.blockedAction")
+                    }
+                }
+            }
         }
         .accessibilityIdentifier("menu.recording.section")
     }
@@ -452,20 +470,67 @@ struct MenuBarView: View {
             .help("Stop recording and transcribe")
 
             Button(role: .cancel) {
-                onCancelRecording?()
+                if appState.canCancelTranscriptionControl {
+                    onCancelTranscription?()
+                } else {
+                    onCancelRecording?()
+                }
             } label: {
                 Label("Cancel", systemImage: "xmark.circle")
             }
-            .disabled(!appState.canCancelRecordingControl)
+            .disabled(!appState.canCancelRecordingControl && !appState.canCancelTranscriptionControl)
             .keyboardShortcut(.cancelAction)
-            .accessibilityLabel("Cancel recording")
-            .accessibilityHint("Stops recording without transcription.")
+            .accessibilityLabel(appState.canCancelTranscriptionControl ? "Cancel transcription" : "Cancel recording")
+            .accessibilityHint(appState.canCancelTranscriptionControl ? "Stops waiting for the current transcription." : "Stops recording without transcription.")
             .accessibilityIdentifier("menu.recording.cancelButton")
-            .help("Cancel recording")
+            .help(appState.canCancelTranscriptionControl ? "Cancel transcription" : "Cancel recording")
         }
         .buttonStyle(.borderless)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("menu.recording.controls")
+    }
+
+    private var recordingBlocker: (detail: String, actionTitle: String?, action: (() -> Void)?)? {
+        guard appState.status == .idle, !appState.canStartRecordingControl else { return nil }
+
+        if appState.accessibilityState != .ready {
+            return (
+                "Enable Accessibility before recording.",
+                "Open Settings",
+                onOpenAccessibility
+            )
+        }
+
+        if appState.microphoneState != .ready {
+            switch appState.microphoneState {
+            case .unknown:
+                return (
+                    "Check microphone access before recording.",
+                    "Check",
+                    onCheckMicrophone
+                )
+            case .needsAction:
+                return (
+                    "Allow microphone access before recording.",
+                    "Open Settings",
+                    onOpenMicrophone
+                )
+            case .ready:
+                break
+            }
+        }
+
+        if appState.apiKeyState != .ready {
+            return (
+                appState.selectedTranscriptionProvider.requiresAPIKey
+                    ? "Add your \(appState.selectedTranscriptionProvider.displayName) API key before recording."
+                    : "Finish provider setup before recording.",
+                "Add Key",
+                { openWindow(id: "api-key-setup") }
+            )
+        }
+
+        return nil
     }
 
     private var sessionColor: Color {
@@ -653,7 +718,13 @@ struct MenuBarView: View {
     }
 
     private func openTroubleshooting() {
-        if let url = URL(string: "https://github.com/neonwatty/groqtalk#paste-caveats") {
+        let urlString = "https://github.com/mean-weasel/groqtalk#troubleshooting"
+        if isUITesting,
+           let path = ProcessInfo.processInfo.environment["GROQTALK_UITEST_OPENED_URL_PATH"] {
+            try? urlString.write(toFile: path, atomically: true, encoding: .utf8)
+            return
+        }
+        if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)
         }
     }

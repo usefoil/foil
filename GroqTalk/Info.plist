@@ -25,6 +25,6 @@
 	<key>NSAppleEventsUsageDescription</key>
 	<string>GroqTalk uses Apple Events to pause browser media in Chrome and Chromium while recording, when you enable this experimental setting.</string>
 	<key>SUFeedURL</key>
-	<string>https://github.com/neonwatty/groqtalk/releases/latest/download/appcast.xml</string>
+	<string>https://github.com/mean-weasel/groqtalk/releases/latest/download/appcast.xml</string>
 </dict>
 </plist>

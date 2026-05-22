@@ -13,14 +13,21 @@ make test-provider-qa
 This covers:
 
 - Groq default provider UI
+- Provider-specific privacy and endpoint copy
 - Local whisper.cpp preset copy and cleanup-unavailable state
+- Local whisper.cpp connection-test recovery copy
 - Local whisper.cpp selection from default Settings state
 - Local whisper.cpp setup helper model guidance, generated commands, and copy buttons
 - Local whisper.cpp selection persistence across relaunch
 - Custom OpenAI-compatible invalid base URL validation
+- Custom OpenAI-compatible connection-test guidance copy
 - Custom OpenAI-compatible persistence across relaunch
 
 This target does not require network access, Groq credentials, whisper.cpp, or model files.
+It is the deterministic proof for provider setup copy, privacy copy, and local
+setup-helper visibility. If Xcode cannot initialize UI automation on a local
+runner, record that as a provider QA blocker and use the manual checks below as
+temporary evidence only.
 
 The setup helper assertion is
 `GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands`.
@@ -61,3 +68,23 @@ LOCAL_E2E_LATENCY_RUNS=10 make test-local-transcription-e2e
 ```
 
 That target requires a local OpenAI-compatible Whisper server.
+
+## Manual Provider QA Fallback
+
+Use this only when `make test-provider-qa` is blocked by the macOS UI automation
+runner:
+
+1. Launch a clean local build.
+2. Open Settings → Transcription.
+3. Confirm Groq shows provider privacy copy and cleanup options.
+4. Select Local whisper.cpp and confirm:
+   - Audio-stays-local copy is visible.
+   - Base URL is `http://127.0.0.1:8080/v1`.
+   - Model is `whisper-1`.
+   - Test connection help says to start `whisper-server`.
+   - Install, build, download, and start commands are copyable.
+5. Select Custom OpenAI-compatible and confirm:
+   - Endpoint privacy copy is visible.
+   - Base URL and model fields are editable.
+   - Invalid base URL test reports an actionable validation error.
+6. Record screenshots or notes in `docs/release-qa-log.md`.

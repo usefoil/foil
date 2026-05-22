@@ -72,6 +72,7 @@ final class TranscriptionHistory {
     }
 
     private let historyFileURL: URL
+    private let retryAudioDirectory: URL
 
     init(
         storageDirectory: URL,
@@ -79,8 +80,10 @@ final class TranscriptionHistory {
         isPersistenceEnabled: Bool = true
     ) {
         self.historyFileURL = storageDirectory.appendingPathComponent("history.json")
+        self.retryAudioDirectory = storageDirectory.appendingPathComponent("retry-audio", isDirectory: true)
         self.retentionLimit = retentionLimit
         self.isPersistenceEnabled = isPersistenceEnabled
+        try? FileManager.default.createDirectory(at: retryAudioDirectory, withIntermediateDirectories: true)
         load()
     }
 
@@ -102,8 +105,9 @@ final class TranscriptionHistory {
     }
 
     func addFailure(error: String, audioFileURL: URL?) {
+        let retainedAudioURL = retainFailedAudio(audioFileURL)
         let record = TranscriptionRecord(
-            id: UUID(), timestamp: Date(), outcome: .failure(error: error, audioFileURL: audioFileURL)
+            id: UUID(), timestamp: Date(), outcome: .failure(error: error, audioFileURL: retainedAudioURL)
         )
         insert(record)
     }
@@ -291,10 +295,55 @@ final class TranscriptionHistory {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             records = try decoder.decode([TranscriptionRecord].self, from: data)
+            if migrateRetainedAudioIntoStorage() {
+                save()
+            }
         } catch {
             print("TranscriptionHistory: failed to load — \(error)")
             records = []
         }
+    }
+
+    private func retainFailedAudio(_ audioFileURL: URL?) -> URL? {
+        guard let audioFileURL else { return nil }
+        guard FileManager.default.fileExists(atPath: audioFileURL.path) else { return nil }
+        if isRetryAudioURL(audioFileURL) { return audioFileURL }
+
+        try? FileManager.default.createDirectory(at: retryAudioDirectory, withIntermediateDirectories: true)
+        let destination = retryAudioDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(audioFileURL.pathExtension.isEmpty ? "audio" : audioFileURL.pathExtension)
+
+        do {
+            try FileManager.default.moveItem(at: audioFileURL, to: destination)
+            return destination
+        } catch {
+            do {
+                try FileManager.default.copyItem(at: audioFileURL, to: destination)
+                try? FileManager.default.removeItem(at: audioFileURL)
+                return destination
+            } catch {
+                print("TranscriptionHistory: failed to retain retry audio — \(error)")
+                return audioFileURL
+            }
+        }
+    }
+
+    private func migrateRetainedAudioIntoStorage() -> Bool {
+        var didChange = false
+        for index in records.indices {
+            guard case .failure(let error, let audioURL) = records[index].outcome,
+                  let audioURL,
+                  !isRetryAudioURL(audioURL),
+                  let retainedURL = retainFailedAudio(audioURL) else { continue }
+            records[index].outcome = .failure(error: error, audioFileURL: retainedURL)
+            didChange = retainedURL != audioURL || didChange
+        }
+        return didChange
+    }
+
+    private func isRetryAudioURL(_ url: URL) -> Bool {
+        url.standardizedFileURL.path.hasPrefix(retryAudioDirectory.standardizedFileURL.path + "/")
     }
 
     private static let exportDateFormatter: ISO8601DateFormatter = {

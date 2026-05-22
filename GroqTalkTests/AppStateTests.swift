@@ -272,6 +272,16 @@ final class AppStateTests: XCTestCase {
         }
     }
 
+    func testTranscribingStateCanCancelTranscriptionControl() {
+        let state = AppState()
+
+        XCTAssertFalse(state.canCancelTranscriptionControl)
+        state.setStatus(.transcribing)
+
+        XCTAssertTrue(state.canCancelTranscriptionControl)
+        XCTAssertFalse(state.canCancelRecordingControl)
+    }
+
     func testReadySessionPresentationUsesHotkeyAndPasteMode() {
         let state = AppState()
         state.updateAccessibilityState(isTrusted: true)
@@ -1114,7 +1124,23 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(
             state.providerConnectionTestState,
-            .failed("Could not reach OpenAI-compatible transcription server.")
+            .failed("Could not reach Local whisper.cpp. Start whisper-server on 127.0.0.1:8080 and try again.")
+        )
+    }
+
+    func testProviderConnectionReportsCustomServerUnreachableWithRecovery() async {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+        state.customTranscriptionBaseURL = "http://127.0.0.1:9090/v1"
+        let service = TranscriptionService(transport: StubTransport { _ in
+            throw URLError(.cannotConnectToHost)
+        })
+
+        await state.testSelectedProviderConnection(service: service)
+
+        XCTAssertEqual(
+            state.providerConnectionTestState,
+            .failed("Could not reach Custom OpenAI-compatible. Check the base URL, server status, and network access.")
         )
     }
 
