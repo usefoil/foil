@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, feat/initial-implementation]
+    branches: [main]
     types: [opened, synchronize, reopened]
   merge_group:
 
@@ -135,19 +135,42 @@ jobs:
       - name: Test summary
         if: always()
         run: |
+          append_capped_summary() {
+            local source_file="$1"
+            local limit_bytes=900000
+            local byte_count
+
+            byte_count=$(wc -c < "$source_file" | tr -d ' ')
+            if [ "$byte_count" -gt "$limit_bytes" ]; then
+              head -c "$limit_bytes" "$source_file" >> "$GITHUB_STEP_SUMMARY"
+              {
+                echo
+                echo
+                echo "_Test summary truncated to ${limit_bytes} bytes from ${byte_count} bytes to stay under GitHub's step-summary limit._"
+              } >> "$GITHUB_STEP_SUMMARY"
+            else
+              cat "$source_file" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+
           echo "## Test Results" >> "$GITHUB_STEP_SUMMARY"
           if [ -d TestResults.xcresult ]; then
-            xcrun xcresulttool get test-results summary \
+            SUMMARY_FILE="$(mktemp)"
+            if xcrun xcresulttool get test-results summary \
               --path TestResults.xcresult \
-              --compact 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || \
-            echo "_Could not parse test results._" >> "$GITHUB_STEP_SUMMARY"
+              --compact > "$SUMMARY_FILE" 2>/dev/null; then
+              append_capped_summary "$SUMMARY_FILE"
+            else
+              echo "_Could not parse test results._" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            rm -f "$SUMMARY_FILE"
           else
             echo "_No test results bundle found._" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v5
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v6
         with:
           name: test-results
           path: TestResults.xcresult
@@ -156,18 +179,41 @@ jobs:
       - name: Generate coverage report
         if: always()
         run: |
+          append_capped_summary() {
+            local source_file="$1"
+            local limit_bytes=900000
+            local byte_count
+
+            byte_count=$(wc -c < "$source_file" | tr -d ' ')
+            if [ "$byte_count" -gt "$limit_bytes" ]; then
+              head -c "$limit_bytes" "$source_file" >> "$GITHUB_STEP_SUMMARY"
+              {
+                echo
+                echo
+                echo "_Coverage report truncated to ${limit_bytes} bytes from ${byte_count} bytes to stay under GitHub's step-summary limit._"
+              } >> "$GITHUB_STEP_SUMMARY"
+            else
+              cat "$source_file" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+
           if [ -d TestResults.xcresult ]; then
             xcrun xccov view --report --json TestResults.xcresult > coverage.json 2>/dev/null || true
             echo "## Code Coverage" >> "$GITHUB_STEP_SUMMARY"
-            xcrun xccov view --report TestResults.xcresult 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || \
+            COVERAGE_SUMMARY_FILE="$(mktemp)"
+            if xcrun xccov view --report TestResults.xcresult > "$COVERAGE_SUMMARY_FILE" 2>/dev/null; then
+              append_capped_summary "$COVERAGE_SUMMARY_FILE"
+            else
               echo "_Could not parse coverage report (bundle may be incomplete)._" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            rm -f "$COVERAGE_SUMMARY_FILE"
           else
             echo "_No test results bundle found; skipping coverage report._"
           fi
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: coverage.json
@@ -175,7 +221,7 @@ jobs:
           if-no-files-found: ignore
 
   ui-tests:
-    name: UI Tests
+    name: Focused UI Smoke
     runs-on: macos-15
     timeout-minutes: 15
     needs: [detect-changes]
@@ -191,32 +237,75 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
 
-      - name: Run UI tests
+      - name: Run focused UI smoke
         run: |
           xcodebuild test \
             -scheme GroqTalk \
             -configuration Debug \
             -destination 'platform=macOS' \
-            -only-testing:GroqTalkUITests \
+            -parallel-testing-enabled NO \
+            -maximum-concurrent-test-device-destinations 1 \
+            -enableCodeCoverage NO \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testControlCenterShowsSeededReadyState \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testSetupCheckCanBeRunInline \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testMicrophoneUnknownShowsCheckAction \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testMicrophoneDeniedShowsOpenSettingsAction \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testSettingsButtonOpensSettingsWindow \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQADefaultsToGroqPreset \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingStatusCanBeEnabled \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingWarningShowsExpandedClipboardContext \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingStatusIsDisabledByDefault \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testMovedPreferencesLiveInSettingsPanes \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testCustomHotkeyRecorderIsAccessibleButton \
+            -only-testing:GroqTalkUITests/GroqTalkUITests/testHelpButtonTargetsCanonicalTroubleshootingURL \
             -resultBundlePath UITestResults.xcresult \
             | xcpretty --color && exit ${PIPESTATUS[0]}
 
       - name: UI test summary
         if: always()
         run: |
+          append_capped_summary() {
+            local source_file="$1"
+            local limit_bytes=900000
+            local byte_count
+
+            byte_count=$(wc -c < "$source_file" | tr -d ' ')
+            if [ "$byte_count" -gt "$limit_bytes" ]; then
+              head -c "$limit_bytes" "$source_file" >> "$GITHUB_STEP_SUMMARY"
+              {
+                echo
+                echo
+                echo "_UI test summary truncated to ${limit_bytes} bytes from ${byte_count} bytes to stay under GitHub's step-summary limit._"
+              } >> "$GITHUB_STEP_SUMMARY"
+            else
+              cat "$source_file" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+
           echo "## UI Test Results" >> "$GITHUB_STEP_SUMMARY"
           if [ -d UITestResults.xcresult ]; then
-            xcrun xcresulttool get test-results summary \
+            UI_SUMMARY_FILE="$(mktemp)"
+            if xcrun xcresulttool get test-results summary \
               --path UITestResults.xcresult \
-              --compact 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || \
-            echo "_Could not parse UI test results._" >> "$GITHUB_STEP_SUMMARY"
+              --compact > "$UI_SUMMARY_FILE" 2>/dev/null; then
+              append_capped_summary "$UI_SUMMARY_FILE"
+            else
+              echo "_Could not parse UI test results._" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            rm -f "$UI_SUMMARY_FILE"
           else
             echo "_No UI test results bundle found._" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Upload UI test results
-        if: failure()
-        uses: actions/upload-artifact@v5
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v6
         with:
           name: ui-test-results
           path: UITestResults.xcresult

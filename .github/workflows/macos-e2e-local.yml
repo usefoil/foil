@@ -162,7 +162,7 @@ jobs:
 
       - name: Upload local E2E results
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: local-e2e-artifacts
           path: |
