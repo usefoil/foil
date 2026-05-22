@@ -6,20 +6,27 @@ Demo media has not been published yet.
 
 ## Install
 
-GroqTalk is still in beta. The supported beta install path is the manual DMG.
-Verify the release artifact for the version you want before installing it.
+GroqTalk is still in beta. The supported beta install paths are the signed,
+notarized DMG and the verified Homebrew cask.
 
-**Manual:** Download `GroqTalk-VERSION-macos.dmg` from
+**Manual DMG:** Download `GroqTalk-VERSION-macos.dmg` from
 [Releases](https://github.com/mean-weasel/groqtalk/releases), verify it against
-the release asset digest or matching `.sha256` checksum when one is published,
-open it, and drag GroqTalk into Applications.
+the GitHub release asset digest or matching `.sha256` checksum when one is
+published, open it, and drag GroqTalk into Applications.
 
 ### Homebrew
 
-Homebrew install is planned but not currently a supported public beta install
-path. The `mean-weasel/homebrew-groqtalk` tap exists, but Homebrew should stay
-off the supported path until a clean tap/install launch is verified against the
-uploaded DMG checksum.
+The `mean-weasel/homebrew-groqtalk` tap is verified for the current public beta
+release. It installs the same signed and notarized DMG published on GitHub:
+
+```sh
+brew tap mean-weasel/groqtalk https://github.com/mean-weasel/homebrew-groqtalk
+brew install --cask groqtalk
+```
+
+If the tap is already configured, `brew install --cask mean-weasel/groqtalk/groqtalk`
+also works. The cask checksum should match the release asset digest for the
+published DMG.
 
 ## Setup
 
@@ -202,9 +209,10 @@ from `~/Library/Application Support/GroqTalk` if you want to clear history,
 retained retry audio, and local diagnostics. API keys are stored separately in
 Keychain; use Settings → Transcription → **Change API Key** to replace them.
 
-**Updates or Homebrew:** Sparkle updates read the appcast from the
-`mean-weasel/groqtalk` GitHub releases. Homebrew is not a supported beta install
-path until the tap is verified against a signed, notarized DMG and checksum.
+**Updates or Homebrew:** Sparkle updates read the `appcast.xml` asset from the
+`mean-weasel/groqtalk` GitHub releases. Homebrew installs the verified cask from
+the `mean-weasel/homebrew-groqtalk` tap; if an install fails, confirm the cask
+URL and checksum match the latest GitHub release DMG.
 
 ## Requirements
 
