@@ -1,7 +1,13 @@
 import AVFoundation
 import AppKit
-import Combine
 import SwiftUI
+
+extension Notification.Name {
+    static let groqTalkHistoryUITestCommandRelay =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.historyCommand.relay")
+    static let groqTalkOnboardingUITestCommandRelay =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.onboardingCommand.relay")
+}
 
 struct HistoryUITestCommand: Equatable {
     let id = UUID()
@@ -19,15 +25,6 @@ struct HistoryUITestCommand: Equatable {
     }
 }
 
-@MainActor
-final class HistoryUITestCommandBridge: ObservableObject {
-    @Published var command: HistoryUITestCommand?
-
-    func send(_ notification: Notification) {
-        command = HistoryUITestCommand(notification: notification)
-    }
-}
-
 struct OnboardingUITestCommand: Equatable {
     let id = UUID()
     let name: String
@@ -35,15 +32,6 @@ struct OnboardingUITestCommand: Equatable {
     init?(notification: Notification) {
         guard let name = notification.userInfo?["command"] as? String else { return nil }
         self.name = name
-    }
-}
-
-@MainActor
-final class OnboardingUITestCommandBridge: ObservableObject {
-    @Published var command: OnboardingUITestCommand?
-
-    func send(_ notification: Notification) {
-        command = OnboardingUITestCommand(notification: notification)
     }
 }
 
@@ -81,8 +69,6 @@ final class UITestingController {
     private let appState: AppState
     private let history: TranscriptionHistory
     private let pasteController: PasteController
-    private let historyCommandBridge: HistoryUITestCommandBridge
-    private let onboardingCommandBridge: OnboardingUITestCommandBridge
 
     /// Starts the transcribing spinner animation in the host (AppDelegate).
     private let startTranscribingAnimation: () -> Void
@@ -129,8 +115,6 @@ final class UITestingController {
         appState: AppState,
         history: TranscriptionHistory,
         pasteController: PasteController,
-        historyCommandBridge: HistoryUITestCommandBridge,
-        onboardingCommandBridge: OnboardingUITestCommandBridge,
         startTranscribingAnimation: @escaping () -> Void,
         stopTranscribingAnimation: @escaping () -> Void,
         onRetry: @escaping () -> Void,
@@ -150,8 +134,6 @@ final class UITestingController {
         self.appState = appState
         self.history = history
         self.pasteController = pasteController
-        self.historyCommandBridge = historyCommandBridge
-        self.onboardingCommandBridge = onboardingCommandBridge
         self.startTranscribingAnimation = startTranscribingAnimation
         self.stopTranscribingAnimation = stopTranscribingAnimation
         self.onRetry = onRetry
@@ -580,8 +562,7 @@ final class UITestingController {
             history: history,
             onRetry: { [weak self] record in self?.onRetryRecord(record) },
             onPaste: { [weak self] text in self?.onPasteText(text) },
-            showsHeader: true,
-            uiTestCommands: historyCommandBridge
+            showsHeader: true
         )
         .accessibilityIdentifier("history.testHost")
         .frame(width: 620, height: 560)
@@ -694,11 +675,23 @@ final class UITestingController {
     }
 
     @objc private func handleHistoryCommandForUITest(_ notification: Notification) {
-        historyCommandBridge.send(notification)
+        let command = notification.userInfo?["command"] as? String ?? "<missing>"
+        DiagnosticLog.write("UITesting: received history command=\(command)")
+        NotificationCenter.default.post(
+            name: .groqTalkHistoryUITestCommandRelay,
+            object: nil,
+            userInfo: notification.userInfo
+        )
     }
 
     @objc private func handleOnboardingCommandForUITest(_ notification: Notification) {
-        onboardingCommandBridge.send(notification)
+        let command = notification.userInfo?["command"] as? String ?? "<missing>"
+        DiagnosticLog.write("UITesting: received onboarding command=\(command)")
+        NotificationCenter.default.post(
+            name: .groqTalkOnboardingUITestCommandRelay,
+            object: nil,
+            userInfo: notification.userInfo
+        )
     }
 
     func writeStateSnapshot() {

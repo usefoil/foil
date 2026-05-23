@@ -7,7 +7,6 @@ struct OnboardingView: View {
     var onCheckMicrophone: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onComplete: () -> Void
-    @ObservedObject var uiTestCommands = OnboardingUITestCommandBridge()
 
     @State private var currentStep: Int = 0
     @Environment(\.openWindow) private var openWindow
@@ -93,8 +92,8 @@ struct OnboardingView: View {
         .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
             appState.refreshApiKeyState()
         }
-        .onChange(of: uiTestCommands.command) { _, command in
-            guard let command else { return }
+        .onReceive(NotificationCenter.default.publisher(for: .groqTalkOnboardingUITestCommandRelay)) { notification in
+            guard let command = OnboardingUITestCommand(notification: notification) else { return }
             handleUITestOnboardingCommand(command)
         }
     }
