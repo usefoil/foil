@@ -92,6 +92,10 @@ struct OnboardingView: View {
         .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
             appState.refreshApiKeyState()
         }
+        .onReceive(DistributedNotificationCenter.default().publisher(for: UITestingController.onboardingCommandNotification)) { notification in
+            guard isUITesting else { return }
+            handleUITestOnboardingCommand(notification)
+        }
     }
 
     // MARK: - Step Views
@@ -228,6 +232,27 @@ struct OnboardingView: View {
 
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    }
+
+    private func handleUITestOnboardingCommand(_ notification: Notification) {
+        guard let command = notification.userInfo?["command"] as? String else { return }
+
+        switch command {
+        case "goToMicrophone":
+            currentStep = 3
+        case "goToCredentials":
+            currentStep = 1
+        case "goToFinal":
+            currentStep = steps.count - 1
+        case "selectLocalProvider":
+            appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        case "checkMicrophone":
+            onCheckMicrophone?()
+        case "complete":
+            onComplete()
+        default:
+            break
+        }
     }
 
     private var providerPrivacySummary: String {
