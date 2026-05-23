@@ -23,6 +23,7 @@ struct HistoryPopoverView: View {
     @State private var pendingDetailDeleteRecord: TranscriptionRecord?
     @State private var selectedRecord: TranscriptionRecord?
     @State private var editedText = ""
+    @State private var historyCommandObserver: NSObjectProtocol?
 
     private var filteredRecords: [TranscriptionRecord] {
         history.records.filter { record in
@@ -104,9 +105,11 @@ struct HistoryPopoverView: View {
         .sheet(item: $selectedRecord) { record in
             detailView(for: history.records.first { $0.id == record.id } ?? record)
         }
-        .onReceive(DistributedNotificationCenter.default().publisher(for: UITestingController.historyCommandNotification)) { notification in
-            guard isUITesting else { return }
-            handleUITestHistoryCommand(notification)
+        .onAppear {
+            installUITestHistoryCommandObserverIfNeeded()
+        }
+        .onDisappear {
+            removeUITestHistoryCommandObserver()
         }
     }
 
@@ -123,6 +126,23 @@ struct HistoryPopoverView: View {
 
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    }
+
+    private func installUITestHistoryCommandObserverIfNeeded() {
+        guard isUITesting, historyCommandObserver == nil else { return }
+        historyCommandObserver = DistributedNotificationCenter.default().addObserver(
+            forName: UITestingController.historyCommandNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            handleUITestHistoryCommand(notification)
+        }
+    }
+
+    private func removeUITestHistoryCommandObserver() {
+        guard let historyCommandObserver else { return }
+        DistributedNotificationCenter.default().removeObserver(historyCommandObserver)
+        self.historyCommandObserver = nil
     }
 
     private func handleUITestHistoryCommand(_ notification: Notification) {
