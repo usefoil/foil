@@ -217,7 +217,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
 
         XCTAssertTrue(app.buttons["All"].isEnabled)
-        app.buttons["Failed"].click()
+        clickElement(app.buttons["Failed"])
         XCTAssertTrue(app.buttons["Failed"].isEnabled)
 
         XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2))
@@ -228,14 +228,14 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
 
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
-        app.buttons["history.row.deleteButton"].firstMatch.click()
+        clickElement(app.buttons["history.row.deleteButton"].firstMatch)
         XCTAssertTrue(app.staticTexts["Delete History Item?"].waitForExistence(timeout: 2))
         clickAlertButton("Cancel")
         XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2))
 
         let detailsButtons = historyPanel.buttons.matching(NSPredicate(format: "label == %@", "Details"))
         XCTAssertGreaterThanOrEqual(detailsButtons.count, 2, app.debugDescription)
-        detailsButtons.element(boundBy: 1).click()
+        clickElement(detailsButtons.element(boundBy: 1))
         let editor = app.textViews["history.detail.editor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
         clickButton(id: "history.detail.deleteButton", fallbackLabel: "Delete")
@@ -251,6 +251,8 @@ final class GroqTalkUITests: XCTestCase {
         if moreMenu.waitForExistence(timeout: 1) {
             clickElement(moreMenu)
         } else {
+            activateAppForInteraction()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
             historyPanel.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.11)).click()
         }
         let deleteFilteredItem = app.menuItems["Delete All Filtered"].firstMatch
@@ -280,7 +282,7 @@ final class GroqTalkUITests: XCTestCase {
 
         let detailsButtons = historyPanel.buttons.matching(NSPredicate(format: "label == %@", "Details"))
         XCTAssertGreaterThanOrEqual(detailsButtons.count, 2, app.debugDescription)
-        detailsButtons.element(boundBy: 1).click()
+        clickElement(detailsButtons.element(boundBy: 1))
         let editor = app.textViews["history.detail.editor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["Save"].exists)
@@ -401,7 +403,7 @@ final class GroqTalkUITests: XCTestCase {
 
         let testConnectionButton = providerConnectionButton()
         XCTAssertTrue(testConnectionButton.waitForExistence(timeout: 2), app.debugDescription)
-        testConnectionButton.click()
+        clickElement(testConnectionButton)
 
         XCTAssertTrue(
             app.staticTexts["Invalid base URL. Use an http:// or https:// URL."].waitForExistence(timeout: 2),
@@ -920,13 +922,23 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func clickElement(_ element: XCUIElement) {
+        activateAppForInteraction()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+
         if element.isHittable {
             element.click()
             return
         }
 
-        activateAppForInteraction()
-        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        let deadline = Date().addingTimeInterval(3)
+        repeat {
+            activateAppForInteraction()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+            if element.isHittable {
+                element.click()
+                return
+            }
+        } while Date() < deadline
 
         if element.isHittable {
             element.click()
@@ -1032,19 +1044,19 @@ final class GroqTalkUITests: XCTestCase {
     private func clickAlertButton(_ title: String) {
         let sheetsButton = app.sheets.firstMatch.buttons[title]
         if sheetsButton.waitForExistence(timeout: 1) {
-            sheetsButton.click()
+            clickElement(sheetsButton)
             return
         }
 
         let dialogsButton = app.dialogs.firstMatch.buttons[title]
         if dialogsButton.waitForExistence(timeout: 1) {
-            dialogsButton.click()
+            clickElement(dialogsButton)
             return
         }
 
         let button = app.buttons[title].firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 2), app.debugDescription)
-        button.click()
+        clickElement(button)
     }
 
     private func relaunchWithSeededHistory() {
