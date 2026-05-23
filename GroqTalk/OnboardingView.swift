@@ -9,6 +9,7 @@ struct OnboardingView: View {
     var onComplete: () -> Void
 
     @State private var currentStep: Int = 0
+    @State private var onboardingCommandObserver: NSObjectProtocol?
     @Environment(\.openWindow) private var openWindow
 
     private let steps = ["Provider", "Credentials", "Accessibility", "Microphone"]
@@ -92,9 +93,11 @@ struct OnboardingView: View {
         .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
             appState.refreshApiKeyState()
         }
-        .onReceive(DistributedNotificationCenter.default().publisher(for: UITestingController.onboardingCommandNotification)) { notification in
-            guard isUITesting else { return }
-            handleUITestOnboardingCommand(notification)
+        .onAppear {
+            installUITestOnboardingCommandObserverIfNeeded()
+        }
+        .onDisappear {
+            removeUITestOnboardingCommandObserver()
         }
     }
 
@@ -232,6 +235,23 @@ struct OnboardingView: View {
 
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    }
+
+    private func installUITestOnboardingCommandObserverIfNeeded() {
+        guard isUITesting, onboardingCommandObserver == nil else { return }
+        onboardingCommandObserver = DistributedNotificationCenter.default().addObserver(
+            forName: UITestingController.onboardingCommandNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            handleUITestOnboardingCommand(notification)
+        }
+    }
+
+    private func removeUITestOnboardingCommandObserver() {
+        guard let onboardingCommandObserver else { return }
+        DistributedNotificationCenter.default().removeObserver(onboardingCommandObserver)
+        self.onboardingCommandObserver = nil
     }
 
     private func handleUITestOnboardingCommand(_ notification: Notification) {
