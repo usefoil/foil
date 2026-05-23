@@ -1,3 +1,5 @@
+import AppKit
+import CoreGraphics
 import XCTest
 
 final class GroqTalkUITests: XCTestCase {
@@ -254,7 +256,7 @@ final class GroqTalkUITests: XCTestCase {
         } else {
             activateAppForInteraction()
             RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-            historyPanel.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.11)).click()
+            clickElement(atNormalizedOffset: CGVector(dx: 0.94, dy: 0.11), in: historyPanel)
         }
         let deleteFilteredItem = app.menuItems["Delete All Filtered"].firstMatch
         XCTAssertTrue(deleteFilteredItem.waitForExistence(timeout: 2), app.debugDescription)
@@ -956,8 +958,39 @@ final class GroqTalkUITests: XCTestCase {
         if element.isHittable {
             element.click()
         } else {
-            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+            clickElementDirectly(element)
         }
+    }
+
+    private func clickElement(atNormalizedOffset offset: CGVector, in element: XCUIElement) {
+        let frame = element.frame
+        guard frame.isFiniteAndNonEmpty else {
+            element.coordinate(withNormalizedOffset: offset).click()
+            return
+        }
+        clickDirectly(at: CGPoint(
+            x: frame.minX + (frame.width * offset.dx),
+            y: frame.minY + (frame.height * offset.dy)
+        ))
+    }
+
+    private func clickElementDirectly(_ element: XCUIElement) {
+        let frame = element.frame
+        guard frame.isFiniteAndNonEmpty else {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+            return
+        }
+        clickDirectly(at: CGPoint(x: frame.midX, y: frame.midY))
+    }
+
+    private func clickDirectly(at point: CGPoint) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        let mouseDown = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left)
+        let mouseUp = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left)
+        mouseDown?.post(tap: .cghidEventTap)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        mouseUp?.post(tap: .cghidEventTap)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
     }
 
     private func waitForSessionTitle(_ title: String, timeout: TimeInterval) -> Bool {
@@ -988,9 +1021,23 @@ final class GroqTalkUITests: XCTestCase {
 
     private func replaceText(in element: XCUIElement, with text: String) {
         clickElement(element)
-        app.typeKey("a", modifierFlags: .command)
-        app.typeKey(.delete, modifierFlags: [])
-        element.typeText(text)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        typeKeyDirectly(0, flags: .maskCommand)
+        typeKeyDirectly(51)
+        typeKeyDirectly(9, flags: .maskCommand)
+    }
+
+    private func typeKeyDirectly(_ keyCode: CGKeyCode, flags: CGEventFlags = []) {
+        let source = CGEventSource(stateID: .hidSystemState)
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
+        keyDown?.flags = flags
+        keyUp?.flags = flags
+        keyDown?.post(tap: .cghidEventTap)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.03))
+        keyUp?.post(tap: .cghidEventTap)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
     }
 
     private func elementExists(id: String, timeout: TimeInterval = 2) -> Bool {
@@ -1098,7 +1145,7 @@ final class GroqTalkUITests: XCTestCase {
             for label in labels {
                 let button = interruption.buttons[label].firstMatch
                 if button.exists {
-                    button.click()
+                    self.clickElementDirectly(button)
                     return true
                 }
             }
@@ -1115,5 +1162,11 @@ final class GroqTalkUITests: XCTestCase {
             environment["LIVE_MICROPHONE_DURATION_SECONDS"] = duration
         }
         return environment
+    }
+}
+
+private extension CGRect {
+    var isFiniteAndNonEmpty: Bool {
+        width.isFinite && height.isFinite && minX.isFinite && minY.isFinite && !isEmpty && !isNull
     }
 }
