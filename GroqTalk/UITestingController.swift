@@ -482,6 +482,7 @@ final class UITestingController {
     // MARK: - UI test windows
 
     private func showUITestWindow() {
+        activateUITestApplication()
         let view = MenuBarView(
             appState: appState,
             history: history,
@@ -514,11 +515,12 @@ final class UITestingController {
         window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 460, height: 620))
         window.center()
         window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        activateUITestApplication()
         uiTestWindow = window
     }
 
     private func showUITestHistoryWindow() {
+        activateUITestApplication()
         let view = HistoryPopoverView(
             history: history,
             onRetry: { [weak self] record in self?.onRetryRecord(record) },
@@ -538,10 +540,12 @@ final class UITestingController {
         window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 620, height: 560))
         window.center()
         window.makeKeyAndOrderFront(nil)
+        activateUITestApplication()
         uiTestHistoryWindow = window
     }
 
     private func showUITestSettingsWindow() {
+        activateUITestApplication()
         let view = SettingsView(
             appState: appState,
             history: history,
@@ -561,7 +565,13 @@ final class UITestingController {
         window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 680, height: 430))
         window.center()
         window.makeKeyAndOrderFront(nil)
+        activateUITestApplication()
         uiTestSettingsWindow = window
+    }
+
+    private func activateUITestApplication() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func configureUITestCommandNotifications() {
