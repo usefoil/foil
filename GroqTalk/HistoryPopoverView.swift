@@ -23,7 +23,7 @@ struct HistoryPopoverView: View {
     @State private var pendingDetailDeleteRecord: TranscriptionRecord?
     @State private var selectedRecord: TranscriptionRecord?
     @State private var editedText = ""
-    @State private var historyCommandObserver: NSObjectProtocol?
+    @State private var historyCommandObserver = HistoryUITestCommandObserver()
 
     private var filteredRecords: [TranscriptionRecord] {
         history.records.filter { record in
@@ -129,20 +129,14 @@ struct HistoryPopoverView: View {
     }
 
     private func installUITestHistoryCommandObserverIfNeeded() {
-        guard isUITesting, historyCommandObserver == nil else { return }
-        historyCommandObserver = DistributedNotificationCenter.default().addObserver(
-            forName: UITestingController.historyCommandNotification,
-            object: nil,
-            queue: .main
-        ) { notification in
+        guard isUITesting else { return }
+        historyCommandObserver.start { notification in
             handleUITestHistoryCommand(notification)
         }
     }
 
     private func removeUITestHistoryCommandObserver() {
-        guard let historyCommandObserver else { return }
-        DistributedNotificationCenter.default().removeObserver(historyCommandObserver)
-        self.historyCommandObserver = nil
+        historyCommandObserver.stop()
     }
 
     private func handleUITestHistoryCommand(_ notification: Notification) {
@@ -566,5 +560,44 @@ struct HistoryPopoverView: View {
         .onAppear {
             editedText = record.text ?? ""
         }
+    }
+}
+
+private final class HistoryUITestCommandObserver: NSObject {
+    private static let notificationName =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.historyCommand")
+
+    private var isObserving = false
+    private var handler: ((Notification) -> Void)?
+
+    func start(handler: @escaping (Notification) -> Void) {
+        self.handler = handler
+        guard !isObserving else { return }
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleNotification(_:)),
+            name: Self.notificationName,
+            object: nil
+        )
+        isObserving = true
+    }
+
+    func stop() {
+        guard isObserving else { return }
+        DistributedNotificationCenter.default().removeObserver(
+            self,
+            name: Self.notificationName,
+            object: nil
+        )
+        isObserving = false
+        handler = nil
+    }
+
+    @objc private func handleNotification(_ notification: Notification) {
+        handler?(notification)
+    }
+
+    deinit {
+        stop()
     }
 }

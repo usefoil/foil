@@ -9,7 +9,7 @@ struct OnboardingView: View {
     var onComplete: () -> Void
 
     @State private var currentStep: Int = 0
-    @State private var onboardingCommandObserver: NSObjectProtocol?
+    @State private var onboardingCommandObserver = OnboardingUITestCommandObserver()
     @Environment(\.openWindow) private var openWindow
 
     private let steps = ["Provider", "Credentials", "Accessibility", "Microphone"]
@@ -238,20 +238,14 @@ struct OnboardingView: View {
     }
 
     private func installUITestOnboardingCommandObserverIfNeeded() {
-        guard isUITesting, onboardingCommandObserver == nil else { return }
-        onboardingCommandObserver = DistributedNotificationCenter.default().addObserver(
-            forName: UITestingController.onboardingCommandNotification,
-            object: nil,
-            queue: .main
-        ) { notification in
+        guard isUITesting else { return }
+        onboardingCommandObserver.start { notification in
             handleUITestOnboardingCommand(notification)
         }
     }
 
     private func removeUITestOnboardingCommandObserver() {
-        guard let onboardingCommandObserver else { return }
-        DistributedNotificationCenter.default().removeObserver(onboardingCommandObserver)
-        self.onboardingCommandObserver = nil
+        onboardingCommandObserver.stop()
     }
 
     private func handleUITestOnboardingCommand(_ notification: Notification) {
@@ -332,5 +326,44 @@ struct OnboardingView: View {
                 .font(.caption)
                 .accessibilityLabel("Checking status")
         }
+    }
+}
+
+private final class OnboardingUITestCommandObserver: NSObject {
+    private static let notificationName =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.onboardingCommand")
+
+    private var isObserving = false
+    private var handler: ((Notification) -> Void)?
+
+    func start(handler: @escaping (Notification) -> Void) {
+        self.handler = handler
+        guard !isObserving else { return }
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleNotification(_:)),
+            name: Self.notificationName,
+            object: nil
+        )
+        isObserving = true
+    }
+
+    func stop() {
+        guard isObserving else { return }
+        DistributedNotificationCenter.default().removeObserver(
+            self,
+            name: Self.notificationName,
+            object: nil
+        )
+        isObserving = false
+        handler = nil
+    }
+
+    @objc private func handleNotification(_ notification: Notification) {
+        handler?(notification)
+    }
+
+    deinit {
+        stop()
     }
 }
