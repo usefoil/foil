@@ -56,8 +56,7 @@ struct GroqTalkApp: App {
                 history: appDelegate.history,
                 onRetry: { [weak appDelegate] record in appDelegate?.retryRecord(record) },
                 onPaste: { [weak appDelegate] text in appDelegate?.paste(text: text) },
-                showsHeader: true,
-                uiTestCommands: appDelegate.historyUITestCommandBridge
+                showsHeader: true
             )
         }
         .defaultSize(width: 620, height: 560)
@@ -84,8 +83,6 @@ struct GroqTalkApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     let appState: AppState
     let history: TranscriptionHistory
-    let historyUITestCommandBridge = HistoryUITestCommandBridge()
-    let onboardingUITestCommandBridge = OnboardingUITestCommandBridge()
 
     private let hotkeyMonitor = HotkeyMonitor()
     private let audioRecorder = AudioRecorder()
@@ -211,8 +208,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState: appState,
             history: history,
             pasteController: pasteController,
-            historyCommandBridge: historyUITestCommandBridge,
-            onboardingCommandBridge: onboardingUITestCommandBridge,
             startTranscribingAnimation: { [weak self] in self?.startTranscribingAnimation() },
             stopTranscribingAnimation: { [weak self] in self?.stopTranscribingAnimation() },
             onRetry: { [weak self] in self?.retryLast() },
@@ -343,8 +338,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     window?.close()
                     NSApp.activate(ignoringOtherApps: true)
                 }
-            },
-            uiTestCommands: onboardingUITestCommandBridge
+            }
         )
 
         let window = NSWindow(
