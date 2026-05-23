@@ -12,6 +12,8 @@ final class GroqTalkUITests: XCTestCase {
     private let onboardingCommandNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.onboardingCommand")
     private let stateSnapshotURL =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-state-\(ProcessInfo.processInfo.processIdentifier).json")
+    private let commandInboxURL =
+        URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-command-\(ProcessInfo.processInfo.processIdentifier).json")
     private let openedURLPath =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-opened-url-\(ProcessInfo.processInfo.processIdentifier).txt")
 
@@ -707,11 +709,13 @@ final class GroqTalkUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = arguments
         app.launchEnvironment["GROQTALK_UITEST_STATE_PATH"] = stateSnapshotURL.path
+        app.launchEnvironment["GROQTALK_UITEST_COMMAND_PATH"] = commandInboxURL.path
         app.launchEnvironment["GROQTALK_UITEST_OPENED_URL_PATH"] = openedURLPath.path
         for (key, value) in extraEnvironment {
             app.launchEnvironment[key] = value
         }
         removeUITestStateSnapshot()
+        removeUITestCommandInbox()
         removeOpenedURLRecord()
         app.launch()
         dismissSystemSetupAssistant()
@@ -805,6 +809,10 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func postUITestCommand(_ notification: Notification.Name, userInfo: [String: Any]?) {
+        if notification == historyCommandNotification || notification == onboardingCommandNotification {
+            postUITestCommandToFile(notification, userInfo: userInfo)
+            return
+        }
         DistributedNotificationCenter.default().postNotificationName(
             notification,
             object: nil,
@@ -814,8 +822,30 @@ final class GroqTalkUITests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(0.4))
     }
 
+    private func postUITestCommandToFile(_ notification: Notification.Name, userInfo: [String: Any]?) {
+        let payload: [String: Any] = [
+            "id": UUID().uuidString,
+            "notification": notification.rawValue,
+            "userInfo": userInfo ?? [:]
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
+            XCTFail("Failed to serialize UI-test command \(notification.rawValue)")
+            return
+        }
+        do {
+            try data.write(to: commandInboxURL, options: .atomic)
+        } catch {
+            XCTFail("Failed to write UI-test command \(notification.rawValue): \(error)")
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+    }
+
     private func removeUITestStateSnapshot() {
         try? FileManager.default.removeItem(at: stateSnapshotURL)
+    }
+
+    private func removeUITestCommandInbox() {
+        try? FileManager.default.removeItem(at: commandInboxURL)
     }
 
     private func removeOpenedURLRecord() {
