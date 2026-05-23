@@ -7,7 +7,7 @@ struct OnboardingView: View {
     var onCheckMicrophone: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onComplete: () -> Void
-    var uiTestCommands: OnboardingUITestCommandBridge?
+    @ObservedObject var uiTestCommands = OnboardingUITestCommandBridge()
 
     @State private var currentStep: Int = 0
     @Environment(\.openWindow) private var openWindow
@@ -93,7 +93,7 @@ struct OnboardingView: View {
         .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
             appState.refreshApiKeyState()
         }
-        .onChange(of: uiTestCommands?.command) { _, command in
+        .onChange(of: uiTestCommands.command) { _, command in
             guard let command else { return }
             handleUITestOnboardingCommand(command)
         }
