@@ -25,10 +25,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: dorny/paths-filter@v4
         id: filter
         with:
+          token: ''
+          base: ${{ github.event.pull_request.base.ref }}
           filters: |
             code:
               - 'GroqTalk/**'
@@ -257,7 +261,6 @@ jobs:
             -only-testing:GroqTalkUITests/GroqTalkUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff \
             -only-testing:GroqTalkUITests/GroqTalkUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled \
             -only-testing:GroqTalkUITests/GroqTalkUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingStatusCanBeEnabled \
             -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingWarningShowsExpandedClipboardContext \
             -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled \
             -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingStatusIsDisabledByDefault \

@@ -26,6 +26,7 @@ final class GroqTalkUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        installSystemInterruptionMonitor()
         launchApp(arguments: [
             "--ui-testing",
             "--reset-defaults",
@@ -716,6 +717,7 @@ final class GroqTalkUITests: XCTestCase {
         line: UInt = #line
     ) {
         terminateAppAndStaleInstances()
+        dismissSystemSetupAssistant()
 
         app = XCUIApplication()
         app.launchArguments = arguments
@@ -727,6 +729,7 @@ final class GroqTalkUITests: XCTestCase {
         removeUITestStateSnapshot()
         removeOpenedURLRecord()
         app.launch()
+        dismissSystemSetupAssistant()
 
         if requireControlCenter {
             XCTAssertTrue(controlCenter.waitForExistence(timeout: 8), app.debugDescription, file: file, line: line)
@@ -771,6 +774,15 @@ final class GroqTalkUITests: XCTestCase {
         process.standardError = FileHandle.nullDevice
         try? process.run()
         process.waitUntilExit()
+    }
+
+    private func dismissSystemSetupAssistant() {
+        runQuietProcess("/usr/bin/osascript", arguments: [
+            "-e",
+            "tell application id \"com.apple.SetupAssistant\" to quit"
+        ])
+        runQuietProcess("/usr/bin/pkill", arguments: ["-x", "Setup Assistant"])
+        runQuietProcess("/usr/bin/pkill", arguments: ["-f", "com.apple.SetupAssistant"])
     }
 
     private func launchForProviderQA(extraArguments: [String] = []) {
@@ -922,6 +934,7 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func clickElement(_ element: XCUIElement) {
+        dismissSystemSetupAssistant()
         activateAppForInteraction()
         RunLoop.current.run(until: Date().addingTimeInterval(0.3))
 
@@ -1069,6 +1082,28 @@ final class GroqTalkUITests: XCTestCase {
 
     private func relaunchWithArguments(_ arguments: [String]) {
         launchApp(arguments: arguments)
+    }
+
+    private func installSystemInterruptionMonitor() {
+        addUIInterruptionMonitor(withDescription: "Dismiss Setup Assistant") { interruption in
+            let labels = [
+                "Continue",
+                "Not Now",
+                "Set Up Later",
+                "Skip",
+                "Cancel",
+                "Done",
+                "OK"
+            ]
+            for label in labels {
+                let button = interruption.buttons[label].firstMatch
+                if button.exists {
+                    button.click()
+                    return true
+                }
+            }
+            return false
+        }
     }
 
     private func liveMicrophoneEnvironment(resultPath: String) -> [String: String] {
