@@ -21,7 +21,9 @@ struct HistoryUITestCommand: Equatable {
         self.name = name
         self.query = notification.userInfo?["query"] as? String
         self.filter = notification.userInfo?["filter"] as? String
-        self.index = notification.userInfo?["index"] as? Int ?? 0
+        self.index = notification.userInfo?["index"] as? Int
+            ?? (notification.userInfo?["index"] as? NSNumber)?.intValue
+            ?? 0
     }
 }
 
@@ -63,6 +65,14 @@ final class UITestingController {
         }
         return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("groqtalk-ui-tests-state.json")
     }
+    static var commandInboxURL: URL? {
+        guard let path = ProcessInfo.processInfo.environment["GROQTALK_UITEST_COMMAND_PATH"],
+              !path.isEmpty
+        else {
+            return nil
+        }
+        return URL(fileURLWithPath: path)
+    }
 
     // MARK: - Dependencies
 
@@ -95,6 +105,8 @@ final class UITestingController {
     private var uiTestWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
     private var uiTestSettingsWindow: NSWindow?
+    private var uiTestCommandFileTimer: Timer?
+    private var lastUITestCommandFileID: String?
 
     private struct StateSnapshot: Encodable {
         let statusText: String
@@ -149,6 +161,10 @@ final class UITestingController {
         self.onRetryRecord = onRetryRecord
         self.onPasteText = onPasteText
         self.onReplaceRecordingController = onReplaceRecordingController
+    }
+
+    deinit {
+        uiTestCommandFileTimer?.invalidate()
     }
 
     // MARK: - Configuration entry points
@@ -255,6 +271,7 @@ final class UITestingController {
 
         showUITestWindow()
         configureUITestCommandNotifications()
+        configureUITestCommandFileRelay()
         configureLiveMicrophoneSmokeIfNeeded(args: args)
         configureSimulatedTranscriptionIfNeeded(args: args)
         applyTransientUITestState(args: args)
@@ -648,6 +665,40 @@ final class UITestingController {
             name: UITestingController.onboardingCommandNotification,
             object: nil
         )
+    }
+
+    private func configureUITestCommandFileRelay() {
+        guard let commandInboxURL = Self.commandInboxURL else { return }
+        try? FileManager.default.removeItem(at: commandInboxURL)
+        uiTestCommandFileTimer?.invalidate()
+        uiTestCommandFileTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.pollUITestCommandFile(at: commandInboxURL)
+            }
+        }
+    }
+
+    private func pollUITestCommandFile(at url: URL) {
+        guard let data = try? Data(contentsOf: url),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let id = payload["id"] as? String,
+              id != lastUITestCommandFileID,
+              let notificationName = payload["notification"] as? String
+        else {
+            return
+        }
+
+        lastUITestCommandFileID = id
+        let userInfo = payload["userInfo"] as? [String: Any]
+        if notificationName == Self.historyCommandNotification.rawValue {
+            handleHistoryCommandForUITest(
+                Notification(name: Self.historyCommandNotification, object: nil, userInfo: userInfo)
+            )
+        } else if notificationName == Self.onboardingCommandNotification.rawValue {
+            handleOnboardingCommandForUITest(
+                Notification(name: Self.onboardingCommandNotification, object: nil, userInfo: userInfo)
+            )
+        }
     }
 
     @objc private func openHistoryForUITest() {
