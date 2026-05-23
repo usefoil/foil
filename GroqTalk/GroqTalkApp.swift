@@ -56,7 +56,8 @@ struct GroqTalkApp: App {
                 history: appDelegate.history,
                 onRetry: { [weak appDelegate] record in appDelegate?.retryRecord(record) },
                 onPaste: { [weak appDelegate] text in appDelegate?.paste(text: text) },
-                showsHeader: true
+                showsHeader: true,
+                uiTestCommands: appDelegate.historyUITestCommandBridge
             )
         }
         .defaultSize(width: 620, height: 560)
@@ -83,6 +84,8 @@ struct GroqTalkApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     let appState: AppState
     let history: TranscriptionHistory
+    let historyUITestCommandBridge = HistoryUITestCommandBridge()
+    let onboardingUITestCommandBridge = OnboardingUITestCommandBridge()
 
     private let hotkeyMonitor = HotkeyMonitor()
     private let audioRecorder = AudioRecorder()
@@ -208,6 +211,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState: appState,
             history: history,
             pasteController: pasteController,
+            historyCommandBridge: historyUITestCommandBridge,
+            onboardingCommandBridge: onboardingUITestCommandBridge,
             startTranscribingAnimation: { [weak self] in self?.startTranscribingAnimation() },
             stopTranscribingAnimation: { [weak self] in self?.stopTranscribingAnimation() },
             onRetry: { [weak self] in self?.retryLast() },
@@ -324,21 +329,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
             onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
             onCheckMicrophone: { [weak self] in self?.checkMicrophonePermission() },
-            onOpenSettings: { [weak self] in self?.showSettingsWindow(initialTab: .transcription) }
-        ) { [weak self] in
-            guard let self else { return }
-            self.hasCompletedOnboarding = true
-            if !Self.isTestingProcess(), !self.hotkeyMonitor.isRunning {
-                self.startHotkeyMonitorWithRetry()
-            }
-            let window = self.onboardingWindow
-            self.onboardingWindow = nil
-            DispatchQueue.main.async {
-                window?.orderOut(nil)
-                window?.close()
-                NSApp.activate(ignoringOtherApps: true)
-            }
-        }
+            onOpenSettings: { [weak self] in self?.showSettingsWindow(initialTab: .transcription) },
+            onComplete: { [weak self] in
+                guard let self else { return }
+                self.hasCompletedOnboarding = true
+                if !Self.isTestingProcess(), !self.hotkeyMonitor.isRunning {
+                    self.startHotkeyMonitorWithRetry()
+                }
+                let window = self.onboardingWindow
+                self.onboardingWindow = nil
+                DispatchQueue.main.async {
+                    window?.orderOut(nil)
+                    window?.close()
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            },
+            uiTestCommands: onboardingUITestCommandBridge
+        )
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 450),

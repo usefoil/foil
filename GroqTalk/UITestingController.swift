@@ -2,6 +2,52 @@ import AVFoundation
 import AppKit
 import SwiftUI
 
+struct HistoryUITestCommand: Equatable {
+    let id = UUID()
+    let name: String
+    let query: String?
+    let filter: String?
+    let index: Int
+
+    init?(notification: Notification) {
+        guard let name = notification.userInfo?["command"] as? String else { return nil }
+        self.name = name
+        self.query = notification.userInfo?["query"] as? String
+        self.filter = notification.userInfo?["filter"] as? String
+        self.index = notification.userInfo?["index"] as? Int ?? 0
+    }
+}
+
+@MainActor
+@Observable
+final class HistoryUITestCommandBridge {
+    var command: HistoryUITestCommand?
+
+    func send(_ notification: Notification) {
+        command = HistoryUITestCommand(notification: notification)
+    }
+}
+
+struct OnboardingUITestCommand: Equatable {
+    let id = UUID()
+    let name: String
+
+    init?(notification: Notification) {
+        guard let name = notification.userInfo?["command"] as? String else { return nil }
+        self.name = name
+    }
+}
+
+@MainActor
+@Observable
+final class OnboardingUITestCommandBridge {
+    var command: OnboardingUITestCommand?
+
+    func send(_ notification: Notification) {
+        command = OnboardingUITestCommand(notification: notification)
+    }
+}
+
 /// Encapsulates all UI-testing and automation-smoke helpers that were previously
 /// inlined in AppDelegate.  Create one instance in `applicationDidFinishLaunching`
 /// and call `configureUITestingIfNeeded()` / `configureAutomationSmokeIfNeeded()`.
@@ -36,6 +82,8 @@ final class UITestingController {
     private let appState: AppState
     private let history: TranscriptionHistory
     private let pasteController: PasteController
+    private let historyCommandBridge: HistoryUITestCommandBridge
+    private let onboardingCommandBridge: OnboardingUITestCommandBridge
 
     /// Starts the transcribing spinner animation in the host (AppDelegate).
     private let startTranscribingAnimation: () -> Void
@@ -82,6 +130,8 @@ final class UITestingController {
         appState: AppState,
         history: TranscriptionHistory,
         pasteController: PasteController,
+        historyCommandBridge: HistoryUITestCommandBridge,
+        onboardingCommandBridge: OnboardingUITestCommandBridge,
         startTranscribingAnimation: @escaping () -> Void,
         stopTranscribingAnimation: @escaping () -> Void,
         onRetry: @escaping () -> Void,
@@ -101,6 +151,8 @@ final class UITestingController {
         self.appState = appState
         self.history = history
         self.pasteController = pasteController
+        self.historyCommandBridge = historyCommandBridge
+        self.onboardingCommandBridge = onboardingCommandBridge
         self.startTranscribingAnimation = startTranscribingAnimation
         self.stopTranscribingAnimation = stopTranscribingAnimation
         self.onRetry = onRetry
@@ -529,7 +581,8 @@ final class UITestingController {
             history: history,
             onRetry: { [weak self] record in self?.onRetryRecord(record) },
             onPaste: { [weak self] text in self?.onPasteText(text) },
-            showsHeader: true
+            showsHeader: true,
+            uiTestCommands: historyCommandBridge
         )
         .accessibilityIdentifier("history.testHost")
         .frame(width: 620, height: 560)
@@ -603,6 +656,18 @@ final class UITestingController {
             name: UITestingController.runSetupCheckNotification,
             object: nil
         )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleHistoryCommandForUITest(_:)),
+            name: UITestingController.historyCommandNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleOnboardingCommandForUITest(_:)),
+            name: UITestingController.onboardingCommandNotification,
+            object: nil
+        )
     }
 
     @objc private func openHistoryForUITest() {
@@ -627,6 +692,14 @@ final class UITestingController {
 
     @objc private func runSetupCheckForUITest() {
         onRunSetupCheck()
+    }
+
+    @objc private func handleHistoryCommandForUITest(_ notification: Notification) {
+        historyCommandBridge.send(notification)
+    }
+
+    @objc private func handleOnboardingCommandForUITest(_ notification: Notification) {
+        onboardingCommandBridge.send(notification)
     }
 
     func writeStateSnapshot() {
