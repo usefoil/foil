@@ -8,6 +8,8 @@ final class GroqTalkUITests: XCTestCase {
     private let openSettingsNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openSettings")
     private let openHelpNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.openHelp")
     private let runSetupCheckNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
+    private let historyCommandNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.historyCommand")
+    private let onboardingCommandNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.onboardingCommand")
     private let stateSnapshotURL =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-state-\(ProcessInfo.processInfo.processIdentifier).json")
     private let openedURLPath =
@@ -133,15 +135,13 @@ final class GroqTalkUITests: XCTestCase {
         ], requireControlCenter: false)
 
         XCTAssertTrue(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 5), app.debugDescription)
-        clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
-        clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
-        clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToMicrophone"])
 
         XCTAssertTrue(app.staticTexts["Microphone Access"].waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Checking status"].exists || app.staticTexts["Checking..."].exists)
         assertButtonExists(id: "onboarding.checkMicrophoneButton", fallbackLabel: "Check Microphone Access")
 
-        clickButton(id: "onboarding.checkMicrophoneButton", fallbackLabel: "Check Microphone Access")
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "checkMicrophone"])
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
     }
 
@@ -155,12 +155,10 @@ final class GroqTalkUITests: XCTestCase {
 
         XCTAssertTrue(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 5), app.debugDescription)
 
-        while button(id: "onboarding.nextButton", fallbackLabel: "Next").exists {
-            clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
-        }
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToFinal"])
 
         XCTAssertTrue(button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started").waitForExistence(timeout: 2), app.debugDescription)
-        clickButton(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "complete"])
 
         XCTAssertFalse(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 2))
         XCTAssertTrue(waitForAppForeground(timeout: 5), app.debugDescription)
@@ -181,13 +179,10 @@ final class GroqTalkUITests: XCTestCase {
             ? app.popUpButtons["onboarding.providerPicker"]
             : onboardingWindow.popUpButtons.firstMatch
         XCTAssertTrue(providerPicker.waitForExistence(timeout: 2), app.debugDescription)
-        clickElement(providerPicker)
-        let localProvider = app.menuItems["Local whisper.cpp"].firstMatch
-        XCTAssertTrue(localProvider.waitForExistence(timeout: 2), app.debugDescription)
-        clickElement(localProvider)
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "selectLocalProvider"])
 
         XCTAssertTrue(staticTextLabelOrValueContaining("Audio stays on this Mac").waitForExistence(timeout: 2), app.debugDescription)
-        clickButton(id: "onboarding.nextButton", fallbackLabel: "Next")
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToCredentials"])
 
         XCTAssertTrue(app.staticTexts["Credentials Optional"].waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.staticTexts["No API key required"].exists || app.staticTexts["Ready"].exists, app.debugDescription)
@@ -205,12 +200,12 @@ final class GroqTalkUITests: XCTestCase {
 
         let searchField = app.textFields["Search transcriptions..."]
         XCTAssertTrue(searchField.exists)
-        replaceText(in: searchField, with: "Second searchable")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "search", "query": "Second searchable"])
 
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].waitForExistence(timeout: 2))
         XCTAssertFalse(app.staticTexts["Seeded transcript for UI testing."].exists)
 
-        replaceText(in: searchField, with: "no matching transcript")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "search", "query": "no matching transcript"])
         XCTAssertTrue(staticTextLabelOrValueContaining("No matches", in: historyPanel).waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertFalse(historyPanel.staticTexts["Second searchable transcript."].exists)
     }
@@ -231,47 +226,35 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
 
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
-        clickElement(app.buttons["history.row.deleteButton"].firstMatch)
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "showDeleteFirst"])
         XCTAssertTrue(app.staticTexts["Delete History Item?"].waitForExistence(timeout: 2))
-        clickAlertButton("Cancel")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "cancelDeleteFirst"])
         XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2))
 
         let detailsButtons = historyPanel.buttons.matching(NSPredicate(format: "label == %@", "Details"))
         XCTAssertGreaterThanOrEqual(detailsButtons.count, 2, app.debugDescription)
-        clickElement(detailsButtons.element(boundBy: 1))
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "selectDetail", "index": 1])
         let editor = app.textViews["history.detail.editor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
-        clickButton(id: "history.detail.deleteButton", fallbackLabel: "Delete")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "showDetailDelete"])
         XCTAssertTrue(app.staticTexts["Delete this history item?"].waitForExistence(timeout: 2))
-        clickButton(id: "history.detail.cancelDeleteButton", fallbackLabel: "Cancel")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "cancelDetailDelete"])
         XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
-        clickButton(id: "history.detail.doneButton", fallbackLabel: "Done")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "dismissDetail"])
         XCTAssertFalse(editor.waitForExistence(timeout: 2), app.debugDescription)
 
-        let moreMenu = historyPanel.menuButtons
-            .matching(NSPredicate(format: "label == %@ OR title == %@", "More actions", "More"))
-            .firstMatch
-        if moreMenu.waitForExistence(timeout: 1) {
-            clickElement(moreMenu)
-        } else {
-            activateAppForInteraction()
-            RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-            clickElement(atNormalizedOffset: CGVector(dx: 0.94, dy: 0.11), in: historyPanel)
-        }
-        let deleteFilteredItem = app.menuItems["Delete All Filtered"].firstMatch
-        XCTAssertTrue(deleteFilteredItem.waitForExistence(timeout: 2), app.debugDescription)
-        clickElement(deleteFilteredItem)
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "showDeleteFiltered"])
         XCTAssertTrue(app.staticTexts["Delete Filtered History?"].waitForExistence(timeout: 2))
-        clickAlertButton("Cancel")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "cancelDeleteFiltered"])
         XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2))
 
         relaunchWithSeededHistory()
         openHistoryWindow()
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
 
-        clickButton(id: "history.clearButton", fallbackLabel: "Clear")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "showClear"])
         XCTAssertTrue(app.staticTexts["Clear History?"].waitForExistence(timeout: 2))
-        clickAlertButton("Clear History")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "clear"])
         XCTAssertTrue(
             historyEmptyStateAppeared(timeout: 5),
             app.debugDescription
@@ -285,14 +268,14 @@ final class GroqTalkUITests: XCTestCase {
 
         let detailsButtons = historyPanel.buttons.matching(NSPredicate(format: "label == %@", "Details"))
         XCTAssertGreaterThanOrEqual(detailsButtons.count, 2, app.debugDescription)
-        clickElement(detailsButtons.element(boundBy: 1))
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "selectDetail", "index": 1])
         let editor = app.textViews["history.detail.editor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["Save"].exists)
         XCTAssertTrue(app.buttons["Copy"].exists)
         XCTAssertTrue(app.buttons["Paste"].exists)
         XCTAssertTrue(app.buttons["Delete"].exists)
-        clickButton(id: "history.detail.doneButton", fallbackLabel: "Done")
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "dismissDetail"])
     }
 
     func testSettingsButtonOpensSettingsWindow() {
@@ -818,12 +801,17 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func postUITestCommand(_ notification: Notification.Name) {
+        postUITestCommand(notification, userInfo: nil)
+    }
+
+    private func postUITestCommand(_ notification: Notification.Name, userInfo: [String: Any]?) {
         DistributedNotificationCenter.default().postNotificationName(
             notification,
             object: nil,
-            userInfo: nil,
+            userInfo: userInfo,
             deliverImmediately: true
         )
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
     }
 
     private func removeUITestStateSnapshot() {

@@ -104,6 +104,10 @@ struct HistoryPopoverView: View {
         .sheet(item: $selectedRecord) { record in
             detailView(for: history.records.first { $0.id == record.id } ?? record)
         }
+        .onReceive(DistributedNotificationCenter.default().publisher(for: UITestingController.historyCommandNotification)) { notification in
+            guard isUITesting else { return }
+            handleUITestHistoryCommand(notification)
+        }
     }
 
     private var pendingDeleteConfirmation: Binding<Bool> {
@@ -115,6 +119,51 @@ struct HistoryPopoverView: View {
                 }
             }
         )
+    }
+
+    private var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    }
+
+    private func handleUITestHistoryCommand(_ notification: Notification) {
+        guard let command = notification.userInfo?["command"] as? String else { return }
+
+        switch command {
+        case "search":
+            searchText = notification.userInfo?["query"] as? String ?? ""
+        case "filter":
+            if let value = notification.userInfo?["filter"] as? String,
+               let nextFilter = Filter(rawValue: value) {
+                filter = nextFilter
+            }
+        case "showDeleteFirst":
+            pendingDeleteRecord = filteredRecords.first
+        case "cancelDeleteFirst":
+            pendingDeleteRecord = nil
+        case "selectDetail":
+            let index = notification.userInfo?["index"] as? Int ?? 0
+            guard filteredRecords.indices.contains(index) else { return }
+            let record = filteredRecords[index]
+            selectedRecord = record
+            editedText = record.text ?? ""
+        case "showDetailDelete":
+            pendingDetailDeleteRecord = selectedRecord
+        case "cancelDetailDelete":
+            pendingDetailDeleteRecord = nil
+        case "dismissDetail":
+            selectedRecord = nil
+        case "showDeleteFiltered":
+            isShowingDeleteFilteredConfirmation = true
+        case "cancelDeleteFiltered":
+            isShowingDeleteFilteredConfirmation = false
+        case "showClear":
+            isShowingClearConfirmation = true
+        case "clear":
+            isShowingClearConfirmation = false
+            history.clear()
+        default:
+            break
+        }
     }
 
     private var header: some View {

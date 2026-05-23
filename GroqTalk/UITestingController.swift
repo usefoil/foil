@@ -20,6 +20,10 @@ final class UITestingController {
         Notification.Name("com.neonwatty.GroqTalk.uiTests.openHelp")
     static let runSetupCheckNotification =
         Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
+    static let historyCommandNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.historyCommand")
+    static let onboardingCommandNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.onboardingCommand")
     static var stateSnapshotURL: URL {
         if let path = ProcessInfo.processInfo.environment["GROQTALK_UITEST_STATE_PATH"], !path.isEmpty {
             return URL(fileURLWithPath: path)
