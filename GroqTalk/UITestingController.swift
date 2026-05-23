@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import Combine
 import SwiftUI
 
 struct HistoryUITestCommand: Equatable {
@@ -19,9 +20,8 @@ struct HistoryUITestCommand: Equatable {
 }
 
 @MainActor
-@Observable
-final class HistoryUITestCommandBridge {
-    var command: HistoryUITestCommand?
+final class HistoryUITestCommandBridge: ObservableObject {
+    @Published var command: HistoryUITestCommand?
 
     func send(_ notification: Notification) {
         command = HistoryUITestCommand(notification: notification)
@@ -39,9 +39,8 @@ struct OnboardingUITestCommand: Equatable {
 }
 
 @MainActor
-@Observable
-final class OnboardingUITestCommandBridge {
-    var command: OnboardingUITestCommand?
+final class OnboardingUITestCommandBridge: ObservableObject {
+    @Published var command: OnboardingUITestCommand?
 
     func send(_ notification: Notification) {
         command = OnboardingUITestCommand(notification: notification)

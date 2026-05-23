@@ -12,7 +12,7 @@ struct HistoryPopoverView: View {
     var onRetry: ((TranscriptionRecord) -> Void)?
     var onPaste: ((String) -> Void)?
     var showsHeader = true
-    var uiTestCommands: HistoryUITestCommandBridge?
+    @ObservedObject var uiTestCommands = HistoryUITestCommandBridge()
 
     @State private var searchText = ""
     @State private var filter: Filter = .all
@@ -105,7 +105,7 @@ struct HistoryPopoverView: View {
         .sheet(item: $selectedRecord) { record in
             detailView(for: history.records.first { $0.id == record.id } ?? record)
         }
-        .onChange(of: uiTestCommands?.command) { _, command in
+        .onChange(of: uiTestCommands.command) { _, command in
             guard let command else { return }
             handleUITestHistoryCommand(command)
         }
