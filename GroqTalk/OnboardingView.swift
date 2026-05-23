@@ -7,9 +7,9 @@ struct OnboardingView: View {
     var onCheckMicrophone: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onComplete: () -> Void
+    var uiTestCommands: OnboardingUITestCommandBridge?
 
     @State private var currentStep: Int = 0
-    @State private var onboardingCommandObserver = OnboardingUITestCommandObserver()
     @Environment(\.openWindow) private var openWindow
 
     private let steps = ["Provider", "Credentials", "Accessibility", "Microphone"]
@@ -93,11 +93,9 @@ struct OnboardingView: View {
         .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
             appState.refreshApiKeyState()
         }
-        .onAppear {
-            installUITestOnboardingCommandObserverIfNeeded()
-        }
-        .onDisappear {
-            removeUITestOnboardingCommandObserver()
+        .onChange(of: uiTestCommands?.command) { _, command in
+            guard let command else { return }
+            handleUITestOnboardingCommand(command)
         }
     }
 
@@ -237,21 +235,8 @@ struct OnboardingView: View {
         ProcessInfo.processInfo.arguments.contains("--ui-testing")
     }
 
-    private func installUITestOnboardingCommandObserverIfNeeded() {
-        guard isUITesting else { return }
-        onboardingCommandObserver.start { notification in
-            handleUITestOnboardingCommand(notification)
-        }
-    }
-
-    private func removeUITestOnboardingCommandObserver() {
-        onboardingCommandObserver.stop()
-    }
-
-    private func handleUITestOnboardingCommand(_ notification: Notification) {
-        guard let command = notification.userInfo?["command"] as? String else { return }
-
-        switch command {
+    private func handleUITestOnboardingCommand(_ command: OnboardingUITestCommand) {
+        switch command.name {
         case "goToMicrophone":
             currentStep = 3
         case "goToCredentials":
@@ -326,44 +311,5 @@ struct OnboardingView: View {
                 .font(.caption)
                 .accessibilityLabel("Checking status")
         }
-    }
-}
-
-private final class OnboardingUITestCommandObserver: NSObject {
-    private static let notificationName =
-        Notification.Name("com.neonwatty.GroqTalk.uiTests.onboardingCommand")
-
-    private var isObserving = false
-    private var handler: ((Notification) -> Void)?
-
-    func start(handler: @escaping (Notification) -> Void) {
-        self.handler = handler
-        guard !isObserving else { return }
-        DistributedNotificationCenter.default().addObserver(
-            self,
-            selector: #selector(handleNotification(_:)),
-            name: Self.notificationName,
-            object: nil
-        )
-        isObserving = true
-    }
-
-    func stop() {
-        guard isObserving else { return }
-        DistributedNotificationCenter.default().removeObserver(
-            self,
-            name: Self.notificationName,
-            object: nil
-        )
-        isObserving = false
-        handler = nil
-    }
-
-    @objc private func handleNotification(_ notification: Notification) {
-        handler?(notification)
-    }
-
-    deinit {
-        stop()
     }
 }

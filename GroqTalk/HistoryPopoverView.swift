@@ -12,6 +12,7 @@ struct HistoryPopoverView: View {
     var onRetry: ((TranscriptionRecord) -> Void)?
     var onPaste: ((String) -> Void)?
     var showsHeader = true
+    var uiTestCommands: HistoryUITestCommandBridge?
 
     @State private var searchText = ""
     @State private var filter: Filter = .all
@@ -23,7 +24,6 @@ struct HistoryPopoverView: View {
     @State private var pendingDetailDeleteRecord: TranscriptionRecord?
     @State private var selectedRecord: TranscriptionRecord?
     @State private var editedText = ""
-    @State private var historyCommandObserver = HistoryUITestCommandObserver()
 
     private var filteredRecords: [TranscriptionRecord] {
         history.records.filter { record in
@@ -105,11 +105,9 @@ struct HistoryPopoverView: View {
         .sheet(item: $selectedRecord) { record in
             detailView(for: history.records.first { $0.id == record.id } ?? record)
         }
-        .onAppear {
-            installUITestHistoryCommandObserverIfNeeded()
-        }
-        .onDisappear {
-            removeUITestHistoryCommandObserver()
+        .onChange(of: uiTestCommands?.command) { _, command in
+            guard let command else { return }
+            handleUITestHistoryCommand(command)
         }
     }
 
@@ -124,29 +122,12 @@ struct HistoryPopoverView: View {
         )
     }
 
-    private var isUITesting: Bool {
-        ProcessInfo.processInfo.arguments.contains("--ui-testing")
-    }
-
-    private func installUITestHistoryCommandObserverIfNeeded() {
-        guard isUITesting else { return }
-        historyCommandObserver.start { notification in
-            handleUITestHistoryCommand(notification)
-        }
-    }
-
-    private func removeUITestHistoryCommandObserver() {
-        historyCommandObserver.stop()
-    }
-
-    private func handleUITestHistoryCommand(_ notification: Notification) {
-        guard let command = notification.userInfo?["command"] as? String else { return }
-
-        switch command {
+    private func handleUITestHistoryCommand(_ command: HistoryUITestCommand) {
+        switch command.name {
         case "search":
-            searchText = notification.userInfo?["query"] as? String ?? ""
+            searchText = command.query ?? ""
         case "filter":
-            if let value = notification.userInfo?["filter"] as? String,
+            if let value = command.filter,
                let nextFilter = Filter(rawValue: value) {
                 filter = nextFilter
             }
@@ -155,9 +136,8 @@ struct HistoryPopoverView: View {
         case "cancelDeleteFirst":
             pendingDeleteRecord = nil
         case "selectDetail":
-            let index = notification.userInfo?["index"] as? Int ?? 0
-            guard filteredRecords.indices.contains(index) else { return }
-            let record = filteredRecords[index]
+            guard filteredRecords.indices.contains(command.index) else { return }
+            let record = filteredRecords[command.index]
             selectedRecord = record
             editedText = record.text ?? ""
         case "showDetailDelete":
@@ -560,44 +540,5 @@ struct HistoryPopoverView: View {
         .onAppear {
             editedText = record.text ?? ""
         }
-    }
-}
-
-private final class HistoryUITestCommandObserver: NSObject {
-    private static let notificationName =
-        Notification.Name("com.neonwatty.GroqTalk.uiTests.historyCommand")
-
-    private var isObserving = false
-    private var handler: ((Notification) -> Void)?
-
-    func start(handler: @escaping (Notification) -> Void) {
-        self.handler = handler
-        guard !isObserving else { return }
-        DistributedNotificationCenter.default().addObserver(
-            self,
-            selector: #selector(handleNotification(_:)),
-            name: Self.notificationName,
-            object: nil
-        )
-        isObserving = true
-    }
-
-    func stop() {
-        guard isObserving else { return }
-        DistributedNotificationCenter.default().removeObserver(
-            self,
-            name: Self.notificationName,
-            object: nil
-        )
-        isObserving = false
-        handler = nil
-    }
-
-    @objc private func handleNotification(_ notification: Notification) {
-        handler?(notification)
-    }
-
-    deinit {
-        stop()
     }
 }
