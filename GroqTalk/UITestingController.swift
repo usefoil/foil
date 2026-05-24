@@ -59,6 +59,8 @@ final class UITestingController {
         Notification.Name("com.neonwatty.GroqTalk.uiTests.historyCommand")
     static let onboardingCommandNotification =
         Notification.Name("com.neonwatty.GroqTalk.uiTests.onboardingCommand")
+    static let appCommandNotification =
+        Notification.Name("com.neonwatty.GroqTalk.uiTests.appCommand")
     static var stateSnapshotURL: URL {
         if let path = ProcessInfo.processInfo.environment["GROQTALK_UITEST_STATE_PATH"], !path.isEmpty {
             return URL(fileURLWithPath: path)
@@ -213,6 +215,12 @@ final class UITestingController {
             appState.updateAccessibilityState(isTrusted: true)
             appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
             appState.apiKeyState = .ready
+        }
+
+        if args.contains("--seed-setup-failures") {
+            appState.updateAccessibilityState(isTrusted: false)
+            appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
+            appState.apiKeyState = .needsAction("Add Groq API key")
         }
 
         if args.contains("--seed-history") {
@@ -698,6 +706,10 @@ final class UITestingController {
             handleOnboardingCommandForUITest(
                 Notification(name: Self.onboardingCommandNotification, object: nil, userInfo: userInfo)
             )
+        } else if notificationName == Self.appCommandNotification.rawValue {
+            handleAppCommandForUITest(
+                Notification(name: Self.appCommandNotification, object: nil, userInfo: userInfo)
+            )
         }
     }
 
@@ -743,6 +755,23 @@ final class UITestingController {
             object: nil,
             userInfo: notification.userInfo
         )
+    }
+
+    @objc private func handleAppCommandForUITest(_ notification: Notification) {
+        let command = notification.userInfo?["command"] as? String ?? "<missing>"
+        DiagnosticLog.write("UITesting: received app command=\(command)")
+        switch command {
+        case "selectLocalProvider":
+            appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        case "testProviderConnection":
+            Task { @MainActor in
+                await appState.testSelectedProviderConnection()
+            }
+        case "cancelTranscription":
+            onCancelTranscription()
+        default:
+            break
+        }
     }
 
     func writeStateSnapshot() {
