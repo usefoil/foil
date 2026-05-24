@@ -82,7 +82,7 @@ final class GroqTalkUITests: XCTestCase {
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
         let state = waitForUITestStateSnapshot { $0.sessionTitle == "Setup needed" }
-        XCTAssertEqual(state?.accessibilityText, "Not checked")
+        XCTAssertEqual(state?.accessibilityText, "Enable Accessibility")
         XCTAssertEqual(state?.microphoneText, "Allow microphone access")
         XCTAssertTrue(app.staticTexts["Enable Accessibility before recording."].waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Allow microphone access before recording."].waitForExistence(timeout: 2), app.debugDescription)
