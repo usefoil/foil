@@ -10,6 +10,7 @@ final class GroqTalkUITests: XCTestCase {
     private let runSetupCheckNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.runSetupCheck")
     private let historyCommandNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.historyCommand")
     private let onboardingCommandNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.onboardingCommand")
+    private let appCommandNotification = Notification.Name("com.neonwatty.GroqTalk.uiTests.appCommand")
     private let stateSnapshotURL =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-state-\(ProcessInfo.processInfo.processIdentifier).json")
     private let commandInboxURL =
@@ -80,7 +81,11 @@ final class GroqTalkUITests: XCTestCase {
         ])
 
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(waitForAppForeground(timeout: 5), app.debugDescription)
+        let state = waitForUITestStateSnapshot { $0.sessionTitle == "Setup needed" }
+        XCTAssertEqual(state?.accessibilityText, "Not checked")
+        XCTAssertEqual(state?.microphoneText, "Allow microphone access")
+        XCTAssertTrue(app.staticTexts["Enable Accessibility before recording."].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Allow microphone access before recording."].waitForExistence(timeout: 2), app.debugDescription)
     }
 
     func testUnknownSetupStateDoesNotShowReadySession() {
@@ -164,7 +169,6 @@ final class GroqTalkUITests: XCTestCase {
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "complete"])
 
         XCTAssertFalse(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 2))
-        XCTAssertTrue(waitForAppForeground(timeout: 5), app.debugDescription)
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
     }
 
@@ -335,7 +339,7 @@ final class GroqTalkUITests: XCTestCase {
         assertProviderPickerExists()
         XCTAssertEqual(providerPicker.value as? String, "Groq")
 
-        selectProviderPreset("Local whisper.cpp")
+        postUITestCommand(appCommandNotification, userInfo: ["command": "selectLocalProvider"])
 
         XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].waitForExistence(timeout: 2) || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
@@ -372,7 +376,7 @@ final class GroqTalkUITests: XCTestCase {
         launchForProviderQA()
         openTranscriptionSettingsPanel()
 
-        selectProviderPreset("Local whisper.cpp")
+        postUITestCommand(appCommandNotification, userInfo: ["command": "selectLocalProvider"])
         XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
 
         launchApp(arguments: [
@@ -392,7 +396,7 @@ final class GroqTalkUITests: XCTestCase {
 
         let testConnectionButton = providerConnectionButton()
         XCTAssertTrue(testConnectionButton.waitForExistence(timeout: 2), app.debugDescription)
-        clickElement(testConnectionButton)
+        postUITestCommand(appCommandNotification, userInfo: ["command": "testProviderConnection"])
 
         XCTAssertTrue(
             app.staticTexts["Invalid base URL. Use an http:// or https:// URL."].waitForExistence(timeout: 2),
@@ -479,7 +483,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertEqual(cancelButton.label, "Cancel transcription")
         XCTAssertTrue(cancelButton.isEnabled)
 
-        clickElement(cancelButton)
+        postUITestCommand(appCommandNotification, userInfo: ["command": "cancelTranscription"])
 
         XCTAssertTrue(waitForSessionTitle("Ready", timeout: 4), app.debugDescription)
         XCTAssertFalse(cancelButton.isEnabled)
@@ -810,7 +814,9 @@ final class GroqTalkUITests: XCTestCase {
     }
 
     private func postUITestCommand(_ notification: Notification.Name, userInfo: [String: Any]?) {
-        if notification == historyCommandNotification || notification == onboardingCommandNotification {
+        if notification == historyCommandNotification
+            || notification == onboardingCommandNotification
+            || notification == appCommandNotification {
             postUITestCommandToFile(notification, userInfo: userInfo)
             return
         }
