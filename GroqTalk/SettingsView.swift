@@ -56,6 +56,8 @@ struct SettingsView: View {
     @Bindable var appState: AppState
     var history: TranscriptionHistory
     var onHotkeyChanged: (() -> Void)?
+    var onCopySetupReport: (() -> Void)?
+    var onExportDiagnostics: (() -> Void)?
 
     @Environment(\.openWindow) private var openWindow
     @State private var selectedTab: Tab
@@ -70,11 +72,15 @@ struct SettingsView: View {
         appState: AppState,
         history: TranscriptionHistory,
         initialTab: Tab = .general,
-        onHotkeyChanged: (() -> Void)? = nil
+        onHotkeyChanged: (() -> Void)? = nil,
+        onCopySetupReport: (() -> Void)? = nil,
+        onExportDiagnostics: (() -> Void)? = nil
     ) {
         self.appState = appState
         self.history = history
         self.onHotkeyChanged = onHotkeyChanged
+        self.onCopySetupReport = onCopySetupReport
+        self.onExportDiagnostics = onExportDiagnostics
         _selectedTab = State(initialValue: initialTab)
     }
 
@@ -484,6 +490,14 @@ struct SettingsView: View {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
+    private func copySetupReport() {
+        if let onCopySetupReport {
+            onCopySetupReport()
+        } else {
+            copyToPasteboard(DiagnosticLog.setupReportText(appState: appState))
+        }
+    }
+
     private var apiKeyStatusLabel: String {
         if appState.hasApiKey { return "Saved" }
         return appState.selectedTranscriptionProvider.requiresAPIKey ? "Missing" : "Optional"
@@ -566,6 +580,23 @@ struct SettingsView: View {
                     openAppDataFolder()
                 }
                 .accessibilityIdentifier("settings.openDataFolderButton")
+            }
+
+            Section("Support") {
+                Button {
+                    copySetupReport()
+                } label: {
+                    Label("Copy Setup Report", systemImage: "doc.on.clipboard")
+                }
+                .accessibilityIdentifier("settings.copySetupReportButton")
+
+                Button {
+                    onExportDiagnostics?()
+                } label: {
+                    Label("Export Diagnostics...", systemImage: "square.and.arrow.up")
+                }
+                .accessibilityIdentifier("settings.exportDiagnosticsButton")
+                .disabled(onExportDiagnostics == nil)
             }
 
             Section("Clear Local Data") {
