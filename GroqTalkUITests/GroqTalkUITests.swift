@@ -13,7 +13,8 @@ final class GroqTalkUITests: XCTestCase {
     private let stateSnapshotURL =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-state-\(ProcessInfo.processInfo.processIdentifier).json")
     private let commandInboxURL =
-        URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-command-\(ProcessInfo.processInfo.processIdentifier).json")
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("groqtalk-ui-tests-command-\(ProcessInfo.processInfo.processIdentifier).json")
     private let openedURLPath =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("groqtalk-ui-tests-opened-url-\(ProcessInfo.processInfo.processIdentifier).txt")
 
