@@ -1,6 +1,6 @@
 {
   "name": "groqtalk",
-  "version": "1.0.0",
+  "version": "1.12.1",
   "private": true,
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",

@@ -428,7 +428,7 @@ Release dry-run checklist:
 7. Confirm required repository secrets exist:
    `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_TEAM_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`.
 8. Confirm the release runner image has the configured Xcode path from `deploy.yml` or update the workflow before release.
-9. Run the `Release` workflow manually with the version number without the leading `v`.
+9. Run the `Release` workflow manually with the version number without the leading `v` and the release build number.
 10. After the workflow completes, download the release DMG and verify locally:
    `spctl -a -vv -t open --context context:primary-signature GroqTalk-VERSION-macos.dmg`
 11. Mount the DMG, copy the app to Applications, launch it, and complete a fresh setup smoke test for Accessibility, Microphone, API key, and one transcription.

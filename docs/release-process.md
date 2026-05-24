@@ -27,6 +27,6 @@ git push origin v1.12.1
 
 ## Build and Publish
 
-Run the `Release` workflow manually with `version` set to `1.12.1`.
+Run the `Release` workflow manually with `version` set to `1.12.1` and `build` set to `33`.
 
 The workflow checks out `v1.12.1`, creates the GitHub Release if it does not already exist, builds and notarizes the DMG, uploads the DMG and checksum, generates `appcast.xml`, and attempts the Homebrew cask update.
