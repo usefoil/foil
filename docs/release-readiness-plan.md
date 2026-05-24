@@ -395,8 +395,8 @@ Scope:
 
 Tasks:
 
-- Verify semantic-release config and output behavior.
-- Confirm release branch is `main` for public beta release automation.
+- Verify the manual tag-driven release workflow.
+- Confirm release-prep changes go through PR and merge queue before tagging.
 - Verify DMG build, signing, notarization, and GitHub upload.
 - Verify Homebrew cask/tap update path.
 - Add a dry-run release checklist.
@@ -408,32 +408,30 @@ Acceptance:
 
 Current local verification notes:
 
-- `package.json` includes `semantic-release` and `@semantic-release/exec`.
-- `.releaserc.json` publishes from `main` and writes `new_release_published=true` plus `new_release_version=${nextRelease.version}` to `$GITHUB_OUTPUT` through `@semantic-release/exec`.
-- `.github/workflows/deploy.yml` also triggers release automation from `main`, so branch configuration is internally consistent for public beta releases.
-- Future release-branch changes must update both `.releaserc.json` and `.github/workflows/deploy.yml` in the same change. Changing only one side will either prevent releases or prevent the DMG job from receiving the expected semantic-release output.
-- The automatic DMG job checks out `v${new_release_version}`, imports the Developer ID certificate, archives with `MARKETING_VERSION` set to the release version, exports with `ExportOptions.plist`, verifies bundle version/build, creates a DMG, signs it, notarizes it with App Store Connect API-key credentials, staples it, validates Gatekeeper/stapler status, and uploads `GroqTalk-${VERSION}-macos.dmg` to the GitHub release.
-- The manual DMG job builds an existing `v${inputs.version}` release and uploads the same DMG name. Use this when semantic-release already created the release but packaging needs to be re-run.
+- Semantic-release is deprecated for this repo because branch rules require pull requests, merge queue, and `CI Gate`; release automation must not push generated commits directly to `main`.
+- `scripts/prepare-release.sh` updates app version/build metadata, `package.json`, `package-lock.json`, and `CHANGELOG.md` for a release-prep PR.
+- `.github/workflows/deploy.yml` is manually dispatched with a version input and checks out `v${version}`. It does not run on every `main` push.
+- The release workflow creates the GitHub Release if it does not already exist, imports the Developer ID certificate, archives with `MARKETING_VERSION` set to the release version, exports with `ExportOptions.plist`, verifies bundle version/build, creates a DMG, signs it, notarizes it with App Store Connect API-key credentials, staples it, validates Gatekeeper/stapler status, and uploads `GroqTalk-${VERSION}-macos.dmg` plus checksum to the GitHub release.
 - Homebrew is verified for the current public beta evidence in `docs/release-qa-log.md`: `mean-weasel/homebrew-groqtalk` points at the uploaded `v1.12.0` DMG, the cask SHA-256 matches the release asset digest, and clean cask install/launch/signature smoke checks passed. Re-verify this path for each new release.
 
 Release dry-run checklist:
 
-1. Confirm working tree is clean except intentional release changes:
+1. Draft release notes in a Markdown file.
+2. Prepare the release PR:
+   `make prepare-release VERSION=1.12.1 BUILD=33 NOTES=/path/to/release-notes.md`
+3. Confirm working tree contains only intentional release-prep changes:
    `git status --short`
-2. Install release tooling:
-   `npm ci`
-3. Validate local semantic-release configuration:
-   `npx semantic-release --dry-run --no-ci`
-4. Confirm the dry run identifies the intended branch, next version, release notes, and GitHub release action without publishing.
-5. Confirm `.releaserc.json` `branches` and `.github/workflows/deploy.yml` `on.push.branches` match the intended release branch.
-6. Confirm required repository secrets exist:
+4. Review `CHANGELOG.md`, `package.json`, `package-lock.json`, and `GroqTalk.xcodeproj/project.pbxproj`.
+5. Open the release-prep PR and merge it through the merge queue after CI is green.
+6. Tag the merged `main` commit:
+   `git tag v1.12.1 && git push origin v1.12.1`
+7. Confirm required repository secrets exist:
    `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_TEAM_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`.
-7. Confirm the release runner image has the configured Xcode path from `deploy.yml` or update the workflow before release.
-8. For an existing semantic-release tag, run the manual `Build DMG for Existing Release` workflow with the version number without the leading `v`.
-   Manual dispatch must not run semantic-release; it should only rebuild the existing release DMG.
-9. After the workflow completes, download the release DMG and verify locally:
+8. Confirm the release runner image has the configured Xcode path from `deploy.yml` or update the workflow before release.
+9. Run the `Release` workflow manually with the version number without the leading `v`.
+10. After the workflow completes, download the release DMG and verify locally:
    `spctl -a -vv -t open --context context:primary-signature GroqTalk-VERSION-macos.dmg`
-10. Mount the DMG, copy the app to Applications, launch it, and complete a fresh setup smoke test for Accessibility, Microphone, API key, and one transcription.
+11. Mount the DMG, copy the app to Applications, launch it, and complete a fresh setup smoke test for Accessibility, Microphone, API key, and one transcription.
 
 Homebrew/DMG verification path:
 

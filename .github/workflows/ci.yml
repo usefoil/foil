@@ -41,7 +41,6 @@ jobs:
               - 'GroqTalk.xcodeproj/**'
               - 'project.yml'
               - '.github/**'
-              - '.releaserc.json'
               - 'ExportOptions.plist'
               - 'Makefile'
               - 'package.json'

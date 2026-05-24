@@ -1,130 +1,52 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       version:
-        description: Existing release version to build, without the leading v
+        description: Release version to build, without the leading v
         required: true
         type: string
 
 permissions:
   contents: write
-  issues: write
-  pull-requests: write
 
 jobs:
-  release:
-    name: Semantic Release
-    if: github.event_name != 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    outputs:
-      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run semantic release
-        id: semantic
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          npx semantic-release
-          if ! grep -q '^new_release_published=true$' "$GITHUB_OUTPUT"; then
-            echo "new_release_published=false" >> "$GITHUB_OUTPUT"
-          fi
-
   build-dmg:
-    name: Build DMG
+    name: Build DMG for Tagged Release
     runs-on: macos-15
     timeout-minutes: 30
-    needs: [release]
-    if: needs.release.outputs.new_release_published == 'true'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          ref: v${{ needs.release.outputs.new_release_version }}
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
-
-      - name: Import signing certificate
-        env:
-          DEVELOPER_ID_CERT_BASE64: ${{ secrets.DEVELOPER_ID_CERT_BASE64 }}
-          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
-        run: .github/scripts/import-cert.sh
-
-      - name: Build, notarize, and upload DMG
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.release.outputs.new_release_version }}
-        run: .github/scripts/build-release-dmg.sh
-
-      - name: Validate notarization
-        env:
-          VERSION: ${{ needs.release.outputs.new_release_version }}
+      - name: Validate version input
         run: |
-          DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
-          echo "Validating notarization for: $DMG_PATH"
-          spctl --assess --type open --context context:primary-signature -v "$DMG_PATH"
-          if [ $? -ne 0 ]; then
-            echo "Notarization validation FAILED: spctl rejected the DMG" >&2
+          if ! printf '%s' "${{ inputs.version }}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "Version must be a semantic version without a leading v, for example 1.12.1" >&2
             exit 1
           fi
-          echo "Notarization validation passed."
 
-      - name: Generate and upload appcast.xml
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.release.outputs.new_release_version }}
-        run: .github/scripts/generate-appcast.sh
-
-      - name: Update Homebrew cask
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.release.outputs.new_release_version }}
-        run: .github/scripts/update-homebrew-cask.sh
-
-      - name: Cleanup keychain
-        if: always()
-        run: |
-          if [ -n "${KEYCHAIN_PATH:-}" ]; then
-            security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
-          fi
-
-  build-dmg-manual:
-    name: Build DMG for Existing Release
-    runs-on: macos-15
-    timeout-minutes: 30
-    if: github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Checkout code
+      - name: Checkout tagged release
         uses: actions/checkout@v5
         with:
           ref: v${{ inputs.version }}
+          fetch-depth: 0
+
+      - name: Verify tag points at this checkout
+        run: |
+          tag="v${{ inputs.version }}"
+          git fetch --force --tags
+          tag_sha="$(git rev-list -n 1 "$tag")"
+          head_sha="$(git rev-parse HEAD)"
+          if [ "$tag_sha" != "$head_sha" ]; then
+            echo "Checked out $head_sha, but $tag points at $tag_sha" >&2
+            exit 1
+          fi
+
+      - name: Ensure GitHub release exists
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: .github/scripts/ensure-github-release.sh
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
@@ -152,10 +74,6 @@ jobs:
           DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
           echo "Validating notarization for: $DMG_PATH"
           spctl --assess --type open --context context:primary-signature -v "$DMG_PATH"
-          if [ $? -ne 0 ]; then
-            echo "Notarization validation FAILED: spctl rejected the DMG" >&2
-            exit 1
-          fi
           echo "Notarization validation passed."
 
       - name: Generate and upload appcast.xml

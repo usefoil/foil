@@ -23,13 +23,20 @@ endif
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 
-.PHONY: setup-local-signing setup-release-secrets enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
 
 setup-release-secrets:
 	scripts/set-release-secrets.sh
+
+prepare-release:
+	@if [ -z "$(VERSION)" ] || [ -z "$(BUILD)" ] || [ -z "$(NOTES)" ]; then \
+		echo "Usage: make prepare-release VERSION=1.12.1 BUILD=33 NOTES=/path/to/release-notes.md" >&2; \
+		exit 2; \
+	fi
+	scripts/prepare-release.sh "$(VERSION)" "$(BUILD)" "$(NOTES)"
 
 enable-xctest-developer-mode:
 	sudo DevToolsSecurity -enable
