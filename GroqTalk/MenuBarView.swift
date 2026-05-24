@@ -19,6 +19,7 @@ struct MenuBarView: View {
     var onOpenMicrophone: (() -> Void)?
     var onCheckMicrophone: (() -> Void)?
     var onRunSetupCheck: (() -> Void)?
+    var onCopySetupReport: (() -> Void)?
     var onSimulateSuccess: (() -> Void)?
     var onSimulateFailure: (() -> Void)?
 
@@ -116,6 +117,15 @@ struct MenuBarView: View {
             .accessibilityLabel("Help")
             .accessibilityIdentifier("menu.helpButton")
             .help("Open troubleshooting")
+
+            Button {
+                copySetupReport()
+            } label: {
+                Image(systemName: "doc.on.clipboard")
+            }
+            .accessibilityLabel("Copy Setup Report")
+            .accessibilityIdentifier("menu.copySetupReportButton")
+            .help("Copy Setup Report")
 
             Spacer()
 
@@ -715,6 +725,14 @@ struct MenuBarView: View {
     private func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func copySetupReport() {
+        if let onCopySetupReport {
+            onCopySetupReport()
+        } else {
+            copy(DiagnosticLog.setupReportText(appState: appState))
+        }
     }
 
     private func openTroubleshooting() {

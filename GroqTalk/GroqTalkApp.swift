@@ -29,7 +29,8 @@ struct GroqTalkApp: App {
                 onOpenAccessibility: { [weak appDelegate] in appDelegate?.openAccessibilitySettings() },
                 onOpenMicrophone: { [weak appDelegate] in appDelegate?.openMicrophoneSettings() },
                 onCheckMicrophone: { [weak appDelegate] in appDelegate?.checkMicrophonePermission() },
-                onRunSetupCheck: { [weak appDelegate] in appDelegate?.runSetupCheck() }
+                onRunSetupCheck: { [weak appDelegate] in appDelegate?.runSetupCheck() },
+                onCopySetupReport: { [weak appDelegate] in appDelegate?.copySetupReportToClipboard() }
             )
         } label: {
             appDelegate.menuBarLabel
@@ -65,11 +66,18 @@ struct GroqTalkApp: App {
             SettingsView(
                 appState: appDelegate.appState,
                 history: appDelegate.history,
-                onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() }
+                onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
+                onCopySetupReport: { [weak appDelegate] in appDelegate?.copySetupReportToClipboard() },
+                onExportDiagnostics: { [weak appDelegate] in appDelegate?.exportDiagnostics() }
             )
         }
         .commands {
             CommandGroup(after: .help) {
+                Button("Copy Setup Report") {
+                    appDelegate.copySetupReportToClipboard()
+                }
+                .keyboardShortcut("c", modifiers: [.command, .option])
+
                 Button("Export Diagnostics...") {
                     appDelegate.exportDiagnostics()
                 }
@@ -288,6 +296,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func copySetupReportToClipboard() {
+        let text = DiagnosticLog.setupReportText(appState: appState)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        appState.feedbackMessage = "Setup report copied"
+        DiagnosticLog.write("setupReport: copiedToClipboard bytes=\(text.utf8.count)")
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         guard !Self.isTestingProcess() else { return }
         refreshSetupHealth()
@@ -367,7 +383,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState: appState,
             history: history,
             initialTab: initialTab,
-            onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() }
+            onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() },
+            onCopySetupReport: { [weak self] in self?.copySetupReportToClipboard() },
+            onExportDiagnostics: { [weak self] in self?.exportDiagnostics() }
         )
 
         let window = NSWindow(

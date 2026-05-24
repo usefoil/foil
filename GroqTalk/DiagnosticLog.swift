@@ -5,6 +5,7 @@ struct DiagnosticAppInfo: Equatable {
     var buildNumber: String
     var macOSVersion: String
     var architecture: String
+    var bundlePath: String
 
     static var current: DiagnosticAppInfo {
         let bundle = Bundle.main
@@ -12,7 +13,8 @@ struct DiagnosticAppInfo: Equatable {
             appVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
             buildNumber: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
             macOSVersion: ProcessInfo.processInfo.operatingSystemVersionString,
-            architecture: currentArchitecture
+            architecture: currentArchitecture,
+            bundlePath: bundle.bundlePath
         )
     }
 
@@ -88,6 +90,7 @@ enum DiagnosticLog {
             "Build: \(appInfo.buildNumber)",
             "macOS: \(appInfo.macOSVersion)",
             "Architecture: \(appInfo.architecture)",
+            "Bundle Path: \(redacted(appInfo.bundlePath))",
             "",
             "Recent Logs:",
             lines.isEmpty ? "(no diagnostic log entries)" : lines.joined(separator: "\n")
@@ -129,6 +132,7 @@ enum DiagnosticLog {
             "Build: \(appInfo.buildNumber)",
             "macOS: \(appInfo.macOSVersion)",
             "Architecture: \(appInfo.architecture)",
+            "Bundle Path: \(redacted(appInfo.bundlePath))",
             "",
             "Setup State:",
             setupSummary.joined(separator: "\n"),
@@ -137,6 +141,71 @@ enum DiagnosticLog {
             preferenceSummary.joined(separator: "\n"),
             "",
             "Recent Logs:",
+            lines.isEmpty ? "(no diagnostic log entries)" : lines.joined(separator: "\n")
+        ].joined(separator: "\n")
+    }
+
+    @MainActor
+    static func setupReportText(
+        appState: AppState,
+        appInfo: DiagnosticAppInfo = .current,
+        recentLineLimit: Int = 80
+    ) -> String {
+        let generatedAt = formatter.string(from: Date())
+        let provider = appState.selectedTranscriptionProvider
+        let preset = appState.selectedTranscriptionProviderPreset
+        let lines = recentLines(limit: recentLineLimit)
+        let lastIssue = [
+            diagnosticIssueDescription(for: appState.status),
+            diagnosticIssueDescription(for: appState.setupCheckState),
+            diagnosticIssueDescription(for: appState.providerConnectionTestState)
+        ].compactMap { $0 }.first ?? "None recorded"
+
+        return [
+            "# GroqTalk Setup Report",
+            "",
+            "- Generated: \(generatedAt)",
+            "- App Version: \(appInfo.appVersion) (\(appInfo.buildNumber))",
+            "- macOS: \(appInfo.macOSVersion)",
+            "- Architecture: \(appInfo.architecture)",
+            "- Bundle Path: \(redacted(appInfo.bundlePath))",
+            "",
+            "## Provider",
+            "",
+            "- Selected Provider: \(provider.displayName)",
+            "- Provider ID: \(provider.id.rawValue)",
+            "- Provider Preset: \(preset.id.rawValue)",
+            "- Base URL: \(redacted(provider.baseURL.absoluteString))",
+            "- Transcription Model: \(provider.transcriptionModel)",
+            "- API Key Required: \(provider.requiresAPIKey ? "yes" : "no")",
+            "- API Key Stored: \(appState.hasApiKey ? "yes" : "no")",
+            "- Local Model Path: \(localModelPathDescription(for: appState))",
+            "",
+            "## Setup State",
+            "",
+            "- App Status: \(diagnosticDescription(for: appState.status))",
+            "- Accessibility: \(diagnosticDescription(for: appState.accessibilityState))",
+            "- Microphone: \(diagnosticDescription(for: appState.microphoneState))",
+            "- Input Monitoring: not directly detectable by GroqTalk; check macOS Privacy & Security if hotkeys do not arrive.",
+            "- API Key State: \(diagnosticDescription(for: appState.apiKeyState))",
+            "- Setup Check: \(diagnosticDescription(for: appState.setupCheckState))",
+            "- Provider Connection Test: \(diagnosticDescription(for: appState.providerConnectionTestState))",
+            "- Last Setup/Transcription Issue: \(lastIssue)",
+            "",
+            "## Recording And Paste",
+            "",
+            "- Recording Mode: \(appState.recordingMode.rawValue)",
+            "- Hotkey: \(appState.hotkeyChoice.label)",
+            "- Audio Format: \(appState.selectedAudioFormat.rawValue)",
+            "- Input Device UID: \(redacted(appState.selectedInputDeviceUID ?? "System Default"))",
+            "- Transcript Processing: \(appState.effectiveTranscriptProcessingMode.rawValue)",
+            "- Cleanup Model: \(appState.transcriptCleanupModel)",
+            "- Async Paste: \(appState.asyncPasteEnabled ? "enabled" : "disabled")",
+            "- Keep Final Text On Clipboard: \(appState.keepOnClipboard ? "enabled" : "disabled")",
+            "- Floating Status: \(appState.shouldShowFloatingStatus ? "enabled" : "disabled")",
+            "",
+            "## Recent Diagnostics",
+            "",
             lines.isEmpty ? "(no diagnostic log entries)" : lines.joined(separator: "\n")
         ].joined(separator: "\n")
     }
@@ -245,8 +314,8 @@ enum DiagnosticLog {
             return "recording"
         case .transcribing:
             return "transcribing"
-        case .error:
-            return "error"
+        case .error(let message):
+            return "error(\(redacted(message)))"
         }
     }
 
@@ -271,6 +340,52 @@ enum DiagnosticLog {
             return "passed"
         case .failed(let message):
             return "failed(\(redacted(message)))"
+        }
+    }
+
+    private static func diagnosticDescription(for state: AppState.ProviderConnectionTestState) -> String {
+        switch state {
+        case .idle:
+            return "idle"
+        case .running:
+            return "running"
+        case .succeeded(let message):
+            return "succeeded(\(redacted(message)))"
+        case .warning(let message):
+            return "warning(\(redacted(message)))"
+        case .failed(let message):
+            return "failed(\(redacted(message)))"
+        }
+    }
+
+    @MainActor
+    private static func localModelPathDescription(for appState: AppState) -> String {
+        guard appState.selectedTranscriptionProviderPresetID == .localWhisperCPP else {
+            return "Not applicable"
+        }
+        return "Not stored by GroqTalk; whisper.cpp model files are managed by the local server."
+    }
+
+    private static func diagnosticIssueDescription(for status: AppState.Status) -> String? {
+        if case .error(let message) = status {
+            return redacted(message)
+        }
+        return nil
+    }
+
+    private static func diagnosticIssueDescription(for state: AppState.SetupCheckState) -> String? {
+        if case .failed(let message) = state {
+            return redacted(message)
+        }
+        return nil
+    }
+
+    private static func diagnosticIssueDescription(for state: AppState.ProviderConnectionTestState) -> String? {
+        switch state {
+        case .failed(let message), .warning(let message):
+            return redacted(message)
+        case .idle, .running, .succeeded:
+            return nil
         }
     }
 }

@@ -199,6 +199,12 @@ not return usable text. GroqTalk uses the raw transcript and keeps going.
 avoid runaway memory use and Groq request-size failures. Try a shorter
 recording.
 
+**Copy setup report:** Use **Copy Setup Report** from the menu bar app or
+Settings → Storage → Support. The report is copied as Markdown with app version,
+provider configuration, permission states, setup status, and recent redacted
+diagnostics. It does not include API keys, transcript text, audio, or clipboard
+contents.
+
 **Export diagnostics:** Use the app Help menu command **Export Diagnostics...**
 or press Command-Option-D while GroqTalk is active. Diagnostics are written to a
 file you choose, with API keys, transcript text, audio, and clipboard contents
