@@ -740,7 +740,14 @@ final class GroqTalkUITests: XCTestCase {
             _ = app.wait(for: .notRunning, timeout: 3)
         }
         runQuietProcess("/usr/bin/pkill", arguments: ["-x", "GroqTalk"])
-        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        let deadline = Date().addingTimeInterval(4)
+        while Date() < deadline {
+            if !processExists(named: "GroqTalk") {
+                break
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.75))
     }
 
     @discardableResult
@@ -768,6 +775,21 @@ final class GroqTalkUITests: XCTestCase {
         process.standardError = FileHandle.nullDevice
         try? process.run()
         process.waitUntilExit()
+    }
+
+    private func processExists(named processName: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        process.arguments = ["-x", processName]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
     }
 
     private func dismissSystemSetupAssistant() {
