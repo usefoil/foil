@@ -85,7 +85,7 @@ final class GroqTalkUITests: XCTestCase {
         XCTAssertEqual(state?.accessibilityText, "Enable Accessibility")
         XCTAssertEqual(state?.microphoneText, "Allow microphone access")
         XCTAssertTrue(app.staticTexts["Enable Accessibility before recording."].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Allow microphone access before recording."].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Open Microphone privacy").waitForExistence(timeout: 2), app.debugDescription)
     }
 
     func testUnknownSetupStateDoesNotShowReadySession() {
