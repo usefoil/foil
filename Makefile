@@ -22,6 +22,8 @@ endif
 
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
+APP_MARKETING_VERSION := $(shell sed -n 's/.*MARKETING_VERSION = \([^;]*\);.*/\1/p' GroqTalk.xcodeproj/project.pbxproj | head -1)
+APP_BUILD_VERSION := $(shell sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/\1/p' GroqTalk.xcodeproj/project.pbxproj | head -1)
 
 .PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
@@ -167,7 +169,7 @@ prepare-local-permissions-qa-check:
 	scripts/prepare-local-permissions-qa.sh --check
 
 guide-installed-permissions-qa:
-	EXPECTED_VERSION=1.12.0 EXPECTED_BUILD=42 scripts/prepare-local-permissions-qa.sh --guide-installed
+	EXPECTED_VERSION="$(APP_MARKETING_VERSION)" EXPECTED_BUILD="$(APP_BUILD_VERSION)" scripts/prepare-local-permissions-qa.sh --guide-installed
 
 test-local-permissions-qa-script:
 	scripts/test-prepare-local-permissions-qa.sh
