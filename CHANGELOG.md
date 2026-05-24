@@ -1,3 +1,21 @@
+## [1.12.1](https://github.com/mean-weasel/groqtalk/compare/v1.12.0...v1.12.1) (2026-05-24)
+
+### Bug Fixes
+
+- Stabilized the full macOS UI diagnostics suite for open-beta readiness.
+- Replaced fragile UI-test interaction paths with deterministic app-side command hooks where needed.
+- Hardened sequential UI test launches against stale GroqTalk processes.
+
+### Release Infrastructure
+
+- Replaced semantic-release with an intentional manual tag-driven release workflow compatible with PR and merge queue rules.
+- Added release-prep tooling and documentation for version, build, changelog, DMG, appcast, and Homebrew release steps.
+
+### Local Models
+
+- Improved Local whisper.cpp setup coverage, persistence checks, and in-app setup guidance.
+
+
 # [1.12.0](https://github.com/mean-weasel/groqtalk/compare/v1.11.0...v1.12.0) (2026-05-20)
 
 

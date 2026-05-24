@@ -7,6 +7,10 @@ on:
         description: Release version to build, without the leading v
         required: true
         type: string
+      build:
+        description: Release build number
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -22,6 +26,10 @@ jobs:
         run: |
           if ! printf '%s' "${{ inputs.version }}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
             echo "Version must be a semantic version without a leading v, for example 1.12.1" >&2
+            exit 1
+          fi
+          if ! printf '%s' "${{ inputs.build }}" | grep -Eq '^[0-9]+$'; then
+            echo "Build must be a positive integer, for example 33" >&2
             exit 1
           fi
 
@@ -65,6 +73,7 @@ jobs:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build }}
         run: .github/scripts/build-release-dmg.sh
 
       - name: Validate notarization
@@ -80,6 +89,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build }}
         run: .github/scripts/generate-appcast.sh
 
       - name: Update Homebrew cask

@@ -9,7 +9,7 @@ set -euo pipefail
 #   RUNNER_TEMP    — temp directory (set by GitHub Actions)
 #
 # Optional:
-#   GITHUB_RUN_NUMBER — used as sparkle:version (build number)
+#   BUILD_NUMBER      — used as sparkle:version (defaults to GITHUB_RUN_NUMBER)
 
 : "${VERSION:?VERSION is required}"
 : "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
@@ -20,7 +20,7 @@ DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
 DMG_FILENAME="GroqTalk-${VERSION}-macos.dmg"
 DMG_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${DMG_FILENAME}"
 FILE_SIZE=$(stat -f%z "$DMG_PATH")
-BUILD_NUMBER="${GITHUB_RUN_NUMBER:-1}"
+BUILD_NUMBER="${BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-1}}"
 PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S +0000")
 APPCAST_PATH="$RUNNER_TEMP/appcast.xml"
 
