@@ -1,13 +1,13 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -o pipefail -c
 
-APP_NAME := GroqTalk
-BUNDLE_ID := com.neonwatty.GroqTalk
-SCHEME := $(APP_NAME)
+APP_NAME := Foil
+BUNDLE_ID := com.neonwatty.Foil
+SCHEME := Foil
 CONFIG := Debug
-LOCAL_SIGN_IDENTITY := GroqTalk Local Code Signing
-LOCAL_SIGN_KEYCHAIN := $(HOME)/Library/Keychains/groqtalk-codesign.keychain-db
-LOCAL_SIGN_KEYCHAIN_PASSWORD ?= groqtalk-local-codesign
+LOCAL_SIGN_IDENTITY := Foil Local Code Signing
+LOCAL_SIGN_KEYCHAIN := $(HOME)/Library/Keychains/foil-codesign.keychain-db
+LOCAL_SIGN_KEYCHAIN_PASSWORD ?= foil-local-codesign
 DEFAULT_SIGN_IDENTITY := $(shell security find-identity -p codesigning "$(LOCAL_SIGN_KEYCHAIN)" 2>/dev/null | grep -q '"$(LOCAL_SIGN_IDENTITY)"' && echo "$(LOCAL_SIGN_IDENTITY)" || echo "-")
 SIGN_IDENTITY ?= $(DEFAULT_SIGN_IDENTITY)
 DEVELOPMENT_TEAM ?=
@@ -22,10 +22,10 @@ endif
 
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
-APP_MARKETING_VERSION := $(shell sed -n 's/.*MARKETING_VERSION = \([^;]*\);.*/\1/p' GroqTalk.xcodeproj/project.pbxproj | head -1)
-APP_BUILD_VERSION := $(shell sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/\1/p' GroqTalk.xcodeproj/project.pbxproj | head -1)
-LIVE_GROQ_TEST_CLASS := GroqTalkTests/LiveGroqIntegrationTests
-DEFAULT_UNIT_TEST_FILTERS := -only-testing:GroqTalkTests -skip-testing:$(LIVE_GROQ_TEST_CLASS)
+APP_MARKETING_VERSION := $(shell sed -n 's/.*MARKETING_VERSION = \([^;]*\);.*/\1/p' Foil.xcodeproj/project.pbxproj | head -1)
+APP_BUILD_VERSION := $(shell sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/\1/p' Foil.xcodeproj/project.pbxproj | head -1)
+LIVE_GROQ_TEST_CLASS := FoilTests/LiveGroqIntegrationTests
+DEFAULT_UNIT_TEST_FILTERS := -only-testing:FoilTests -skip-testing:$(LIVE_GROQ_TEST_CLASS)
 
 .PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
@@ -111,7 +111,7 @@ test-ui:
 	@sleep 3
 	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
 	@tmp=$$(mktemp); \
-	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkUITests >"$$tmp" 2>&1; \
+	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:FoilUITests >"$$tmp" 2>&1; \
 	status=$$?; tail -5 "$$tmp"; \
 	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
 	rm -f "$$tmp"; exit $$status
@@ -128,13 +128,13 @@ test-provider-qa:
 	@tmp=$$(mktemp); \
 	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' \
 		-parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQADefaultsToGroqPreset \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSelectionPersistsAcrossRelaunch \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQACustomProviderPersistsAcrossRelaunch >"$$tmp" 2>&1; \
+		-only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset \
+		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
+		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings \
+		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
+		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSelectionPersistsAcrossRelaunch \
+		-only-testing:FoilUITests/FoilUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus \
+		-only-testing:FoilUITests/FoilUITests/testProviderQACustomProviderPersistsAcrossRelaunch >"$$tmp" 2>&1; \
 	status=$$?; tail -8 "$$tmp"; \
 	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
 	rm -f "$$tmp"; exit $$status
@@ -219,7 +219,7 @@ qa:
 	RUN_LIVE_GROQ_TESTS=0 xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -skip-testing:$(LIVE_GROQ_TEST_CLASS) 2>&1 | grep -E "Executed|TEST (SUCCEEDED|FAILED)"
 	@echo ""
 	@echo "=== Async paste integration test ==="
-	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
+	-@pkill -x $(APP_NAME) 2>/dev/null; pkill -x Foil 2>/dev/null; sleep 0.5
 	swift tests/test_async_paste.swift
 	@echo ""
 	@echo "=== SkyLight background paste test ==="

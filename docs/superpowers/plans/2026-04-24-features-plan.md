@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a language hint picker and a scrollable history popover to the GroqTalk menu bar app.
+**Goal:** Add a language hint picker and a scrollable history popover to the Foil menu bar app.
 
-**Architecture:** A new `Language` enum follows the same pattern as `AudioFormat` — top-level, `CaseIterable`, `Codable`, used across `AppState`, `TranscriptionService`, `MenuBarView`, and `GroqTalkApp`. The history popover is a new `HistoryPopoverView` opened from the menu bar, backed by the existing `TranscriptionHistory` data layer with no schema changes.
+**Architecture:** A new `Language` enum follows the same pattern as `AudioFormat` — top-level, `CaseIterable`, `Codable`, used across `AppState`, `TranscriptionService`, `MenuBarView`, and `FoilApp`. The history popover is a new `HistoryPopoverView` opened from the menu bar, backed by the existing `TranscriptionHistory` data layer with no schema changes.
 
 **Tech Stack:** SwiftUI, AVFAudio, Groq Whisper API (multipart `language` field)
 
@@ -14,30 +14,30 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `GroqTalk/AudioRecorder.swift` | Modify (lines 6-20) | Add `Language` enum below `AudioFormat` |
-| `GroqTalk/AppState.swift` | Modify | Add `selectedLanguage` property |
-| `GroqTalk/TranscriptionService.swift` | Modify | Accept `language` param, conditionally add to multipart body |
-| `GroqTalk/MenuBarView.swift` | Modify | Add Language picker, replace history menu with popover button |
-| `GroqTalk/HistoryPopoverView.swift` | Create | Popover content: search, scrollable list, copy, retry |
-| `GroqTalk/GroqTalkApp.swift` | Modify | Pass language to transcribe calls, wire popover retry |
-| `GroqTalkTests/LanguageTests.swift` | Create | Language enum + multipart body tests |
-| `GroqTalkTests/HistoryPopoverTests.swift` | Create | Popover filtering/interaction tests |
+| `Foil/AudioRecorder.swift` | Modify (lines 6-20) | Add `Language` enum below `AudioFormat` |
+| `Foil/AppState.swift` | Modify | Add `selectedLanguage` property |
+| `Foil/TranscriptionService.swift` | Modify | Accept `language` param, conditionally add to multipart body |
+| `Foil/MenuBarView.swift` | Modify | Add Language picker, replace history menu with popover button |
+| `Foil/HistoryPopoverView.swift` | Create | Popover content: search, scrollable list, copy, retry |
+| `Foil/FoilApp.swift` | Modify | Pass language to transcribe calls, wire popover retry |
+| `FoilTests/LanguageTests.swift` | Create | Language enum + multipart body tests |
+| `FoilTests/HistoryPopoverTests.swift` | Create | Popover filtering/interaction tests |
 
 ---
 
 ### Task 1: Language Enum
 
 **Files:**
-- Modify: `GroqTalk/AudioRecorder.swift` (add enum after `AudioFormat`, line 20)
-- Test: `GroqTalkTests/LanguageTests.swift` (create)
+- Modify: `Foil/AudioRecorder.swift` (add enum after `AudioFormat`, line 20)
+- Test: `FoilTests/LanguageTests.swift` (create)
 
 - [ ] **Step 1: Write the failing tests for Language enum**
 
-Create `GroqTalkTests/LanguageTests.swift`:
+Create `FoilTests/LanguageTests.swift`:
 
 ```swift
 import XCTest
-@testable import GroqTalk
+@testable import Foil
 
 final class LanguageTests: XCTestCase {
     func testLanguageRawValues() {
@@ -77,12 +77,12 @@ final class LanguageTests: XCTestCase {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/LanguageTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/LanguageTests 2>&1 | tail -5`
 Expected: Build failure — `Language` type not found
 
 - [ ] **Step 3: Implement Language enum**
 
-Add to `GroqTalk/AudioRecorder.swift` after the closing brace of `AudioFormat` (after line 20), before `final class AudioRecorder`:
+Add to `Foil/AudioRecorder.swift` after the closing brace of `AudioFormat` (after line 20), before `final class AudioRecorder`:
 
 ```swift
 /// Language hint for Whisper transcription. When not `.auto`, the ISO 639-1
@@ -113,17 +113,17 @@ enum Language: String, CaseIterable, Codable {
 
 - [ ] **Step 4: Add test file to Xcode project**
 
-Add `GroqTalkTests/LanguageTests.swift` to the `GroqTalkTests` target in `GroqTalk.xcodeproj/project.pbxproj` — PBXBuildFile, PBXFileReference, PBXGroup (children of GroqTalkTests), and PBXSourcesBuildPhase sections.
+Add `FoilTests/LanguageTests.swift` to the `FoilTests` target in `Foil.xcodeproj/project.pbxproj` — PBXBuildFile, PBXFileReference, PBXGroup (children of FoilTests), and PBXSourcesBuildPhase sections.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/LanguageTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/LanguageTests 2>&1 | tail -5`
 Expected: 4 tests pass
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add GroqTalk/AudioRecorder.swift GroqTalkTests/LanguageTests.swift GroqTalk.xcodeproj/project.pbxproj
+git add Foil/AudioRecorder.swift FoilTests/LanguageTests.swift Foil.xcodeproj/project.pbxproj
 git commit -m "feat: add Language enum with ISO 639-1 codes and display names"
 ```
 
@@ -132,13 +132,13 @@ git commit -m "feat: add Language enum with ISO 639-1 codes and display names"
 ### Task 2: Language in Multipart Body
 
 **Files:**
-- Modify: `GroqTalk/TranscriptionService.swift:6,37` (add `language` param)
-- Test: `GroqTalkTests/LanguageTests.swift` (add tests)
-- Modify: `GroqTalkTests/TranscriptionServiceTests.swift` (update existing calls)
+- Modify: `Foil/TranscriptionService.swift:6,37` (add `language` param)
+- Test: `FoilTests/LanguageTests.swift` (add tests)
+- Modify: `FoilTests/TranscriptionServiceTests.swift` (update existing calls)
 
 - [ ] **Step 1: Write the failing tests for language in multipart body**
 
-Add to `GroqTalkTests/LanguageTests.swift`:
+Add to `FoilTests/LanguageTests.swift`:
 
 ```swift
 func testMultipartBodyOmitsLanguageWhenAuto() throws {
@@ -196,12 +196,12 @@ func testMultipartBodyLanguageFieldPerLanguage() throws {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/LanguageTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/LanguageTests 2>&1 | tail -5`
 Expected: Build failure — `buildMultipartBody` has no `language` parameter
 
 - [ ] **Step 3: Add language parameter to buildMultipartBody**
 
-In `GroqTalk/TranscriptionService.swift`, change the `buildMultipartBody` signature (line 37) and add the conditional language field:
+In `Foil/TranscriptionService.swift`, change the `buildMultipartBody` signature (line 37) and add the conditional language field:
 
 ```swift
 func buildMultipartBody(audioFileURL: URL, model: String, format: AudioFormat, language: Language = .auto, boundary: String) throws -> Data {
@@ -235,7 +235,7 @@ func buildMultipartBody(audioFileURL: URL, model: String, format: AudioFormat, l
 
 - [ ] **Step 4: Add language parameter to transcribe method**
 
-In `GroqTalk/TranscriptionService.swift`, update the `transcribe` signature (line 6):
+In `Foil/TranscriptionService.swift`, update the `transcribe` signature (line 6):
 
 ```swift
 func transcribe(audioFileURL: URL, apiKey: String, model: String, format: AudioFormat = .wav, language: Language = .auto) async throws -> String {
@@ -251,13 +251,13 @@ request.httpBody = try buildMultipartBody(
 
 - [ ] **Step 5: Run all tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' 2>&1 | grep -E '(Executed|TEST)' | tail -3`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' 2>&1 | grep -E '(Executed|TEST)' | tail -3`
 Expected: All tests pass (existing tests still work because `language` defaults to `.auto`)
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add GroqTalk/TranscriptionService.swift GroqTalkTests/LanguageTests.swift
+git add Foil/TranscriptionService.swift FoilTests/LanguageTests.swift
 git commit -m "feat: add language hint to multipart body and transcribe API"
 ```
 
@@ -266,14 +266,14 @@ git commit -m "feat: add language hint to multipart body and transcribe API"
 ### Task 3: Language in AppState and Menu
 
 **Files:**
-- Modify: `GroqTalk/AppState.swift` (add `selectedLanguage` property)
-- Modify: `GroqTalk/MenuBarView.swift` (add Language picker)
-- Modify: `GroqTalk/GroqTalkApp.swift` (pass language to transcribe calls)
-- Test: `GroqTalkTests/LanguageTests.swift` (add AppState tests)
+- Modify: `Foil/AppState.swift` (add `selectedLanguage` property)
+- Modify: `Foil/MenuBarView.swift` (add Language picker)
+- Modify: `Foil/FoilApp.swift` (pass language to transcribe calls)
+- Test: `FoilTests/LanguageTests.swift` (add AppState tests)
 
 - [ ] **Step 1: Write the failing tests for AppState language property**
 
-Add to `GroqTalkTests/LanguageTests.swift`:
+Add to `FoilTests/LanguageTests.swift`:
 
 ```swift
 @MainActor
@@ -306,12 +306,12 @@ func testAppStateInvalidLanguageFallsBackToAuto() {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/LanguageTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/LanguageTests 2>&1 | tail -5`
 Expected: Build failure — `selectedLanguage` property not found on `AppState`
 
 - [ ] **Step 3: Add selectedLanguage to AppState**
 
-In `GroqTalk/AppState.swift`, add after the `selectedAudioFormat` property (after line 36):
+In `Foil/AppState.swift`, add after the `selectedAudioFormat` property (after line 36):
 
 ```swift
 var selectedLanguage: Language {
@@ -336,7 +336,7 @@ UserDefaults.standard.register(defaults: [
 
 - [ ] **Step 4: Add Language picker to MenuBarView**
 
-In `GroqTalk/MenuBarView.swift`, add after the Audio Format picker (after line 31):
+In `Foil/MenuBarView.swift`, add after the Audio Format picker (after line 31):
 
 ```swift
 Picker("Language", selection: $appState.selectedLanguage) {
@@ -346,9 +346,9 @@ Picker("Language", selection: $appState.selectedLanguage) {
 }
 ```
 
-- [ ] **Step 5: Pass language to transcribe calls in GroqTalkApp**
+- [ ] **Step 5: Pass language to transcribe calls in FoilApp**
 
-In `GroqTalk/GroqTalkApp.swift`, update the transcribe call in `onRecordingStopped` (line 199-204):
+In `Foil/FoilApp.swift`, update the transcribe call in `onRecordingStopped` (line 199-204):
 
 ```swift
 let text = try await self.transcriptionService.transcribe(
@@ -374,13 +374,13 @@ let text = try await transcriptionService.transcribe(
 
 - [ ] **Step 6: Run all tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' 2>&1 | grep -E '(Executed|TEST)' | tail -3`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' 2>&1 | grep -E '(Executed|TEST)' | tail -3`
 Expected: All tests pass
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add GroqTalk/AppState.swift GroqTalk/MenuBarView.swift GroqTalk/GroqTalkApp.swift GroqTalkTests/LanguageTests.swift
+git add Foil/AppState.swift Foil/MenuBarView.swift Foil/FoilApp.swift FoilTests/LanguageTests.swift
 git commit -m "feat: add language picker to menu with UserDefaults persistence"
 ```
 
@@ -389,17 +389,17 @@ git commit -m "feat: add language picker to menu with UserDefaults persistence"
 ### Task 4: History Popover View
 
 **Files:**
-- Create: `GroqTalk/HistoryPopoverView.swift`
-- Modify: `GroqTalk/MenuBarView.swift` (replace history menu with popover trigger)
-- Create: `GroqTalkTests/HistoryPopoverTests.swift`
+- Create: `Foil/HistoryPopoverView.swift`
+- Modify: `Foil/MenuBarView.swift` (replace history menu with popover trigger)
+- Create: `FoilTests/HistoryPopoverTests.swift`
 
 - [ ] **Step 1: Write the failing tests for search filtering**
 
-Create `GroqTalkTests/HistoryPopoverTests.swift`:
+Create `FoilTests/HistoryPopoverTests.swift`:
 
 ```swift
 import XCTest
-@testable import GroqTalk
+@testable import Foil
 
 @MainActor
 final class HistoryPopoverTests: XCTestCase {
@@ -407,7 +407,7 @@ final class HistoryPopoverTests: XCTestCase {
 
     override func setUp() {
         testDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("groqtalk-popover-test-\(UUID().uuidString)")
+            .appendingPathComponent("foil-popover-test-\(UUID().uuidString)")
         try! FileManager.default.createDirectory(at: testDir, withIntermediateDirectories: true)
     }
 
@@ -467,14 +467,14 @@ final class HistoryPopoverTests: XCTestCase {
 
 - [ ] **Step 2: Add test file to Xcode project and verify tests pass**
 
-Add `GroqTalkTests/HistoryPopoverTests.swift` to the `GroqTalkTests` target in `project.pbxproj`.
+Add `FoilTests/HistoryPopoverTests.swift` to the `FoilTests` target in `project.pbxproj`.
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/HistoryPopoverTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/HistoryPopoverTests 2>&1 | tail -5`
 Expected: 4 tests pass (these test the filtering logic, not the view)
 
 - [ ] **Step 3: Create HistoryPopoverView**
 
-Create `GroqTalk/HistoryPopoverView.swift`:
+Create `Foil/HistoryPopoverView.swift`:
 
 ```swift
 import SwiftUI
@@ -599,11 +599,11 @@ struct HistoryPopoverView: View {
 
 - [ ] **Step 4: Add HistoryPopoverView to Xcode project**
 
-Add `GroqTalk/HistoryPopoverView.swift` to the `GroqTalk` target in `project.pbxproj`.
+Add `Foil/HistoryPopoverView.swift` to the `Foil` target in `project.pbxproj`.
 
 - [ ] **Step 5: Replace inline history menu with popover in MenuBarView**
 
-In `GroqTalk/MenuBarView.swift`, replace the `Menu("Recent Transcriptions")` block and the retry button (lines 90-122) with:
+In `Foil/MenuBarView.swift`, replace the `Menu("Recent Transcriptions")` block and the retry button (lines 90-122) with:
 
 ```swift
 Button("Show History...") {
@@ -626,9 +626,9 @@ extension Notification.Name {
 }
 ```
 
-- [ ] **Step 6: Wire popover in GroqTalkApp's AppDelegate**
+- [ ] **Step 6: Wire popover in FoilApp's AppDelegate**
 
-In `GroqTalk/GroqTalkApp.swift`, add popover state and wiring to `AppDelegate`.
+In `Foil/FoilApp.swift`, add popover state and wiring to `AppDelegate`.
 
 Add properties after `private var transcribingTimer: Timer?` (after line 39):
 
@@ -725,18 +725,18 @@ func applicationDidFinishLaunching(_ notification: Notification) {
 
 - [ ] **Step 7: Run all tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' 2>&1 | grep -E '(Executed|TEST)' | tail -3`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' 2>&1 | grep -E '(Executed|TEST)' | tail -3`
 Expected: All tests pass
 
 - [ ] **Step 8: Build and verify the app launches**
 
-Run: `xcodebuild build -scheme GroqTalk -destination 'platform=macOS' 2>&1 | tail -3`
+Run: `xcodebuild build -scheme Foil -destination 'platform=macOS' 2>&1 | tail -3`
 Expected: BUILD SUCCEEDED
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add GroqTalk/HistoryPopoverView.swift GroqTalk/MenuBarView.swift GroqTalk/GroqTalkApp.swift GroqTalkTests/HistoryPopoverTests.swift GroqTalk.xcodeproj/project.pbxproj
+git add Foil/HistoryPopoverView.swift Foil/MenuBarView.swift Foil/FoilApp.swift FoilTests/HistoryPopoverTests.swift Foil.xcodeproj/project.pbxproj
 git commit -m "feat: add history popover with search, copy, and retry"
 ```
 
@@ -745,12 +745,12 @@ git commit -m "feat: add history popover with search, copy, and retry"
 ### Task 5: Add language to AppState tearDown and integration tests
 
 **Files:**
-- Modify: `GroqTalkTests/AppStateTests.swift` (add `language` to tearDown)
-- Modify: `GroqTalkTests/IntegrationTests.swift` (add language parameter test)
+- Modify: `FoilTests/AppStateTests.swift` (add `language` to tearDown)
+- Modify: `FoilTests/IntegrationTests.swift` (add language parameter test)
 
 - [ ] **Step 1: Add language cleanup to AppStateTests tearDown**
 
-In `GroqTalkTests/AppStateTests.swift`, add to `tearDown()` (after line 10):
+In `FoilTests/AppStateTests.swift`, add to `tearDown()` (after line 10):
 
 ```swift
 UserDefaults.standard.removeObject(forKey: "language")
@@ -758,7 +758,7 @@ UserDefaults.standard.removeObject(forKey: "language")
 
 - [ ] **Step 2: Add integration test for language parameter**
 
-Add to `GroqTalkTests/IntegrationTests.swift`, after `testMultipartBodyMatchesEncodedFile`:
+Add to `FoilTests/IntegrationTests.swift`, after `testMultipartBodyMatchesEncodedFile`:
 
 ```swift
 func testMultipartBodyIncludesLanguageField() throws {
@@ -798,12 +798,12 @@ func testMultipartBodyOmitsLanguageForAuto() throws {
 
 - [ ] **Step 3: Run all tests**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' 2>&1 | grep -E '(Executed|TEST)' | tail -3`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' 2>&1 | grep -E '(Executed|TEST)' | tail -3`
 Expected: All tests pass
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add GroqTalkTests/AppStateTests.swift GroqTalkTests/IntegrationTests.swift
+git add FoilTests/AppStateTests.swift FoilTests/IntegrationTests.swift
 git commit -m "test: add language parameter tests to integration and AppState suites"
 ```

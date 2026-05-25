@@ -16,7 +16,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 10
     # Don't run on forks (no access to secrets)
-    if: github.repository == 'mean-weasel/groqtalk'
+    if: github.repository == 'mean-weasel/foil'
 
     steps:
       - name: Checkout code
@@ -52,13 +52,13 @@ jobs:
 
           # Ensure API key is in the keychain for the test host
           security add-generic-password \
-            -s "com.neonwatty.GroqTalk" \
+            -s "com.neonwatty.Foil" \
             -a "groq-api-key" \
             -w "$GROQ_API_KEY" -U 2>/dev/null || true
 
           xcodebuild test \
-            -scheme GroqTalk \
+            -scheme Foil \
             -configuration Debug \
             -destination 'platform=macOS' \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription \
+            -only-testing:FoilUITests/FoilUITests/testE2ETranscription \
             | xcpretty --color && exit ${PIPESTATUS[0]}

@@ -133,11 +133,11 @@ func testTerminal() -> TestResult {
         return TestResult(name: "Terminal", status: .skipped, detail: "Terminal.app not found")
     }
 
-    let text = "GROQTALK_TERMINAL_ASYNC_PASTE"
+    let text = "FOIL_TERMINAL_ASYNC_PASTE"
     _ = osascript("""
     tell application "Terminal"
       activate
-      do script "printf 'GroqTalk Terminal target\\\\n'; read pasted_value; printf '\\\\nPASTED:%s\\\\n' \\"$pasted_value\\"; sleep 3"
+      do script "printf 'Foil Terminal target\\\\n'; read pasted_value; printf '\\\\nPASTED:%s\\\\n' \\"$pasted_value\\"; sleep 3"
     end tell
     """)
     Thread.sleep(forTimeInterval: 1.5)
@@ -172,8 +172,8 @@ func testChrome() -> TestResult {
         return TestResult(name: "Chrome", status: .skipped, detail: "Google Chrome.app not found")
     }
 
-    let text = "GROQTALK_CHROME_ASYNC_PASTE"
-    let htmlURL = FileManager.default.temporaryDirectory.appendingPathComponent("groqtalk-chrome-paste-test.html")
+    let text = "FOIL_CHROME_ASYNC_PASTE"
+    let htmlURL = FileManager.default.temporaryDirectory.appendingPathComponent("foil-chrome-paste-test.html")
     let html = """
     <!doctype html>
     <html><body>

@@ -36,7 +36,7 @@ assert_not_contains() {
 
 make_fixture_app() {
   local app_path="$1"
-  local executable_name="${2:-GroqTalk}"
+  local executable_name="${2:-Foil}"
   local include_microphone="${3:-yes}"
   local create_executable="${4:-yes}"
 
@@ -47,7 +47,7 @@ make_fixture_app() {
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key>
-  <string>com.neonwatty.GroqTalk</string>
+  <string>com.neonwatty.Foil</string>
   <key>CFBundleShortVersionString</key>
   <string>1.12.0</string>
   <key>CFBundleVersion</key>
@@ -59,7 +59,7 @@ PLIST
   if [ "$include_microphone" = "yes" ]; then
     cat >>"$app_path/Contents/Info.plist" <<PLIST
   <key>NSMicrophoneUsageDescription</key>
-  <string>GroqTalk needs microphone access to transcribe speech.</string>
+  <string>Foil needs microphone access to transcribe speech.</string>
 PLIST
   fi
 
@@ -81,7 +81,7 @@ make_shims() {
 
   cat >"$shim_dir/codesign" <<'SH'
 #!/bin/bash
-identifier="${SIGNED_IDENTIFIER:-com.neonwatty.GroqTalk}"
+identifier="${SIGNED_IDENTIFIER:-com.neonwatty.Foil}"
 echo "Identifier=$identifier" >&2
 if [ "${INCLUDE_AUTHORITY:-yes}" = "yes" ]; then
   echo "Authority=Apple Development: Local Test" >&2
@@ -103,7 +103,7 @@ SH
 
   cat >"$shim_dir/ps" <<'SH'
 #!/bin/bash
-echo "${RUNNING_APP_ARGS:-/tmp/fixture/GroqTalk.app/Contents/MacOS/GroqTalk}"
+echo "${RUNNING_APP_ARGS:-/tmp/fixture/Foil.app/Contents/MacOS/Foil}"
 SH
   chmod +x "$shim_dir/ps"
 
@@ -122,7 +122,7 @@ run_check() {
   shift 3
 
   env \
-    APP_NAME="GroqTalk" \
+    APP_NAME="Foil" \
     APP_PATH="$app_path" \
     CODESIGN="$shim_dir/codesign" \
     PGREP="$shim_dir/pgrep" \
@@ -143,7 +143,7 @@ run_guide() {
   shift 3
 
   env \
-    APP_NAME="GroqTalk" \
+    APP_NAME="Foil" \
     APP_PATH="$app_path" \
     EXPECTED_VERSION="1.12.0" \
     EXPECTED_BUILD="42" \
@@ -161,7 +161,7 @@ run_guide() {
 
 expect_success() {
   local name="$1"
-  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local app_path="$TMP_ROOT/$name/Foil.app"
   local shim_dir="$TMP_ROOT/$name/shims"
   local output="$TMP_ROOT/$name/output.txt"
   mkdir -p "$TMP_ROOT/$name"
@@ -172,7 +172,7 @@ expect_success() {
   assert_contains "$output" "Result: passed"
   assert_contains "$output" "bundle version is 1.12.0"
   assert_contains "$output" "bundle build is 42"
-  assert_contains "$output" "codesign identifier matches bundle id: com.neonwatty.GroqTalk"
+  assert_contains "$output" "codesign identifier matches bundle id: com.neonwatty.Foil"
   assert_contains "$output" "NSMicrophoneUsageDescription is present"
   assert_contains "$output" "macOS does not allow scripts to silently grant"
   assert_not_contains "$output" "forbidden command called"
@@ -180,7 +180,7 @@ expect_success() {
 
 expect_identifier_mismatch_failure() {
   local name="identifier-mismatch"
-  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local app_path="$TMP_ROOT/$name/Foil.app"
   local shim_dir="$TMP_ROOT/$name/shims"
   local output="$TMP_ROOT/$name/output.txt"
   mkdir -p "$TMP_ROOT/$name"
@@ -190,17 +190,17 @@ expect_identifier_mismatch_failure() {
   if run_check "$app_path" "$shim_dir" "$output" SIGNED_IDENTIFIER="com.example.Other"; then
     fail "identifier mismatch check unexpectedly succeeded"
   fi
-  assert_contains "$output" "signed identifier 'com.example.Other' does not match bundle id 'com.neonwatty.GroqTalk'"
+  assert_contains "$output" "signed identifier 'com.example.Other' does not match bundle id 'com.neonwatty.Foil'"
   assert_contains "$output" "Result: failed"
 }
 
 expect_missing_microphone_failure() {
   local name="missing-microphone"
-  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local app_path="$TMP_ROOT/$name/Foil.app"
   local shim_dir="$TMP_ROOT/$name/shims"
   local output="$TMP_ROOT/$name/output.txt"
   mkdir -p "$TMP_ROOT/$name"
-  make_fixture_app "$app_path" "GroqTalk" "no"
+  make_fixture_app "$app_path" "Foil" "no"
   make_shims "$shim_dir" 1
 
   if run_check "$app_path" "$shim_dir" "$output"; then
@@ -212,11 +212,11 @@ expect_missing_microphone_failure() {
 
 expect_missing_executable_failure() {
   local name="missing-executable"
-  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local app_path="$TMP_ROOT/$name/Foil.app"
   local shim_dir="$TMP_ROOT/$name/shims"
   local output="$TMP_ROOT/$name/output.txt"
   mkdir -p "$TMP_ROOT/$name"
-  make_fixture_app "$app_path" "GroqTalk" "yes" "no"
+  make_fixture_app "$app_path" "Foil" "yes" "no"
   make_shims "$shim_dir" 1
 
   if run_check "$app_path" "$shim_dir" "$output"; then
@@ -228,35 +228,35 @@ expect_missing_executable_failure() {
 
 expect_running_warning() {
   local name="running-warning"
-  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local app_path="$TMP_ROOT/$name/Foil.app"
   local shim_dir="$TMP_ROOT/$name/shims"
   local output="$TMP_ROOT/$name/output.txt"
   mkdir -p "$TMP_ROOT/$name"
   make_fixture_app "$app_path"
   make_shims "$shim_dir" 0
 
-  run_check "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="$app_path/Contents/MacOS/GroqTalk"
-  assert_contains "$output" "warning: GroqTalk is currently running from the installed app"
+  run_check "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="$app_path/Contents/MacOS/Foil"
+  assert_contains "$output" "warning: Foil is currently running from the installed app"
   assert_contains "$output" "Result: passed with 1 warning(s)."
 }
 
 expect_running_wrong_app_warning() {
   local name="running-wrong-app-warning"
-  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local app_path="$TMP_ROOT/$name/Foil.app"
   local shim_dir="$TMP_ROOT/$name/shims"
   local output="$TMP_ROOT/$name/output.txt"
   mkdir -p "$TMP_ROOT/$name"
   make_fixture_app "$app_path"
   make_shims "$shim_dir" 0
 
-  run_check "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="/tmp/DerivedData/GroqTalk.app/Contents/MacOS/GroqTalk"
-  assert_contains "$output" "warning: GroqTalk is running from a different path than the installed app"
+  run_check "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="/tmp/DerivedData/Foil.app/Contents/MacOS/Foil"
+  assert_contains "$output" "warning: Foil is running from a different path than the installed app"
   assert_contains "$output" "Result: passed with 1 warning(s)."
 }
 
 expect_guide_installed_opens_panes_and_launches() {
   local name="guide-installed"
-  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local app_path="$TMP_ROOT/$name/Foil.app"
   local shim_dir="$TMP_ROOT/$name/shims"
   local output="$TMP_ROOT/$name/output.txt"
   local open_log="$TMP_ROOT/$name/open.log"
@@ -289,7 +289,7 @@ SH
 
 expect_guide_installed_rejects_wrong_running_app() {
   local name="guide-installed-wrong-app"
-  local app_path="$TMP_ROOT/$name/GroqTalk.app"
+  local app_path="$TMP_ROOT/$name/Foil.app"
   local shim_dir="$TMP_ROOT/$name/shims"
   local output="$TMP_ROOT/$name/output.txt"
   mkdir -p "$TMP_ROOT/$name"
@@ -308,7 +308,7 @@ exit 0
 SH
   chmod +x "$shim_dir/sleep"
 
-  if run_guide "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="/tmp/DerivedData/GroqTalk.app/Contents/MacOS/GroqTalk"; then
+  if run_guide "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="/tmp/DerivedData/Foil.app/Contents/MacOS/Foil"; then
     fail "guide-installed unexpectedly succeeded with a wrong running app"
   fi
   assert_contains "$output" "running from a different path"

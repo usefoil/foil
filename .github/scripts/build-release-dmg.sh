@@ -8,18 +8,18 @@ set -euo pipefail
 : "${APP_STORE_CONNECT_PRIVATE_KEY:?APP_STORE_CONNECT_PRIVATE_KEY is required}"
 : "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
 
-ARCHIVE_PATH="$RUNNER_TEMP/GroqTalk.xcarchive"
+ARCHIVE_PATH="$RUNNER_TEMP/Foil.xcarchive"
 EXPORT_PATH="$RUNNER_TEMP/export"
 DMG_ROOT="$RUNNER_TEMP/dmg-root"
-DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
+DMG_PATH="$RUNNER_TEMP/Foil-${VERSION}-macos.dmg"
 CHECKSUM_PATH="${DMG_PATH}.sha256"
 BUILD_NUMBER="${BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-1}}"
-REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/groqtalk}}"
+REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/foil}}"
 
 sed -i '' "s/\$(APPLE_TEAM_ID)/$APPLE_TEAM_ID/" ExportOptions.plist
 
 xcodebuild archive \
-  -scheme GroqTalk \
+  -scheme Foil \
   -configuration Release \
   -destination 'platform=macOS' \
   -archivePath "$ARCHIVE_PATH" \
@@ -33,11 +33,11 @@ xcodebuild -exportArchive \
   -exportPath "$EXPORT_PATH" \
   -exportOptionsPlist ExportOptions.plist
 
-codesign --verify --deep --strict "$EXPORT_PATH/GroqTalk.app"
-codesign -dv "$EXPORT_PATH/GroqTalk.app"
+codesign --verify --deep --strict "$EXPORT_PATH/Foil.app"
+codesign -dv "$EXPORT_PATH/Foil.app"
 
-APP_VERSION="$(defaults read "$EXPORT_PATH/GroqTalk.app/Contents/Info.plist" CFBundleShortVersionString)"
-APP_BUILD="$(defaults read "$EXPORT_PATH/GroqTalk.app/Contents/Info.plist" CFBundleVersion)"
+APP_VERSION="$(defaults read "$EXPORT_PATH/Foil.app/Contents/Info.plist" CFBundleShortVersionString)"
+APP_BUILD="$(defaults read "$EXPORT_PATH/Foil.app/Contents/Info.plist" CFBundleVersion)"
 if [ "$APP_VERSION" != "$VERSION" ]; then
   echo "Expected CFBundleShortVersionString '$VERSION' but found '$APP_VERSION'" >&2
   exit 1
@@ -51,14 +51,14 @@ echo "Verified app bundle version: $APP_VERSION ($APP_BUILD)"
 brew install create-dmg
 
 mkdir -p "$DMG_ROOT"
-cp -R "$EXPORT_PATH/GroqTalk.app" "$DMG_ROOT/GroqTalk.app"
+cp -R "$EXPORT_PATH/Foil.app" "$DMG_ROOT/Foil.app"
 
 create-dmg \
-  --volname "GroqTalk" \
+  --volname "Foil" \
   --window-pos 200 120 \
   --window-size 600 400 \
   --icon-size 100 \
-  --icon "GroqTalk.app" 150 190 \
+  --icon "Foil.app" 150 190 \
   --app-drop-link 450 190 \
   "$DMG_PATH" \
   "$DMG_ROOT"

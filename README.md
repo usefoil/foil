@@ -1,51 +1,51 @@
-# GroqTalk
+# Foil
 
-macOS menu bar speech-to-text powered by [Groq Whisper](https://console.groq.com/).
+macOS menu bar speech-to-text with cloud and local transcription providers.
 
 Demo media has not been published yet.
 
 ## Install
 
-GroqTalk is still in beta. The supported beta install paths are the signed,
+Foil is still in beta. The supported beta install paths are the signed,
 notarized DMG and the verified Homebrew cask.
 
-**Manual DMG:** Download `GroqTalk-VERSION-macos.dmg` from
-[Releases](https://github.com/mean-weasel/groqtalk/releases), verify it against
+**Manual DMG:** Download `Foil-VERSION-macos.dmg` from
+[Releases](https://github.com/mean-weasel/foil/releases), verify it against
 the GitHub release asset digest or matching `.sha256` checksum when one is
-published, open it, and drag GroqTalk into Applications.
+published, open it, and drag Foil into Applications.
 
 ### Homebrew
 
-The `mean-weasel/homebrew-groqtalk` tap is verified for the current public beta
+The `mean-weasel/homebrew-foil` tap is verified for the current public beta
 release. It installs the same signed and notarized DMG published on GitHub:
 
 ```sh
-brew tap mean-weasel/groqtalk https://github.com/mean-weasel/homebrew-groqtalk
-brew install --cask groqtalk
+brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil
+brew install --cask foil
 ```
 
-If the tap is already configured, `brew install --cask mean-weasel/groqtalk/groqtalk`
+If the tap is already configured, `brew install --cask mean-weasel/foil/foil`
 also works. The cask checksum should match the release asset digest for the
 published DMG.
 
 ## Setup
 
-1. Launch GroqTalk — it lives in your menu bar
+1. Launch Foil — it lives in your menu bar
 2. Choose a transcription provider in first-run setup
 3. For Groq, get a free API key from [console.groq.com](https://console.groq.com/), then click **Add API Key** and save/test your key
 4. For Local whisper.cpp or a custom OpenAI-compatible server, open Transcription Settings, configure the endpoint, and use **Test connection**
-5. Open Accessibility settings from GroqTalk and enable the current GroqTalk app
-6. Open Microphone settings from GroqTalk and allow microphone access
+5. Open Accessibility settings from Foil and enable the current app
+6. Open Microphone settings from Foil and allow microphone access
 7. Use the setup test to confirm the app is ready
 
-GroqTalk is a menu bar app (`LSUIElement`), so it does not keep a normal Dock
+Foil is a menu bar app (`LSUIElement`), so it does not keep a normal Dock
 window open. The built app includes macOS AppIcon assets for Finder,
 Applications, and DMG presentation; the menu bar itself uses SF Symbol state
 icons.
 
 ## Providers
 
-GroqTalk supports three transcription provider paths:
+Foil supports three transcription provider paths:
 
 - **Groq** is the default and requires a Groq API key. Audio is sent to Groq for
   transcription, and optional cleanup can use Groq chat models.
@@ -84,24 +84,24 @@ contains stale Groq test environment variables. To intentionally verify the real
 Groq API path, run `RUN_LIVE_GROQ_TESTS=1 GROQ_API_KEY=... make test-live-groq`.
 Use a current key and do not paste the key into logs or issue comments.
 
-By default, local builds use the `GroqTalk Local Code Signing` identity when it
+By default, local builds use the `Foil Local Code Signing` identity when it
 exists, falling back to ad-hoc signing otherwise. Stable local signing keeps the
-app's Accessibility permission attached across rebuilds. `make setup-local-signing`
-creates that identity once in a dedicated local keychain and removes stale
-GroqTalk-local copies from the login keychain.
+app's Accessibility permission attached across rebuilds.
+`make setup-local-signing` creates that identity once in a dedicated local
+keychain and removes stale local copies from the login keychain.
 
 ### Local Permission State Repair
 
 During development, macOS can keep Accessibility or Input Monitoring rows for an
-older local build. When that happens, System Settings may show GroqTalk enabled
+older local build. When that happens, System Settings may show Foil enabled
 while the current app still cannot use the permission. Run:
 
 ```sh
 make prepare-local-permissions-qa
 ```
 
-Then launch GroqTalk, enable the newly opened GroqTalk row in System Settings,
-and restart the app. To inspect local permission state without changing it, run:
+Then launch Foil, enable the newly opened Foil row in System Settings, and
+restart the app. To inspect local permission state without changing it, run:
 
 ```sh
 make prepare-local-permissions-qa-check
@@ -128,7 +128,7 @@ If the certificate files are in `~/Desktop/apple-developer-certificates`, run:
 make setup-release-secrets
 ```
 
-`make setup-release-secrets` uses `mean-weasel/groqtalk` by default. Set `REPO`,
+`make setup-release-secrets` uses `mean-weasel/foil` by default. Set `REPO`,
 `CERT_DIR`, `P12_PATH`, `ISSUER_ID_PATH`, `PRIVATE_KEY_PATH`, `APPLE_TEAM_ID`,
 or `APP_STORE_CONNECT_KEY_ID` to target a different repository or certificate
 layout.
@@ -140,13 +140,13 @@ layout.
 - **Auto-paste** — by default, sends a paste command to the app active when transcription finishes
 - **Return to starting app** — optional experimental paste routing that lets you dictate in one app, move on, and paste back where recording started
 - **Try background paste** — optional experimental paste method for app-specific testing; disabled by default because it relies on lower-level macOS behavior and command-posted results are not fully verifiable
-- **Clipboard safety** — by default, GroqTalk restores the previous clipboard after posting paste; Settings can keep final text on the clipboard instead
+- **Clipboard safety** — by default, Foil restores the previous clipboard after posting paste; Settings can keep final text on the clipboard instead
 - **3 audio formats** — M4A (smaller), WAV (lossless), FLAC (lossless, smaller)
 - **Language selection** — hint Whisper for better accuracy in 12 languages
-- **Cleanup modes** — optionally clean up or rewrite transcripts after Whisper; if cleanup fails after Whisper succeeds, GroqTalk uses the raw transcript
+- **Cleanup modes** — optionally clean up or rewrite transcripts after Whisper; if cleanup fails after Whisper succeeds, Foil uses the raw transcript
 - **Transcription history** — browse, search, edit, export, copy, paste, delete, and retry past transcriptions
 
-GroqTalk's open beta is microphone-first. It does not currently include a
+Foil's open beta is microphone-first. It does not currently include a
 user-facing audio-file import flow.
 
 ## Privacy
@@ -155,12 +155,12 @@ user-facing audio-file import flow.
 - Transcription history stays on this Mac in Application Support. Retention can be set to off, 100, 500, or 1000 records.
 - Successful audio files are deleted after transcription.
 - Failed audio may be retained locally in Application Support only for retryable transcription failures. Clearing history deletes retained retry files.
-- Local diagnostics are redacted before writing and should not include API keys, transcript text, raw audio, or clipboard contents. Diagnostics are enabled by default for supportability; set `GROQTALK_DIAGNOSTICS=0` to disable local diagnostic logging.
+- Local diagnostics are redacted before writing and should not include API keys, transcript text, raw audio, or clipboard contents. Diagnostics are enabled by default for supportability; set `FOIL_DIAGNOSTICS=0` to disable local diagnostic logging.
 
 ## Paste Caveats
 
 macOS paste automation depends on Accessibility permission and target-app
-behavior. GroqTalk distinguishes verified direct insertion, command-posted
+behavior. Foil distinguishes verified direct insertion, command-posted
 paste, window-choreography paste, and clipboard fallback internally. A command
 being posted does not prove every target app accepted it; use History or the
 clipboard fallback when a target blocks paste automation.
@@ -172,7 +172,7 @@ the default reliability path.
 ## Troubleshooting
 
 **Invalid API key:** Use **Add Key** or Settings → Transcription →
-**Change API Key**. GroqTalk validates the key before saving when the network is
+**Change API Key**. Foil validates the key before saving when the network is
 available. If validation fails because Groq cannot be reached, you can save the
 key anyway and run the setup check later.
 
@@ -186,21 +186,21 @@ provider expects `http://127.0.0.1:8080/v1` and the compatibility model
 and that any required local network, firewall, or authentication setup is ready.
 
 **Microphone not available:** Open System Settings → Privacy & Security →
-Microphone and allow GroqTalk. Use **Run Check** after changing the permission.
+Microphone and allow Foil. Use **Run Check** after changing the permission.
 
 **Accessibility or hotkey not working:** Open System Settings → Privacy &
-Security → Accessibility and allow GroqTalk. If GroqTalk is already enabled but
-still cannot record from the hotkey or paste text, remove the old GroqTalk row,
-reopen GroqTalk, enable the new row, and restart the app.
+Security → Accessibility and allow Foil. If Foil is already enabled but
+still cannot record from the hotkey or paste text, remove the old Foil row,
+reopen Foil, enable the new row, and restart the app.
 
 **Paste command sent but no text appears:** The target app may block synthetic
-paste events. Open History to copy or paste the transcript again. If GroqTalk
+paste events. Open History to copy or paste the transcript again. If Foil
 reports clipboard fallback, the transcript is on the clipboard.
 
 **Cleanup failed:** Whisper transcription succeeded, but the cleanup model did
-not return usable text. GroqTalk uses the raw transcript and keeps going.
+not return usable text. Foil uses the raw transcript and keeps going.
 
-**Recording too long:** GroqTalk stops oversized recordings before upload to
+**Recording too long:** Foil stops oversized recordings before upload to
 avoid runaway memory use and Groq request-size failures. Try a shorter
 recording.
 
@@ -211,18 +211,18 @@ diagnostics. It does not include API keys, transcript text, audio, or clipboard
 contents.
 
 **Export diagnostics:** Use the app Help menu command **Export Diagnostics...**
-or press Command-Option-D while GroqTalk is active. Diagnostics are written to a
+or press Command-Option-D while Foil is active. Diagnostics are written to a
 file you choose, with API keys, transcript text, audio, and clipboard contents
 redacted.
 
-**Reset local state:** Quit GroqTalk, then remove the GroqTalk app data folder
-from `~/Library/Application Support/GroqTalk` if you want to clear history,
+**Reset local state:** Quit Foil, then remove the app data folder from
+`~/Library/Application Support/Foil` if you want to clear history,
 retained retry audio, and local diagnostics. API keys are stored separately in
 Keychain; use Settings → Transcription → **Change API Key** to replace them.
 
 **Updates or Homebrew:** Sparkle updates read the `appcast.xml` asset from the
-`mean-weasel/groqtalk` GitHub releases. Homebrew installs the verified cask from
-the `mean-weasel/homebrew-groqtalk` tap; if an install fails, confirm the cask
+`mean-weasel/foil` GitHub releases. Homebrew installs the verified cask from
+the `mean-weasel/homebrew-foil` tap; if an install fails, confirm the cask
 URL and checksum match the latest GitHub release DMG.
 
 ## Requirements

@@ -1,0 +1,419 @@
+version: 2
+
+goal:
+  title: "Foil UX Workflow Clarity"
+  slug: "foil-ux-workflow-clarity"
+  kind: existing_plan
+  tranche: "Implement core workflow clarity first; preserve detailed follow-up plans for visual distinctiveness and native macOS polish."
+  status: complete
+  intake:
+    original_request: "Create a concrete GoalBuddy-ready list of Foil UX, styling, and native macOS improvements with clear acceptance criteria."
+    interpreted_outcome: "Foil's first-run and daily-use voice workflow becomes clearer, verified, and ready for follow-up visual and macOS polish tranches."
+    input_shape: existing_plan
+    audience: "Foil users installing and using the macOS menu bar app."
+    authority: approved
+    proof_type: demo
+    completion_proof: "Build/tests pass, key flows are manually or visually verified in the running app, tranche 2/3 plans are preserved, and final audit maps receipts to the charter acceptance criteria."
+    likely_misfire: "Implementing broad styling changes or planning artifacts while leaving onboarding completion, paste confidence, HUD/menu status clarity, and recovery paths unresolved."
+    blind_spots_considered:
+      - "Scope creep into full asset or brand overhaul."
+      - "UX work declared done without screenshots or manual evidence."
+      - "Duplicated embedded settings and full Settings windows confusing users."
+      - "Accessibility and dynamic text regressions from fixed-size surfaces."
+      - "Paste automation overpromising delivery that cannot be fully verified."
+    existing_plan_facts:
+      - "Tranche 1 optimizes for core workflow clarity."
+      - "Tranche 2 visual distinctiveness and tranche 3 native macOS polish must be planned in detail for quick follow-up."
+      - "Completion proof requires working code verification plus visual/manual evidence."
+      - "Tranche 1 excludes asset or brand overhaul."
+      - "Local live GoalBuddy board selected."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/foil-ux-workflow-clarity/"
+    command: "npx goalbuddy board docs/goals/foil-ux-workflow-clarity"
+  github_projects:
+    status: not_requested
+    url: null
+    command: "npx goalbuddy extend github-projects"
+    missing: []
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: low
+    objective: "Validate the current UX evidence and map exact implementation surfaces for tranche 1 without changing files."
+    inputs:
+      - "README.md"
+      - "docs/superpowers/specs"
+      - "Foil/OnboardingView.swift"
+      - "Foil/ApiKeySetupView.swift"
+      - "Foil/MenuBarView.swift"
+      - "Foil/FloatingStatusView.swift"
+      - "Foil/HistoryPopoverView.swift"
+      - "Foil/AppState.swift"
+      - "Foil/FoilApp.swift"
+      - "Foil/RecordingController.swift"
+      - "Foil/SettingsView.swift"
+      - "Foil/KeyRecorderView.swift"
+      - "FoilUITests"
+      - "FoilTests"
+    constraints:
+      - "Read-only."
+      - "Do not edit product files."
+      - "Focus on tranche 1 acceptance criteria; record tranche 2/3 implementation ideas only as follow-up evidence."
+      - "Prefer exact file-path evidence and current verification commands."
+    expected_output:
+      - "Evidence map for onboarding, menu/HUD, paste confidence, history/recovery, and verification surfaces."
+      - "Existing tests likely affected."
+      - "Recommended first Worker slice with candidate allowed_files and verify commands."
+      - "Any ambiguity or blocker that should affect Judge sequencing."
+    receipt:
+      result: done
+      summary: "Tranche 1 is already framed into onboarding, menu/HUD, and history/recovery slices. Current source supports the boundaries, but onboarding is the weakest first slice: it lacks Add Key, setup recheck, microphone request/check, and workflow payoff. Menu/HUD and history already have substantial surfaces and tests, so they are better follow-up slices after onboarding."
+      evidence:
+        - "README.md documents Add Key, Microphone permission, Run Check, and hold hotkey -> release -> paste workflow as user-visible setup paths."
+        - "Foil/OnboardingView.swift defines API Key, Accessibility, and Microphone steps, but the API key step only links to console.groq.com."
+        - "Foil/OnboardingView.swift final Get Started is disabled when appState.isSetupReady is false, with no contextual retry/check path."
+        - "Foil/OnboardingView.swift microphone step only opens Privacy settings; no in-app request/check path is exposed."
+        - "Foil/MenuBarView.swift already has setup summary rows, Add Key, and setupCheckRow."
+        - "Foil/AppState.swift centralizes session states and recovery actions."
+        - "Foil/FoilApp.swift runSetupCheck checks API key, Accessibility, microphone permission, and audio readiness."
+        - "Makefile defines make build, make test, and make test-ui verification commands."
+      facts:
+        - "Recommended first Worker slice: T010 onboarding completeness."
+        - "Candidate allowed_files: Foil/OnboardingView.swift, Foil/ApiKeySetupView.swift, Foil/FoilApp.swift, Foil/AppState.swift, FoilUITests/FoilUITests.swift, FoilTests/AppStateTests.swift."
+        - "Recommended verify: make build; make test; make test-ui if UI labels or onboarding identifiers change."
+        - "Existing tests likely affected: FoilUITests/FoilUITests.swift setup-state tests and AppStateTests session-presentation/setup readiness tests."
+      contradictions:
+        - "README says Setup panel offers Add Key and Run Check, while onboarding only links out and can end disabled without next-step recovery."
+        - "README troubleshooting points users to Run Check for microphone recovery, while onboarding does not reuse that path."
+      ambiguity_requiring_judge:
+        - "Whether onboarding should call runSetupCheck directly via an OnboardingView callback."
+        - "Whether microphone onboarding should actively request permission or only run the existing setup check."
+        - "Whether UI testing needs a new launch flag or altered setup to cover onboarding."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Validate the tranche 1 plan and select the largest safe first implementation slice."
+    inputs:
+      - "T001 receipt"
+      - "docs/goals/foil-ux-workflow-clarity/goal.md"
+      - "docs/goals/foil-ux-workflow-clarity/state.yaml"
+    constraints:
+      - "Do not implement."
+      - "Preserve the tranche order: workflow clarity first, visual distinctiveness and macOS polish later."
+      - "Reject any first Worker slice that requires brand assets or broad redesign."
+    expected_output:
+      - "Decision: approved | revise | blocked."
+      - "Exact first Worker objective."
+      - "allowed_files for the first Worker."
+      - "verify commands for the first Worker."
+      - "stop_if conditions."
+      - "Any board edits needed before implementation."
+    receipt:
+      result: done
+      decision: approved
+      full_outcome_complete: false
+      rationale: "Approve T010 as the largest safe first slice. It is a coherent onboarding workflow fix, stays in tranche 1, avoids assets/redesign, and directly addresses the weakest current flow."
+      evidence:
+        - "T001 receipt identifies onboarding as the weakest tranche 1 slice and maps exact files and verification commands."
+        - "goal.md tranche 1 requires actionable onboarding for API key, microphone, readiness retry, and workflow payoff."
+        - "state.yaml T010 is already scoped to onboarding completeness and excludes brand assets or broad redesign."
+      blocked_tasks: []
+      missing_evidence: []
+      required_board_updates:
+        - "Onboarding setup retry should invoke existing runSetupCheck via callback/injection from FoilApp."
+        - "Microphone step should actively request permission from an explicit user action where feasible, otherwise run setup check and route to Privacy settings."
+        - "Verify list should include conditional make test-ui when onboarding UI reachability or launch setup changes."
+
+  - id: T010
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Make onboarding a complete actionable setup path for API key, Accessibility, microphone, setup re-checking, and payoff clarity."
+    allowed_files:
+      - "Foil/OnboardingView.swift"
+      - "Foil/ApiKeySetupView.swift"
+      - "Foil/FoilApp.swift"
+      - "Foil/AppState.swift"
+      - "FoilUITests/FoilUITests.swift"
+      - "FoilTests/AppStateTests.swift"
+    verify:
+      - "make build"
+      - "make test"
+      - "make test-ui if UI labels, accessibility identifiers, launch flags, or onboarding reachability change"
+    stop_if:
+      - "Need to alter Keychain behavior or API-key storage semantics."
+      - "Need new brand assets or non-SwiftUI visual assets."
+      - "Cannot add a user-initiated microphone request/check path without risky app lifecycle changes."
+      - "Need broad visual redesign outside workflow clarity."
+      - "Verification fails twice for the same reason."
+    acceptance_criteria:
+      - "Onboarding gives users an Add Key or equivalent path from the API key step."
+      - "Onboarding gives users a request/check path for microphone readiness."
+      - "Onboarding setup retry invokes existing runSetupCheck via callback/injection from FoilApp."
+      - "Microphone step actively requests permission from an explicit user action where feasible, otherwise runs setup check and routes to Privacy settings."
+      - "Onboarding gives users a check/retry path for setup readiness."
+      - "The final action is not a dead disabled state without contextual next steps."
+      - "Onboarding copy explicitly explains hold hotkey -> speak -> release/stop -> pasted text."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/OnboardingView.swift"
+        - "Foil/FoilApp.swift"
+        - "Foil/ApiKeySetupView.swift"
+      commands:
+        - cmd: "make build"
+          status: pass
+        - cmd: "make test"
+          status: pass
+        - cmd: "make test-ui"
+          status: pass
+      summary: "Onboarding now provides Add Key through an explicit AppDelegate-owned setup window callback, Accessibility settings/check, explicit microphone request/check with settings fallback, setup retry via runSetupCheck injection, contextual setup status details, and workflow payoff copy explaining hold hotkey, speak, release/stop, then pasted text."
+      remaining_blockers: []
+
+  - id: T020
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Reshape the menu bar default panel and floating HUD around clear voice workflow status, paste target confidence, and recovery actions."
+    allowed_files:
+      - "Foil/MenuBarView.swift"
+      - "Foil/FloatingStatusView.swift"
+      - "Foil/AppState.swift"
+      - "Foil/FoilApp.swift"
+      - "FoilUITests/FoilUITests.swift"
+      - "FoilTests/AppStateTests.swift"
+    verify:
+      - "make build"
+      - "make test"
+    stop_if:
+      - "Need to remove advanced settings without a replacement access path."
+      - "Need brand assets, custom illustration, or broad visual redesign."
+      - "Need to guarantee paste delivery that the app cannot actually verify."
+      - "Verification fails twice for the same reason."
+    acceptance_criteria:
+      - "Default menu panel prioritizes one clear session/status surface and last transcript actions."
+      - "Ready, recording, transcribing, cleaning, pasting, delivered, fallback, setup-needed, and error states use user-facing copy."
+      - "Paste target and delivery/fallback status are shown where known."
+      - "HUD and menu status language are consistent."
+      - "HUD or menu provides recovery routes for setup-needed and retryable/fallback states."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/MenuBarView.swift"
+        - "Foil/AppState.swift"
+        - "Foil/FoilApp.swift"
+        - "FoilUITests/FoilUITests.swift"
+        - "FoilTests/AppStateTests.swift"
+      commands:
+        - cmd: "make build"
+          status: pass
+        - cmd: "make test"
+          status: pass
+        - cmd: "make test-ui"
+          status: pass
+      summary: "Default panel now centers the session/status surface, keeps setup recovery conditional while preserving passed setup-check feedback, and surfaces target/delivery/fallback language through AppState so HUD/menu copy stays aligned. UI testing now avoids real keychain and microphone permission prompts by trusting seeded test setup state."
+      remaining_blockers: []
+
+  - id: T030
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Clarify history, export/copy, retry, paste-again, and no-audio recovery flows that support the core voice workflow."
+    allowed_files:
+      - "Foil/HistoryPopoverView.swift"
+      - "Foil/RecordingController.swift"
+      - "Foil/AppState.swift"
+      - "Foil/MenuBarView.swift"
+      - "FoilTests/RecordingControllerTests.swift"
+      - "FoilTests/HistoryPopoverTests.swift"
+      - "FoilUITests/FoilUITests.swift"
+    verify:
+      - "make build"
+      - "make test"
+    stop_if:
+      - "Need to change stored history format incompatibly."
+      - "Need native List/context-menu rewrite beyond tranche 1 workflow clarity."
+      - "Need broad styling or brand overhaul."
+      - "Verification fails twice for the same reason."
+    acceptance_criteria:
+      - "Export/copy actions are accurately labeled or visibly confirmed."
+      - "Retryable failures and fallback states are easier to distinguish."
+      - "No-audio or too-short recording outcomes produce user-facing feedback."
+      - "Last transcript and history actions clearly support copy, paste again, retry, and details."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/HistoryPopoverView.swift"
+        - "Foil/RecordingController.swift"
+        - "Foil/AppState.swift"
+        - "Foil/MenuBarView.swift"
+        - "FoilTests/RecordingControllerTests.swift"
+        - "FoilTests/HistoryPopoverTests.swift"
+        - "FoilUITests/FoilUITests.swift"
+      commands:
+        - cmd: "make build"
+          status: pass
+        - cmd: "make test"
+          status: pass
+        - cmd: "make test-ui"
+          status: pass
+      summary: "History/export/copy actions now use explicit labels and visible confirmations, retryable and non-retryable failures are distinguished in rows/details, paste actions say Paste Again, no-audio recordings surface user-facing feedback, and UI timing expectations were stabilized. Full UI tests pass without microphone or keychain prompts."
+      remaining_blockers: []
+
+  - id: T040
+    type: pm
+    assignee: PM
+    status: done
+    reasoning_hint: medium
+    objective: "Capture visual/manual verification evidence for tranche 1 flows and update receipts or notes with proof."
+    inputs:
+      - "Implemented tranche 1 Worker receipts."
+      - "Running Foil app."
+    constraints:
+      - "Control-file and notes writes only unless the board explicitly activates a Worker."
+      - "Use screenshots or concise manual demo notes for key flows."
+      - "If app cannot be run locally, record the blocker and preserve test/build evidence."
+    expected_output:
+      - "Visual/manual evidence for onboarding."
+      - "Visual/manual evidence for menu/HUD ready, recording, transcribing, delivered/fallback, setup/error states where feasible."
+      - "Any remaining visual or interaction gaps queued for tranche 2/3."
+    receipt:
+      result: done
+      summary: "Captured tranche 1 demo evidence in notes/T040-visual-manual-evidence.md, including build/unit/UI proof, manual coverage notes for onboarding/menu/HUD/history states, and the specific UI-testing guards that stop repeated microphone and Keychain prompts."
+      evidence:
+        - "notes/T040-visual-manual-evidence.md records final make build, make test, and make test-ui pass evidence."
+        - "UI test xcresult: /Users/neonwatty/Library/Developer/Xcode/DerivedData/Foil-acpmtxxdtdquksghmlwalcmkckzy/Logs/Test/Test-Foil-2026.05.16_13-46-47--0700.xcresult."
+        - "Unit test xcresult: /Users/neonwatty/Library/Developer/Xcode/DerivedData/Foil-acpmtxxdtdquksghmlwalcmkckzy/Logs/Test/Test-Foil-2026.05.16_13-46-38--0700.xcresult."
+        - "Foil/FoilApp.swift requestMicrophoneAccessIfNeeded() returns true under --ui-testing to avoid the system microphone prompt during UI tests."
+        - "Foil/AppState.swift hasApiKey and refreshApiKeyState() trust seeded test state under --ui-testing to avoid login Keychain prompts during UI tests."
+      facts:
+        - "Visual evidence is captured as concise manual/demo notes rather than screenshots."
+        - "Onboarding screenshot capture remains deferred; onboarding evidence is source-level plus build/test verification."
+        - "Full build, unit tests, and UI tests passed after all tranche 1 implementation slices."
+      contradictions: []
+      ambiguity_requiring_judge:
+        - "Judge should decide whether source-level onboarding evidence plus passing verification is sufficient despite no first-run onboarding screenshot."
+
+  - id: T050
+    type: pm
+    assignee: PM
+    status: done
+    reasoning_hint: medium
+    objective: "Prepare detailed follow-up plan notes for tranche 2 visual distinctiveness and tranche 3 native macOS polish."
+    inputs:
+      - "Tranche 1 receipts and remaining gaps."
+      - "Tranche 2 and 3 acceptance criteria in goal.md."
+    constraints:
+      - "Do not implement tranche 2 or 3."
+      - "Write only GoalBuddy control files and notes."
+      - "Plans must be concrete enough for quick follow-up goals or board advancement."
+    expected_output:
+      - "notes/T050-tranche-2-visual-distinctiveness.md"
+      - "notes/T050-tranche-3-native-macos-polish.md"
+      - "Board tasks or acceptance criteria updated if needed."
+    receipt:
+      result: done
+      summary: "Prepared detailed follow-up plans for tranche 2 visual distinctiveness and tranche 3 native macOS polish without implementing either tranche. The plans define worker slices, candidate files, acceptance criteria, verification, and explicit out-of-scope boundaries."
+      evidence:
+        - "notes/T050-tranche-2-visual-distinctiveness.md defines V1 reusable voice status surface, V2 visual signature, V3 icon/state standardization, and V4 lightweight motion pass."
+        - "notes/T050-tranche-3-native-macos-polish.md defines M1 app commands, M2 settings/permission timing, M3 native history model, M4 keyboard-accessible hotkey recording, and M5 layout/accessibility/mode audit."
+      facts:
+        - "Tranche 2 remains unimplemented and ready as a follow-up plan."
+        - "Tranche 3 remains unimplemented and ready as a follow-up plan."
+        - "Both plans include acceptance criteria and verification commands."
+      contradictions: []
+      ambiguity_requiring_judge: []
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit whether tranche 1 core workflow clarity is complete and whether tranche 2/3 follow-up plans are ready."
+    inputs:
+      - "All done task receipts."
+      - "Last verification."
+      - "Visual/manual evidence from T040."
+      - "Tranche 2/3 plans from T050."
+      - "Current dirty diff."
+    constraints:
+      - "Do not implement."
+      - "Reject completion if onboarding, menu/HUD workflow status, paste confidence, recovery/history clarity, verification, or follow-up plans remain materially incomplete."
+      - "Reject completion if queued Worker tasks are still required for tranche 1."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Acceptance criteria mapping."
+      - "Missing evidence."
+      - "Next task if not complete."
+    receipt:
+      result: done
+      decision: complete
+      full_outcome_complete: true
+      evidence:
+        - "T010 completed onboarding actions for API key setup, Accessibility, microphone request/check, setup re-check, contextual next steps, and workflow payoff copy."
+        - "T020 completed menu/HUD workflow status, paste target confidence, fallback/recovery copy, and --ui-testing guards for microphone and Keychain prompts."
+        - "T030 completed history/recovery clarity for Copy Export, Copy Transcript, Paste Again, retryable failures, no saved audio, and no-audio recording feedback."
+        - "T040 captured verification and manual/demo evidence in notes/T040-visual-manual-evidence.md."
+        - "T050 preserved detailed follow-up plans in notes/T050-tranche-2-visual-distinctiveness.md and notes/T050-tranche-3-native-macos-polish.md."
+        - "Last verification passed: make build, make test, and make test-ui."
+      acceptance_criteria_mapping:
+        onboarding: "Complete. Add Key, microphone request/check, Accessibility recovery, setup retry, contextual completion, and payoff copy are implemented."
+        menu_default_panel: "Complete. The default panel prioritizes a session/status strip, groups setup health conditionally, and keeps last result actions visible."
+        paste_confidence: "Complete. Target, delivered/fallback, clipboard, copy, and Paste Again outcomes are surfaced without claiming unverifiable delivery."
+        floating_hud: "Complete for tranche 1. HUD/menu status language comes from AppState and UI tests cover toggle, default disabled state, and auto-hide."
+        history_recovery: "Complete. Copy/export naming, confirmations, retry availability, failed/no-audio distinction, and no-audio feedback are implemented."
+        verification: "Complete. Build, unit tests, UI tests, and manual/demo notes are recorded."
+        follow_up_plans: "Complete. Tranche 2 and 3 plans are detailed enough for quick follow-up implementation."
+      missing_evidence:
+        - "No first-run onboarding screenshot was captured; source-level evidence plus passing verification and T040 manual notes are accepted for tranche 1, with screenshot QA deferred to tranche 3."
+      blocked_tasks: []
+      required_board_updates: []
+
+checks:
+  dirty_fingerprint: unknown
+  last_verification:
+    result: pass
+    task: T030
+    commands:
+      - "make build"
+      - "make test"
+      - "make test-ui"

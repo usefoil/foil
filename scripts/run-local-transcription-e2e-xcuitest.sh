@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCHEME="${SCHEME:-GroqTalk}"
+SCHEME="${SCHEME:-Foil}"
 CONFIG="${CONFIG:-Debug}"
 DESTINATION="${DESTINATION:-platform=macOS}"
 BASE_URL="${E2E_TRANSCRIPTION_BASE_URL:-http://127.0.0.1:8080/v1}"
 MODEL="${E2E_TRANSCRIPTION_MODEL:-whisper-1}"
 API_KEY="${E2E_API_KEY:-local}"
 PROVIDER="${E2E_TRANSCRIPTION_PROVIDER:-openai-compatible}"
-AUDIO_PATH="${E2E_WAV_PATH:-GroqTalk/e2e-test-audio.wav}"
-RESULT_PATH="${E2E_RESULT_PATH:-/tmp/groqtalk-e2e-result.txt}"
+AUDIO_PATH="${E2E_WAV_PATH:-Foil/e2e-test-audio.wav}"
+RESULT_PATH="${E2E_RESULT_PATH:-/tmp/foil-e2e-result.txt}"
 LATENCY_RUNS="${LOCAL_E2E_LATENCY_RUNS:-1}"
 EXPECTED="${E2E_EXPECTED_TRANSCRIPT:-the quick brown fox jumps over the lazy dog}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-}"
@@ -123,7 +123,7 @@ fi
 xcodebuild build-for-testing "${build_args[@]}"
 
 find_root="${DERIVED_DATA_PATH:-${HOME}/Library/Developer/Xcode/DerivedData}"
-xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*GroqTalk*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
+xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*Foil*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
 if [[ -z "${xctestrun}" || ! -f "${xctestrun}" ]]; then
   echo "error: could not locate generated .xctestrun" >&2
   exit 1
@@ -135,7 +135,7 @@ cp "${xctestrun}" "${patched}"
 ui_target_index=""
 for index in $(seq 0 20); do
   blueprint="$("${PLISTBUDDY}" -c "Print :TestConfigurations:0:TestTargets:${index}:BlueprintName" "${patched}" 2>/dev/null || true)"
-  if [[ "${blueprint}" == "GroqTalkUITests" ]]; then
+  if [[ "${blueprint}" == "FoilUITests" ]]; then
     ui_target_index="${index}"
     break
   fi
@@ -145,7 +145,7 @@ for index in $(seq 0 20); do
 done
 
 if [[ -z "${ui_target_index}" ]]; then
-  echo "error: GroqTalkUITests target not found in ${patched}" >&2
+  echo "error: FoilUITests target not found in ${patched}" >&2
   exit 1
 fi
 
@@ -173,7 +173,7 @@ set +e
 xcodebuild test-without-building \
   -xctestrun "${patched}" \
   -destination "${DESTINATION}" \
-  -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription \
+  -only-testing:FoilUITests/FoilUITests/testE2ETranscription \
   2>&1 | tee "${test_log}"
 test_status="${PIPESTATUS[0]}"
 set -e

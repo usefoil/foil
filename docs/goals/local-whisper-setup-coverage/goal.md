@@ -11,7 +11,7 @@ Create coverage and product support for the installed-app user journey where som
 ## Intake Summary
 
 - Input shape: `specific`
-- Audience: GroqTalk users who install the app and want local transcription, plus maintainers who need fast regression confidence.
+- Audience: Foil users who install the app and want local transcription, plus maintainers who need fast regression confidence.
 - Authority: `requested`
 - Proof type: `test`
 - Completion proof: A final audit maps completed receipts to passing CI-safe tests for the local provider settings journey, an opt-in live local whisper.cpp E2E path, and visible in-app setup guidance for an installed-app user.

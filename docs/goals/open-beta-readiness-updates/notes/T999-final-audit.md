@@ -6,7 +6,7 @@ full_outcome_complete: true
 
 ## Oracle Mapping
 
-- Canonical install/update/docs paths: satisfied. README/docs/scripts now use `mean-weasel/groqtalk`; Sparkle appcast, v1.12.0 DMG, mounted app signing, and Homebrew cask metadata were verified against the same release asset and checksum.
+- Canonical install/update/docs paths: satisfied. README/docs/scripts now use `mean-weasel/foil`; Sparkle appcast, v1.12.0 DMG, mounted app signing, and Homebrew cask metadata were verified against the same release asset and checksum.
 - First-run setup supports selected provider path: satisfied. Onboarding/provider UI tests passed for Groq/local/custom setup paths, and the installed v1.12.0 app completed the manual permission/API setup smoke.
 - Provider setup/recovery/privacy copy: satisfied. Provider QA passed; Settings/onboarding/docs now describe Groq, local whisper.cpp, and custom OpenAI-compatible provider expectations and recovery.
 - Transcription compatibility and provider-specific failures: satisfied by focused implementation plus unit coverage for timeout, cancel, retry, JSON/plain-text compatible responses, and provider-aware errors.
@@ -21,7 +21,7 @@ full_outcome_complete: true
 - Focused `TranscriptionHistoryTests` and `KeychainHelperTests` passed.
 - `GROQ_API_KEY="$(security find-generic-password -a groq-api-key -w)" make test-cleanup-quality` passed without printing the key.
 - v1.12.0 DMG checksum/signature/notarization, mounted app signature, Sparkle appcast, and Homebrew cask metadata/install smoke passed.
-- `/Applications/GroqTalk.app` v1.12.0 build 42 cask install, launch, Gatekeeper, and deep codesign checks passed.
+- `/Applications/Foil.app` v1.12.0 build 42 cask install, launch, Gatekeeper, and deep codesign checks passed.
 - Manual installed-app smoke passed for Accessibility, Microphone, Groq API-key Save/Test, setup path, and audio capture.
 
 ## Residual Notes

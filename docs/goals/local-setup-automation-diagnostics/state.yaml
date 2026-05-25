@@ -17,7 +17,7 @@ goal:
     original_request: "Make a detailed GoalBuddy plan to add setup automation, diagnostics, and tests for setup."
     interpreted_outcome: "Create and execute a verified board that makes local setup/permission QA repeatable, diagnosable, and testable without unsafe privacy bypasses."
     input_shape: existing_plan # vague | specific | existing_plan | recovery | audit
-    audience: "GroqTalk developers and maintainers"
+    audience: "Foil developers and maintainers"
     authority: approved # requested | approved | inferred | needs_approval | blocked
     proof_type: test # test | demo | artifact | metric | review | source_backed_answer | decision
     completion_proof: "Setup automation emits clear diagnostics, verifies controllable preconditions, has safe automated coverage where practical, and documents the protected manual permission-toggle boundary."
@@ -85,11 +85,11 @@ tasks:
     inputs:
       - "Makefile"
       - "scripts/"
-      - "GroqTalk/GroqTalkApp.swift"
-      - "GroqTalk/AppState.swift"
-      - "GroqTalk/HotkeyMonitor.swift"
-      - "GroqTalkTests"
-      - "GroqTalkUITests"
+      - "Foil/FoilApp.swift"
+      - "Foil/AppState.swift"
+      - "Foil/HotkeyMonitor.swift"
+      - "FoilTests"
+      - "FoilUITests"
       - "Recent conversation context about Accessibility/Input Monitoring and local signing/TCC mismatch."
     constraints:
       - "Read-only."
@@ -117,10 +117,10 @@ tasks:
         - scripts/setup-local-signing.sh:18-107 creates/imports/trusts a local signing identity and grants codesign partition access.
         - scripts/prepare-local-permissions-qa.sh:14-31 builds/installs unsigned, re-signs ad-hoc with the Info.plist bundle id, and verifies codesign Identifier matches bundle id.
         - scripts/prepare-local-permissions-qa.sh:33-61 resets Accessibility/ListenEvent for the bundle id, opens privacy panes, launches the app, and states manual consent is still required.
-        - GroqTalk/GroqTalkApp.swift:500-545 refreshes setup health from real or UI-test-seeded Accessibility and microphone state.
-        - GroqTalk/GroqTalkApp.swift:576-713 runs setup checks for provider/API key, Accessibility, microphone authorization, and a recorder probe.
-        - GroqTalk/HotkeyMonitor.swift:111-129 logs CGEvent tap creation failures as hotkey/accessibility symptoms.
-        - GroqTalkUITests/GroqTalkUITests.swift:43-142 covers seeded setup success/failure states; GroqTalkUITests/GroqTalkUITests.swift:402-446 covers opt-in live microphone smoke diagnostics.
+        - Foil/FoilApp.swift:500-545 refreshes setup health from real or UI-test-seeded Accessibility and microphone state.
+        - Foil/FoilApp.swift:576-713 runs setup checks for provider/API key, Accessibility, microphone authorization, and a recorder probe.
+        - Foil/HotkeyMonitor.swift:111-129 logs CGEvent tap creation failures as hotkey/accessibility symptoms.
+        - FoilUITests/FoilUITests.swift:43-142 covers seeded setup success/failure states; FoilUITests/FoilUITests.swift:402-446 covers opt-in live microphone smoke diagnostics.
       facts:
         - Safe automation can check files, Info.plist bundle id, codesign Identifier, build/test results, provider reachability, and UI-test seeded setup states.
         - Protected manual steps remain Accessibility, Input Monitoring/ListenEvent, and Microphone consent in System Settings.
@@ -254,7 +254,7 @@ tasks:
         - bash -n scripts/prepare-local-permissions-qa.sh: passed
         - bash -n scripts/test-prepare-local-permissions-qa.sh: passed
         - scripts/test-prepare-local-permissions-qa.sh: passed; output "prepare-local-permissions-qa shell tests passed."
-        - make prepare-local-permissions-qa-check: passed non-mutating real-app diagnostics; warnings were expected for ad-hoc/no-team signing and currently running GroqTalk.
+        - make prepare-local-permissions-qa-check: passed non-mutating real-app diagnostics; warnings were expected for ad-hoc/no-team signing and currently running Foil.
         - make test: passed; xcodebuild reported "** TEST SUCCEEDED **" at 2026-05-17 13:35:15 -0700.
       commands:
         - command: bash -n scripts/prepare-local-permissions-qa.sh
@@ -334,7 +334,7 @@ tasks:
         - bash -n scripts/test-prepare-local-permissions-qa.sh: pass
         - scripts/test-prepare-local-permissions-qa.sh: pass
         - make test-local-permissions-qa-script: pass
-        - make prepare-local-permissions-qa-check: pass; real installed app diagnostics passed with expected warnings for ad-hoc/no-team signing and currently running GroqTalk.
+        - make prepare-local-permissions-qa-check: pass; real installed app diagnostics passed with expected warnings for ad-hoc/no-team signing and currently running Foil.
         - make test: pass; xcodebuild reported "** TEST SUCCEEDED **".
         - git diff --check -- scripts/prepare-local-permissions-qa.sh scripts/test-prepare-local-permissions-qa.sh Makefile docs/goals/local-setup-automation-diagnostics/state.yaml: pass
         - node .../check-goal-state.mjs docs/goals/local-setup-automation-diagnostics/state.yaml: pass

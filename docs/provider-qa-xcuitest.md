@@ -1,6 +1,6 @@
 # Provider QA XCUITests
 
-GroqTalk has two provider QA paths.
+Foil has two provider QA paths.
 
 ## CI-Safe Provider Setup QA
 
@@ -30,11 +30,11 @@ runner, record that as a provider QA blocker and use the manual checks below as
 temporary evidence only.
 
 `make test` follows the same deterministic policy for unit XTests: it skips
-`GroqTalkTests/LiveGroqIntegrationTests` even if a stale shell still exports
+`FoilTests/LiveGroqIntegrationTests` even if a stale shell still exports
 `RUN_LIVE_GROQ_TESTS=1` or `GROQ_API_KEY`.
 
 The setup helper assertion is
-`GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands`.
+`FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands`.
 It checks the CI-safe Settings surface only; the real local transcription path
 remains covered by the opt-in local E2E target below.
 
@@ -46,7 +46,7 @@ For unit-level live Groq API coverage, run:
 RUN_LIVE_GROQ_TESTS=1 GROQ_API_KEY=... make test-live-groq
 ```
 
-This runs only `GroqTalkTests/LiveGroqIntegrationTests`, which verifies the real
+This runs only `FoilTests/LiveGroqIntegrationTests`, which verifies the real
 Groq Whisper API accepts the encoded WAV, M4A, and FLAC test audio. Keep the key
 out of logs and replace `...` with a valid current key in your shell.
 
@@ -61,7 +61,7 @@ process receives `RUN_LIVE_GROQ_TESTS=1`, then runs the existing live Groq
 app-level transcription XCUITest. It is opt-in and requires either:
 
 - `GROQ_API_KEY` in the environment, or
-- an existing Groq API key in the macOS keychain account used by GroqTalk.
+- an existing Groq API key in the macOS keychain account used by Foil.
 
 If no key is available, the target skips cleanly before launching Xcode. If a
 key is present but Groq rejects it, the target fails quickly with the HTTP

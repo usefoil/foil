@@ -7,7 +7,7 @@
 
 ## Background
 
-GroqTalk records audio and transcribes it via the Groq Whisper API. Transcription is async — the user may switch apps while it runs. The current async paste implementation (`insertAtTarget`) activates the target window, pastes via CMD+V, and returns focus. This causes two problems:
+Foil records audio and transcribes it via the Groq Whisper API. Transcription is async — the user may switch apps while it runs. The current async paste implementation (`insertAtTarget`) activates the target window, pastes via CMD+V, and returns focus. This causes two problems:
 
 1. **Unreliable window targeting** — activation + AXRaise behaves differently across native, browser, and Electron apps.
 2. **Jarring visual flicker** — the window shuffle is visible even when it works correctly.
@@ -58,7 +58,7 @@ Converts a PID to a ProcessSerialNumber. Deprecated but still resolves via dlsym
 
 ### Permissions
 
-- **Accessibility:** Required (already granted for GroqTalk)
+- **Accessibility:** Required (already granted for Foil)
 - **SIP disabled:** Not required (only needed for yabai's scripting addition)
 - **Hardened Runtime:** Compatible (system frameworks load without library validation bypass)
 - **Notarization:** Compatible (many notarized apps use private APIs)
@@ -200,7 +200,7 @@ func insertAsync(text: String, target: PasteTarget, keepOnClipboard: Bool) async
 }
 ```
 
-#### `GroqTalkApp.swift`
+#### `FoilApp.swift`
 
 Change the `PasteQueue` handler from `insertAtTarget` to `insertAsync`. One line.
 

@@ -15,9 +15,9 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
   exit 1
 fi
 
-SOURCE_REPO="${SOURCE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/groqtalk}}"
-TAP_REPO="${TAP_REPO:-mean-weasel/homebrew-groqtalk}"
-DMG_PATH="${RUNNER_TEMP:-/tmp}/GroqTalk-${VERSION}-macos.dmg"
+SOURCE_REPO="${SOURCE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/foil}}"
+TAP_REPO="${TAP_REPO:-mean-weasel/homebrew-foil}"
+DMG_PATH="${RUNNER_TEMP:-/tmp}/Foil-${VERSION}-macos.dmg"
 
 # Verify the DMG exists before attempting to hash it
 if [[ ! -f "$DMG_PATH" ]]; then
@@ -55,25 +55,25 @@ git clone \
 
 mkdir -p "$CLONE_DIR/Casks"
 
-cat > "$CLONE_DIR/Casks/groqtalk.rb" <<RUBY
-cask "groqtalk" do
+cat > "$CLONE_DIR/Casks/foil.rb" <<RUBY
+cask "foil" do
   version "${VERSION}"
   sha256 "${SHA256}"
 
-  url "https://github.com/${SOURCE_REPO}/releases/download/v${VERSION}/GroqTalk-${VERSION}-macos.dmg"
-  name "GroqTalk"
-  desc "Menu bar speech-to-text transcription powered by Groq"
+  url "https://github.com/${SOURCE_REPO}/releases/download/v${VERSION}/Foil-${VERSION}-macos.dmg"
+  name "Foil"
+  desc "Menu bar speech-to-text transcription with cloud and local providers"
   homepage "https://github.com/${SOURCE_REPO}"
 
   auto_updates true
   depends_on macos: ">= :sonoma"
 
-  app "GroqTalk.app"
+  app "Foil.app"
 
   zap trash: [
-    "~/Library/Application Support/com.neonwatty.GroqTalk",
-    "~/Library/Preferences/com.neonwatty.GroqTalk.plist",
-    "~/Library/Caches/com.neonwatty.GroqTalk",
+    "~/Library/Application Support/com.neonwatty.Foil",
+    "~/Library/Preferences/com.neonwatty.Foil.plist",
+    "~/Library/Caches/com.neonwatty.Foil",
   ]
 end
 RUBY
@@ -82,14 +82,14 @@ cd "$CLONE_DIR"
 git config user.email "github-actions[bot]@users.noreply.github.com"
 git config user.name "github-actions[bot]"
 
-git add Casks/groqtalk.rb
+git add Casks/foil.rb
 
 if git diff --cached --quiet; then
   echo "No changes to commit — cask is already up to date."
   exit 0
 fi
 
-git commit -m "chore: update groqtalk cask to v${VERSION}"
+git commit -m "chore: update foil cask to v${VERSION}"
 git push
 
 echo "Homebrew cask updated to v${VERSION} in ${TAP_REPO}."

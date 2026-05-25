@@ -65,7 +65,7 @@ enum CleanupQualityTest {
             return 1
         }
 
-        let sample = "um so i think what we need to do is like tomorrow before the demo we should maybe test the async paste thing in chrome terminal and textedit and then if that all works we can record a short video for groqtalk"
+        let sample = "um so i think what we need to do is like tomorrow before the demo we should maybe test the async paste thing in chrome terminal and textedit and then if that all works we can record a short video for foil"
         let endpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
         let model = "llama-3.3-70b-versatile"
 
@@ -90,7 +90,7 @@ enum CleanupQualityTest {
                 print()
 
                 let lower = output.lowercased()
-                let preservesCoreFacts = ["tomorrow", "demo", "async paste", "chrome", "terminal", "textedit", "video", "groqtalk"]
+                let preservesCoreFacts = ["tomorrow", "demo", "async paste", "chrome", "terminal", "textedit", "video", "foil"]
                     .allSatisfy { lower.contains($0) }
                 if output.isEmpty || !preservesCoreFacts {
                     failed = true

@@ -13,12 +13,12 @@
 ### Task 1: Add `asyncPasteEnabled` toggle to AppState
 
 **Files:**
-- Modify: `GroqTalk/AppState.swift`
-- Modify: `GroqTalkTests/AppStateTests.swift`
+- Modify: `Foil/AppState.swift`
+- Modify: `FoilTests/AppStateTests.swift`
 
 - [ ] **Step 1: Write the failing test**
 
-In `GroqTalkTests/AppStateTests.swift`, add at the bottom of the class:
+In `FoilTests/AppStateTests.swift`, add at the bottom of the class:
 
 ```swift
 // MARK: - Async paste
@@ -37,12 +37,12 @@ func testSetAsyncPaste() {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/AppStateTests/testDefaultAsyncPasteDisabled 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests/testDefaultAsyncPasteDisabled 2>&1 | tail -5`
 Expected: Build error — `asyncPasteEnabled` does not exist on `AppState`.
 
 - [ ] **Step 3: Write minimal implementation**
 
-In `GroqTalk/AppState.swift`, add the UserDefaults-backed property after `keepOnClipboard`:
+In `Foil/AppState.swift`, add the UserDefaults-backed property after `keepOnClipboard`:
 
 ```swift
 var asyncPasteEnabled: Bool {
@@ -55,7 +55,7 @@ Add `"asyncPasteEnabled": false` to the `register(defaults:)` dictionary in `ini
 
 - [ ] **Step 4: Add teardown cleanup**
 
-In `GroqTalkTests/AppStateTests.swift`, add to the existing `tearDown()`:
+In `FoilTests/AppStateTests.swift`, add to the existing `tearDown()`:
 
 ```swift
 UserDefaults.standard.removeObject(forKey: "asyncPasteEnabled")
@@ -63,13 +63,13 @@ UserDefaults.standard.removeObject(forKey: "asyncPasteEnabled")
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/AppStateTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests 2>&1 | tail -5`
 Expected: All AppState tests PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add GroqTalk/AppState.swift GroqTalkTests/AppStateTests.swift
+git add Foil/AppState.swift FoilTests/AppStateTests.swift
 git commit -m "feat: add asyncPasteEnabled toggle to AppState"
 ```
 
@@ -78,16 +78,16 @@ git commit -m "feat: add asyncPasteEnabled toggle to AppState"
 ### Task 2: Create `PasteTarget` — AX window capture
 
 **Files:**
-- Create: `GroqTalk/PasteTarget.swift`
-- Create: `GroqTalkTests/PasteTargetTests.swift`
+- Create: `Foil/PasteTarget.swift`
+- Create: `FoilTests/PasteTargetTests.swift`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `GroqTalkTests/PasteTargetTests.swift`:
+Create `FoilTests/PasteTargetTests.swift`:
 
 ```swift
 import XCTest
-@testable import GroqTalk
+@testable import Foil
 
 final class PasteTargetTests: XCTestCase {
     func testCaptureReturnsNilWithoutAccessibility() {
@@ -122,12 +122,12 @@ final class PasteTargetTests: XCTestCase {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/PasteTargetTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/PasteTargetTests 2>&1 | tail -5`
 Expected: Build error — `PasteTarget` does not exist.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `GroqTalk/PasteTarget.swift`:
+Create `Foil/PasteTarget.swift`:
 
 ```swift
 import ApplicationServices
@@ -171,17 +171,17 @@ struct PasteTarget {
 
 - [ ] **Step 4: Add file to Xcode project**
 
-The new file must be in both the GroqTalk app target and accessible to tests. If using Xcode's automatic file discovery this happens automatically. Otherwise add `PasteTarget.swift` to the GroqTalk target and `PasteTargetTests.swift` to the GroqTalkTests target.
+The new file must be in both the Foil app target and accessible to tests. If using Xcode's automatic file discovery this happens automatically. Otherwise add `PasteTarget.swift` to the Foil target and `PasteTargetTests.swift` to the FoilTests target.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/PasteTargetTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/PasteTargetTests 2>&1 | tail -5`
 Expected: All PasteTarget tests PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add GroqTalk/PasteTarget.swift GroqTalkTests/PasteTargetTests.swift
+git add Foil/PasteTarget.swift FoilTests/PasteTargetTests.swift
 git commit -m "feat: add PasteTarget for AX window capture at record time"
 ```
 
@@ -190,16 +190,16 @@ git commit -m "feat: add PasteTarget for AX window capture at record time"
 ### Task 3: Create `PasteQueue` — serialized async paste executor
 
 **Files:**
-- Create: `GroqTalk/PasteQueue.swift`
-- Create: `GroqTalkTests/PasteQueueTests.swift`
+- Create: `Foil/PasteQueue.swift`
+- Create: `FoilTests/PasteQueueTests.swift`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `GroqTalkTests/PasteQueueTests.swift`:
+Create `FoilTests/PasteQueueTests.swift`:
 
 ```swift
 import XCTest
-@testable import GroqTalk
+@testable import Foil
 
 final class PasteQueueTests: XCTestCase {
     func testEnqueueAndDrain() async {
@@ -255,12 +255,12 @@ final class PasteQueueTests: XCTestCase {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/PasteQueueTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/PasteQueueTests 2>&1 | tail -5`
 Expected: Build error — `PasteQueue` does not exist.
 
 - [ ] **Step 3: Write minimal implementation**
 
-Create `GroqTalk/PasteQueue.swift`:
+Create `Foil/PasteQueue.swift`:
 
 ```swift
 import Foundation
@@ -285,13 +285,13 @@ actor PasteQueue {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/PasteQueueTests 2>&1 | tail -5`
+Run: `xcodebuild test -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/PasteQueueTests 2>&1 | tail -5`
 Expected: All PasteQueue tests PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add GroqTalk/PasteQueue.swift GroqTalkTests/PasteQueueTests.swift
+git add Foil/PasteQueue.swift FoilTests/PasteQueueTests.swift
 git commit -m "feat: add PasteQueue actor for serialized async paste execution"
 ```
 
@@ -300,11 +300,11 @@ git commit -m "feat: add PasteQueue actor for serialized async paste execution"
 ### Task 4: Add targeted paste method to `TextInserter`
 
 **Files:**
-- Modify: `GroqTalk/TextInserter.swift`
+- Modify: `Foil/TextInserter.swift`
 
 - [ ] **Step 1: Add `insertAtTarget` method**
 
-In `GroqTalk/TextInserter.swift`, add this method after the existing `insert(text:keepOnClipboard:)`:
+In `Foil/TextInserter.swift`, add this method after the existing `insert(text:keepOnClipboard:)`:
 
 ```swift
 /// Paste text into a previously captured target window, then return focus
@@ -348,13 +348,13 @@ Add `import ApplicationServices` at the top of `TextInserter.swift` if not alrea
 
 - [ ] **Step 2: Verify the app builds**
 
-Run: `xcodebuild build -scheme GroqTalk -destination 'platform=macOS' 2>&1 | tail -5`
+Run: `xcodebuild build -scheme Foil -destination 'platform=macOS' 2>&1 | tail -5`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add GroqTalk/TextInserter.swift
+git add Foil/TextInserter.swift
 git commit -m "feat: add insertAtTarget for async paste with focus-switch-return"
 ```
 
@@ -363,13 +363,13 @@ git commit -m "feat: add insertAtTarget for async paste with focus-switch-return
 ### Task 5: Wire async paste into AppDelegate
 
 **Files:**
-- Modify: `GroqTalk/GroqTalkApp.swift`
+- Modify: `Foil/FoilApp.swift`
 
 This task modifies the `onRecordingStopped` callback and adds the PasteQueue. When `asyncPasteEnabled` is true, the target is captured at recording start and paste goes through the queue. When false, behavior is unchanged.
 
 - [ ] **Step 1: Add properties to AppDelegate**
 
-In `GroqTalk/GroqTalkApp.swift`, add to the AppDelegate class properties (after `private let soundPlayer`):
+In `Foil/FoilApp.swift`, add to the AppDelegate class properties (after `private let soundPlayer`):
 
 ```swift
 private var pendingTarget: PasteTarget?
@@ -433,13 +433,13 @@ self.pendingTarget = nil
 
 - [ ] **Step 6: Verify the app builds**
 
-Run: `xcodebuild build -scheme GroqTalk -destination 'platform=macOS' 2>&1 | tail -5`
+Run: `xcodebuild build -scheme Foil -destination 'platform=macOS' 2>&1 | tail -5`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add GroqTalk/GroqTalkApp.swift
+git add Foil/FoilApp.swift
 git commit -m "feat: wire async paste queue into AppDelegate with toggle gate"
 ```
 
@@ -448,11 +448,11 @@ git commit -m "feat: wire async paste queue into AppDelegate with toggle gate"
 ### Task 6: Add toggle to MenuBarView
 
 **Files:**
-- Modify: `GroqTalk/MenuBarView.swift`
+- Modify: `Foil/MenuBarView.swift`
 
 - [ ] **Step 1: Add the toggle**
 
-In `GroqTalk/MenuBarView.swift`, add after the `Toggle("Keep on Clipboard", ...)` line:
+In `Foil/MenuBarView.swift`, add after the `Toggle("Keep on Clipboard", ...)` line:
 
 ```swift
 Toggle("Async Paste (experimental)", isOn: $appState.asyncPasteEnabled)
@@ -460,13 +460,13 @@ Toggle("Async Paste (experimental)", isOn: $appState.asyncPasteEnabled)
 
 - [ ] **Step 2: Verify the app builds**
 
-Run: `xcodebuild build -scheme GroqTalk -destination 'platform=macOS' 2>&1 | tail -5`
+Run: `xcodebuild build -scheme Foil -destination 'platform=macOS' 2>&1 | tail -5`
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add GroqTalk/MenuBarView.swift
+git add Foil/MenuBarView.swift
 git commit -m "feat: add async paste toggle to menu bar settings"
 ```
 
@@ -475,13 +475,13 @@ git commit -m "feat: add async paste toggle to menu bar settings"
 ### Task 7: Add mock transcription for prototype testing
 
 **Files:**
-- Modify: `GroqTalk/GroqTalkApp.swift`
+- Modify: `Foil/FoilApp.swift`
 
 This task adds a compile-time flag `MOCK_TRANSCRIPTION` that replaces the real API call with a 2-second delay and hardcoded text. This lets you test the full window-capture → async-wait → focus-switch-paste-return cycle without needing audio or an API key.
 
 - [ ] **Step 1: Add mock branch in onRecordingStopped**
 
-In `GroqTalk/GroqTalkApp.swift`, inside the `onRecordingStopped` callback, replace the `do { let text = try await self.transcriptionService.transcribe(...)` block with a conditional compilation block:
+In `Foil/FoilApp.swift`, inside the `onRecordingStopped` callback, replace the `do { let text = try await self.transcriptionService.transcribe(...)` block with a conditional compilation block:
 
 ```swift
 do {
@@ -519,18 +519,18 @@ guard let apiKey = KeychainHelper.readApiKey() else {
 
 - [ ] **Step 3: Verify the app builds without the flag**
 
-Run: `xcodebuild build -scheme GroqTalk -destination 'platform=macOS' 2>&1 | tail -5`
+Run: `xcodebuild build -scheme Foil -destination 'platform=macOS' 2>&1 | tail -5`
 Expected: BUILD SUCCEEDED (normal path, no mock).
 
 - [ ] **Step 4: Verify the app builds WITH the flag**
 
-Run: `xcodebuild build -scheme GroqTalk -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-DMOCK_TRANSCRIPTION' 2>&1 | tail -5`
+Run: `xcodebuild build -scheme Foil -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-DMOCK_TRANSCRIPTION' 2>&1 | tail -5`
 Expected: BUILD SUCCEEDED (mock path).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add GroqTalk/GroqTalkApp.swift
+git add Foil/FoilApp.swift
 git commit -m "feat: add MOCK_TRANSCRIPTION compile flag for async paste prototyping"
 ```
 
@@ -542,7 +542,7 @@ This task is manual — no code changes. Build with mock transcription enabled, 
 
 - [ ] **Step 1: Build with mock flag**
 
-Run: `xcodebuild build -scheme GroqTalk -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-DMOCK_TRANSCRIPTION' 2>&1 | tail -5`
+Run: `xcodebuild build -scheme Foil -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-DMOCK_TRANSCRIPTION' 2>&1 | tail -5`
 
 - [ ] **Step 2: Launch the app**
 
@@ -551,7 +551,7 @@ Open the built `.app` bundle from the DerivedData build directory, or run from X
 - [ ] **Step 3: Test scenario — single async paste**
 
 1. Open TextEdit, click into a document
-2. Enable "Async Paste (experimental)" in the GroqTalk menu bar
+2. Enable "Async Paste (experimental)" in the Foil menu bar
 3. Press and hold the hotkey (dictate anything — audio is ignored with mock)
 4. Release the hotkey
 5. **Immediately switch to a different app** (e.g., Finder, Safari)

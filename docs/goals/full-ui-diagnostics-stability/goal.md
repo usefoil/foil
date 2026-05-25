@@ -2,7 +2,7 @@
 
 ## Objective
 
-Stabilize GroqTalk's macOS Full UI Diagnostics path so it produces useful beta-readiness signal instead of timing out on XCUITest foreground/background interaction failures.
+Stabilize Foil's macOS Full UI Diagnostics path so it produces useful beta-readiness signal instead of timing out on XCUITest foreground/background interaction failures.
 
 ## Original Request
 
@@ -11,7 +11,7 @@ Plan the next work with GoalBuddy after Full UI Diagnostics still failed at the 
 ## Intake Summary
 
 - Input shape: `recovery`
-- Audience: GroqTalk maintainers preparing the app for open beta
+- Audience: Foil maintainers preparing the app for open beta
 - Authority: `requested`
 - Proof type: `test`
 - Completion proof: A Full UI Diagnostics run on `main` completes without timing out, produces parseable diagnostics, and any remaining failures are real product/test assertions rather than macOS runner foreground/background or SetupAssistant interference.

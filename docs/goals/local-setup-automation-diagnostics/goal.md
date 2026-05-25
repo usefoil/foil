@@ -2,7 +2,7 @@
 
 ## Objective
 
-Make GroqTalk's local setup and permission QA workflow repeatable, diagnosable, and testable for developers without bypassing macOS privacy protections.
+Make Foil's local setup and permission QA workflow repeatable, diagnosable, and testable for developers without bypassing macOS privacy protections.
 
 ## Original Request
 
@@ -11,7 +11,7 @@ Make a detailed GoalBuddy plan to add setup automation, diagnostics, and tests f
 ## Intake Summary
 
 - Input shape: `existing_plan`
-- Audience: GroqTalk developers and maintainers doing local macOS QA.
+- Audience: Foil developers and maintainers doing local macOS QA.
 - Authority: `approved`
 - Proof type: `test`
 - Completion proof: the local setup automation path has clear terminal diagnostics, verifies signing/bundle/TCC preconditions where macOS permits, has automated script or shell-level coverage where practical, and leaves a documented manual privacy-toggle boundary.

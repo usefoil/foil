@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-APP_NAME="${APP_NAME:-GroqTalk}"
-SCHEME="${SCHEME:-GroqTalk}"
+APP_NAME="${APP_NAME:-Foil}"
+SCHEME="${SCHEME:-Foil}"
 CONFIG="${CONFIG:-Debug}"
 INSTALL_DIR="${INSTALL_DIR:-/Applications}"
 APP_PATH="${APP_PATH:-$INSTALL_DIR/$APP_NAME.app}"

@@ -63,11 +63,11 @@ jobs:
             exit 1
           fi
 
-      - name: Stop stale GroqTalk processes
+      - name: Stop stale Foil processes
         run: |
-          pkill -x GroqTalk || true
-          pkill -x GroqTalkE2E || true
-          pkill -f 'xcodebuild.*GroqTalk' || true
+          pkill -x Foil || true
+          pkill -x FoilE2E || true
+          pkill -f 'xcodebuild.*Foil' || true
 
       - name: Run live transcription app E2E
         timeout-minutes: 35
@@ -83,21 +83,21 @@ jobs:
             exit 1
           fi
 
-          RESULT_PATH="/tmp/groqtalk-e2e-result.txt"
+          RESULT_PATH="/tmp/foil-e2e-result.txt"
           DERIVED_DATA="$PWD/LocalE2EDerivedData"
-          APP_PATH="$DERIVED_DATA/Build/Products/Debug/GroqTalk.app"
-          APP_BIN="$APP_PATH/Contents/MacOS/GroqTalk"
+          APP_PATH="$DERIVED_DATA/Build/Products/Debug/Foil.app"
+          APP_BIN="$APP_PATH/Contents/MacOS/Foil"
 
           rm -rf "$DERIVED_DATA" LocalAppE2E.log "$RESULT_PATH"
 
           xcodebuild build \
-            -scheme GroqTalk \
+            -scheme Foil \
             -configuration Debug \
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath "$DERIVED_DATA"
 
           security add-generic-password \
-            -s "com.neonwatty.GroqTalk" \
+            -s "com.neonwatty.Foil" \
             -a "groq-api-key" \
             -w "$GROQ_API_KEY" -U 2>/dev/null || true
 
@@ -119,7 +119,7 @@ jobs:
               break
             fi
             if ! kill -0 "$APP_PID" 2>/dev/null; then
-              echo "::error::GroqTalk exited before writing E2E result."
+              echo "::error::Foil exited before writing E2E result."
               tail -120 LocalAppE2E.log || true
               exit 1
             fi
@@ -166,7 +166,7 @@ jobs:
         with:
           name: local-e2e-artifacts
           path: |
-            /tmp/groqtalk-e2e-result.txt
+            /tmp/foil-e2e-result.txt
             LocalAppE2E.log
             local-e2e-output.txt
           retention-days: 14
@@ -177,12 +177,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          pkill -x GroqTalk || true
-          pkill -x GroqTalkE2E || true
-          pkill -f 'xcodebuild.*GroqTalk' || true
+          pkill -x Foil || true
+          pkill -x FoilE2E || true
+          pkill -f 'xcodebuild.*Foil' || true
 
           rm -rf LocalE2EDerivedData LocalCLIE2EDerivedData
-          rm -f LocalAppE2E.log local-e2e-output.txt /tmp/groqtalk-e2e-result.txt
+          rm -f LocalAppE2E.log local-e2e-output.txt /tmp/foil-e2e-result.txt
 
           cleanup="$HOME/Library/Application Support/macos-e2e-runner/macos-runner-cleanup"
           RUNNER_HOME="$HOME" \

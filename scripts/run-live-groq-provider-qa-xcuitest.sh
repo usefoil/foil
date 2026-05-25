@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCHEME="${SCHEME:-GroqTalk}"
+SCHEME="${SCHEME:-Foil}"
 CONFIG="${CONFIG:-Debug}"
 DESTINATION="${DESTINATION:-platform=macOS}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-}"
@@ -9,7 +9,7 @@ PLISTBUDDY="/usr/libexec/PlistBuddy"
 
 api_key="${GROQ_API_KEY:-}"
 if [[ -z "${api_key}" ]]; then
-  api_key="$(security find-generic-password -s com.neonwatty.GroqTalk -a groq-api-key -w 2>/dev/null || true)"
+  api_key="$(security find-generic-password -s com.neonwatty.Foil -a groq-api-key -w 2>/dev/null || true)"
 fi
 
 if [[ -z "${api_key}" ]]; then
@@ -50,7 +50,7 @@ fi
 xcodebuild build-for-testing "${build_args[@]}"
 
 find_root="${DERIVED_DATA_PATH:-${HOME}/Library/Developer/Xcode/DerivedData}"
-xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*GroqTalk*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
+xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*Foil*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
 if [[ -z "${xctestrun}" || ! -f "${xctestrun}" ]]; then
   echo "error: could not locate generated .xctestrun" >&2
   exit 1
@@ -62,7 +62,7 @@ cp "${xctestrun}" "${patched}"
 ui_target_index=""
 for index in $(seq 0 20); do
   blueprint="$("${PLISTBUDDY}" -c "Print :TestConfigurations:0:TestTargets:${index}:BlueprintName" "${patched}" 2>/dev/null || true)"
-  if [[ "${blueprint}" == "GroqTalkUITests" ]]; then
+  if [[ "${blueprint}" == "FoilUITests" ]]; then
     ui_target_index="${index}"
     break
   fi
@@ -72,7 +72,7 @@ for index in $(seq 0 20); do
 done
 
 if [[ -z "${ui_target_index}" ]]; then
-  echo "error: GroqTalkUITests target not found in ${patched}" >&2
+  echo "error: FoilUITests target not found in ${patched}" >&2
   exit 1
 fi
 
@@ -90,4 +90,4 @@ echo "== XCUITest live Groq provider QA"
 xcodebuild test-without-building \
   -xctestrun "${patched}" \
   -destination "${DESTINATION}" \
-  -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription
+  -only-testing:FoilUITests/FoilUITests/testE2ETranscription

@@ -40,11 +40,11 @@ base64 -i certificate.p12 -o certificate-base64.txt
 
 - [ ] **Step 2: Create an app-specific password for notarization**
 
-Go to [appleid.apple.com](https://appleid.apple.com/) → Sign-In and Security → App-Specific Passwords → Generate one named "GroqTalk Notarization".
+Go to [appleid.apple.com](https://appleid.apple.com/) → Sign-In and Security → App-Specific Passwords → Generate one named "Foil Notarization".
 
 - [ ] **Step 3: Add secrets to GitHub repo**
 
-Go to `github.com/neonwatty/groqtalk` → Settings → Secrets and variables → Actions → New repository secret:
+Go to `github.com/neonwatty/foil` → Settings → Secrets and variables → Actions → New repository secret:
 
 | Secret Name | Value |
 |------------|-------|
@@ -228,23 +228,23 @@ Add after the `release` job in `deploy.yml`:
       - name: Archive
         run: |
           xcodebuild archive \
-            -scheme GroqTalk \
+            -scheme Foil \
             -configuration Release \
             -destination 'platform=macOS' \
-            -archivePath "$RUNNER_TEMP/GroqTalk.xcarchive" \
+            -archivePath "$RUNNER_TEMP/Foil.xcarchive" \
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}"
 
       - name: Export app
         run: |
           xcodebuild -exportArchive \
-            -archivePath "$RUNNER_TEMP/GroqTalk.xcarchive" \
+            -archivePath "$RUNNER_TEMP/Foil.xcarchive" \
             -exportPath "$RUNNER_TEMP/export" \
             -exportOptionsPlist ExportOptions.plist
 
       - name: Verify code signature
         run: |
-          codesign --verify --deep --strict "$RUNNER_TEMP/export/GroqTalk.app"
+          codesign --verify --deep --strict "$RUNNER_TEMP/export/Foil.app"
           echo "Code signature verified"
 
       - name: Install create-dmg
@@ -255,14 +255,14 @@ Add after the `release` job in `deploy.yml`:
           VERSION: ${{ needs.release.outputs.new_release_version }}
         run: |
           create-dmg \
-            --volname "GroqTalk" \
+            --volname "Foil" \
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
-            --icon "GroqTalk.app" 150 190 \
+            --icon "Foil.app" 150 190 \
             --app-drop-link 450 190 \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
-            "$RUNNER_TEMP/export/GroqTalk.app"
+            "$RUNNER_TEMP/Foil-${VERSION}-macos.dmg" \
+            "$RUNNER_TEMP/export/Foil.app"
 
       - name: Notarize DMG
         env:
@@ -272,13 +272,13 @@ Add after the `release` job in `deploy.yml`:
           VERSION: ${{ needs.release.outputs.new_release_version }}
         run: |
           xcrun notarytool submit \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
+            "$RUNNER_TEMP/Foil-${VERSION}-macos.dmg" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_ID_PASSWORD" \
             --wait
 
-          xcrun stapler staple "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
+          xcrun stapler staple "$RUNNER_TEMP/Foil-${VERSION}-macos.dmg"
           echo "Notarization complete"
 
       - name: Upload DMG to release
@@ -287,7 +287,7 @@ Add after the `release` job in `deploy.yml`:
           VERSION: ${{ needs.release.outputs.new_release_version }}
         run: |
           gh release upload "v${VERSION}" \
-            "$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg" \
+            "$RUNNER_TEMP/Foil-${VERSION}-macos.dmg" \
             --clobber
 
       - name: Cleanup keychain
@@ -348,24 +348,24 @@ mkdir -p Casks
 
 - [ ] **Step 3: Create the cask formula**
 
-Create `Casks/groqtalk.rb`:
+Create `Casks/foil.rb`:
 
 ```ruby
-cask "groqtalk" do
+cask "foil" do
   version "1.0.0"
   sha256 "PLACEHOLDER"
 
-  url "https://github.com/neonwatty/groqtalk/releases/download/v#{version}/GroqTalk-#{version}-macos.dmg"
-  name "GroqTalk"
+  url "https://github.com/neonwatty/foil/releases/download/v#{version}/Foil-#{version}-macos.dmg"
+  name "Foil"
   desc "macOS menu bar speech-to-text powered by Groq Whisper"
-  homepage "https://github.com/neonwatty/groqtalk"
+  homepage "https://github.com/neonwatty/foil"
 
   depends_on macos: ">= :sonoma"
 
-  app "GroqTalk.app"
+  app "Foil.app"
 
   zap trash: [
-    "~/Library/Application Support/GroqTalk",
+    "~/Library/Application Support/Foil",
   ]
 end
 ```
@@ -391,12 +391,12 @@ brew tap neonwatty/tap
 
 | Cask | Description |
 |------|-------------|
-| `groqtalk` | macOS menu bar speech-to-text powered by Groq Whisper |
+| `foil` | macOS menu bar speech-to-text powered by Groq Whisper |
 
-### GroqTalk
+### Foil
 
 ```
-brew install --cask groqtalk
+brew install --cask foil
 ```
 ```
 
@@ -405,7 +405,7 @@ brew install --cask groqtalk
 ```bash
 cd /tmp/homebrew-tap
 git add .
-git commit -m "feat: add groqtalk cask formula"
+git commit -m "feat: add foil cask formula"
 git push origin main
 ```
 
@@ -416,15 +416,15 @@ After the first `feat:` or `fix:` commit triggers a new release with a DMG:
 1. Download the DMG:
 ```bash
 VERSION="1.1.0"  # whatever the new version is
-curl -L -o /tmp/GroqTalk.dmg "https://github.com/neonwatty/groqtalk/releases/download/v${VERSION}/GroqTalk-${VERSION}-macos.dmg"
+curl -L -o /tmp/Foil.dmg "https://github.com/neonwatty/foil/releases/download/v${VERSION}/Foil-${VERSION}-macos.dmg"
 ```
 
 2. Get the SHA256:
 ```bash
-shasum -a 256 /tmp/GroqTalk.dmg
+shasum -a 256 /tmp/Foil.dmg
 ```
 
-3. Update `Casks/groqtalk.rb` with the new version and SHA256.
+3. Update `Casks/foil.rb` with the new version and SHA256.
 
 4. Commit and push to the tap repo.
 
@@ -432,7 +432,7 @@ shasum -a 256 /tmp/GroqTalk.dmg
 
 ```bash
 brew tap neonwatty/tap
-brew install --cask groqtalk
+brew install --cask foil
 ```
 
-Expected: GroqTalk.app appears in /Applications.
+Expected: Foil.app appears in /Applications.

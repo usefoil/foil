@@ -70,7 +70,7 @@ https://huggingface.co/akashmjn/tinydiarize-whisper.cpp/resolve/main/ggml-small.
   - `--no-timestamps`
   - `-l LANG, --language LANG`
 
-GroqTalk's OpenAI-compatible local command should keep using:
+Foil's OpenAI-compatible local command should keep using:
 
 ```sh
 ./build/bin/whisper-server \
