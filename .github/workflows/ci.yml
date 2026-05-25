@@ -93,6 +93,8 @@ jobs:
 
       - name: Run tests
         id: run-tests
+        env:
+          RUN_LIVE_GROQ_TESTS: "0"
         run: |
           # Run xcodebuild in background so we can send SIGTERM (graceful) on timeout
           # instead of relying on step timeout's SIGKILL (which corrupts xcresult)
@@ -101,6 +103,7 @@ jobs:
             -configuration Debug \
             -destination 'platform=macOS' \
             -only-testing:GroqTalkTests \
+            -skip-testing:GroqTalkTests/LiveGroqIntegrationTests \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult &
           XCODE_PID=$!

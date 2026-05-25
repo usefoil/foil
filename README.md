@@ -79,6 +79,11 @@ make start
 make test
 ```
 
+`make test` is deterministic and skips live Groq API XTests even if your shell
+contains stale Groq test environment variables. To intentionally verify the real
+Groq API path, run `RUN_LIVE_GROQ_TESTS=1 GROQ_API_KEY=... make test-live-groq`.
+Use a current key and do not paste the key into logs or issue comments.
+
 By default, local builds use the `GroqTalk Local Code Signing` identity when it
 exists, falling back to ad-hoc signing otherwise. Stable local signing keeps the
 app's Accessibility permission attached across rebuilds. `make setup-local-signing`

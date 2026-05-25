@@ -24,8 +24,10 @@ BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -dest
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
 APP_MARKETING_VERSION := $(shell sed -n 's/.*MARKETING_VERSION = \([^;]*\);.*/\1/p' GroqTalk.xcodeproj/project.pbxproj | head -1)
 APP_BUILD_VERSION := $(shell sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/\1/p' GroqTalk.xcodeproj/project.pbxproj | head -1)
+LIVE_GROQ_TEST_CLASS := GroqTalkTests/LiveGroqIntegrationTests
+DEFAULT_UNIT_TEST_FILTERS := -only-testing:GroqTalkTests -skip-testing:$(LIVE_GROQ_TEST_CLASS)
 
-.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -98,7 +100,7 @@ uninstall:
 
 test:
 	@tmp=$$(mktemp); \
-	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:GroqTalkTests >"$$tmp" 2>&1; \
+	RUN_LIVE_GROQ_TESTS=0 xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' $(DEFAULT_UNIT_TEST_FILTERS) >"$$tmp" 2>&1; \
 	status=$$?; tail -5 "$$tmp"; \
 	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
 	rm -f "$$tmp"; exit $$status
@@ -139,6 +141,22 @@ test-provider-qa:
 
 test-provider-qa-live:
 	SCHEME="$(SCHEME)" CONFIG="$(CONFIG)" scripts/run-live-groq-provider-qa-xcuitest.sh
+
+test-live-groq:
+	@if [[ -z "$${GROQ_API_KEY:-}" ]]; then \
+		echo "ERROR: GROQ_API_KEY is required for make test-live-groq"; \
+		exit 2; \
+	fi; \
+	old_run=$$(launchctl getenv RUN_LIVE_GROQ_TESTS || true); \
+	old_key=$$(launchctl getenv GROQ_API_KEY || true); \
+	restore_live_groq_env() { \
+		if [[ -n "$$old_run" ]]; then launchctl setenv RUN_LIVE_GROQ_TESTS "$$old_run"; else launchctl unsetenv RUN_LIVE_GROQ_TESTS; fi; \
+		if [[ -n "$$old_key" ]]; then launchctl setenv GROQ_API_KEY "$$old_key"; else launchctl unsetenv GROQ_API_KEY; fi; \
+	}; \
+	trap restore_live_groq_env EXIT; \
+	launchctl setenv RUN_LIVE_GROQ_TESTS 1; \
+	launchctl setenv GROQ_API_KEY "$$GROQ_API_KEY"; \
+	RUN_LIVE_GROQ_TESTS=1 xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -only-testing:$(LIVE_GROQ_TEST_CLASS)
 
 test-live-transcription-e2e-cli:
 	CONFIG="$(CONFIG)" scripts/run-live-transcription-e2e-cli.sh
@@ -198,7 +216,7 @@ qa-local: install
 
 qa:
 	@echo "=== Unit tests ==="
-	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' 2>&1 | grep -E "Executed|TEST (SUCCEEDED|FAILED)"
+	RUN_LIVE_GROQ_TESTS=0 xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -skip-testing:$(LIVE_GROQ_TEST_CLASS) 2>&1 | grep -E "Executed|TEST (SUCCEEDED|FAILED)"
 	@echo ""
 	@echo "=== Async paste integration test ==="
 	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5

@@ -3,8 +3,8 @@ import AVFAudio
 @testable import GroqTalk
 
 /// End-to-end tests that call the real Groq Whisper API.
-/// Skipped unless RUN_LIVE_GROQ_TESTS=1 and GROQ_API_KEY are set.
-final class IntegrationTests: XCTestCase {
+/// Run these through `make test-live-groq`; default test paths skip this class.
+final class LiveGroqIntegrationTests: XCTestCase {
     private var recorder: AudioRecorder!
     private var tempFiles: [URL] = []
 
@@ -20,8 +20,6 @@ final class IntegrationTests: XCTestCase {
         }
     }
 
-    // MARK: - Helpers
-
     private func requireApiKey() throws -> String {
         guard ProcessInfo.processInfo.environment["RUN_LIVE_GROQ_TESTS"] == "1" else {
             throw XCTSkip("Set RUN_LIVE_GROQ_TESTS=1 and GROQ_API_KEY to run live Groq API tests")
@@ -33,7 +31,6 @@ final class IntegrationTests: XCTestCase {
         throw XCTSkip("Set GROQ_API_KEY to run live Groq API tests")
     }
 
-    /// Creates a 1-second synthetic 16kHz mono sine wave buffer.
     private func makeSineBuffer(frequency: Float = 440.0) -> AVAudioPCMBuffer {
         let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -50,14 +47,6 @@ final class IntegrationTests: XCTestCase {
         }
         return buffer
     }
-
-    @discardableResult
-    private func track(_ url: URL) -> URL {
-        tempFiles.append(url)
-        return url
-    }
-
-    // MARK: - End-to-end: encode → upload → transcribe
 
     func testE2E_WAV_AcceptedByGroqAPI() async throws {
         let apiKey = try requireApiKey()
@@ -132,6 +121,54 @@ final class IntegrationTests: XCTestCase {
                 XCTFail("\(format.rawValue): unexpected error — \(error)")
             }
         }
+    }
+
+    @discardableResult
+    private func track(_ url: URL) -> URL {
+        tempFiles.append(url)
+        return url
+    }
+}
+
+/// Deterministic integration tests for encoded audio and app-state behavior.
+final class IntegrationTests: XCTestCase {
+    private var recorder: AudioRecorder!
+    private var tempFiles: [URL] = []
+
+    override func setUp() {
+        recorder = AudioRecorder()
+        tempFiles = []
+        executionTimeAllowance = 30
+    }
+
+    override func tearDown() {
+        for url in tempFiles {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    /// Creates a 1-second synthetic 16kHz mono sine wave buffer.
+    private func makeSineBuffer(frequency: Float = 440.0) -> AVAudioPCMBuffer {
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 16000,
+            channels: 1,
+            interleaved: false
+        )!
+        let frameCount = AVAudioFrameCount(16000)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+        buffer.frameLength = frameCount
+        let samples = buffer.floatChannelData![0]
+        for i in 0..<Int(frameCount) {
+            samples[i] = sin(2.0 * .pi * frequency * Float(i) / 16000.0) * 0.5
+        }
+        return buffer
+    }
+
+    @discardableResult
+    private func track(_ url: URL) -> URL {
+        tempFiles.append(url)
+        return url
     }
 
     // MARK: - Multipart body correctness per format

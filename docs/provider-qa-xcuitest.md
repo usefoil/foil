@@ -29,6 +29,10 @@ setup-helper visibility. If Xcode cannot initialize UI automation on a local
 runner, record that as a provider QA blocker and use the manual checks below as
 temporary evidence only.
 
+`make test` follows the same deterministic policy for unit XTests: it skips
+`GroqTalkTests/LiveGroqIntegrationTests` even if a stale shell still exports
+`RUN_LIVE_GROQ_TESTS=1` or `GROQ_API_KEY`.
+
 The setup helper assertion is
 `GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands`.
 It checks the CI-safe Settings surface only; the real local transcription path
@@ -36,7 +40,17 @@ remains covered by the opt-in local E2E target below.
 
 ## Live Groq Provider QA
 
-Run:
+For unit-level live Groq API coverage, run:
+
+```bash
+RUN_LIVE_GROQ_TESTS=1 GROQ_API_KEY=... make test-live-groq
+```
+
+This runs only `GroqTalkTests/LiveGroqIntegrationTests`, which verifies the real
+Groq Whisper API accepts the encoded WAV, M4A, and FLAC test audio. Keep the key
+out of logs and replace `...` with a valid current key in your shell.
+
+For app-level live Groq provider QA, run:
 
 ```bash
 make test-provider-qa-live
