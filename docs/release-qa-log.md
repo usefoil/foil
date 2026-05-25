@@ -4,6 +4,17 @@ Use this file as the release-candidate evidence template. Copy the checklist
 below into the release PR or release notes, then fill every result before
 publishing.
 
+## Test Command Policy
+
+- `make test` and CI unit tests are deterministic by default and skip
+  `GroqTalkTests/LiveGroqIntegrationTests`, even if a local shell or runner
+  environment contains stale `RUN_LIVE_GROQ_TESTS` or `GROQ_API_KEY` values.
+- Record live Groq API XCTest evidence separately with
+  `RUN_LIVE_GROQ_TESTS=1 GROQ_API_KEY=... make test-live-groq`. Do not paste the
+  key into this log, PRs, issues, or CI summaries.
+- App-level live Groq provider QA remains `make test-provider-qa-live`; live
+  local transcription remains `make test-local-transcription-e2e`.
+
 ## Release Candidate
 
 - Version: `v1.8.2`
