@@ -41,6 +41,7 @@ targets:
       - FoilE2E
       - Foil/AudioRecording.swift
       - Foil/AudioRecorder.swift
+      - Foil/AppBrand.swift
       - Foil/TranscriptProcessingMode.swift
       - Foil/TranscriptionService.swift
     settings:

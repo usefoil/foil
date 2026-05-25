@@ -3,10 +3,6 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum AppBrand {
-    static let name = "Foil"
-}
-
 @main
 struct FoilApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate

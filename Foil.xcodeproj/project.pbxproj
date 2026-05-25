@@ -32,6 +32,8 @@
 		40A2CF8DC033B1B74827D7D7 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A61E71A6E8082B95B8BFFBB /* LaunchAtLoginManager.swift */; };
 		44A052BE79DB88DAD67DC34E /* HotkeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F31F3710AEDC0890D9CA1F4 /* HotkeyMonitor.swift */; };
 		4D4F7C37344F8C343E5D09A1 /* ApiKeySetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13CB29E436E5E3465167230D /* ApiKeySetupView.swift */; };
+		ABCD00000000000000000001 /* AppBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00000000000000000003 /* AppBrand.swift */; };
+		ABCD00000000000000000002 /* AppBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCD00000000000000000003 /* AppBrand.swift */; };
 		4E53788A65F55358EB1504DD /* BrowserMediaControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B382B52EF5F4514689051ED6 /* BrowserMediaControllerTests.swift */; };
 		4EC94F8FD46EA59C1D29DBAA /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C04ACF5F04D33BF75D666AD /* MenuBarView.swift */; };
 		513305C72C6F9B6095FF5098 /* RecordingStartCueScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408ECB12A8714B0586135DEB /* RecordingStartCueScheduler.swift */; };
@@ -103,6 +105,7 @@
 		02AB21B35C638DC3AB2379B3 /* FoilApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilApp.swift; sourceTree = "<group>"; };
 		03FF48A96DB2446119EF3C9A /* KeychainHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelperTests.swift; sourceTree = "<group>"; };
 		083397DB441D045E69BD9F9A /* PasteController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteController.swift; sourceTree = "<group>"; };
+		ABCD00000000000000000003 /* AppBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBrand.swift; sourceTree = "<group>"; };
 		0AF5C3DB12AFBA88ECBA175F /* FoilUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilUITests.swift; sourceTree = "<group>"; };
 		0B40C959D22FE0F1E90CA06D /* BrowserMediaController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserMediaController.swift; sourceTree = "<group>"; };
 		0B60032CCB98D3746C131217 /* HistoryPopoverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryPopoverTests.swift; sourceTree = "<group>"; };
@@ -257,6 +260,7 @@
 			isa = PBXGroup;
 			children = (
 				13CB29E436E5E3465167230D /* ApiKeySetupView.swift */,
+				ABCD00000000000000000003 /* AppBrand.swift */,
 				F2C48CEFD0EA9409C15CBFB0 /* AppState.swift */,
 				B1F5AA67E138E2CA7C5849E3 /* Assets.xcassets */,
 				583AB3E22194CF0BE215E9C6 /* AudioRecorder.swift */,
@@ -448,6 +452,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				ABCD00000000000000000002 /* AppBrand.swift in Sources */,
 				B20AC6C2567ABFDE045C370F /* AudioRecorder.swift in Sources */,
 				BE27BBC1035A3F1E115EB5AA /* AudioRecording.swift in Sources */,
 				9D2CA5743E5682BED0D3952F /* DiagnosticLogStub.swift in Sources */,
@@ -462,6 +467,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D4F7C37344F8C343E5D09A1 /* ApiKeySetupView.swift in Sources */,
+				ABCD00000000000000000001 /* AppBrand.swift in Sources */,
 				9C5F3BE1ADFE9F40B0DD40A5 /* AppState.swift in Sources */,
 				0F314CEFCCECD10D8D73BD59 /* AudioRecorder.swift in Sources */,
 				A3E869D6F6156E3C96D8CD16 /* AudioRecording.swift in Sources */,
