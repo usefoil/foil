@@ -80,7 +80,7 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
+          DMG_PATH="$RUNNER_TEMP/Foil-${VERSION}-macos.dmg"
           echo "Validating notarization for: $DMG_PATH"
           spctl --assess --type open --context context:primary-signature -v "$DMG_PATH"
           echo "Notarization validation passed."

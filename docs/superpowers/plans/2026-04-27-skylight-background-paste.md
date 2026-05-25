@@ -16,14 +16,14 @@
 
 | File | Action | Responsibility |
 |---|---|---|
-| `GroqTalk/SkyLightBridge.swift` | Create | All `dlopen`/`dlsym` wrappers. No other file touches raw function pointers. |
-| `GroqTalk/BackgroundPaste.swift` | Create | Tier 1 orchestration: focus-without-raise → CMD+V → restore focus. |
-| `GroqTalk/PasteTarget.swift` | Modify | Add `windowID: CGWindowID?` property and capture logic. |
-| `GroqTalk/TextInserter.swift` | Modify | Add `insertAsync()` method (Tier 1 → Tier 2 fallback chain). |
-| `GroqTalk/GroqTalkApp.swift` | Modify | Change PasteQueue handler from `insertAtTarget` to `insertAsync`. |
-| `GroqTalkTests/SkyLightBridgeTests.swift` | Create | Tests for SPI availability and graceful nil handling. |
-| `GroqTalkTests/PasteTargetTests.swift` | Modify | Add windowID tests. |
-| `GroqTalkTests/BackgroundPasteTests.swift` | Create | Tests for fallback logic (unavailable bridge, nil windowID). |
+| `Foil/SkyLightBridge.swift` | Create | All `dlopen`/`dlsym` wrappers. No other file touches raw function pointers. |
+| `Foil/BackgroundPaste.swift` | Create | Tier 1 orchestration: focus-without-raise → CMD+V → restore focus. |
+| `Foil/PasteTarget.swift` | Modify | Add `windowID: CGWindowID?` property and capture logic. |
+| `Foil/TextInserter.swift` | Modify | Add `insertAsync()` method (Tier 1 → Tier 2 fallback chain). |
+| `Foil/FoilApp.swift` | Modify | Change PasteQueue handler from `insertAtTarget` to `insertAsync`. |
+| `FoilTests/SkyLightBridgeTests.swift` | Create | Tests for SPI availability and graceful nil handling. |
+| `FoilTests/PasteTargetTests.swift` | Modify | Add windowID tests. |
+| `FoilTests/BackgroundPasteTests.swift` | Create | Tests for fallback logic (unavailable bridge, nil windowID). |
 | `tests/test_skylight_paste.swift` | Create | Integration test: paste into background TextEdit, verify focus didn't change. |
 
 ---
@@ -31,16 +31,16 @@
 ### Task 1: SkyLightBridge — SPI Resolution
 
 **Files:**
-- Create: `GroqTalk/SkyLightBridge.swift`
-- Create: `GroqTalkTests/SkyLightBridgeTests.swift`
+- Create: `Foil/SkyLightBridge.swift`
+- Create: `FoilTests/SkyLightBridgeTests.swift`
 
 - [ ] **Step 1: Write the failing test for SPI availability**
 
-Create `GroqTalkTests/SkyLightBridgeTests.swift`:
+Create `FoilTests/SkyLightBridgeTests.swift`:
 
 ```swift
 import XCTest
-@testable import GroqTalk
+@testable import Foil
 
 final class SkyLightBridgeTests: XCTestCase {
     func testIsAvailableReturnsBool() {
@@ -66,13 +66,13 @@ final class SkyLightBridgeTests: XCTestCase {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests/SkyLightBridgeTests 2>&1 | tail -10`
+Run: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/SkyLightBridgeTests 2>&1 | tail -10`
 
 Expected: Build error — `SkyLightBridge` does not exist.
 
 - [ ] **Step 3: Create the SkyLightBridge implementation**
 
-Create `GroqTalk/SkyLightBridge.swift`:
+Create `Foil/SkyLightBridge.swift`:
 
 ```swift
 import ApplicationServices
@@ -254,22 +254,22 @@ enum SkyLightBridge {
 
 - [ ] **Step 4: Add the new file to the Xcode project**
 
-The project uses automatic file discovery, but the file must be added to the `GroqTalk` group. Use the XcodeBuildMCP or manually verify:
+The project uses automatic file discovery, but the file must be added to the `Foil` group. Use the XcodeBuildMCP or manually verify:
 
-Run: `xcodebuild -scheme GroqTalk -configuration Debug -destination 'platform=macOS' build 2>&1 | tail -5`
+Run: `xcodebuild -scheme Foil -configuration Debug -destination 'platform=macOS' build 2>&1 | tail -5`
 
 Expected: Build succeeds (the enum exists but nothing references it yet besides tests).
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests/SkyLightBridgeTests 2>&1 | tail -10`
+Run: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/SkyLightBridgeTests 2>&1 | tail -10`
 
 Expected: All 3 tests pass. `testIsAvailableReturnsBool` will return `true` on a dev machine with SkyLight present. `testFocusWithoutRaiseReturnsFalseForInvalidPid` returns `false` because pid 0 can't have a valid PSN. `testWindowIDFromNilElementReturnsNil` returns `nil` because pid 0 has no windows.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add GroqTalk/SkyLightBridge.swift GroqTalkTests/SkyLightBridgeTests.swift
+git add Foil/SkyLightBridge.swift FoilTests/SkyLightBridgeTests.swift
 git commit -m "feat: add SkyLightBridge with dlsym wrappers for focus-without-raise"
 ```
 
@@ -278,12 +278,12 @@ git commit -m "feat: add SkyLightBridge with dlsym wrappers for focus-without-ra
 ### Task 2: PasteTarget — Add windowID
 
 **Files:**
-- Modify: `GroqTalk/PasteTarget.swift`
-- Modify: `GroqTalkTests/PasteTargetTests.swift`
+- Modify: `Foil/PasteTarget.swift`
+- Modify: `FoilTests/PasteTargetTests.swift`
 
 - [ ] **Step 1: Write the failing tests for windowID**
 
-Add to `GroqTalkTests/PasteTargetTests.swift`:
+Add to `FoilTests/PasteTargetTests.swift`:
 
 ```swift
 func testManualInitWithWindowID() {
@@ -311,13 +311,13 @@ func testCaptureIncludesWindowID() {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests/PasteTargetTests 2>&1 | tail -10`
+Run: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/PasteTargetTests 2>&1 | tail -10`
 
 Expected: Build error — `PasteTarget` initializer does not accept `windowID` parameter.
 
 - [ ] **Step 3: Add windowID to PasteTarget**
 
-Modify `GroqTalk/PasteTarget.swift`. Replace the entire file:
+Modify `Foil/PasteTarget.swift`. Replace the entire file:
 
 ```swift
 import ApplicationServices
@@ -373,7 +373,7 @@ struct PasteTarget {
 
 The existing tests and `PasteQueue` handler construct `PasteTarget` without `windowID`. Update all call sites to include `windowID: nil`:
 
-In `GroqTalkTests/PasteTargetTests.swift`, update the three existing tests:
+In `FoilTests/PasteTargetTests.swift`, update the three existing tests:
 
 ```swift
 func testManualInitStoresValues() {
@@ -394,7 +394,7 @@ func testTargetWithPositivePidIsValid() {
 }
 ```
 
-In `GroqTalkTests/PasteQueueTests.swift`, update all `PasteTarget(` calls to include `windowID: nil`:
+In `FoilTests/PasteQueueTests.swift`, update all `PasteTarget(` calls to include `windowID: nil`:
 
 ```swift
 // In testEnqueueAndDrain:
@@ -410,14 +410,14 @@ PasteTarget(windowElement: nil, windowID: nil, pid: 0, appName: "")
 
 - [ ] **Step 5: Run all tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' 2>&1 | tail -10`
+Run: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' 2>&1 | tail -10`
 
 Expected: All tests pass including the three new PasteTarget tests.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add GroqTalk/PasteTarget.swift GroqTalkTests/PasteTargetTests.swift GroqTalkTests/PasteQueueTests.swift
+git add Foil/PasteTarget.swift FoilTests/PasteTargetTests.swift FoilTests/PasteQueueTests.swift
 git commit -m "feat: add windowID to PasteTarget for SkyLight focus-without-raise"
 ```
 
@@ -426,16 +426,16 @@ git commit -m "feat: add windowID to PasteTarget for SkyLight focus-without-rais
 ### Task 3: BackgroundPaste — Tier 1 Orchestration
 
 **Files:**
-- Create: `GroqTalk/BackgroundPaste.swift`
-- Create: `GroqTalkTests/BackgroundPasteTests.swift`
+- Create: `Foil/BackgroundPaste.swift`
+- Create: `FoilTests/BackgroundPasteTests.swift`
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `GroqTalkTests/BackgroundPasteTests.swift`:
+Create `FoilTests/BackgroundPasteTests.swift`:
 
 ```swift
 import XCTest
-@testable import GroqTalk
+@testable import Foil
 
 final class BackgroundPasteTests: XCTestCase {
     func testAttemptReturnsFalseWhenWindowIDIsNil() async {
@@ -467,13 +467,13 @@ final class BackgroundPasteTests: XCTestCase {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests/BackgroundPasteTests 2>&1 | tail -10`
+Run: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/BackgroundPasteTests 2>&1 | tail -10`
 
 Expected: Build error — `BackgroundPaste` does not exist.
 
 - [ ] **Step 3: Create BackgroundPaste implementation**
 
-Create `GroqTalk/BackgroundPaste.swift`:
+Create `Foil/BackgroundPaste.swift`:
 
 ```swift
 import AppKit
@@ -583,14 +583,14 @@ struct BackgroundPaste {
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests/BackgroundPasteTests 2>&1 | tail -10`
+Run: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/BackgroundPasteTests 2>&1 | tail -10`
 
 Expected: All 3 tests pass. Each returns `false` for the appropriate guard failure.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add GroqTalk/BackgroundPaste.swift GroqTalkTests/BackgroundPasteTests.swift
+git add Foil/BackgroundPaste.swift FoilTests/BackgroundPasteTests.swift
 git commit -m "feat: add BackgroundPaste orchestrator for SkyLight async paste"
 ```
 
@@ -599,13 +599,13 @@ git commit -m "feat: add BackgroundPaste orchestrator for SkyLight async paste"
 ### Task 4: TextInserter — Add insertAsync with Fallback Chain
 
 **Files:**
-- Modify: `GroqTalk/TextInserter.swift:5-6` (add new method)
+- Modify: `Foil/TextInserter.swift:5-6` (add new method)
 
 - [ ] **Step 1: Write the failing test**
 
 There is no `TextInserterTests.swift` currently (TextInserter calls system APIs directly). The fallback logic is simple enough that we test it via the integration test in Task 6. For now, verify the build compiles.
 
-Add the `insertAsync` method to `GroqTalk/TextInserter.swift`, after the `insertAtTarget` method (after line 64):
+Add the `insertAsync` method to `Foil/TextInserter.swift`, after the `insertAtTarget` method (after line 64):
 
 ```swift
 /// Primary entry point for async paste. Tries SkyLight background
@@ -627,33 +627,33 @@ func insertAsync(text: String, target: PasteTarget, keepOnClipboard: Bool) async
 
 - [ ] **Step 2: Verify the build succeeds**
 
-Run: `xcodebuild -scheme GroqTalk -configuration Debug -destination 'platform=macOS' build 2>&1 | tail -5`
+Run: `xcodebuild -scheme Foil -configuration Debug -destination 'platform=macOS' build 2>&1 | tail -5`
 
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 3: Run existing tests to verify no regressions**
 
-Run: `xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' 2>&1 | tail -10`
+Run: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' 2>&1 | tail -10`
 
 Expected: All existing tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add GroqTalk/TextInserter.swift
+git add Foil/TextInserter.swift
 git commit -m "feat: add insertAsync with SkyLight-first fallback chain"
 ```
 
 ---
 
-### Task 5: Wire into GroqTalkApp
+### Task 5: Wire into FoilApp
 
 **Files:**
-- Modify: `GroqTalk/GroqTalkApp.swift:70`
+- Modify: `Foil/FoilApp.swift:70`
 
 - [ ] **Step 1: Change PasteQueue handler to use insertAsync**
 
-In `GroqTalk/GroqTalkApp.swift`, line 70, change:
+In `Foil/FoilApp.swift`, line 70, change:
 
 ```swift
 await self.textInserter.insertAtTarget(text: text, target: target, keepOnClipboard: keepOnClipboard)
@@ -667,20 +667,20 @@ await self.textInserter.insertAsync(text: text, target: target, keepOnClipboard:
 
 - [ ] **Step 2: Verify the build succeeds**
 
-Run: `xcodebuild -scheme GroqTalk -configuration Debug -destination 'platform=macOS' build 2>&1 | tail -5`
+Run: `xcodebuild -scheme Foil -configuration Debug -destination 'platform=macOS' build 2>&1 | tail -5`
 
 Expected: BUILD SUCCEEDED.
 
 - [ ] **Step 3: Run all unit tests**
 
-Run: `xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' 2>&1 | tail -10`
+Run: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' 2>&1 | tail -10`
 
 Expected: All tests pass.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add GroqTalk/GroqTalkApp.swift
+git add Foil/FoilApp.swift
 git commit -m "feat: wire PasteQueue to insertAsync for SkyLight-first paste"
 ```
 
@@ -712,7 +712,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 
-// MARK: - SkyLight SPI wrappers (standalone — no GroqTalk import)
+// MARK: - SkyLight SPI wrappers (standalone — no Foil import)
 
 private typealias PostEventRecordToFn = @convention(c) (UnsafeRawPointer, UnsafePointer<UInt8>) -> Int32
 private typealias GetFrontProcessFn = @convention(c) (UnsafeMutableRawPointer) -> Int32
@@ -1014,7 +1014,7 @@ git commit -m "test: add SkyLight background paste integration test"
 **Only do this task if Task 6 Step 2 fails because CMD+V via `CGEvent.postToPid` doesn't reach the target app after `focusWithoutRaise`.**
 
 **Files:**
-- Modify: `GroqTalk/SkyLightBridge.swift`
+- Modify: `Foil/SkyLightBridge.swift`
 
 - [ ] **Step 1: Add SLEventPostToPid with auth envelope to SkyLightBridge**
 
@@ -1107,7 +1107,7 @@ private static func extractEventRecord(from event: CGEvent) -> UnsafeMutableRawP
 
 - [ ] **Step 2: Update BackgroundPaste to prefer SLEventPostToPid**
 
-In `GroqTalk/BackgroundPaste.swift`, replace the CMD+V posting block:
+In `Foil/BackgroundPaste.swift`, replace the CMD+V posting block:
 
 ```swift
 // Send CMD+V to the target PID (prefer SkyLight auth-signed path for Chrome)
@@ -1133,14 +1133,14 @@ Expected: Test passes with the auth-signed path.
 
 - [ ] **Step 4: Run all unit tests**
 
-Run: `xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' 2>&1 | tail -10`
+Run: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' 2>&1 | tail -10`
 
 Expected: All tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add GroqTalk/SkyLightBridge.swift GroqTalk/BackgroundPaste.swift
+git add Foil/SkyLightBridge.swift Foil/BackgroundPaste.swift
 git commit -m "feat: add SLEventPostToPid auth envelope for Chrome/Electron support"
 ```
 
@@ -1193,7 +1193,7 @@ Run: `make install`
 
 - [ ] **Step 2: Test native Cocoa apps**
 
-1. Open Notes, type something, start GroqTalk recording
+1. Open Notes, type something, start Foil recording
 2. Switch to TextEdit while transcription runs
 3. Verify: text appears in Notes without visible focus flicker
 
@@ -1221,7 +1221,7 @@ If VS Code fails: implement Task 7 (auth envelope), then re-test.
 
 - [ ] **Step 6: Test Tier 2 fallback**
 
-1. In GroqTalk preferences, temporarily add a log line or breakpoint to verify Tier 2 fires
+1. In Foil preferences, temporarily add a log line or breakpoint to verify Tier 2 fires
 2. Reproduce a scenario where Tier 1 can't work (e.g., target window closed before paste)
 3. Verify: existing `insertAtTarget` choreography executes as before
 

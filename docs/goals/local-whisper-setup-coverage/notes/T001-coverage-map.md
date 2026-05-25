@@ -2,11 +2,11 @@
 
 ## Covered
 
-- `GroqTalk/TranscriptionService.swift` defines `Local whisper.cpp` as an OpenAI-compatible preset with base URL `http://127.0.0.1:8080/v1`, model `whisper-1`, optional API key, no transcript cleanup support.
-- `GroqTalk/SettingsView.swift` exposes the provider picker, local preset base URL/model, `settings.localProviderHelp`, `Test connection`, and cleanup-unavailable copy.
-- `GroqTalkTests/AppStateTests.swift` covers local preset provider construction, preset switching cleanup behavior, invalid base URL, reachable model, models endpoint missing, missing model, and unreachable server connection states.
-- `GroqTalkTests/TranscriptionServiceTests.swift` covers local preset defaults and OpenAI-compatible request construction.
-- `GroqTalkUITests/GroqTalkUITests.swift` covers provider QA defaults, seeded local provider UI, invalid custom URL validation, custom provider persistence, and opt-in E2E transcription.
+- `Foil/TranscriptionService.swift` defines `Local whisper.cpp` as an OpenAI-compatible preset with base URL `http://127.0.0.1:8080/v1`, model `whisper-1`, optional API key, no transcript cleanup support.
+- `Foil/SettingsView.swift` exposes the provider picker, local preset base URL/model, `settings.localProviderHelp`, `Test connection`, and cleanup-unavailable copy.
+- `FoilTests/AppStateTests.swift` covers local preset provider construction, preset switching cleanup behavior, invalid base URL, reachable model, models endpoint missing, missing model, and unreachable server connection states.
+- `FoilTests/TranscriptionServiceTests.swift` covers local preset defaults and OpenAI-compatible request construction.
+- `FoilUITests/FoilUITests.swift` covers provider QA defaults, seeded local provider UI, invalid custom URL validation, custom provider persistence, and opt-in E2E transcription.
 - `Makefile` exposes `make test-provider-qa` and `make test-local-transcription-e2e`.
 - `.github/workflows/ci.yml` runs all unit tests and all UI tests, so CI includes the existing seeded provider QA and unit coverage.
 - `docs/local-openai-compatible-transcription-e2e.md` documents whisper.cpp setup, endpoint smoke, and `make test-local-transcription-e2e`.

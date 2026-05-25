@@ -2,15 +2,15 @@
 
 ## Objective
 
-Implement an OpenAI-compatible transcription provider abstraction for GroqTalk and verify it with the existing E2E audio clip against a tiny local Whisper-compatible server.
+Implement an OpenAI-compatible transcription provider abstraction for Foil and verify it with the existing E2E audio clip against a tiny local Whisper-compatible server.
 
 ## Context
 
-- Project: GroqTalk is a native Swift macOS menu bar dictation app.
+- Project: Foil is a native Swift macOS menu bar dictation app.
 - Current transcription flow: `AudioRecorder` / `RecordingController` -> `TranscriptionController` -> `TranscriptionService` -> Groq OpenAI-compatible transcription endpoint -> optional cleanup -> paste/history.
 - Current hard coupling: Groq endpoints, Groq API key copy, Groq keychain account, Groq model defaults, Groq-specific setup validation, and Groq-specific error messages are spread across service, app state, settings, onboarding, setup, tests, and UI.
-- Existing E2E audio: `GroqTalk/e2e-test-audio.wav`, about 2.79s, 16 kHz mono PCM WAV, expected phrase `the quick brown fox jumps over the lazy dog`.
-- Existing E2E UI test writes `/tmp/groqtalk-e2e-result.txt` and allows at most one missing expected word.
+- Existing E2E audio: `Foil/e2e-test-audio.wav`, about 2.79s, 16 kHz mono PCM WAV, expected phrase `the quick brown fox jumps over the lazy dog`.
+- Existing E2E UI test writes `/tmp/foil-e2e-result.txt` and allows at most one missing expected word.
 
 ## Scope
 
@@ -48,7 +48,7 @@ Exclude:
 
 - `make test` passes.
 - `make test-ui` passes.
-- `xcodebuild build -scheme GroqTalk -configuration Debug -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-warnings-as-errors'` succeeds.
+- `xcodebuild build -scheme Foil -configuration Debug -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-warnings-as-errors'` succeeds.
 - Unit tests prove the Groq provider still builds:
   - `https://api.groq.com/openai/v1/audio/transcriptions`
   - `https://api.groq.com/openai/v1/chat/completions`
@@ -58,7 +58,7 @@ Exclude:
 - Unit tests prove Groq and custom-provider API keys are stored independently and the legacy Groq key remains readable.
 - UI/state tests prove the ready/session detail displays the selected provider name rather than hardcoded `Groq`.
 - The existing live Groq E2E tests still pass when `GROQ_API_KEY` is set and still skip cleanly when it is absent.
-- Add an opt-in local endpoint E2E verification using `GroqTalk/e2e-test-audio.wav` and a tiny Whisper model. It must:
+- Add an opt-in local endpoint E2E verification using `Foil/e2e-test-audio.wav` and a tiny Whisper model. It must:
   - POST to `/v1/audio/transcriptions`.
   - Return HTTP 200.
   - Produce a non-empty transcript.
@@ -77,7 +77,7 @@ Run:
 
 - `make test`
 - `make test-ui`
-- `xcodebuild build -scheme GroqTalk -configuration Debug -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-warnings-as-errors'`
+- `xcodebuild build -scheme Foil -configuration Debug -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-warnings-as-errors'`
 - Existing live Groq E2E command when `GROQ_API_KEY` is available.
 - Local tiny Whisper endpoint smoke/E2E command when whisper.cpp server is running.
 
@@ -86,7 +86,7 @@ Inspect:
 - Provider defaults and migration behavior.
 - Keychain account naming.
 - Settings/setup copy for hardcoded Groq references.
-- `/tmp/groqtalk-e2e-result.txt` after app-level local E2E.
+- `/tmp/foil-e2e-result.txt` after app-level local E2E.
 
 Evidence to report:
 

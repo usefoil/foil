@@ -2,18 +2,18 @@
 
 ## Objective
 
-Improve GroqTalk's OpenAI-compatible transcription provider setup so custom/local providers are understandable, testable, and easy to select through built-in provider presets, while preserving Groq as the unchanged default.
+Improve Foil's OpenAI-compatible transcription provider setup so custom/local providers are understandable, testable, and easy to select through built-in provider presets, while preserving Groq as the unchanged default.
 
 ## Ready-To-Paste Goal
 
 ```text
-/goal Implement provider setup polish and provider presets for GroqTalk.
+/goal Implement provider setup polish and provider presets for Foil.
 
 Context:
-- Project: GroqTalk is a native Swift macOS menu bar dictation app.
+- Project: Foil is a native Swift macOS menu bar dictation app.
 - Current provider state: Groq remains the default transcription provider and an OpenAI-compatible custom transcription provider exists with base URL, model, and optional API key.
-- Existing local E2E path: `make test-local-transcription-e2e` runs the real `GroqTalkUITests/GroqTalkUITests/testE2ETranscription` against a local OpenAI-compatible Whisper server using `GroqTalk/e2e-test-audio.wav`.
-- Important surfaces: `AppState`, `TranscriptionService`, `TranscriptionController`, `KeychainHelper`, `SettingsView`, `MenuBarView`, `ApiKeySetupView`, `GroqTalkUITests`, docs under `docs/local-openai-compatible-transcription-e2e.md`.
+- Existing local E2E path: `make test-local-transcription-e2e` runs the real `FoilUITests/FoilUITests/testE2ETranscription` against a local OpenAI-compatible Whisper server using `Foil/e2e-test-audio.wav`.
+- Important surfaces: `AppState`, `TranscriptionService`, `TranscriptionController`, `KeychainHelper`, `SettingsView`, `MenuBarView`, `ApiKeySetupView`, `FoilUITests`, docs under `docs/local-openai-compatible-transcription-e2e.md`.
 - User-visible failure modes: invalid custom base URL, unreachable local server, unsupported `/models`, selected model missing, optional local API key confusion, cleanup unavailable for transcription-only providers.
 
 Scope:

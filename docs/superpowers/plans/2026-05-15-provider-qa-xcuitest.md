@@ -6,17 +6,17 @@
 
 **Architecture:** Extend the existing macOS XCUITest harness with deterministic provider setup tests that run in regular CI, then add separate opt-in tests/scripts for live provider smoke checks. CI-safe tests should use UI-testing launch flags and deterministic app state; live Groq/local tests should use explicit environment variables and skip cleanly when credentials or local servers are missing.
 
-**Tech Stack:** Swift XCTest/XCUITest, existing `GroqTalkUITests`, `UITestingController`, Makefile targets, GitHub Actions CI.
+**Tech Stack:** Swift XCTest/XCUITest, existing `FoilUITests`, `UITestingController`, Makefile targets, GitHub Actions CI.
 
 ---
 
 ## File Structure
 
-- Modify `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify `FoilUITests/FoilUITests.swift`
   - Add reusable launch helpers for provider QA.
   - Add CI-safe UI tests for provider defaults, Local whisper.cpp preset UI, Custom OpenAI-compatible persistence, invalid URL validation, and switching back to Groq.
 - Add opt-in live Groq provider smoke coverage using the existing real transcription XCUITest when `RUN_LIVE_GROQ_TESTS=1` and `GROQ_API_KEY` or keychain key is available.
-- Modify `GroqTalk/UITestingController.swift`
+- Modify `Foil/UITestingController.swift`
   - Add narrowly scoped launch seeds for custom provider preset and invalid provider URL if direct UI picker manipulation proves too brittle.
   - Keep default `--ui-testing --reset-defaults --seed-history` behavior unchanged.
 - Modify `Makefile`
@@ -34,7 +34,7 @@
 ## Task 1: Add XCUITest Helpers For Provider QA
 
 **Files:**
-- Modify: `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify: `FoilUITests/FoilUITests.swift`
 
 - [ ] **Step 1: Add helper methods near existing private helpers**
 
@@ -76,7 +76,7 @@ private func assertProviderPickerExists() {
 Run:
 
 ```bash
-xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testSettingsPanelOpensInsideMenuBarPopover
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilUITests/FoilUITests/testSettingsPanelOpensInsideMenuBarPopover
 ```
 
 Expected: `** TEST SUCCEEDED **`.
@@ -84,7 +84,7 @@ Expected: `** TEST SUCCEEDED **`.
 ## Task 2: Add CI-Safe Default Groq Provider UI Test
 
 **Files:**
-- Modify: `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify: `FoilUITests/FoilUITests.swift`
 
 - [ ] **Step 1: Add the failing test**
 
@@ -109,7 +109,7 @@ func testProviderQADefaultsToGroqPreset() {
 Run:
 
 ```bash
-xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQADefaultsToGroqPreset
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset
 ```
 
 Expected before adjustments: either pass, or fail with a specific missing UI label. If it fails because labels differ, inspect `app.debugDescription` and update the assertions to the actual accessible labels in this app.
@@ -119,14 +119,14 @@ Expected before adjustments: either pass, or fail with a specific missing UI lab
 Run:
 
 ```bash
-git add GroqTalkUITests/GroqTalkUITests.swift
+git add FoilUITests/FoilUITests.swift
 git commit -m "test: cover default provider preset in ui"
 ```
 
 ## Task 3: Add CI-Safe Local whisper.cpp Preset UI Test
 
 **Files:**
-- Modify: `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify: `FoilUITests/FoilUITests.swift`
 
 - [ ] **Step 1: Expand the existing local-provider test**
 
@@ -153,7 +153,7 @@ func testProviderQALocalWhisperPresetShowsExpectedSettings() {
 Run:
 
 ```bash
-xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperPresetShowsExpectedSettings
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings
 ```
 
 Expected: `** TEST SUCCEEDED **`.
@@ -163,15 +163,15 @@ Expected: `** TEST SUCCEEDED **`.
 Run:
 
 ```bash
-git add GroqTalkUITests/GroqTalkUITests.swift
+git add FoilUITests/FoilUITests.swift
 git commit -m "test: cover local whisper provider preset ui"
 ```
 
 ## Task 4: Add CI-Safe Invalid Custom URL Connection Test
 
 **Files:**
-- Modify: `GroqTalk/UITestingController.swift`
-- Modify: `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify: `Foil/UITestingController.swift`
+- Modify: `FoilUITests/FoilUITests.swift`
 
 - [ ] **Step 1: Add a launch seed for invalid custom provider**
 
@@ -209,7 +209,7 @@ func testProviderQAInvalidCustomBaseURLShowsValidationStatus() {
 Run:
 
 ```bash
-xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilUITests/FoilUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus
 ```
 
 Expected: `** TEST SUCCEEDED **`.
@@ -219,15 +219,15 @@ Expected: `** TEST SUCCEEDED **`.
 Run:
 
 ```bash
-git add GroqTalk/UITestingController.swift GroqTalkUITests/GroqTalkUITests.swift
+git add Foil/UITestingController.swift FoilUITests/FoilUITests.swift
 git commit -m "test: cover invalid custom provider url in ui"
 ```
 
 ## Task 5: Add CI-Safe Custom Provider Persistence Test
 
 **Files:**
-- Modify: `GroqTalk/UITestingController.swift`
-- Modify: `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify: `Foil/UITestingController.swift`
+- Modify: `FoilUITests/FoilUITests.swift`
 
 - [ ] **Step 1: Add a launch seed for valid custom provider**
 
@@ -275,7 +275,7 @@ func testProviderQACustomProviderPersistsAcrossRelaunch() {
 Run:
 
 ```bash
-xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQACustomProviderPersistsAcrossRelaunch
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilUITests/FoilUITests/testProviderQACustomProviderPersistsAcrossRelaunch
 ```
 
 Expected: `** TEST SUCCEEDED **`.
@@ -285,7 +285,7 @@ Expected: `** TEST SUCCEEDED **`.
 Run:
 
 ```bash
-git add GroqTalk/UITestingController.swift GroqTalkUITests/GroqTalkUITests.swift
+git add Foil/UITestingController.swift FoilUITests/FoilUITests.swift
 git commit -m "test: cover custom provider persistence in ui"
 ```
 
@@ -303,7 +303,7 @@ Create `scripts/run-live-groq-provider-qa-xcuitest.sh`:
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCHEME="${SCHEME:-GroqTalk}"
+SCHEME="${SCHEME:-Foil}"
 CONFIG="${CONFIG:-Debug}"
 DESTINATION="${DESTINATION:-platform=macOS}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-}"
@@ -319,7 +319,7 @@ trap cleanup EXIT
 
 api_key="${GROQ_API_KEY:-}"
 if [[ -z "${api_key}" ]]; then
-  api_key="$(security find-generic-password -s com.neonwatty.GroqTalk -a groq-api-key -w 2>/dev/null || true)"
+  api_key="$(security find-generic-password -s com.neonwatty.Foil -a groq-api-key -w 2>/dev/null || true)"
 fi
 
 if [[ -z "${api_key}" ]]; then
@@ -338,7 +338,7 @@ fi
 xcodebuild build-for-testing -scheme "${SCHEME}" -configuration "${CONFIG}" -destination "${DESTINATION}"
 
 find_root="${DERIVED_DATA_PATH:-${HOME}/Library/Developer/Xcode/DerivedData}"
-xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*GroqTalk*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
+xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*Foil*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
 if [[ -z "${xctestrun}" || ! -f "${xctestrun}" ]]; then
   echo "error: could not locate generated .xctestrun" >&2
   exit 1
@@ -350,7 +350,7 @@ cp "${xctestrun}" "${patched}"
 ui_target_index=""
 for index in $(seq 0 20); do
   blueprint="$("${PLISTBUDDY}" -c "Print :TestConfigurations:0:TestTargets:${index}:BlueprintName" "${patched}" 2>/dev/null || true)"
-  if [[ "${blueprint}" == "GroqTalkUITests" ]]; then
+  if [[ "${blueprint}" == "FoilUITests" ]]; then
     ui_target_index="${index}"
     break
   fi
@@ -360,7 +360,7 @@ for index in $(seq 0 20); do
 done
 
 if [[ -z "${ui_target_index}" ]]; then
-  echo "error: GroqTalkUITests target not found in ${patched}" >&2
+  echo "error: FoilUITests target not found in ${patched}" >&2
   exit 1
 fi
 
@@ -374,7 +374,7 @@ done
 xcodebuild test-without-building \
   -xctestrun "${patched}" \
   -destination "${DESTINATION}" \
-  -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription
+  -only-testing:FoilUITests/FoilUITests/testE2ETranscription
 ```
 
 Run:
@@ -430,10 +430,10 @@ Add near `test-ui`:
 test-provider-qa:
 	@tmp=$$(mktemp); \
 	xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQADefaultsToGroqPreset \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus \
-		-only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQACustomProviderPersistsAcrossRelaunch >"$$tmp" 2>&1; \
+		-only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset \
+		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
+		-only-testing:FoilUITests/FoilUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus \
+		-only-testing:FoilUITests/FoilUITests/testProviderQACustomProviderPersistsAcrossRelaunch >"$$tmp" 2>&1; \
 	status=$$?; tail -8 "$$tmp"; \
 	if ! grep -q '\*\* TEST SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
 	rm -f "$$tmp"; exit $$status
@@ -471,7 +471,7 @@ Create `docs/provider-qa-xcuitest.md`:
 ```markdown
 # Provider QA XCUITests
 
-GroqTalk has two provider QA paths:
+Foil has two provider QA paths:
 
 ## CI-safe provider setup QA
 
@@ -501,7 +501,7 @@ make test-provider-qa-live
 This is opt-in. It requires either:
 
 - `GROQ_API_KEY` in the environment, or
-- an existing Groq API key in the macOS keychain account used by GroqTalk.
+- an existing Groq API key in the macOS keychain account used by Foil.
 
 If no key is available, the XCUITest skips cleanly.
 

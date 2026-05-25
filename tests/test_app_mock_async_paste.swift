@@ -1,6 +1,6 @@
 #!/usr/bin/env swift
 //
-// Real-app smoke test for GroqTalk's mock transcription + async paste path.
+// Real-app smoke test for Foil's mock transcription + async paste path.
 //
 // This drives the installed menu bar app through an automation-only
 // notification and intentionally avoids `--ui-testing`, so PasteQueue must use
@@ -12,13 +12,13 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-let appBundleID = "com.neonwatty.GroqTalk"
-let appPath = "/Applications/GroqTalk.app"
+let appBundleID = "com.neonwatty.Foil"
+let appPath = "/Applications/Foil.app"
 let diagnosticLogURL = FileManager.default
     .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    .appendingPathComponent("GroqTalk", isDirectory: true)
+    .appendingPathComponent("Foil", isDirectory: true)
     .appendingPathComponent("Diagnostics", isDirectory: true)
-    .appendingPathComponent("groqtalk.log", isDirectory: false)
+    .appendingPathComponent("foil.log", isDirectory: false)
 var diagnosticLogStartOffset: UInt64 = 0
 let testTextPrefix = "Mock transcription automation smoke"
 
@@ -99,7 +99,7 @@ func readDiagnosticLog() -> String {
     return String(data: data, encoding: .utf8) ?? ""
 }
 
-print("=== GroqTalk Real-App Mock Async Paste Smoke Test ===")
+print("=== Foil Real-App Mock Async Paste Smoke Test ===")
 print()
 
 guard AXIsProcessTrusted() else {
@@ -128,14 +128,14 @@ run("/usr/bin/defaults", ["write", appBundleID, "audioFormat", "m4a"])
 run("/usr/bin/defaults", ["write", appBundleID, "transcriptProcessingMode", "raw"])
 run("/usr/bin/defaults", ["write", appBundleID, "showFloatingStatus", "-bool", "false"])
 
-run("/usr/bin/pkill", ["-x", "GroqTalk"])
+run("/usr/bin/pkill", ["-x", "Foil"])
 Thread.sleep(forTimeInterval: 1.0)
 run("/usr/bin/open", ["-n", appPath, "--args", "--automation-smoke"])
 
 guard waitUntil(timeout: 8, poll: 0.25, {
     NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).first != nil
 }) else {
-    print("ERROR: GroqTalk did not launch.")
+    print("ERROR: Foil did not launch.")
     exit(1)
 }
 Thread.sleep(forTimeInterval: 1.5)
@@ -143,8 +143,8 @@ Thread.sleep(forTimeInterval: 1.5)
 run("/usr/bin/pkill", ["-x", "TextEdit"])
 Thread.sleep(forTimeInterval: 1.0)
 
-let fileA = FileManager.default.temporaryDirectory.appendingPathComponent("GroqTalkAppSmokeTarget.txt")
-try "GroqTalk app smoke target\n".write(to: fileA, atomically: true, encoding: .utf8)
+let fileA = FileManager.default.temporaryDirectory.appendingPathComponent("FoilAppSmokeTarget.txt")
+try "Foil app smoke target\n".write(to: fileA, atomically: true, encoding: .utf8)
 defer {
     try? FileManager.default.removeItem(at: fileA)
 }
@@ -164,7 +164,7 @@ guard let windows = windowsRef as? [AXUIElement] else {
     exit(1)
 }
 
-let targetWindow = windows.first { windowTitle($0).contains("GroqTalkAppSmokeTarget") }
+let targetWindow = windows.first { windowTitle($0).contains("FoilAppSmokeTarget") }
 guard let targetWindow else {
     print("ERROR: Could not identify TextEdit smoke window.")
     exit(1)
@@ -178,7 +178,7 @@ Thread.sleep(forTimeInterval: 1.0)
 
 print("Requesting automation mock transcription against TextEdit target...")
 DistributedNotificationCenter.default().postNotificationName(
-    Notification.Name("com.neonwatty.GroqTalk.automation.mockSuccess"),
+    Notification.Name("com.neonwatty.Foil.automation.mockSuccess"),
     object: nil,
     userInfo: nil,
     deliverImmediately: true
@@ -197,7 +197,7 @@ let pasted = waitUntil(timeout: 9, poll: 0.5, {
 let targetText = textValue(in: targetWindow)
 let log = readDiagnosticLog()
 let groqTalkWindows = windowTitles(forBundleID: appBundleID)
-let floatingStatusVisible = groqTalkWindows.contains { $0 == "GroqTalk Floating Status" }
+let floatingStatusVisible = groqTalkWindows.contains { $0 == "Foil Floating Status" }
 
 print()
 print("Diagnostic checks:")
@@ -219,25 +219,25 @@ if !log.contains("insertAsync:") {
 }
 
 if log.contains("Microphone unavailable") {
-    print("ERROR: GroqTalk reported microphone unavailable.")
+    print("ERROR: Foil reported microphone unavailable.")
     exit(1)
 }
 
 if floatingStatusVisible {
-    print("GroqTalk windows: \(groqTalkWindows)")
+    print("Foil windows: \(groqTalkWindows)")
     exit(1)
 }
 
 if pasted && targetText.contains(testTextPrefix) {
     print()
-    print("✅ PASS: Installed GroqTalk used mock transcription and pasted into the TextEdit target.")
+    print("✅ PASS: Installed Foil used mock transcription and pasted into the TextEdit target.")
     exit(0)
 }
 
 if log.contains("windowElement: nil") {
     print()
-    print("⚠️  SKIP: Installed GroqTalk entered the mock async path, but this desktop session did not expose the target AX window to the app process.")
-    print("Grant or refresh Accessibility permission for /Applications/GroqTalk.app, then rerun `make test-paste-real`.")
+    print("⚠️  SKIP: Installed Foil entered the mock async path, but this desktop session did not expose the target AX window to the app process.")
+    print("Grant or refresh Accessibility permission for /Applications/Foil.app, then rerun `make test-paste-real`.")
     if ProcessInfo.processInfo.environment["ALLOW_LOCAL_QA_SKIP"] == "1" {
         print("ALLOW_LOCAL_QA_SKIP=1 set; recording this as an explicit local skip.")
         exit(0)

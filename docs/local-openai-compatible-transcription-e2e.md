@@ -1,6 +1,6 @@
 # Local OpenAI-Compatible Transcription E2E
 
-This opt-in check verifies GroqTalk against a local OpenAI-compatible Whisper endpoint.
+This opt-in check verifies Foil against a local OpenAI-compatible Whisper endpoint.
 It does not require a Groq key and should not run in regular CI.
 
 For provider setup UI automation that does not require a local server, see
@@ -19,7 +19,7 @@ screen includes a setup helper that shows verified starter model options and
 copyable install, build, download, and start commands.
 
 Use **Test connection** in Settings after starting `whisper-server`. If the
-server is not reachable, GroqTalk reports that Local whisper.cpp could not be
+server is not reachable, Foil reports that Local whisper.cpp could not be
 reached and points back to the start-server command. A reachable server with a
 `/v1/models` response confirms the `whisper-1` compatibility model is listed;
 servers that do not expose model validation can still be marked reachable with a
@@ -77,7 +77,7 @@ Start the local server:
 ```sh
 curl -sS http://127.0.0.1:8080/v1/audio/transcriptions \
   -H "Authorization: Bearer local" \
-  -F "file=@GroqTalk/e2e-test-audio.wav;type=audio/wav" \
+  -F "file=@Foil/e2e-test-audio.wav;type=audio/wav" \
   -F "model=whisper-1" \
   -F "response_format=text"
 ```
@@ -96,13 +96,13 @@ make test-local-transcription-e2e
 
 The Make target:
 
-- posts `GroqTalk/e2e-test-audio.wav` to `/v1/audio/transcriptions`
+- posts `Foil/e2e-test-audio.wav` to `/v1/audio/transcriptions`
 - requires HTTP `200`
 - builds for testing
-- patches the generated `.xctestrun` so `GroqTalkUITests/GroqTalkUITests/testE2ETranscription`
+- patches the generated `.xctestrun` so `FoilUITests/FoilUITests/testE2ETranscription`
   receives the local endpoint environment
 - runs the real XCUITest with `xcodebuild test-without-building`
-- fails if the test is skipped, `/tmp/groqtalk-e2e-result.txt` is empty, or fewer than
+- fails if the test is skipped, `/tmp/foil-e2e-result.txt` is empty, or fewer than
   8 of 9 expected words are present
 
 Useful overrides:
@@ -124,7 +124,7 @@ Machine: Apple Silicon Mac with Metal backend selected by `whisper.cpp`.
 
 Clip:
 
-- File: `GroqTalk/e2e-test-audio.wav`
+- File: `Foil/e2e-test-audio.wav`
 - SHA-256: `36d3a24bbaf79f805fa4ad5360feb918c7467956b5001166d741f48e4c037e04`
 - Format: 16 kHz mono PCM WAV
 
@@ -140,7 +140,7 @@ App-level E2E result:
 
 - Command: `testE2ETranscription` with the environment above
 - Result: `TEST SUCCEEDED`
-- `/tmp/groqtalk-e2e-result.txt`: `The quick brown fox jumps over the lazy dog.`
+- `/tmp/foil-e2e-result.txt`: `The quick brown fox jumps over the lazy dog.`
 
 ## 2026-05-15 XCUITest Harness Evidence
 
@@ -160,8 +160,8 @@ Endpoint result:
 
 XCUITest result:
 
-- Test: `GroqTalkUITests/GroqTalkUITests/testE2ETranscription`
+- Test: `FoilUITests/FoilUITests/testE2ETranscription`
 - Runner: patched `.xctestrun` via `xcodebuild test-without-building`
 - Result: `TEST EXECUTE SUCCEEDED`
-- `/tmp/groqtalk-e2e-result.txt`: `the quick brown fox jumps over the lazy dog.`
+- `/tmp/foil-e2e-result.txt`: `the quick brown fox jumps over the lazy dog.`
 - App word recall: `9/9`

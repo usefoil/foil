@@ -2,7 +2,7 @@
 
 ## Current Coverage
 
-- App launch and controller setup have `DiagnosticLog` entries in `GroqTalkApp`.
+- App launch and controller setup have `DiagnosticLog` entries in `FoilApp`.
 - Setup health logs Accessibility, Microphone, and API-key refresh state transitions.
 - Recording lifecycle logs start, stop, no-audio, cancel, and failure paths in `RecordingController` and `AppDelegate`.
 - Transcription logs request metadata, provider/model validation, response status, text length, cleanup failure, and mapped API errors.
@@ -12,8 +12,8 @@
 ## Gaps Before Batch 1
 
 - `DiagnosticLog` was only an append-only writer and had no read/export API.
-- Logs were stored at `/tmp/groqtalk-diag.log`, which is not a durable user diagnostics location.
-- Release builds only logged when `GROQTALK_DIAGNOSTICS=1`, which makes user-submitted diagnostics unreliable.
+- Logs were stored at `/tmp/foil-diag.log`, which is not a durable user diagnostics location.
+- Release builds only logged when `FOIL_DIAGNOSTICS=1`, which makes user-submitted diagnostics unreliable.
 - There was no central redaction helper or test coverage for API keys, bearer tokens, or local home paths.
 - Logs are plain strings, not structured events; later Batch 1 work should add stable event categories for setup, recording, transcription, paste, and export failures.
 - No user-facing export UI exists yet.

@@ -2,7 +2,7 @@
 
 ## Objective
 
-Make GroqTalk's local and CI test workflow deterministic by ensuring live Groq API integration tests only run through an explicit opt-in target/path, while preserving a clear command for live provider verification when a valid key is intentionally supplied.
+Make Foil's local and CI test workflow deterministic by ensuring live Groq API integration tests only run through an explicit opt-in target/path, while preserving a clear command for live provider verification when a valid key is intentionally supplied.
 
 ## Original Request
 
@@ -11,7 +11,7 @@ Make GroqTalk's local and CI test workflow deterministic by ensuring live Groq A
 ## Intake Summary
 
 - Input shape: `specific`
-- Audience: GroqTalk maintainers and beta-release operators
+- Audience: Foil maintainers and beta-release operators
 - Authority: `requested`
 - Proof type: `test`
 - Completion proof: deterministic local/unit and CI paths pass without requiring a live Groq API key, and an explicit live Groq test target/command remains documented and runnable with `RUN_LIVE_GROQ_TESTS=1 GROQ_API_KEY=...`.

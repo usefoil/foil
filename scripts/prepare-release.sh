@@ -5,8 +5,8 @@ usage() {
   cat <<'EOF'
 Usage: scripts/prepare-release.sh VERSION BUILD_NUMBER NOTES_FILE
 
-Prepares an intentional GroqTalk release PR by updating:
-  - GroqTalk.xcodeproj MARKETING_VERSION and CURRENT_PROJECT_VERSION
+Prepares an intentional Foil release PR by updating:
+  - Foil.xcodeproj MARKETING_VERSION and CURRENT_PROJECT_VERSION
   - package.json/package-lock.json version
   - CHANGELOG.md with release notes
 
@@ -52,7 +52,7 @@ if [ ! -s "$NOTES_FILE" ]; then
   exit 2
 fi
 
-PROJECT_FILE="GroqTalk.xcodeproj/project.pbxproj"
+PROJECT_FILE="Foil.xcodeproj/project.pbxproj"
 TODAY="$(date +%Y-%m-%d)"
 PREVIOUS_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
 
@@ -65,7 +65,7 @@ npm install --package-lock-only >/dev/null
 CHANGELOG_ENTRY="$(mktemp)"
 {
   if [ -n "$PREVIOUS_TAG" ]; then
-    printf '## [%s](https://github.com/mean-weasel/groqtalk/compare/%s...v%s) (%s)\n\n' "$VERSION" "$PREVIOUS_TAG" "$VERSION" "$TODAY"
+    printf '## [%s](https://github.com/mean-weasel/foil/compare/%s...v%s) (%s)\n\n' "$VERSION" "$PREVIOUS_TAG" "$VERSION" "$TODAY"
   else
     printf '## [%s] (%s)\n\n' "$VERSION" "$TODAY"
   fi
@@ -78,5 +78,5 @@ cat "$CHANGELOG_ENTRY" CHANGELOG.md > "$CHANGELOG_NEXT"
 mv "$CHANGELOG_NEXT" CHANGELOG.md
 rm -f "$CHANGELOG_ENTRY"
 
-echo "Prepared GroqTalk $VERSION ($BUILD_NUMBER)."
+echo "Prepared Foil $VERSION ($BUILD_NUMBER)."
 echo "Review CHANGELOG.md, then open a PR and merge through the queue before tagging v$VERSION."

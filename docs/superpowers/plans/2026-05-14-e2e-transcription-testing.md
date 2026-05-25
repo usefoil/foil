@@ -17,14 +17,14 @@
 ### Task 1: Create E2EAudioStub
 
 **Files:**
-- Create: `GroqTalk/E2EAudioStub.swift`
+- Create: `Foil/E2EAudioStub.swift`
 
 **Acceptance criteria:** Builds successfully. Stub conforms to `AudioRecording`. Gated behind `#if DEBUG`.
 
 - [ ] **Step 1: Create the stub file**
 
 ```swift
-// GroqTalk/E2EAudioStub.swift
+// Foil/E2EAudioStub.swift
 import CoreAudio
 import Foundation
 
@@ -55,20 +55,20 @@ final class E2EAudioStub: AudioRecording {
 
 - [ ] **Step 2: Register in Xcode project**
 
-Add `E2EAudioStub.swift` to `GroqTalk.xcodeproj/project.pbxproj`:
+Add `E2EAudioStub.swift` to `Foil.xcodeproj/project.pbxproj`:
 - PBXFileReference entry
-- PBXBuildFile entry for GroqTalk target Sources
-- PBXGroup entry in the GroqTalk group (alphabetically near `DiagnosticLog.swift`)
+- PBXBuildFile entry for Foil target Sources
+- PBXGroup entry in the Foil group (alphabetically near `DiagnosticLog.swift`)
 
 - [ ] **Step 3: Build to verify**
 
-Run: `xcodebuild -project GroqTalk.xcodeproj -scheme GroqTalk -destination 'platform=macOS' build 2>&1 | tail -3`
+Run: `xcodebuild -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' build 2>&1 | tail -3`
 Expected: `** BUILD SUCCEEDED **`
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add GroqTalk/E2EAudioStub.swift GroqTalk.xcodeproj/project.pbxproj
+git add Foil/E2EAudioStub.swift Foil.xcodeproj/project.pbxproj
 git commit -m "feat: add E2EAudioStub for injecting pre-recorded audio in tests"
 ```
 
@@ -77,15 +77,15 @@ git commit -m "feat: add E2EAudioStub for injecting pre-recorded audio in tests"
 ### Task 2: Expose recording controller replacement in AppDelegate
 
 **Files:**
-- Modify: `GroqTalk/GroqTalkApp.swift:80` (change `recordingController` visibility)
-- Modify: `GroqTalk/GroqTalkApp.swift:176-192` (add callback to UITestingController init)
-- Modify: `GroqTalk/UITestingController.swift:47-81` (accept new callback)
+- Modify: `Foil/FoilApp.swift:80` (change `recordingController` visibility)
+- Modify: `Foil/FoilApp.swift:176-192` (add callback to UITestingController init)
+- Modify: `Foil/UITestingController.swift:47-81` (accept new callback)
 
 **Acceptance criteria:** `UITestingController` can replace AppDelegate's recording controller. Build succeeds. All existing tests pass.
 
 - [ ] **Step 1: Add `replaceRecordingController` method to AppDelegate**
 
-In `GroqTalk/GroqTalkApp.swift`, add a method after the existing `wireHotkeyMonitor()` method (around line 411):
+In `Foil/FoilApp.swift`, add a method after the existing `wireHotkeyMonitor()` method (around line 411):
 
 ```swift
     /// Replace the recording controller with one backed by a different AudioRecording.
@@ -99,7 +99,7 @@ In `GroqTalk/GroqTalkApp.swift`, add a method after the existing `wireHotkeyMoni
 
 - [ ] **Step 2: Add `onReplaceRecordingController` callback to UITestingController**
 
-In `GroqTalk/UITestingController.swift`, add to the stored properties (after line 37):
+In `Foil/UITestingController.swift`, add to the stored properties (after line 37):
 
 ```swift
     private let onReplaceRecordingController: (RecordingController) -> Void
@@ -119,7 +119,7 @@ Assign in the init body (after line 80):
 
 - [ ] **Step 3: Pass the callback from AppDelegate**
 
-In `GroqTalk/GroqTalkApp.swift`, in the `UITestingController(...)` init call (around line 176-192), add after `onPasteText`:
+In `Foil/FoilApp.swift`, in the `UITestingController(...)` init call (around line 176-192), add after `onPasteText`:
 
 ```swift
             onReplaceRecordingController: { [weak self] controller in
@@ -129,14 +129,14 @@ In `GroqTalk/GroqTalkApp.swift`, in the `UITestingController(...)` init call (ar
 
 - [ ] **Step 4: Build and run full test suite**
 
-Run: `xcodebuild -project GroqTalk.xcodeproj -scheme GroqTalk -destination 'platform=macOS' test -only-testing:GroqTalkTests 2>&1 | grep -E "(Test Suite.*(passed|failed)|TEST)" | tail -5`
+Run: `xcodebuild -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' test -only-testing:FoilTests 2>&1 | grep -E "(Test Suite.*(passed|failed)|TEST)" | tail -5`
 
 Expected: `** TEST SUCCEEDED **` (only pre-existing failures allowed, currently zero)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add GroqTalk/GroqTalkApp.swift GroqTalk/UITestingController.swift
+git add Foil/FoilApp.swift Foil/UITestingController.swift
 git commit -m "feat: expose recording controller replacement for E2E testing"
 ```
 
@@ -178,14 +178,14 @@ gh pr merge <PR_NUMBER> --squash --delete-branch
 ### Task 4: Add `configureE2ETranscribeIfNeeded()` to UITestingController
 
 **Files:**
-- Modify: `GroqTalk/UITestingController.swift` (add E2E method after `configureAutomationSmokeIfNeeded`)
-- Modify: `GroqTalk/GroqTalkApp.swift` (call new method in `applicationDidFinishLaunching`)
+- Modify: `Foil/UITestingController.swift` (add E2E method after `configureAutomationSmokeIfNeeded`)
+- Modify: `Foil/FoilApp.swift` (call new method in `applicationDidFinishLaunching`)
 
 **Acceptance criteria:** When launched with `--e2e-transcribe --ui-testing`, the app generates a WAV file via `say`, swaps in the E2EAudioStub, triggers the recording→stop→transcribe flow, and the result appears in history. Manually verifiable before the UI test exists.
 
 - [ ] **Step 1: Add the E2E method to UITestingController**
 
-In `GroqTalk/UITestingController.swift`, add after `configureAutomationSmokeIfNeeded()` (around line 131):
+In `Foil/UITestingController.swift`, add after `configureAutomationSmokeIfNeeded()` (around line 131):
 
 ```swift
     // MARK: - E2E transcription
@@ -199,7 +199,7 @@ In `GroqTalk/UITestingController.swift`, add after `configureAutomationSmokeIfNe
 
         let phrase = "the quick brown fox jumps over the lazy dog"
         let wavURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("groqtalk-e2e-\(UUID().uuidString).wav")
+            .appendingPathComponent("foil-e2e-\(UUID().uuidString).wav")
 
         // Generate speech audio via macOS say command
         let process = Process()
@@ -243,7 +243,7 @@ In `GroqTalk/UITestingController.swift`, add after `configureAutomationSmokeIfNe
 
 - [ ] **Step 2: Call the method from AppDelegate**
 
-In `GroqTalk/GroqTalkApp.swift`, in `applicationDidFinishLaunching`, add after `uiTestingCtrl.configureAutomationSmokeIfNeeded()` (line 196):
+In `Foil/FoilApp.swift`, in `applicationDidFinishLaunching`, add after `uiTestingCtrl.configureAutomationSmokeIfNeeded()` (line 196):
 
 ```swift
         uiTestingCtrl.configureE2ETranscribeIfNeeded()
@@ -251,19 +251,19 @@ In `GroqTalk/GroqTalkApp.swift`, in `applicationDidFinishLaunching`, add after `
 
 - [ ] **Step 3: Build to verify**
 
-Run: `xcodebuild -project GroqTalk.xcodeproj -scheme GroqTalk -destination 'platform=macOS' build 2>&1 | tail -3`
+Run: `xcodebuild -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' build 2>&1 | tail -3`
 Expected: `** BUILD SUCCEEDED **`
 
 - [ ] **Step 4: Run existing test suite to verify no regressions**
 
-Run: `xcodebuild -project GroqTalk.xcodeproj -scheme GroqTalk -destination 'platform=macOS' test -only-testing:GroqTalkTests 2>&1 | grep -E "(Test Suite.*(passed|failed)|TEST)" | tail -5`
+Run: `xcodebuild -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' test -only-testing:FoilTests 2>&1 | grep -E "(Test Suite.*(passed|failed)|TEST)" | tail -5`
 
 Expected: `** TEST SUCCEEDED **`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add GroqTalk/UITestingController.swift GroqTalk/GroqTalkApp.swift
+git add Foil/UITestingController.swift Foil/FoilApp.swift
 git commit -m "feat: add E2E transcription flow via say-generated audio"
 ```
 
@@ -298,13 +298,13 @@ gh pr merge <PR_NUMBER> --squash --delete-branch
 ### Task 6: Add the E2E transcription UI test
 
 **Files:**
-- Modify: `GroqTalkUITests/GroqTalkUITests.swift` (add test method)
+- Modify: `FoilUITests/FoilUITests.swift` (add test method)
 
 **Acceptance criteria:** Test launches app with `--e2e-transcribe`, waits for transcription to complete, reads the history, and asserts the transcribed text approximately matches "the quick brown fox jumps over the lazy dog". Test is skipped when `GROQ_API_KEY` is not set. Test passes locally when the key is available.
 
 - [ ] **Step 1: Write the UI test**
 
-Add to `GroqTalkUITests/GroqTalkUITests.swift`, before the `private var controlCenter` computed property (line 251):
+Add to `FoilUITests/FoilUITests.swift`, before the `private var controlCenter` computed property (line 251):
 
 ```swift
     // MARK: - E2E Transcription (requires GROQ_API_KEY)
@@ -325,8 +325,8 @@ Add to `GroqTalkUITests/GroqTalkUITests.swift`, before the `private var controlC
         ]
         app.launch()
 
-        let controlCenter = app.windows["GroqTalk UI Test"].exists
-            ? app.windows["GroqTalk UI Test"]
+        let controlCenter = app.windows["Foil UI Test"].exists
+            ? app.windows["Foil UI Test"]
             : app.staticTexts["Ready"]
         XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), "App should launch")
 
@@ -403,7 +403,7 @@ Add to `GroqTalkUITests/GroqTalkUITests.swift`, before the `private var controlC
     private func KeychainHasGroqKey() -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "com.neonwatty.GroqTalk",
+            kSecAttrService as String: "com.neonwatty.Foil",
             kSecAttrAccount as String: "groq-api-key",
             kSecReturnData as String: false,
             kSecMatchLimit as String: kSecMatchLimitOne
@@ -414,27 +414,27 @@ Add to `GroqTalkUITests/GroqTalkUITests.swift`, before the `private var controlC
 
 - [ ] **Step 2: Build to verify**
 
-Run: `xcodebuild -project GroqTalk.xcodeproj -scheme GroqTalk -destination 'platform=macOS' build-for-testing 2>&1 | tail -3`
+Run: `xcodebuild -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' build-for-testing 2>&1 | tail -3`
 Expected: `** BUILD SUCCEEDED **`
 
 - [ ] **Step 3: Run the E2E test locally**
 
 Ensure `GROQ_API_KEY` is in the keychain (done earlier this session), then:
 
-Run: `xcodebuild -project GroqTalk.xcodeproj -scheme GroqTalk -destination 'platform=macOS' test -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription 2>&1 | grep -E "(Test Case|TEST)" | tail -5`
+Run: `xcodebuild -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' test -only-testing:FoilUITests/FoilUITests/testE2ETranscription 2>&1 | grep -E "(Test Case|TEST)" | tail -5`
 
-Expected: `Test Case '-[GroqTalkUITests.GroqTalkUITests testE2ETranscription]' passed` and `** TEST SUCCEEDED **`
+Expected: `Test Case '-[FoilUITests.FoilUITests testE2ETranscription]' passed` and `** TEST SUCCEEDED **`
 
 - [ ] **Step 4: Run the full UI test suite to verify no regressions**
 
-Run: `xcodebuild -project GroqTalk.xcodeproj -scheme GroqTalk -destination 'platform=macOS' test -only-testing:GroqTalkUITests 2>&1 | grep -E "(Test Case.*failed|Test Suite.*(passed|failed)|TEST)" | tail -10`
+Run: `xcodebuild -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' test -only-testing:FoilUITests 2>&1 | grep -E "(Test Case.*failed|Test Suite.*(passed|failed)|TEST)" | tail -10`
 
 Expected: All existing UI tests still pass. `** TEST SUCCEEDED **`
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add GroqTalkUITests/GroqTalkUITests.swift
+git add FoilUITests/FoilUITests.swift
 git commit -m "test: add E2E transcription UI test with Groq API"
 ```
 
@@ -463,15 +463,15 @@ In `.github/workflows/e2e.yml`, add after the existing "Run live Groq E2E tests"
 
           # Ensure API key is in the keychain for the test host
           security add-generic-password \
-            -s "com.neonwatty.GroqTalk" \
+            -s "com.neonwatty.Foil" \
             -a "groq-api-key" \
             -w "$GROQ_API_KEY" -U 2>/dev/null || true
 
           xcodebuild test \
-            -scheme GroqTalk \
+            -scheme Foil \
             -configuration Debug \
             -destination 'platform=macOS' \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription \
+            -only-testing:FoilUITests/FoilUITests/testE2ETranscription \
             | xcpretty --color && exit ${PIPESTATUS[0]}
 ```
 
@@ -533,8 +533,8 @@ gh pr merge <PR_NUMBER> --merge
 - [ ] **Step 3: Monitor the E2E workflow on main**
 
 ```bash
-gh run list --repo mean-weasel/groqtalk --branch main --workflow "E2E Groq API Tests" --limit 1
-gh run watch <RUN_ID> --repo mean-weasel/groqtalk
+gh run list --repo mean-weasel/foil --branch main --workflow "E2E Groq API Tests" --limit 1
+gh run watch <RUN_ID> --repo mean-weasel/foil
 ```
 
 Expected: Both the existing integration tests and the new E2E UI test pass.

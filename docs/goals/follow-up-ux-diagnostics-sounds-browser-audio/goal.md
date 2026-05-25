@@ -1,8 +1,8 @@
-# GroqTalk Follow-Up UX Goal Draft
+# Foil Follow-Up UX Goal Draft
 
 ## Objective
 
-Implement three PR-sized GroqTalk follow-up improvements:
+Implement three PR-sized Foil follow-up improvements:
 
 1. Privacy-preserving local diagnostics export for user-submitted bug reports.
 2. User control over recording start and end sounds.
@@ -12,7 +12,7 @@ Each batch should be completed, reviewed, PR'd, monitored to green CI, and merge
 
 ## Context
 
-- GroqTalk is a macOS dictation app.
+- Foil is a macOS dictation app.
 - Recent work added an audible app-owned recording-start cue and tests for delayed start cue scheduling.
 - Users need local debugging evidence they can attach to GitHub issues.
 - Diagnostics must be local only. No external telemetry, analytics, server upload, transcript upload, audio upload, or clipboard capture.
@@ -166,7 +166,7 @@ Acceptance criteria:
 Acceptance criteria:
 
 - On recording start, if enabled, attempts to pause or mute supported browser media according to the discovery recommendation.
-- On recording stop, cancel, or error, avoids unexpectedly starting media that was already paused before GroqTalk acted.
+- On recording stop, cancel, or error, avoids unexpectedly starting media that was already paused before Foil acted.
 - Handles browser not running.
 - Handles unsupported browser or script/accessibility failure without blocking recording.
 - Logs local diagnostic success/failure categories without capturing URL, page title, transcript text, or browser content.

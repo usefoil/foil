@@ -12,7 +12,7 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-// MARK: - Helpers (copied from GroqTalk sources)
+// MARK: - Helpers (copied from Foil sources)
 
 func captureCurrentTarget() -> (window: AXUIElement?, pid: pid_t, appName: String)? {
     guard let frontApp = NSWorkspace.shared.frontmostApplication else { return nil }

@@ -1,6 +1,6 @@
 # Release Process
 
-GroqTalk releases are manual and tag-driven. Release prep changes must go through a pull request and merge queue before a tag is created.
+Foil releases are manual and tag-driven. Release prep changes must go through a pull request and merge queue before a tag is created.
 
 ## Prepare a Release PR
 
@@ -11,7 +11,7 @@ GroqTalk releases are manual and tag-driven. Release prep changes must go throug
    make prepare-release VERSION=1.12.1 BUILD=33 NOTES=/path/to/release-notes.md
    ```
 
-3. Review `CHANGELOG.md`, `package.json`, `package-lock.json`, and `GroqTalk.xcodeproj/project.pbxproj`.
+3. Review `CHANGELOG.md`, `package.json`, `package-lock.json`, and `Foil.xcodeproj/project.pbxproj`.
 4. Open a PR and merge it through the queue after CI is green.
 
 ## Tag the Merged Commit

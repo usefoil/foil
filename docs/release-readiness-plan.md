@@ -1,6 +1,6 @@
-# GroqTalk Release Readiness Plan
+# Foil Release Readiness Plan
 
-This document records the current remediation plan for moving GroqTalk from early beta quality toward a credible public release. It is intended as the shared reference before implementation begins.
+This document records the current remediation plan for moving Foil from early beta quality toward a credible public release. It is intended as the shared reference before implementation begins.
 
 ## XCTest QA Standard
 
@@ -21,8 +21,8 @@ Every implementation task should include:
 
 Use this hierarchy when adding or reviewing test coverage:
 
-- `GroqTalkTests`: deterministic unit and component tests. These should be the default proof for business logic.
-- `GroqTalkUITests`: deterministic UI tests using `--ui-testing` launch modes and controlled app state.
+- `FoilTests`: deterministic unit and component tests. These should be the default proof for business logic.
+- `FoilUITests`: deterministic UI tests using `--ui-testing` launch modes and controlled app state.
 - `tests/test_*.swift`: local integration scripts for behavior that requires real macOS automation, real apps, or real credentials.
 - Manual QA checklist: final verification only, not a substitute for automated coverage.
 
@@ -158,9 +158,9 @@ The plan is organized so subagents can work in parallel with minimal file overla
 
 Scope:
 
-- `GroqTalk/KeychainHelper.swift`
-- `GroqTalkTests/KeychainHelperTests.swift`
-- `GroqTalk/ApiKeySetupView.swift`, only if UI copy changes are needed
+- `Foil/KeychainHelper.swift`
+- `FoilTests/KeychainHelperTests.swift`
+- `Foil/ApiKeySetupView.swift`, only if UI copy changes are needed
 
 Tasks:
 
@@ -180,8 +180,8 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/PasteQueue.swift`
-- `GroqTalkTests/PasteQueueTests.swift`
+- `Foil/PasteQueue.swift`
+- `FoilTests/PasteQueueTests.swift`
 
 Tasks:
 
@@ -199,9 +199,9 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/GroqTalkApp.swift`
-- `GroqTalk/AudioRecorder.swift`
-- `GroqTalk/TranscriptionService.swift`
+- `Foil/FoilApp.swift`
+- `Foil/AudioRecorder.swift`
+- `Foil/TranscriptionService.swift`
 
 Tasks:
 
@@ -219,9 +219,9 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/TranscriptionService.swift`
-- `GroqTalkTests/TranscriptionServiceTests.swift`
-- `GroqTalkTests/IntegrationTests.swift`
+- `Foil/TranscriptionService.swift`
+- `FoilTests/TranscriptionServiceTests.swift`
+- `FoilTests/IntegrationTests.swift`
 
 Tasks:
 
@@ -241,9 +241,9 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/TextInserter.swift`
-- `GroqTalk/BackgroundPaste.swift`
-- `GroqTalk/PasteDelivery.swift`
+- `Foil/TextInserter.swift`
+- `Foil/BackgroundPaste.swift`
+- `Foil/PasteDelivery.swift`
 - paste-related tests
 
 Tasks:
@@ -262,10 +262,10 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/GroqTalkApp.swift`
-- `GroqTalk/AppState.swift`
-- `GroqTalk/MenuBarView.swift`
-- `GroqTalk/ApiKeySetupView.swift`
+- `Foil/FoilApp.swift`
+- `Foil/AppState.swift`
+- `Foil/MenuBarView.swift`
+- `Foil/ApiKeySetupView.swift`
 
 Tasks:
 
@@ -284,9 +284,9 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/HistoryPopoverView.swift`
-- `GroqTalk/SettingsView.swift`
-- `GroqTalk/MenuBarView.swift`
+- `Foil/HistoryPopoverView.swift`
+- `Foil/SettingsView.swift`
+- `Foil/MenuBarView.swift`
 
 Tasks:
 
@@ -306,7 +306,7 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/Assets.xcassets/AppIcon.appiconset`
+- `Foil/Assets.xcassets/AppIcon.appiconset`
 - Xcode asset references
 
 Tasks:
@@ -326,7 +326,7 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/GroqTalkApp.swift`
+- `Foil/FoilApp.swift`
 - `tests/test_*.swift`
 - `Makefile`
 - CI only if safe
@@ -347,9 +347,9 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/MenuBarView.swift`
-- `GroqTalk/AppState.swift`
-- `GroqTalk/HotkeyMonitor.swift`, only if callbacks are needed
+- `Foil/MenuBarView.swift`
+- `Foil/AppState.swift`
+- `Foil/HotkeyMonitor.swift`, only if callbacks are needed
 - UI tests
 
 Tasks:
@@ -368,8 +368,8 @@ Acceptance:
 
 Scope:
 
-- `GroqTalk/FloatingStatusView.swift`
-- floating panel code in `GroqTalk/GroqTalkApp.swift`
+- `Foil/FloatingStatusView.swift`
+- floating panel code in `Foil/FoilApp.swift`
 
 Tasks:
 
@@ -411,8 +411,8 @@ Current local verification notes:
 - Semantic-release is deprecated for this repo because branch rules require pull requests, merge queue, and `CI Gate`; release automation must not push generated commits directly to `main`.
 - `scripts/prepare-release.sh` updates app version/build metadata, `package.json`, `package-lock.json`, and `CHANGELOG.md` for a release-prep PR.
 - `.github/workflows/deploy.yml` is manually dispatched with a version input and checks out `v${version}`. It does not run on every `main` push.
-- The release workflow creates the GitHub Release if it does not already exist, imports the Developer ID certificate, archives with `MARKETING_VERSION` set to the release version, exports with `ExportOptions.plist`, verifies bundle version/build, creates a DMG, signs it, notarizes it with App Store Connect API-key credentials, staples it, validates Gatekeeper/stapler status, and uploads `GroqTalk-${VERSION}-macos.dmg` plus checksum to the GitHub release.
-- Homebrew is verified for the current public beta evidence in `docs/release-qa-log.md`: `mean-weasel/homebrew-groqtalk` points at the uploaded `v1.12.0` DMG, the cask SHA-256 matches the release asset digest, and clean cask install/launch/signature smoke checks passed. Re-verify this path for each new release.
+- The release workflow creates the GitHub Release if it does not already exist, imports the Developer ID certificate, archives with `MARKETING_VERSION` set to the release version, exports with `ExportOptions.plist`, verifies bundle version/build, creates a DMG, signs it, notarizes it with App Store Connect API-key credentials, staples it, validates Gatekeeper/stapler status, and uploads `Foil-${VERSION}-macos.dmg` plus checksum to the GitHub release.
+- Homebrew is verified for the current public beta evidence in `docs/release-qa-log.md`: `mean-weasel/homebrew-foil` points at the uploaded `v1.12.0` DMG, the cask SHA-256 matches the release asset digest, and clean cask install/launch/signature smoke checks passed. Re-verify this path for each new release.
 
 Release dry-run checklist:
 
@@ -421,7 +421,7 @@ Release dry-run checklist:
    `make prepare-release VERSION=1.12.1 BUILD=33 NOTES=/path/to/release-notes.md`
 3. Confirm working tree contains only intentional release-prep changes:
    `git status --short`
-4. Review `CHANGELOG.md`, `package.json`, `package-lock.json`, and `GroqTalk.xcodeproj/project.pbxproj`.
+4. Review `CHANGELOG.md`, `package.json`, `package-lock.json`, and `Foil.xcodeproj/project.pbxproj`.
 5. Open the release-prep PR and merge it through the merge queue after CI is green.
 6. Tag the merged `main` commit:
    `git tag v1.12.1 && git push origin v1.12.1`
@@ -430,22 +430,22 @@ Release dry-run checklist:
 8. Confirm the release runner image has the configured Xcode path from `deploy.yml` or update the workflow before release.
 9. Run the `Release` workflow manually with the version number without the leading `v` and the release build number.
 10. After the workflow completes, download the release DMG and verify locally:
-   `spctl -a -vv -t open --context context:primary-signature GroqTalk-VERSION-macos.dmg`
+   `spctl -a -vv -t open --context context:primary-signature Foil-VERSION-macos.dmg`
 11. Mount the DMG, copy the app to Applications, launch it, and complete a fresh setup smoke test for Accessibility, Microphone, API key, and one transcription.
 
 Homebrew/DMG verification path:
 
-1. Confirm the release contains `GroqTalk-VERSION-macos.dmg`.
-2. Confirm the release asset digest or `GroqTalk-VERSION-macos.dmg.sha256`, then download the DMG and compute its checksum:
-   `shasum -a 256 GroqTalk-VERSION-macos.dmg`
-3. Verify the computed checksum matches the GitHub release asset digest or `GroqTalk-VERSION-macos.dmg.sha256`.
+1. Confirm the release contains `Foil-VERSION-macos.dmg`.
+2. Confirm the release asset digest or `Foil-VERSION-macos.dmg.sha256`, then download the DMG and compute its checksum:
+   `shasum -a 256 Foil-VERSION-macos.dmg`
+3. Verify the computed checksum matches the GitHub release asset digest or `Foil-VERSION-macos.dmg.sha256`.
 4. Update the Homebrew tap cask URL to the exact release asset and the cask `sha256` to the computed value.
 5. Verify from a clean tap state:
-   `brew untap mean-weasel/groqtalk || true`
+   `brew untap mean-weasel/foil || true`
 6. Tap and install:
-   `brew tap mean-weasel/groqtalk`
-   `brew install --cask groqtalk`
-7. Confirm `/Applications/GroqTalk.app` launches and Gatekeeper accepts the installed app.
+   `brew tap mean-weasel/foil`
+   `brew install --cask foil`
+7. Confirm `/Applications/Foil.app` launches and Gatekeeper accepts the installed app.
 8. Record the workflow run URL, release URL, DMG checksum, cask commit, and local verification result in the release notes or QA log.
 
 ### Agent M: README And Docs Cleanup

@@ -14,7 +14,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 
-// MARK: - SkyLight SPI wrappers (standalone — no GroqTalk import)
+// MARK: - SkyLight SPI wrappers (standalone — no Foil import)
 
 private typealias PostEventRecordToFn = @convention(c) (UnsafeRawPointer, UnsafePointer<UInt8>) -> Int32
 private typealias GetFrontProcessFn = @convention(c) (UnsafeMutableRawPointer) -> Int32

@@ -6,11 +6,11 @@ if [[ "${RUN_LIVE_MICROPHONE_TESTS:-}" != "1" ]]; then
   exit 0
 fi
 
-SCHEME="${SCHEME:-GroqTalk}"
+SCHEME="${SCHEME:-Foil}"
 CONFIG="${CONFIG:-Debug}"
 DESTINATION="${DESTINATION:-platform=macOS}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-}"
-LIVE_MICROPHONE_RESULT_PATH="${LIVE_MICROPHONE_RESULT_PATH:-/tmp/groqtalk-live-microphone-result.txt}"
+LIVE_MICROPHONE_RESULT_PATH="${LIVE_MICROPHONE_RESULT_PATH:-/tmp/foil-live-microphone-result.txt}"
 LIVE_MICROPHONE_DURATION_SECONDS="${LIVE_MICROPHONE_DURATION_SECONDS:-2}"
 PLISTBUDDY="/usr/libexec/PlistBuddy"
 patched=""
@@ -24,11 +24,11 @@ trap cleanup EXIT
 
 echo "Live microphone QA prerequisites:"
 echo "- A working input device is selected in macOS Sound settings."
-echo "- The Xcode-built GroqTalk test app can be granted Microphone permission when prompted."
+echo "- The Xcode-built Foil test app can be granted Microphone permission when prompted."
 echo "- This target is local-only; regular CI should use make test-ui."
 echo ""
 echo "If permission state is stale, run:"
-echo "  tccutil reset Microphone com.neonwatty.GroqTalk"
+echo "  tccutil reset Microphone com.neonwatty.Foil"
 echo ""
 
 build_args=(
@@ -44,7 +44,7 @@ echo "== Build for testing"
 xcodebuild build-for-testing "${build_args[@]}"
 
 find_root="${DERIVED_DATA_PATH:-${HOME}/Library/Developer/Xcode/DerivedData}"
-xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*GroqTalk*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
+xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*Foil*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
 if [[ -z "${xctestrun}" || ! -f "${xctestrun}" ]]; then
   echo "error: could not locate generated .xctestrun" >&2
   exit 1
@@ -56,7 +56,7 @@ cp "${xctestrun}" "${patched}"
 ui_target_index=""
 for index in $(seq 0 20); do
   blueprint="$("${PLISTBUDDY}" -c "Print :TestConfigurations:0:TestTargets:${index}:BlueprintName" "${patched}" 2>/dev/null || true)"
-  if [[ "${blueprint}" == "GroqTalkUITests" ]]; then
+  if [[ "${blueprint}" == "FoilUITests" ]]; then
     ui_target_index="${index}"
     break
   fi
@@ -66,7 +66,7 @@ for index in $(seq 0 20); do
 done
 
 if [[ -z "${ui_target_index}" ]]; then
-  echo "error: GroqTalkUITests target not found in ${patched}" >&2
+  echo "error: FoilUITests target not found in ${patched}" >&2
   exit 1
 fi
 
@@ -77,7 +77,7 @@ done
 
 test_host="$("${PLISTBUDDY}" -c "Print :TestConfigurations:0:TestTargets:${ui_target_index}:TestHostPath" "${patched}" 2>/dev/null || true)"
 if [[ -z "${test_host}" || ! -e "${test_host}" ]]; then
-  test_host="$(find "${find_root}" -path '*Build/Products/Debug/GroqTalk.app' -type d -print0 2>/dev/null | xargs -0 ls -dt 2>/dev/null | head -1 || true)"
+  test_host="$(find "${find_root}" -path '*Build/Products/Debug/Foil.app' -type d -print0 2>/dev/null | xargs -0 ls -dt 2>/dev/null | head -1 || true)"
 fi
 signing_identity="unknown"
 if [[ -n "${test_host}" && -e "${test_host}" ]]; then
@@ -107,4 +107,4 @@ echo "== XCUITest live microphone QA"
 xcodebuild test-without-building \
   -xctestrun "${patched}" \
   -destination "${DESTINATION}" \
-  -only-testing:GroqTalkUITests/GroqTalkUITests/testLiveMicrophoneSmoke
+  -only-testing:FoilUITests/FoilUITests/testLiveMicrophoneSmoke

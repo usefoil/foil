@@ -6,7 +6,7 @@ full_outcome_complete: false
 
 ## Implemented Local Work
 
-- Release/install metadata now points public beta users at the canonical `mean-weasel/groqtalk` manual DMG path, with Homebrew documented as planned/unverified.
+- Release/install metadata now points public beta users at the canonical `mean-weasel/foil` manual DMG path, with Homebrew documented as planned/unverified.
 - First-run onboarding now starts from provider choice and distinguishes Groq credentials from local/custom provider setup.
 - Disabled recording/setup states now show specific missing prerequisites and recovery actions.
 - Provider setup now includes provider-specific privacy/setup copy, local/custom connection guidance, and provider-specific unreachable messages.
@@ -19,7 +19,7 @@ full_outcome_complete: false
 
 - `git diff --check` passed.
 - Public release/support docs no longer match stale `neonwatty` or `version :latest` release patterns in the checked canonical surfaces.
-- `make test` passed after T009 at `Test-GroqTalk-2026.05.21_11-33-24--0700.xcresult`.
+- `make test` passed after T009 at `Test-Foil-2026.05.21_11-33-24--0700.xcresult`.
 - Focused implementation receipts record earlier passing unit coverage for release metadata, provider setup state, transcription reliability, retry-audio retention, and secondary UX support.
 - `npx goalbuddy check-update --json` reports GoalBuddy `0.3.7` current.
 - `npx goalbuddy doctor --target codex --goal-ready` reports the GoalBuddy Codex plugin installed, enabled, and ready.
@@ -31,7 +31,7 @@ full_outcome_complete: false
 - Manual provider QA fallback exists in `docs/provider-qa-xcuitest.md`, but it has not been executed or recorded with screenshots/notes in `docs/release-qa-log.md`.
 - Fresh-install permission smoke remains incomplete for microphone, Accessibility, setup check, Keychain/API-key readiness, and retained-audio clear-history behavior.
 - Live cleanup quality remains blocked without `GROQ_API_KEY`.
-- Homebrew remains intentionally unsupported for beta until `mean-weasel/homebrew-groqtalk` exists and the cask is verified against the uploaded signed/notarized DMG and checksum.
+- Homebrew remains intentionally unsupported for beta until `mean-weasel/homebrew-foil` exists and the cask is verified against the uploaded signed/notarized DMG and checksum.
 - Sparkle appcast metadata has been corrected locally, but final update proof still depends on published release artifacts.
 
 ## Decision

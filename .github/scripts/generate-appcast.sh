@@ -15,9 +15,9 @@ set -euo pipefail
 : "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 
-REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/groqtalk}}"
-DMG_PATH="$RUNNER_TEMP/GroqTalk-${VERSION}-macos.dmg"
-DMG_FILENAME="GroqTalk-${VERSION}-macos.dmg"
+REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/foil}}"
+DMG_PATH="$RUNNER_TEMP/Foil-${VERSION}-macos.dmg"
+DMG_FILENAME="Foil-${VERSION}-macos.dmg"
 DMG_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${DMG_FILENAME}"
 FILE_SIZE=$(stat -f%z "$DMG_PATH")
 BUILD_NUMBER="${BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-1}}"
@@ -28,9 +28,9 @@ cat > "$APPCAST_PATH" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>GroqTalk</title>
+    <title>Foil</title>
     <link>https://github.com/${REPO}</link>
-    <description>GroqTalk Updates</description>
+    <description>Foil Updates</description>
     <language>en</language>
     <item>
       <title>Version ${VERSION}</title>

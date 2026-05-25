@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-CERT_NAME="GroqTalk Local Code Signing"
-KEYCHAIN_NAME="groqtalk-codesign.keychain-db"
+CERT_NAME="Foil Local Code Signing"
+KEYCHAIN_NAME="foil-codesign.keychain-db"
 KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME"
-KEYCHAIN_PASSWORD="${LOCAL_SIGN_KEYCHAIN_PASSWORD:-groqtalk-local-codesign}"
-P12_PASSWORD="groqtalk-local"
+KEYCHAIN_PASSWORD="${LOCAL_SIGN_KEYCHAIN_PASSWORD:-foil-local-codesign}"
+P12_PASSWORD="foil-local"
 TMPDIR_TO_CLEAN=""
 
 cleanup() {

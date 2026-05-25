@@ -12,7 +12,7 @@ Implement the deterministic/live split:
 
 - Keep deterministic multipart/app-state tests in `IntegrationTests`.
 - Move the four real Groq API methods into `LiveGroqIntegrationTests` in the same Swift source file.
-- Add Makefile defaults that skip `GroqTalkTests/LiveGroqIntegrationTests` even if the shell exports stale live-test env vars.
+- Add Makefile defaults that skip `FoilTests/LiveGroqIntegrationTests` even if the shell exports stale live-test env vars.
 - Add `make test-live-groq` for intentional unit-level live Groq API verification.
 - Update PR/merge-group CI to skip `LiveGroqIntegrationTests`.
 - Update the existing live Groq API workflow to use the explicit target.
@@ -23,7 +23,7 @@ Implement the deterministic/live split:
 - `Makefile`
 - `.github/workflows/ci.yml`
 - `.github/workflows/e2e.yml`
-- `GroqTalkTests/IntegrationTests.swift`
+- `FoilTests/IntegrationTests.swift`
 - `README.md`
 - `docs/provider-qa-xcuitest.md`
 - `docs/release-qa-log.md`
@@ -33,9 +33,9 @@ Implement the deterministic/live split:
 ## verify commands
 
 - `GROQ_API_KEY=stale RUN_LIVE_GROQ_TESTS=1 make test`
-- `GROQ_API_KEY=stale RUN_LIVE_GROQ_TESTS=1 xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkTests -skip-testing:GroqTalkTests/LiveGroqIntegrationTests`
+- `GROQ_API_KEY=stale RUN_LIVE_GROQ_TESTS=1 xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests -skip-testing:FoilTests/LiveGroqIntegrationTests`
 - `make -n test-live-groq`
-- `rg -n "LiveGroqIntegrationTests|test-live-groq|RUN_LIVE_GROQ_TESTS" Makefile .github/workflows README.md docs/provider-qa-xcuitest.md docs/release-qa-log.md GroqTalkTests/IntegrationTests.swift`
+- `rg -n "LiveGroqIntegrationTests|test-live-groq|RUN_LIVE_GROQ_TESTS" Makefile .github/workflows README.md docs/provider-qa-xcuitest.md docs/release-qa-log.md FoilTests/IntegrationTests.swift`
 
 ## stop_if
 

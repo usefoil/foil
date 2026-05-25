@@ -2,7 +2,7 @@
 
 ## Objective
 
-Create a user-facing Local whisper.cpp model setup helper for GroqTalk that lets installed-app users choose an actually available whisper.cpp model option, understand the speed/quality tradeoff, copy deterministic install/download/start commands, test the local server, and avoid confusing the OpenAI-compatible `model=whisper-1` request field with the real local `--model` file.
+Create a user-facing Local whisper.cpp model setup helper for Foil that lets installed-app users choose an actually available whisper.cpp model option, understand the speed/quality tradeoff, copy deterministic install/download/start commands, test the local server, and avoid confusing the OpenAI-compatible `model=whisper-1` request field with the real local `--model` file.
 
 ## Original Request
 
@@ -11,11 +11,11 @@ Create a user-facing Local whisper.cpp model setup helper for GroqTalk that lets
 ## Intake Summary
 
 - Input shape: `existing_plan`
-- Audience: GroqTalk installed-app users who want local transcription, plus maintainers who need CI-safe coverage.
+- Audience: Foil installed-app users who want local transcription, plus maintainers who need CI-safe coverage.
 - Authority: `requested`
 - Proof type: `source_backed_answer` plus `test`
 - Completion proof: A final audit maps source-backed model availability evidence, implemented in-app setup helper UI, docs, and passing focused tests back to the original user outcome.
-- Goal oracle: The setup helper is complete only when every model option shown in GroqTalk is backed by current whisper.cpp availability evidence, the app generates correct copyable commands for those options, CI-safe tests cover the helper, and docs explain the model-file-vs-API-model distinction.
+- Goal oracle: The setup helper is complete only when every model option shown in Foil is backed by current whisper.cpp availability evidence, the app generates correct copyable commands for those options, CI-safe tests cover the helper, and docs explain the model-file-vs-API-model distinction.
 - Likely misfire: Building a polished model picker around guessed model names, stale model names, or app-side `whisper-1` semantics instead of verifying real whisper.cpp model download/support names.
 - Blind spots considered:
   - `whisper.cpp` model script names and supported server flags may change over time.

@@ -11,7 +11,7 @@ Make a detailed plan to implement all of these updates using `$goalbuddy:goal-pr
 ## Intake Summary
 
 - Input shape: `existing_plan`
-- Audience: GroqTalk open-beta users, including nontechnical users using Groq and more technical users using local/custom transcription providers.
+- Audience: Foil open-beta users, including nontechnical users using Groq and more technical users using local/custom transcription providers.
 - Authority: `requested`
 - Proof type: `test`
 - Completion proof: A final Judge or PM audit maps all completed task receipts to the beta-readiness critique, with passing deterministic tests and documented local/manual beta gates for macOS permissions, signed install, provider setup, and release/install paths.

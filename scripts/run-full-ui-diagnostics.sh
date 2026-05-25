@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCHEME="${SCHEME:-GroqTalk}"
+SCHEME="${SCHEME:-Foil}"
 CONFIG="${CONFIG:-Debug}"
 DESTINATION="${DESTINATION:-platform=macOS}"
 RESULT_BUNDLE_PATH="${RESULT_BUNDLE_PATH:-FullUITestResults.xcresult}"
@@ -12,10 +12,10 @@ TIMEOUT_SECONDS="${FULL_UI_TIMEOUT_SECONDS:-1200}"
 rm -rf "$RESULT_BUNDLE_PATH"
 rm -f "$LOG_PATH"
 
-pkill -x GroqTalk 2>/dev/null || true
+pkill -x Foil 2>/dev/null || true
 sleep 0.5
 
-echo "Running full GroqTalk UI diagnostics."
+echo "Running full Foil UI diagnostics."
 echo "Result bundle: $RESULT_BUNDLE_PATH"
 echo "Log: $LOG_PATH"
 echo "Timeout: ${TIMEOUT_SECONDS}s, grace: ${GRACE_SECONDS}s"
@@ -27,7 +27,7 @@ xcodebuild test \
   -parallel-testing-enabled NO \
   -maximum-concurrent-test-device-destinations 1 \
   -enableCodeCoverage NO \
-  -only-testing:GroqTalkUITests \
+  -only-testing:FoilUITests \
   -resultBundlePath "$RESULT_BUNDLE_PATH" \
   > "$LOG_PATH" 2>&1 &
 XCODE_PID=$!

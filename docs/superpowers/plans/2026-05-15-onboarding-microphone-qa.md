@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix and test GroqTalk first-run onboarding so completing the wizard keeps the menu bar app alive, and microphone permission/setup behavior is covered by deterministic and opt-in live QA.
+**Goal:** Fix and test Foil first-run onboarding so completing the wizard keeps the menu bar app alive, and microphone permission/setup behavior is covered by deterministic and opt-in live QA.
 
-**Architecture:** Keep regular CI deterministic by using UI-testing launch flags and injected app state for onboarding and microphone-permission UI flows. Put real microphone capture behind a separate opt-in local command because it depends on macOS TCC state, hardware, and the signed installed app. Preserve the normal menu bar app lifecycle: closing onboarding should close only the onboarding window, not terminate GroqTalk.
+**Architecture:** Keep regular CI deterministic by using UI-testing launch flags and injected app state for onboarding and microphone-permission UI flows. Put real microphone capture behind a separate opt-in local command because it depends on macOS TCC state, hardware, and the signed installed app. Preserve the normal menu bar app lifecycle: closing onboarding should close only the onboarding window, not terminate Foil.
 
 **Tech Stack:** Swift, SwiftUI, AppKit lifecycle hooks, AVFoundation microphone authorization, XCUITest, Makefile local QA targets.
 
@@ -12,20 +12,20 @@
 
 ## File Map
 
-- Modify `GroqTalk/GroqTalkApp.swift`
+- Modify `Foil/FoilApp.swift`
   - Add/verify AppKit lifecycle behavior so closing onboarding does not terminate the app.
   - Keep microphone permission request logic centralized.
   - Keep diagnostics useful but remove temporary noisy trust polling logs before PR unless still needed behind a debug-only narrow log.
-- Modify `GroqTalk/OnboardingView.swift`
+- Modify `Foil/OnboardingView.swift`
   - Ensure microphone step can trigger permission checking/requesting.
   - Ensure completion is only enabled when setup is ready.
   - Ensure completion calls only the onboarding completion closure.
-- Modify `GroqTalk/MenuBarView.swift`
+- Modify `Foil/MenuBarView.swift`
   - Ensure unknown microphone state offers `Check`; denied/restricted state offers `Open Settings`; ready state offers no action.
-- Modify `GroqTalk/UITestingController.swift`
+- Modify `Foil/UITestingController.swift`
   - Add launch flags/seeds for deterministic onboarding and microphone flows.
   - Provide UI-test-only microphone check callback that flips state without invoking real TCC.
-- Modify `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify `FoilUITests/FoilUITests.swift`
   - Add deterministic onboarding completion/liveness tests.
   - Add deterministic microphone setup tests.
 - Modify `Makefile`
@@ -41,8 +41,8 @@
 ## Task 1: Preserve App Liveness After Onboarding Completion
 
 **Files:**
-- Modify `GroqTalk/GroqTalkApp.swift`
-- Test `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify `Foil/FoilApp.swift`
+- Test `FoilUITests/FoilUITests.swift`
 
 - [ ] **Step 1: Write the failing XCUITest**
 
@@ -60,7 +60,7 @@ func testOnboardingCompletionKeepsMenuBarAppRunning() {
     ]
     app.launch()
 
-    XCTAssertTrue(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 5), app.debugDescription)
+    XCTAssertTrue(app.windows["Welcome to Foil"].waitForExistence(timeout: 5), app.debugDescription)
 
     while app.buttons["Next"].exists {
         app.buttons["Next"].click()
@@ -69,7 +69,7 @@ func testOnboardingCompletionKeepsMenuBarAppRunning() {
     XCTAssertTrue(app.buttons["Get Started"].waitForExistence(timeout: 2))
     app.buttons["Get Started"].click()
 
-    XCTAssertFalse(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 2))
+    XCTAssertFalse(app.windows["Welcome to Foil"].waitForExistence(timeout: 2))
     XCTAssertEqual(app.state, .runningForeground)
     XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
 }
@@ -80,14 +80,14 @@ func testOnboardingCompletionKeepsMenuBarAppRunning() {
 Run:
 
 ```bash
-xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testOnboardingCompletionKeepsMenuBarAppRunning
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilUITests/FoilUITests/testOnboardingCompletionKeepsMenuBarAppRunning
 ```
 
 Expected before fix: FAIL because completing onboarding closes the last visible window and the app exits or no menu/control surface remains.
 
 - [ ] **Step 3: Implement minimal lifecycle fix**
 
-Add this to `AppDelegate` in `GroqTalk/GroqTalkApp.swift`:
+Add this to `AppDelegate` in `Foil/FoilApp.swift`:
 
 ```swift
 func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -119,10 +119,10 @@ Expected: PASS.
 ## Task 2: Deterministic Microphone Permission UI Tests
 
 **Files:**
-- Modify `GroqTalk/OnboardingView.swift`
-- Modify `GroqTalk/MenuBarView.swift`
-- Modify `GroqTalk/UITestingController.swift`
-- Test `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify `Foil/OnboardingView.swift`
+- Modify `Foil/MenuBarView.swift`
+- Modify `Foil/UITestingController.swift`
+- Test `FoilUITests/FoilUITests.swift`
 
 - [ ] **Step 1: Add deterministic launch seeds**
 
@@ -206,10 +206,10 @@ func testMicrophoneCheckMarksPermissionReadyInUITestMode() {
 Run:
 
 ```bash
-xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' \
-  -only-testing:GroqTalkUITests/GroqTalkUITests/testMicrophoneUnknownShowsCheckAction \
-  -only-testing:GroqTalkUITests/GroqTalkUITests/testMicrophoneDeniedShowsOpenSettingsAction \
-  -only-testing:GroqTalkUITests/GroqTalkUITests/testMicrophoneCheckMarksPermissionReadyInUITestMode
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' \
+  -only-testing:FoilUITests/FoilUITests/testMicrophoneUnknownShowsCheckAction \
+  -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction \
+  -only-testing:FoilUITests/FoilUITests/testMicrophoneCheckMarksPermissionReadyInUITestMode
 ```
 
 Expected before implementation: at least one test fails because microphone actions are not fully provider/state-aware.
@@ -236,7 +236,7 @@ private var microphoneAction: (() -> Void)? {
 }
 ```
 
-Wire `onCheckMicrophone` from `GroqTalkApp` to `AppDelegate.checkMicrophonePermission()`, and from `UITestingController` to a deterministic state update:
+Wire `onCheckMicrophone` from `FoilApp` to `AppDelegate.checkMicrophonePermission()`, and from `UITestingController` to a deterministic state update:
 
 ```swift
 onCheckMicrophone: { [weak self] in
@@ -255,10 +255,10 @@ Expected: PASS.
 ## Task 3: Onboarding Microphone Flow Coverage
 
 **Files:**
-- Modify `GroqTalk/OnboardingView.swift`
-- Modify `GroqTalk/GroqTalkApp.swift`
-- Modify `GroqTalk/UITestingController.swift`
-- Test `GroqTalkUITests/GroqTalkUITests.swift`
+- Modify `Foil/OnboardingView.swift`
+- Modify `Foil/FoilApp.swift`
+- Modify `Foil/UITestingController.swift`
+- Test `FoilUITests/FoilUITests.swift`
 
 - [ ] **Step 1: Write failing onboarding microphone tests**
 
@@ -276,7 +276,7 @@ func testOnboardingMicrophoneStepCanCheckPermission() {
     ]
     app.launch()
 
-    XCTAssertTrue(app.windows["Welcome to GroqTalk"].waitForExistence(timeout: 5), app.debugDescription)
+    XCTAssertTrue(app.windows["Welcome to Foil"].waitForExistence(timeout: 5), app.debugDescription)
     app.buttons["Next"].click()
     app.buttons["Next"].click()
 
@@ -294,7 +294,7 @@ func testOnboardingMicrophoneStepCanCheckPermission() {
 Run:
 
 ```bash
-xcodebuild test -scheme GroqTalk -configuration Debug -destination 'platform=macOS' -only-testing:GroqTalkUITests/GroqTalkUITests/testOnboardingMicrophoneStepCanCheckPermission
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilUITests/FoilUITests/testOnboardingMicrophoneStepCanCheckPermission
 ```
 
 Expected before implementation: FAIL because onboarding does not expose or wire a microphone check action.
@@ -377,15 +377,15 @@ fi
 make run
 
 echo "Live microphone QA prerequisites:"
-echo "- /Applications/GroqTalk.app is running"
-echo "- Microphone permission must be granted to GroqTalk"
+echo "- /Applications/Foil.app is running"
+echo "- Microphone permission must be granted to Foil"
 echo "- A working input device must be selected"
 
 xcodebuild test \
-  -scheme GroqTalk \
+  -scheme Foil \
   -configuration Debug \
   -destination 'platform=macOS' \
-  -only-testing:GroqTalkUITests/GroqTalkUITests/testLiveMicrophoneSmoke
+  -only-testing:FoilUITests/FoilUITests/testLiveMicrophoneSmoke
 ```
 
 - [ ] **Step 2: Add Makefile target**
@@ -451,11 +451,11 @@ RUN_LIVE_MICROPHONE_TESTS=1 make test-microphone-live
 If macOS permission state is stale:
 
 ```bash
-tccutil reset Microphone com.neonwatty.GroqTalk
+tccutil reset Microphone com.neonwatty.Foil
 make run
 ```
 
-Then allow GroqTalk in System Settings > Privacy & Security > Microphone.
+Then allow Foil in System Settings > Privacy & Security > Microphone.
 ```
 
 ---
@@ -467,7 +467,7 @@ Then allow GroqTalk in System Settings > Privacy & Security > Microphone.
 - `make test-provider-qa` passes.
 - `make build-warnings-as-errors` passes.
 - `git diff --check` passes.
-- Completing onboarding closes only the onboarding window; GroqTalk remains running as a menu bar app.
+- Completing onboarding closes only the onboarding window; Foil remains running as a menu bar app.
 - XCUITest proves onboarding completion does not terminate the app.
 - XCUITest proves unknown microphone state shows a `Check` action.
 - XCUITest proves denied microphone state shows `Open Settings`.
@@ -486,11 +486,11 @@ Then allow GroqTalk in System Settings > Privacy & Security > Microphone.
 
 ## Current Evidence To Preserve
 
-- Accessibility issue was fixed by running `/Applications/GroqTalk.app` with the Developer ID identity.
+- Accessibility issue was fixed by running `/Applications/Foil.app` with the Developer ID identity.
 - App log confirmed Accessibility success:
 
 ```text
-AccessibilityTrust: context=setup.refresh trusted=true bundlePath=/Applications/GroqTalk.app
+AccessibilityTrust: context=setup.refresh trusted=true bundlePath=/Applications/Foil.app
 ```
 
 - App log confirmed microphone permission prompt success:
@@ -505,4 +505,4 @@ MicrophonePermission: checked ready=true
 
 ## Stop Rule
 
-Stop when deterministic tests prove onboarding/microphone state behavior, manual app launch proves onboarding completion leaves GroqTalk running, and the opt-in live microphone target is documented and either passes on this machine or skips/fails with a precise prerequisite message.
+Stop when deterministic tests prove onboarding/microphone state behavior, manual app launch proves onboarding completion leaves Foil running, and the opt-in live microphone target is documented and either passes on this machine or skips/fails with a precise prerequisite message.

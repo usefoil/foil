@@ -31,7 +31,7 @@ Pros:
 
 - Uses Chrome's supported AppleScript `execute javascript` command.
 - Does not require a browser extension, audio driver, private API, or Accessibility UI scripting.
-- Can avoid resuming media, which prevents starting media that was already paused before GroqTalk acted.
+- Can avoid resuming media, which prevents starting media that was already paused before Foil acted.
 - Failure can be isolated and non-blocking: unsupported browser, browser not running, no windows/tabs, AppleScript error, tab script error.
 
 Cons:
@@ -55,7 +55,7 @@ Pros:
 
 Cons:
 
-- Reversibility is worse unless GroqTalk records prior muted state inside each page, which adds page-state complexity.
+- Reversibility is worse unless Foil records prior muted state inside each page, which adds page-state complexity.
 - Restoring mute state risks unmuting media the user manually muted during recording.
 - Like pause, it does not reliably cover WebAudio-only playback or cross-origin iframe media.
 
@@ -96,13 +96,13 @@ Conclusion:
 
 ## Recommendation
 
-Implement an off-by-default experimental setting named `Pause browser media while recording`, scoped clearly to Chrome/Chromium. The first implementation should use Chrome AppleScript plus fixed JavaScript to pause currently playing HTML `audio`/`video` elements on recording start. It should not resume media on stop; this is the safest way to satisfy the requirement that GroqTalk must not unexpectedly start media that was already paused before GroqTalk acted.
+Implement an off-by-default experimental setting named `Pause browser media while recording`, scoped clearly to Chrome/Chromium. The first implementation should use Chrome AppleScript plus fixed JavaScript to pause currently playing HTML `audio`/`video` elements on recording start. It should not resume media on stop; this is the safest way to satisfy the requirement that Foil must not unexpectedly start media that was already paused before Foil acted.
 
 The controller should be isolated behind a small protocol so unit tests can cover state transitions without launching or controlling Chrome. Recording must continue even when browser control fails.
 
 ## Required Permissions
 
-- macOS Automation permission may be required for GroqTalk to control Chrome with Apple Events.
+- macOS Automation permission may be required for Foil to control Chrome with Apple Events.
 - Chrome/Chromium must allow JavaScript from Apple Events for the recommended pause path to affect tabs.
 - No Accessibility permission should be required for the recommended AppleScript/JavaScript path.
 - No browser extension, audio driver, private API, or external service is required.

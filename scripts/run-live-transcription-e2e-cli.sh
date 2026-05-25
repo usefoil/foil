@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCHEME="${SCHEME:-GroqTalkE2E}"
+SCHEME="${SCHEME:-FoilE2E}"
 CONFIG="${CONFIG:-Debug}"
 ARCH="${ARCH:-arm64}"
-AUDIO_PATH="${E2E_WAV_PATH:-GroqTalk/e2e-test-audio.wav}"
+AUDIO_PATH="${E2E_WAV_PATH:-Foil/e2e-test-audio.wav}"
 EXPECTED="${E2E_EXPECTED_TEXT:-the quick brown fox jumps over the lazy dog}"
 TIMEOUT_SECONDS="${E2E_TRANSCRIPTION_TIMEOUT_SECONDS:-90}"
 OUTPUT_PATH="${E2E_OUTPUT_PATH:-local-e2e-output.txt}"

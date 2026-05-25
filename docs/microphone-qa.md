@@ -14,13 +14,13 @@ Run the opt-in live microphone smoke locally:
 RUN_LIVE_MICROPHONE_TESTS=1 make test-microphone-live
 ```
 
-The live smoke launches a debug-only app hook that starts the real recorder, captures about two seconds of audio, writes `/tmp/groqtalk-live-microphone-result.txt`, and verifies the result from XCUITest. It records the app path, signing identity, microphone permission status, start/stop state, elapsed time, captured byte count, and either a non-empty capture result or a clear local prerequisite failure. It does not require network or Groq API availability.
+The live smoke launches a debug-only app hook that starts the real recorder, captures about two seconds of audio, writes `/tmp/foil-live-microphone-result.txt`, and verifies the result from XCUITest. It records the app path, signing identity, microphone permission status, start/stop state, elapsed time, captured byte count, and either a non-empty capture result or a clear local prerequisite failure. It does not require network or Groq API availability.
 
 If macOS permission state is stale:
 
 ```bash
-tccutil reset Microphone com.neonwatty.GroqTalk
+tccutil reset Microphone com.neonwatty.Foil
 RUN_LIVE_MICROPHONE_TESTS=1 make test-microphone-live
 ```
 
-When prompted, allow microphone access for the GroqTalk test app. If no prompt appears, open System Settings > Privacy & Security > Microphone and verify GroqTalk is allowed.
+When prompted, allow microphone access for the Foil test app. If no prompt appears, open System Settings > Privacy & Security > Microphone and verify Foil is allowed.

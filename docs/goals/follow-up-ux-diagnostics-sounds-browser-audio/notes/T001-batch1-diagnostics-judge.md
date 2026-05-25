@@ -8,8 +8,8 @@ The current code already has many `DiagnosticLog.write(...)` call sites across a
 
 ## Evidence
 
-- `GroqTalk/DiagnosticLog.swift` currently writes plain text to `/tmp/groqtalk-diag.log`.
-- `DiagnosticLog` is enabled in `DEBUG`, but in release only when `GROQTALK_DIAGNOSTICS=1`.
+- `Foil/DiagnosticLog.swift` currently writes plain text to `/tmp/foil-diag.log`.
+- `DiagnosticLog` is enabled in `DEBUG`, but in release only when `FOIL_DIAGNOSTICS=1`.
 - There is no public API to read recent log lines or export a diagnostics report.
 - There is no central redaction API or tests for secrets/user-content redaction.
 - Existing call sites mostly avoid transcript text and audio content, but some diagnostic strings can include local file paths, app names, provider/model names, error strings, and byte counts.
@@ -21,14 +21,14 @@ Objective: add a local diagnostics core that can safely collect, redact, and exp
 
 Allowed files:
 
-- `GroqTalk/DiagnosticLog.swift`
-- `GroqTalkTests/DiagnosticLogTests.swift`
-- `GroqTalk.xcodeproj/project.pbxproj`
+- `Foil/DiagnosticLog.swift`
+- `FoilTests/DiagnosticLogTests.swift`
+- `Foil.xcodeproj/project.pbxproj`
 - `docs/goals/follow-up-ux-diagnostics-sounds-browser-audio/notes/diagnostics-audit.md`
 
 Verification:
 
-- `xcodebuild test -project GroqTalk.xcodeproj -scheme GroqTalk -destination 'platform=macOS' -only-testing:GroqTalkTests/DiagnosticLogTests`
+- `xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/DiagnosticLogTests`
 - `make build-warnings-as-errors`
 - `git diff --check`
 

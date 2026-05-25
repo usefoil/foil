@@ -2,8 +2,8 @@
 set -euo pipefail
 
 MODE="${1:-run}"
-APP_NAME="GroqTalk"
-BUNDLE_ID="com.neonwatty.GroqTalk"
+APP_NAME="Foil"
+BUNDLE_ID="com.neonwatty.Foil"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_PATH="/Applications/${APP_NAME}.app"
 

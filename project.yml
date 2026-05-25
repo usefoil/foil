@@ -1,4 +1,4 @@
-name: GroqTalk
+name: Foil
 options:
   bundleIdPrefix: com.neonwatty
   deploymentTarget:
@@ -9,58 +9,62 @@ packages:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.6.0"
 targets:
-  GroqTalk:
+  Foil:
     type: application
     platform: macOS
-    sources: [GroqTalk]
+    sources: [Foil]
     settings:
       base:
         ENABLE_HARDENED_RUNTIME: YES
         MARKETING_VERSION: "1.8.2"
         CURRENT_PROJECT_VERSION: 32
-        CODE_SIGN_ENTITLEMENTS: GroqTalk/GroqTalk.entitlements
+        PRODUCT_NAME: Foil
+        PRODUCT_MODULE_NAME: Foil
+        CODE_SIGN_ENTITLEMENTS: Foil/Foil.entitlements
         CODE_SIGN_IDENTITY: "-"
     dependencies:
       - package: Sparkle
     info:
-      path: GroqTalk/Info.plist
+      path: Foil/Info.plist
       properties:
+        CFBundleDisplayName: "Foil"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSUIElement: true
-        NSMicrophoneUsageDescription: "GroqTalk needs microphone access to record audio for speech-to-text."
-        NSAppleEventsUsageDescription: "GroqTalk uses Apple Events to pause browser media in Chrome and Chromium while recording, when you enable this experimental setting."
-        SUFeedURL: "https://github.com/mean-weasel/groqtalk/releases/latest/download/appcast.xml"
-  GroqTalkE2E:
+        NSMicrophoneUsageDescription: "Foil needs microphone access to record audio for speech-to-text."
+        NSAppleEventsUsageDescription: "Foil uses Apple Events to pause browser media in Chrome and Chromium while recording, when you enable this experimental setting."
+        SUFeedURL: "https://github.com/mean-weasel/foil/releases/latest/download/appcast.xml"
+  FoilE2E:
     type: tool
     platform: macOS
     sources:
-      - GroqTalkE2E
-      - GroqTalk/AudioRecording.swift
-      - GroqTalk/AudioRecorder.swift
-      - GroqTalk/TranscriptProcessingMode.swift
-      - GroqTalk/TranscriptionService.swift
+      - FoilE2E
+      - Foil/AudioRecording.swift
+      - Foil/AudioRecorder.swift
+      - Foil/AppBrand.swift
+      - Foil/TranscriptProcessingMode.swift
+      - Foil/TranscriptionService.swift
     settings:
       base:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_ALLOWED: NO
-  GroqTalkTests:
+  FoilTests:
     type: bundle.unit-test
     platform: macOS
-    sources: [GroqTalkTests]
+    sources: [FoilTests]
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: "-"
     dependencies:
-      - target: GroqTalk
-  GroqTalkUITests:
+      - target: Foil
+  FoilUITests:
     type: bundle.ui-testing
     platform: macOS
-    sources: [GroqTalkUITests]
+    sources: [FoilUITests]
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: "-"
     dependencies:
-      - target: GroqTalk
+      - target: Foil

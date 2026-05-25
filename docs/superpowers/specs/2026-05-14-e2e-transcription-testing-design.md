@@ -19,7 +19,7 @@ Use macOS `say` to synthesize a known phrase into a WAV file at test time:
 
 ```bash
 say "the quick brown fox jumps over the lazy dog" \
-    -o /tmp/groqtalk-e2e.wav \
+    -o /tmp/foil-e2e.wav \
     --file-format=WAVE --data-format=LEI16@16000
 ```
 
@@ -47,7 +47,7 @@ final class E2EAudioStub: AudioRecording {
 #endif
 ```
 
-**File:** `GroqTalk/E2EAudioStub.swift` (new)
+**File:** `Foil/E2EAudioStub.swift` (new)
 
 The stub does nothing on start/cancel and returns the pre-generated WAV file URL on stop. This exercises the real `RecordingController` delegate callbacks (`didStopWithURL`, format handling) without touching the microphone.
 
@@ -82,7 +82,7 @@ The method is called alongside existing `configureUITestingIfNeeded()` and `conf
 ```
 XCUITest launches app with --e2e-transcribe
   └─ UITestingController.configureE2ETranscribeIfNeeded()
-      ├─ say "the quick brown fox..." → /tmp/groqtalk-e2e.wav
+      ├─ say "the quick brown fox..." → /tmp/foil-e2e.wav
       ├─ E2EAudioStub(fileURL: .wav)
       ├─ RecordingController(audioRecorder: stub, appState:)
       ├─ recordingController.delegate = appDelegate
@@ -125,7 +125,7 @@ If the Groq API call fails, the app state goes to `.error(...)` and the menu bar
 
 ## UI Test
 
-**File:** `GroqTalkUITests/GroqTalkUITests.swift` (add test)
+**File:** `FoilUITests/FoilUITests.swift` (add test)
 
 ```
 func testE2ETranscription():
@@ -154,9 +154,9 @@ Add a step after the existing integration tests that runs the E2E UI test:
   run: |
     launchctl setenv GROQ_API_KEY "$GROQ_API_KEY"
     xcodebuild test \
-      -scheme GroqTalk \
+      -scheme Foil \
       -destination 'platform=macOS' \
-      -only-testing:GroqTalkUITests/GroqTalkUITests/testE2ETranscription \
+      -only-testing:FoilUITests/FoilUITests/testE2ETranscription \
       | xcpretty --color && exit ${PIPESTATUS[0]}
 ```
 
@@ -164,12 +164,12 @@ Add a step after the existing integration tests that runs the E2E UI test:
 
 | File | Change | Lines |
 |------|--------|-------|
-| `GroqTalk/E2EAudioStub.swift` | New — `AudioRecording` stub, `#if DEBUG` | ~20 |
-| `GroqTalk/UITestingController.swift` | Add `configureE2ETranscribeIfNeeded()` | ~40 |
-| `GroqTalk/GroqTalkApp.swift` | Call new E2E method in `applicationDidFinishLaunching`, expose `recordingController` for replacement | ~10 |
-| `GroqTalkUITests/GroqTalkUITests.swift` | Add `testE2ETranscription()` | ~40 |
+| `Foil/E2EAudioStub.swift` | New — `AudioRecording` stub, `#if DEBUG` | ~20 |
+| `Foil/UITestingController.swift` | Add `configureE2ETranscribeIfNeeded()` | ~40 |
+| `Foil/FoilApp.swift` | Call new E2E method in `applicationDidFinishLaunching`, expose `recordingController` for replacement | ~10 |
+| `FoilUITests/FoilUITests.swift` | Add `testE2ETranscription()` | ~40 |
 | `.github/workflows/e2e.yml` | Add E2E UI test step | ~15 |
-| `GroqTalk.xcodeproj/project.pbxproj` | Register `E2EAudioStub.swift` | ~10 |
+| `Foil.xcodeproj/project.pbxproj` | Register `E2EAudioStub.swift` | ~10 |
 
 **Not touched:** `TranscriptionController`, `TranscriptionService`, `RecordingController` (protocol already supports injection), `PasteController`, `AppState` — all exercised as-is.
 

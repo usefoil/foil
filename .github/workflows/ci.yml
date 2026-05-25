@@ -35,10 +35,10 @@ jobs:
           base: ${{ github.event.pull_request.base.ref }}
           filters: |
             code:
-              - 'GroqTalk/**'
-              - 'GroqTalkTests/**'
-              - 'GroqTalkUITests/**'
-              - 'GroqTalk.xcodeproj/**'
+              - 'Foil/**'
+              - 'FoilTests/**'
+              - 'FoilUITests/**'
+              - 'Foil.xcodeproj/**'
               - 'project.yml'
               - '.github/**'
               - 'ExportOptions.plist'
@@ -68,7 +68,7 @@ jobs:
       - name: Build (warnings as errors)
         run: |
           xcodebuild build \
-            -scheme GroqTalk \
+            -scheme Foil \
             -configuration Debug \
             -destination 'platform=macOS' \
             OTHER_SWIFT_FLAGS='-warnings-as-errors' \
@@ -99,11 +99,11 @@ jobs:
           # Run xcodebuild in background so we can send SIGTERM (graceful) on timeout
           # instead of relying on step timeout's SIGKILL (which corrupts xcresult)
           xcodebuild test \
-            -scheme GroqTalk \
+            -scheme Foil \
             -configuration Debug \
             -destination 'platform=macOS' \
-            -only-testing:GroqTalkTests \
-            -skip-testing:GroqTalkTests/LiveGroqIntegrationTests \
+            -only-testing:FoilTests \
+            -skip-testing:FoilTests/LiveGroqIntegrationTests \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult &
           XCODE_PID=$!
@@ -246,29 +246,29 @@ jobs:
       - name: Run focused UI smoke
         run: |
           xcodebuild test \
-            -scheme GroqTalk \
+            -scheme Foil \
             -configuration Debug \
             -destination 'platform=macOS' \
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-device-destinations 1 \
             -enableCodeCoverage NO \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testControlCenterShowsSeededReadyState \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testSetupCheckCanBeRunInline \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testMicrophoneUnknownShowsCheckAction \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testMicrophoneDeniedShowsOpenSettingsAction \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testSettingsButtonOpensSettingsWindow \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQADefaultsToGroqPreset \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingWarningShowsExpandedClipboardContext \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testFloatingStatusIsDisabledByDefault \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testMovedPreferencesLiveInSettingsPanes \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testCustomHotkeyRecorderIsAccessibleButton \
-            -only-testing:GroqTalkUITests/GroqTalkUITests/testHelpButtonTargetsCanonicalTroubleshootingURL \
+            -only-testing:FoilUITests/FoilUITests/testControlCenterShowsSeededReadyState \
+            -only-testing:FoilUITests/FoilUITests/testSetupCheckCanBeRunInline \
+            -only-testing:FoilUITests/FoilUITests/testMicrophoneUnknownShowsCheckAction \
+            -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction \
+            -only-testing:FoilUITests/FoilUITests/testSettingsButtonOpensSettingsWindow \
+            -only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset \
+            -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
+            -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
+            -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff \
+            -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled \
+            -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory \
+            -only-testing:FoilUITests/FoilUITests/testFloatingWarningShowsExpandedClipboardContext \
+            -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled \
+            -only-testing:FoilUITests/FoilUITests/testFloatingStatusIsDisabledByDefault \
+            -only-testing:FoilUITests/FoilUITests/testMovedPreferencesLiveInSettingsPanes \
+            -only-testing:FoilUITests/FoilUITests/testCustomHotkeyRecorderIsAccessibleButton \
+            -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL \
             -resultBundlePath UITestResults.xcresult \
             | xcpretty --color && exit ${PIPESTATUS[0]}
 

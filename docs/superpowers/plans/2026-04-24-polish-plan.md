@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give GroqTalk a proper app icon and README so the repo and app are presentable for public discovery.
+**Goal:** Give Foil a proper app icon and README so the repo and app are presentable for public discovery.
 
 **Architecture:** The app icon is generated using the `logo-designer-skill` plugin, then exported PNGs are placed into the Xcode asset catalog. The README is a concise markdown file with install instructions, a demo placeholder, and feature highlights.
 
@@ -14,8 +14,8 @@
 
 | File | Action | Responsibility |
 |------|--------|---------------|
-| `GroqTalk/Assets.xcassets/AppIcon.appiconset/Contents.json` | Modify | Reference the generated icon PNGs |
-| `GroqTalk/Assets.xcassets/AppIcon.appiconset/*.png` | Create | Icon images at required sizes |
+| `Foil/Assets.xcassets/AppIcon.appiconset/Contents.json` | Modify | Reference the generated icon PNGs |
+| `Foil/Assets.xcassets/AppIcon.appiconset/*.png` | Create | Icon images at required sizes |
 | `README.md` | Create | Project README |
 
 ---
@@ -23,8 +23,8 @@
 ### Task 1: Generate App Icon
 
 **Files:**
-- Modify: `GroqTalk/Assets.xcassets/AppIcon.appiconset/Contents.json`
-- Create: `GroqTalk/Assets.xcassets/AppIcon.appiconset/icon-*.png`
+- Modify: `Foil/Assets.xcassets/AppIcon.appiconset/Contents.json`
+- Create: `Foil/Assets.xcassets/AppIcon.appiconset/icon-*.png`
 
 - [ ] **Step 1: Install logo-designer-skill if not already installed**
 
@@ -36,19 +36,19 @@ claude plugin add neonwatty/logo-designer-skill
 
 Start a conversation with Claude Code and say:
 
-> "Create a logo for GroqTalk — a macOS menu bar speech-to-text app powered by Groq Whisper. Icon only (512x512). Minimal/geometric style. The app uses a waveform icon in the menu bar, so a waveform motif would be consistent. Surprise me on colors."
+> "Create a logo for Foil — a macOS menu bar speech-to-text app powered by Groq Whisper. Icon only (512x512). Minimal/geometric style. The app uses a waveform icon in the menu bar, so a waveform motif would be consistent. Surprise me on colors."
 
 Follow the skill's interview → concepts → iterations → export flow.
 
 - [ ] **Step 3: Copy the exported 1024x1024 PNG into the asset catalog**
 
 ```bash
-cp logos/export/logo-1024.png GroqTalk/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+cp logos/export/logo-1024.png Foil/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 ```
 
 - [ ] **Step 4: Update Contents.json to reference the icon**
 
-Replace `GroqTalk/Assets.xcassets/AppIcon.appiconset/Contents.json` with:
+Replace `Foil/Assets.xcassets/AppIcon.appiconset/Contents.json` with:
 
 ```json
 {
@@ -72,7 +72,7 @@ Note: Modern Xcode (14+) generates all required sizes from a single 1024x1024 so
 - [ ] **Step 5: Build and verify the icon appears**
 
 ```bash
-xcodebuild build -scheme GroqTalk -destination 'platform=macOS' 2>&1 | tail -3
+xcodebuild build -scheme Foil -destination 'platform=macOS' 2>&1 | tail -3
 ```
 
 Expected: BUILD SUCCEEDED. The app should show the new icon in Finder and the Dock (when launched).
@@ -80,7 +80,7 @@ Expected: BUILD SUCCEEDED. The app should show the new icon in Finder and the Do
 - [ ] **Step 6: Commit**
 
 ```bash
-git add GroqTalk/Assets.xcassets/AppIcon.appiconset/
+git add Foil/Assets.xcassets/AppIcon.appiconset/
 git commit -m "feat: add app icon"
 ```
 
@@ -96,7 +96,7 @@ git commit -m "feat: add app icon"
 Create `README.md` in the project root:
 
 ```markdown
-# GroqTalk
+# Foil
 
 macOS menu bar speech-to-text powered by [Groq Whisper](https://console.groq.com/).
 
@@ -108,15 +108,15 @@ macOS menu bar speech-to-text powered by [Groq Whisper](https://console.groq.com
 
 ```
 brew tap neonwatty/tap
-brew install --cask groqtalk
+brew install --cask foil
 ```
 
-**Manual:** Download the latest `.dmg` from [Releases](https://github.com/neonwatty/groqtalk/releases).
+**Manual:** Download the latest `.dmg` from [Releases](https://github.com/neonwatty/foil/releases).
 
 ## Setup
 
 1. Get a free API key from [console.groq.com](https://console.groq.com/)
-2. Launch GroqTalk — it lives in your menu bar
+2. Launch Foil — it lives in your menu bar
 3. Click the waveform icon → **Change API Key...** → paste your key
 
 ## Features
