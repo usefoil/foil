@@ -17,7 +17,7 @@
 | `.github/workflows/deploy.yml` | Modify | Add `build-dmg` job after semantic-release |
 | `.github/scripts/import-cert.sh` | Create | Import signing certificate into CI keychain |
 | `ExportOptions.plist` | Create | Xcode archive export options for Developer ID |
-| `neonwatty/homebrew-tap` (separate repo) | Create | Homebrew Cask formula |
+| `mean-weasel/homebrew-foil` (separate repo) | Create | Homebrew Cask formula |
 
 ---
 
@@ -44,7 +44,7 @@ Go to [appleid.apple.com](https://appleid.apple.com/) → Sign-In and Security �
 
 - [ ] **Step 3: Add secrets to GitHub repo**
 
-Go to `github.com/neonwatty/foil` → Settings → Secrets and variables → Actions → New repository secret:
+Go to `github.com/mean-weasel/foil` → Settings → Secrets and variables → Actions → New repository secret:
 
 | Secret Name | Value |
 |------------|-------|
@@ -329,19 +329,19 @@ git commit -m "ci: add DMG build, code signing, and notarization to release work
 
 ### Task 5: Homebrew Tap
 
-**Files:** New repo `neonwatty/homebrew-tap`
+**Files:** New repo `mean-weasel/homebrew-foil`
 
 - [ ] **Step 1: Create the homebrew-tap repo on GitHub**
 
 ```bash
-gh repo create neonwatty/homebrew-tap --public --description "Homebrew tap for neonwatty projects"
+gh repo create mean-weasel/homebrew-foil --public --description "Homebrew tap for neonwatty projects"
 ```
 
 - [ ] **Step 2: Clone and create the cask formula**
 
 ```bash
 cd /tmp
-git clone git@github.com:neonwatty/homebrew-tap.git
+git clone git@github.com:mean-weasel/homebrew-foil.git
 cd homebrew-tap
 mkdir -p Casks
 ```
@@ -355,10 +355,10 @@ cask "foil" do
   version "1.0.0"
   sha256 "PLACEHOLDER"
 
-  url "https://github.com/neonwatty/foil/releases/download/v#{version}/Foil-#{version}-macos.dmg"
+  url "https://github.com/mean-weasel/foil/releases/download/v#{version}/Foil-#{version}-macos.dmg"
   name "Foil"
   desc "macOS menu bar speech-to-text powered by Groq Whisper"
-  homepage "https://github.com/neonwatty/foil"
+  homepage "https://github.com/mean-weasel/foil"
 
   depends_on macos: ">= :sonoma"
 
@@ -416,7 +416,7 @@ After the first `feat:` or `fix:` commit triggers a new release with a DMG:
 1. Download the DMG:
 ```bash
 VERSION="1.1.0"  # whatever the new version is
-curl -L -o /tmp/Foil.dmg "https://github.com/neonwatty/foil/releases/download/v${VERSION}/Foil-${VERSION}-macos.dmg"
+curl -L -o /tmp/Foil.dmg "https://github.com/mean-weasel/foil/releases/download/v${VERSION}/Foil-${VERSION}-macos.dmg"
 ```
 
 2. Get the SHA256:

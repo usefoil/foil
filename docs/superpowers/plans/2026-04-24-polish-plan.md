@@ -111,7 +111,7 @@ brew tap neonwatty/tap
 brew install --cask foil
 ```
 
-**Manual:** Download the latest `.dmg` from [Releases](https://github.com/neonwatty/foil/releases).
+**Manual:** Download the latest `.dmg` from [Releases](https://github.com/mean-weasel/foil/releases).
 
 ## Setup
 

@@ -16,8 +16,8 @@ targets:
     settings:
       base:
         ENABLE_HARDENED_RUNTIME: YES
-        MARKETING_VERSION: "1.8.2"
-        CURRENT_PROJECT_VERSION: 32
+        MARKETING_VERSION: "1.12.1"
+        CURRENT_PROJECT_VERSION: 33
         PRODUCT_NAME: Foil
         PRODUCT_MODULE_NAME: Foil
         CODE_SIGN_ENTITLEMENTS: Foil/Foil.entitlements
