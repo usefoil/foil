@@ -14,3 +14,6 @@ docs/goals/**/state.yaml
 
 # Node (semantic-release tooling)
 node_modules/
+
+# Local browser automation caches
+.playwright-cli/
