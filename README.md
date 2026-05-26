@@ -4,6 +4,11 @@ macOS menu bar speech-to-text with cloud and local transcription providers.
 
 Demo media has not been published yet.
 
+## Website
+
+The static landing page lives in [`site/`](site/) and is deployed by the
+`Landing Page` GitHub Pages workflow when website files change on `main`.
+
 ## Install
 
 Foil is still in beta. The supported beta install paths are the signed,
