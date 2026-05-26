@@ -314,58 +314,62 @@ struct OnboardingView: View {
 struct FoilCylinderMark: View {
     var size: CGFloat = 44
 
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.16, style: .continuous)
-                .fill(.linearGradient(
-                    colors: [
-                        Color(red: 0.91, green: 0.95, blue: 0.96),
-                        Color(red: 0.48, green: 0.61, blue: 0.66)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
-                .frame(width: size * 0.72, height: size)
-                .overlay(alignment: .top) {
-                    Ellipse()
-                        .fill(Color.white.opacity(0.72))
-                        .frame(width: size * 0.72, height: size * 0.2)
-                        .offset(y: -size * 0.04)
-                }
-                .overlay {
-                    VStack(spacing: size * 0.09) {
-                        ForEach(0..<4, id: \.self) { index in
-                            Capsule()
-                                .fill(Color(red: 0.10, green: 0.22, blue: 0.25).opacity(index == 1 ? 0.78 : 0.44))
-                                .frame(width: size * 0.48, height: size * 0.035)
-                        }
-                    }
-                }
-                .shadow(color: .black.opacity(0.16), radius: size * 0.08, y: size * 0.04)
+    private let bars: [(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, color: Color)] = [
+        (275, 442, 44, 140, Color(red: 0.06, green: 0.25, blue: 0.27)),
+        (333, 402, 44, 220, Color(red: 0.06, green: 0.25, blue: 0.27)),
+        (391, 352, 44, 320, Color(red: 0.06, green: 0.25, blue: 0.27)),
+        (449, 287, 44, 450, Color(red: 0.06, green: 0.25, blue: 0.27)),
+        (507, 352, 44, 320, Color(red: 0.06, green: 0.25, blue: 0.27)),
+        (565, 242, 44, 540, Color(red: 0.06, green: 0.25, blue: 0.27)),
+        (623, 212, 44, 600, Color(red: 0.98, green: 0.72, blue: 0.24)),
+        (681, 278, 44, 468, Color(red: 0.06, green: 0.25, blue: 0.27)),
+        (739, 346, 44, 332, Color(red: 0.06, green: 0.25, blue: 0.27)),
+        (797, 423, 44, 178, Color(red: 0.06, green: 0.25, blue: 0.27)),
+        (855, 466, 44, 92, Color(red: 0.06, green: 0.25, blue: 0.27))
+    ]
 
-            Path { path in
-                let midY = size * 0.49
-                path.move(to: CGPoint(x: size * 0.05, y: midY))
-                path.addCurve(
-                    to: CGPoint(x: size * 0.32, y: midY - size * 0.08),
-                    control1: CGPoint(x: size * 0.14, y: midY + size * 0.15),
-                    control2: CGPoint(x: size * 0.21, y: midY - size * 0.19)
-                )
-                path.addCurve(
-                    to: CGPoint(x: size * 0.62, y: midY + size * 0.04),
-                    control1: CGPoint(x: size * 0.43, y: midY + size * 0.08),
-                    control2: CGPoint(x: size * 0.50, y: midY - size * 0.11)
-                )
-                path.addCurve(
-                    to: CGPoint(x: size * 0.95, y: midY - size * 0.02),
-                    control1: CGPoint(x: size * 0.73, y: midY + size * 0.20),
-                    control2: CGPoint(x: size * 0.80, y: midY - size * 0.20)
-                )
+    var body: some View {
+        GeometryReader { proxy in
+            let scale = min(proxy.size.width, proxy.size.height) / 1024
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 180 * scale, style: .continuous)
+                    .fill(Color(red: 0.12, green: 0.37, blue: 0.40))
+
+                Path { path in
+                    path.move(to: CGPoint(x: 130 * scale, y: 162 * scale))
+                    path.addLine(to: CGPoint(x: 894 * scale, y: 162 * scale))
+                    path.addCurve(
+                        to: CGPoint(x: 894 * scale, y: 862 * scale),
+                        control1: CGPoint(x: 984 * scale, y: 162 * scale),
+                        control2: CGPoint(x: 984 * scale, y: 862 * scale)
+                    )
+                    path.addLine(to: CGPoint(x: 130 * scale, y: 862 * scale))
+                    path.closeSubpath()
+                }
+                .fill(Color.white)
+
+                VStack(spacing: 0) {
+                    Color(red: 0.06, green: 0.25, blue: 0.27)
+                    Color(red: 0.12, green: 0.37, blue: 0.40)
+                }
+                .frame(width: 140 * scale, height: 700 * scale)
+                .clipShape(Ellipse())
+                .position(x: 130 * scale, y: 512 * scale)
+
+                ForEach(Array(bars.enumerated()), id: \.offset) { _, bar in
+                    Capsule()
+                        .fill(bar.color)
+                        .frame(width: bar.width * scale, height: bar.height * scale)
+                        .position(
+                            x: (bar.x + bar.width / 2) * scale,
+                            y: (bar.y + bar.height / 2) * scale
+                        )
+                }
             }
-            .stroke(Color(red: 0.98, green: 0.72, blue: 0.24), style: StrokeStyle(lineWidth: max(size * 0.07, 3), lineCap: .round, lineJoin: .round))
-            .frame(width: size, height: size)
         }
         .frame(width: size, height: size)
+        .shadow(color: .black.opacity(0.16), radius: size * 0.08, y: size * 0.04)
         .accessibilityHidden(true)
     }
 }
