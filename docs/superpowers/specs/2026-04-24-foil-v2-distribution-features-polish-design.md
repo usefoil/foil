@@ -170,7 +170,7 @@ semantic-release → (new tag created?) → build-dmg → upload DMG to release
 
 Create a Homebrew tap so users can `brew install --cask foil`.
 
-**Tap repo:** `neonwatty/homebrew-tap` (new GitHub repo)
+**Tap repo:** `mean-weasel/homebrew-foil` (new GitHub repo)
 
 **Cask formula** (`Casks/foil.rb`):
 
@@ -179,10 +179,10 @@ cask "foil" do
   version "<version>"
   sha256 "<sha256>"
 
-  url "https://github.com/neonwatty/foil/releases/download/v#{version}/Foil-#{version}-macos.dmg"
+  url "https://github.com/mean-weasel/foil/releases/download/v#{version}/Foil-#{version}-macos.dmg"
   name "Foil"
   desc "macOS menu bar speech-to-text powered by Groq Whisper"
-  homepage "https://github.com/neonwatty/foil"
+  homepage "https://github.com/mean-weasel/foil"
 
   app "Foil.app"
 
