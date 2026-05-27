@@ -86,6 +86,29 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(provider.supportsModelValidation)
     }
 
+    func testCustomChatCleanupProviderBuildsExpectedEndpoints() {
+        let provider = TranscriptCleanupProvider.customOpenAICompatibleChat(
+            baseURL: URL(string: "http://127.0.0.1:11434/v1")!,
+            model: "llama3.1:8b"
+        )
+
+        XCTAssertEqual(provider.id, .customOpenAICompatibleChat)
+        XCTAssertEqual(provider.displayName, "Custom OpenAI-compatible chat")
+        XCTAssertEqual(provider.chatCompletionsEndpoint?.absoluteString, "http://127.0.0.1:11434/v1/chat/completions")
+        XCTAssertEqual(provider.modelsEndpoint?.absoluteString, "http://127.0.0.1:11434/v1/models")
+        XCTAssertEqual(provider.model, "llama3.1:8b")
+        XCTAssertFalse(provider.requiresAPIKey)
+    }
+
+    func testNoCleanupProviderHasNoEndpoints() {
+        let provider = TranscriptCleanupProvider.none
+
+        XCTAssertEqual(provider.id, .none)
+        XCTAssertEqual(provider.displayName, "None")
+        XCTAssertNil(provider.chatCompletionsEndpoint)
+        XCTAssertNil(provider.modelsEndpoint)
+    }
+
     func testLocalWhisperPresetDefinesExpectedDefaults() {
         let preset = TranscriptionProviderPreset.localWhisperCPP
 

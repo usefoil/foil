@@ -141,6 +141,79 @@ struct TranscriptionProvider: Equatable {
     }
 }
 
+enum TranscriptCleanupProviderID: String, CaseIterable, Identifiable {
+    case none
+    case groq
+    case customOpenAICompatibleChat = "custom-openai-compatible-chat"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .none:
+            "None"
+        case .groq:
+            "Groq"
+        case .customOpenAICompatibleChat:
+            "Custom OpenAI-compatible chat"
+        }
+    }
+}
+
+struct TranscriptCleanupProvider: Equatable {
+    let id: TranscriptCleanupProviderID
+    let displayName: String
+    let baseURL: URL?
+    let model: String
+    let requiresAPIKey: Bool
+
+    static let none = TranscriptCleanupProvider(
+        id: .none,
+        displayName: "None",
+        baseURL: nil,
+        model: "",
+        requiresAPIKey: false
+    )
+
+    static func groq(model: String) -> TranscriptCleanupProvider {
+        TranscriptCleanupProvider(
+            id: .groq,
+            displayName: "Groq",
+            baseURL: URL(string: "https://api.groq.com/openai/v1")!,
+            model: model,
+            requiresAPIKey: true
+        )
+    }
+
+    static func customOpenAICompatibleChat(
+        baseURL: URL,
+        model: String,
+        requiresAPIKey: Bool = false
+    ) -> TranscriptCleanupProvider {
+        TranscriptCleanupProvider(
+            id: .customOpenAICompatibleChat,
+            displayName: "Custom OpenAI-compatible chat",
+            baseURL: baseURL,
+            model: model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "llama3.1:8b" : model,
+            requiresAPIKey: requiresAPIKey
+        )
+    }
+
+    var chatCompletionsEndpoint: URL? {
+        endpoint("chat/completions")
+    }
+
+    var modelsEndpoint: URL? {
+        endpoint("models")
+    }
+
+    private func endpoint(_ path: String) -> URL? {
+        guard let baseURL else { return nil }
+        let root = baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return URL(string: "\(root)/\(path)")
+    }
+}
+
 enum LocalWhisperSetupModelID: String, CaseIterable, Identifiable {
     case tinyEN = "tiny.en"
     case baseEN = "base.en"

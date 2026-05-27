@@ -199,6 +199,18 @@ final class AppState {
         didSet { Self.defaults.set(transcriptCleanupModel, forKey: "transcriptCleanupModel") }
     }
 
+    var transcriptCleanupProviderID: TranscriptCleanupProviderID = .groq {
+        didSet { Self.defaults.set(transcriptCleanupProviderID.rawValue, forKey: "transcriptCleanupProvider") }
+    }
+
+    var customTranscriptCleanupBaseURL: String = "http://127.0.0.1:11434/v1" {
+        didSet { Self.defaults.set(customTranscriptCleanupBaseURL, forKey: "customTranscriptCleanupBaseURL") }
+    }
+
+    var customTranscriptCleanupModel: String = "llama3.1:8b" {
+        didSet { Self.defaults.set(customTranscriptCleanupModel, forKey: "customTranscriptCleanupModel") }
+    }
+
     var keepOnClipboard: Bool = false {
         didSet { Self.defaults.set(keepOnClipboard, forKey: "keepOnClipboard") }
     }
@@ -699,6 +711,9 @@ final class AppState {
                 "language",
                 "transcriptProcessingMode",
                 "transcriptCleanupModel",
+                "transcriptCleanupProvider",
+                "customTranscriptCleanupBaseURL",
+                "customTranscriptCleanupModel",
                 "selectedInputDeviceUID"
             ] {
                 defaults.removeObject(forKey: key)
@@ -726,7 +741,10 @@ final class AppState {
             "hotkeyChoice": "rightCommand",
             "language": "auto",
             "transcriptProcessingMode": "raw",
-            "transcriptCleanupModel": "llama-3.3-70b-versatile"
+            "transcriptCleanupModel": "llama-3.3-70b-versatile",
+            "transcriptCleanupProvider": "groq",
+            "customTranscriptCleanupBaseURL": "http://127.0.0.1:11434/v1",
+            "customTranscriptCleanupModel": "llama3.1:8b"
         ])
 
         // Load persisted values into stored properties.
@@ -755,6 +773,12 @@ final class AppState {
         selectedLanguage = Language(rawValue: defaults.string(forKey: "language") ?? "") ?? .auto
         transcriptProcessingMode = TranscriptProcessingMode(rawValue: defaults.string(forKey: "transcriptProcessingMode") ?? "") ?? .raw
         transcriptCleanupModel = defaults.string(forKey: "transcriptCleanupModel") ?? "llama-3.3-70b-versatile"
+        transcriptCleanupProviderID = TranscriptCleanupProviderID(
+            rawValue: defaults.string(forKey: "transcriptCleanupProvider") ?? ""
+        ) ?? .groq
+        customTranscriptCleanupBaseURL = defaults.string(forKey: "customTranscriptCleanupBaseURL")
+            ?? "http://127.0.0.1:11434/v1"
+        customTranscriptCleanupModel = defaults.string(forKey: "customTranscriptCleanupModel") ?? "llama3.1:8b"
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
