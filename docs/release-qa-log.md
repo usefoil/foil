@@ -4,6 +4,18 @@ Use this file as the release-candidate evidence template. Copy the checklist
 below into the release PR or release notes, then fill every result before
 publishing.
 
+## Current Public Install Status
+
+- Current public beta: Foil `v1.12.2` build `34`.
+- Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
+- Verified command:
+  `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
+  then `brew install --cask foil`.
+- Manual fallback: GitHub release asset `Foil-1.12.2-macos.dmg`, verified against `Foil-1.12.2-macos.dmg.sha256` and release asset digest.
+- Public cask status: `Casks/foil.rb` version `1.12.2`, SHA-256 `39180396a7d29bd43c03165167823f91f4b7358a3937198f155a7eaae30574ad`, matching the GitHub release DMG digest.
+- Latest recorded public cask smoke: temp-dir install in `/tmp/foil-brew-apps-1779902384` passed version/build, Gatekeeper, and deep strict codesign checks; cleanup removed the cask, tap, and temp app dir.
+- Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; tracked in issue #154.
+
 ## Test Command Policy
 
 - `make test` and CI unit tests are deterministic by default and skip
