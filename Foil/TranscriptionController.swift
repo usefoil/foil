@@ -213,9 +213,25 @@ final class TranscriptionController {
         let processingMode = appState.effectiveTranscriptProcessingMode
         guard processingMode != .raw else {
             if appState.transcriptProcessingMode != .raw {
-                DiagnosticLog.write("\(context): transcript processing skipped for provider=\(appState.selectedTranscriptionProvider.id.rawValue)")
+                DiagnosticLog.write("\(context): transcript processing skipped for cleanupProvider=\(appState.selectedTranscriptCleanupProvider.id.rawValue)")
             }
             return (rawText, false)
+        }
+
+        let cleanupProvider = appState.selectedTranscriptCleanupProvider
+        guard cleanupProvider.id != .none else {
+            DiagnosticLog.write("\(context): transcript processing skipped because cleanup provider is none")
+            return (rawText, false)
+        }
+
+        let cleanupApiKey: String?
+        switch cleanupProvider.id {
+        case .none:
+            cleanupApiKey = nil
+        case .groq:
+            cleanupApiKey = KeychainHelper.readApiKey(for: .groq)
+        case .customOpenAICompatibleChat:
+            cleanupApiKey = KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat)
         }
 
         let service = service ?? transcriptionService
@@ -223,9 +239,9 @@ final class TranscriptionController {
         do {
             let text = try await service.processTranscript(
                 rawText,
-                apiKey: apiKey,
+                apiKey: cleanupApiKey,
                 mode: processingMode,
-                model: appState.transcriptCleanupModel
+                provider: cleanupProvider
             )
             return (text, false)
         } catch {

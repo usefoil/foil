@@ -153,6 +153,7 @@ final class AppState {
                 ? .groq
                 : .customOpenAICompatible
             isSynchronizingProviderSelection = false
+            resetGroqCleanupIfNeeded()
             resetProviderConnectionTest()
         }
     }
@@ -164,6 +165,7 @@ final class AppState {
             isSynchronizingProviderSelection = true
             selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
             isSynchronizingProviderSelection = false
+            resetGroqCleanupIfNeeded()
             resetProviderConnectionTest()
             refreshApiKeyState()
         }
@@ -330,12 +332,37 @@ final class AppState {
         selectedTranscriptionProvider.transcriptionModel
     }
 
+    var customTranscriptCleanupBaseURLValue: URL? {
+        let trimmed = customTranscriptCleanupBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil else {
+            return nil
+        }
+        return url
+    }
+
+    var selectedTranscriptCleanupProvider: TranscriptCleanupProvider {
+        switch transcriptCleanupProviderID {
+        case .none:
+            return .none
+        case .groq:
+            return .groq(model: transcriptCleanupModel)
+        case .customOpenAICompatibleChat:
+            return .customOpenAICompatibleChat(
+                baseURL: customTranscriptCleanupBaseURLValue ?? URL(string: "http://127.0.0.1:11434/v1")!,
+                model: customTranscriptCleanupModel
+            )
+        }
+    }
+
     var supportsSelectedTranscriptProcessing: Bool {
-        selectedTranscriptionProvider.supportsTranscriptProcessing
+        selectedTranscriptCleanupProvider.id != .none
     }
 
     var effectiveTranscriptProcessingMode: TranscriptProcessingMode {
-        supportsSelectedTranscriptProcessing ? transcriptProcessingMode : .raw
+        transcriptProcessingMode == .raw || !supportsSelectedTranscriptProcessing ? .raw : transcriptProcessingMode
     }
 
     var customTranscriptionBaseURLValue: URL? {
@@ -796,6 +823,13 @@ final class AppState {
         isSynchronizingProviderSelection = true
         selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
         isSynchronizingProviderSelection = false
+        resetGroqCleanupIfNeeded()
+    }
+
+    private func resetGroqCleanupIfNeeded() {
+        if selectedTranscriptionProviderPresetID != .groq && transcriptCleanupProviderID == .groq {
+            transcriptCleanupProviderID = .none
+        }
     }
 
     func setStatus(_ newStatus: Status) {

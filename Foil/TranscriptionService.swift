@@ -498,6 +498,56 @@ struct TranscriptionService {
         throw error
     }
 
+    func processTranscript(
+        _ transcript: String,
+        apiKey: String?,
+        mode: TranscriptProcessingMode,
+        provider cleanupProvider: TranscriptCleanupProvider
+    ) async throws -> String {
+        guard mode != .raw else { return transcript }
+        guard let endpoint = cleanupProvider.chatCompletionsEndpoint else {
+            return transcript
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try buildTranscriptProcessingBody(
+            transcript: transcript,
+            mode: mode,
+            model: cleanupProvider.model
+        )
+
+        DiagnosticLog.write("processTranscript: sending cleanupProvider=\(cleanupProvider.id.rawValue) mode=\(mode.rawValue) model=\(cleanupProvider.model) inputLength=\(transcript.count)")
+        let (data, response) = try await transport.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            DiagnosticLog.write("processTranscript: invalid response type")
+            throw TranscriptionError.invalidResponse
+        }
+        DiagnosticLog.write("processTranscript: response status=\(http.statusCode) responseBytes=\(data.count)")
+
+        if http.statusCode == 200 {
+            let decoded: ChatCompletionResponse
+            do {
+                decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+            } catch {
+                DiagnosticLog.write("processTranscript: failed to decode response")
+                throw TranscriptionError.invalidResponse
+            }
+            guard let content = decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !content.isEmpty else {
+                throw TranscriptionError.invalidResponse
+            }
+            DiagnosticLog.write("processTranscript: success outputLength=\(content.count)")
+            return content
+        }
+
+        let error = mapAPIError(statusCode: http.statusCode, data: data)
+        DiagnosticLog.write("processTranscript: API error status=\(http.statusCode) mapped=\(error.logName) bodyBytes=\(data.count)")
+        throw error
+    }
+
     func validateApiKey(apiKey: String?, requiredModels: [String] = []) async throws {
         guard provider.supportsModelValidation else {
             DiagnosticLog.write("validateApiKey: skipping model validation for provider=\(provider.id.rawValue)")
