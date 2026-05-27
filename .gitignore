@@ -17,3 +17,12 @@ node_modules/
 
 # Local browser automation caches
 .playwright-cli/
+
+# Local logo exploration scratch files
+logos/_*.html
+logos/preview.html
+logos/concepts/
+logos/iter*/
+logos/round3/
+logos/iterations/iteration-*.svg
+!logos/iterations/iteration-20.svg
