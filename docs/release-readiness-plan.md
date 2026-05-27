@@ -412,19 +412,19 @@ Current local verification notes:
 - `scripts/prepare-release.sh` updates app version/build metadata, `package.json`, `package-lock.json`, and `CHANGELOG.md` for a release-prep PR.
 - `.github/workflows/deploy.yml` is manually dispatched with a version input and checks out `v${version}`. It does not run on every `main` push.
 - The release workflow creates the GitHub Release if it does not already exist, imports the Developer ID certificate, archives with `MARKETING_VERSION` set to the release version, exports with `ExportOptions.plist`, verifies bundle version/build, creates a DMG, signs it, notarizes it with App Store Connect API-key credentials, staples it, validates Gatekeeper/stapler status, and uploads `Foil-${VERSION}-macos.dmg` plus checksum to the GitHub release.
-- Homebrew is verified for the current public beta evidence in `docs/release-qa-log.md`: `mean-weasel/homebrew-foil` points at the uploaded `v1.12.0` DMG, the cask SHA-256 matches the release asset digest, and clean cask install/launch/signature smoke checks passed. Re-verify this path for each new release.
+- Homebrew is verified for the current public beta evidence in `docs/release-qa-log.md`: public tap repository `mean-weasel/homebrew-foil` points at the uploaded `v1.12.2` DMG, the cask SHA-256 matches the release asset digest, and a clean temp-dir cask install/signature smoke passed through tap alias `mean-weasel/foil`. Re-verify this path for each new release.
 
 Release dry-run checklist:
 
 1. Draft release notes in a Markdown file.
 2. Prepare the release PR:
-   `make prepare-release VERSION=1.12.1 BUILD=33 NOTES=/path/to/release-notes.md`
+   `make prepare-release VERSION=1.12.2 BUILD=34 NOTES=/path/to/release-notes.md`
 3. Confirm working tree contains only intentional release-prep changes:
    `git status --short`
 4. Review `CHANGELOG.md`, `package.json`, `package-lock.json`, and `Foil.xcodeproj/project.pbxproj`.
 5. Open the release-prep PR and merge it through the merge queue after CI is green.
 6. Tag the merged `main` commit:
-   `git tag v1.12.1 && git push origin v1.12.1`
+   `git tag v1.12.2 && git push origin v1.12.2`
 7. Confirm required repository secrets exist:
    `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_TEAM_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`.
 8. Confirm the release runner image has the configured Xcode path from `deploy.yml` or update the workflow before release.
@@ -442,10 +442,10 @@ Homebrew/DMG verification path:
 4. Update the Homebrew tap cask URL to the exact release asset and the cask `sha256` to the computed value.
 5. Verify from a clean tap state:
    `brew untap mean-weasel/foil || true`
-6. Tap and install:
-   `brew tap mean-weasel/foil`
-   `brew install --cask foil`
-7. Confirm `/Applications/Foil.app` launches and Gatekeeper accepts the installed app.
+6. Tap and install into a temporary app directory before touching `/Applications`:
+   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
+   `brew install --cask --appdir=/tmp/foil-brew-apps mean-weasel/foil/foil`
+7. Confirm the temp-installed `Foil.app` reports the expected version/build, Gatekeeper accepts it, and deep strict codesign verification passes.
 8. Record the workflow run URL, release URL, DMG checksum, cask commit, and local verification result in the release notes or QA log.
 
 ### Agent M: README And Docs Cleanup
