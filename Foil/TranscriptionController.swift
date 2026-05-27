@@ -229,7 +229,7 @@ final class TranscriptionController {
         case .none:
             cleanupApiKey = nil
         case .groq:
-            cleanupApiKey = KeychainHelper.readApiKey(for: .groq)
+            cleanupApiKey = apiKey ?? KeychainHelper.readApiKey(for: .groq)
         case .customOpenAICompatibleChat:
             cleanupApiKey = KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat)
         }

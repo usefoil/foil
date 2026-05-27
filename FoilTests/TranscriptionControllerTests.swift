@@ -212,6 +212,7 @@ final class TranscriptionControllerTests: XCTestCase {
         appState.transcriptProcessingMode = .cleanUp
         let transport = ControllerStubTransport { request in
             XCTAssertEqual(request.url?.absoluteString, "https://api.groq.com/openai/v1/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
