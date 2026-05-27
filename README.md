@@ -2,7 +2,19 @@
 
 macOS menu bar speech-to-text with cloud and local transcription providers.
 
-Demo media has not been published yet.
+## Product Preview
+
+Foil is a small macOS menu bar app for dictation into the app you are already
+using. Hold your hotkey, speak, release, and Foil transcribes with Groq, Local
+whisper.cpp, or a custom OpenAI-compatible endpoint before pasting the result
+back into your current text field.
+
+![Foil ready control center](site/assets/screenshots/foil-ready-control-center.png)
+
+The screenshot set in [`site/assets/screenshots/`](site/assets/screenshots/)
+uses real Foil app windows captured from deterministic UI-testing states. It
+shows the menu control center, setup recovery, onboarding, and Transcription
+settings without live credentials or private transcript content.
 
 ## Website
 
