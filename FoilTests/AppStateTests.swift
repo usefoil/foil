@@ -1037,6 +1037,31 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
     }
 
+    func testGroqPresetRestoresGroqCleanupWhenProcessingEnabled() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+
+        XCTAssertEqual(state.transcriptCleanupProviderID, .none)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+
+        state.selectedTranscriptionProviderPresetID = .groq
+
+        XCTAssertEqual(state.transcriptCleanupProviderID, .groq)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .cleanUp)
+    }
+
+    func testInvalidCustomCleanupBaseURLDisablesCleanupRouting() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+        state.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        state.customTranscriptCleanupBaseURL = "not a url"
+
+        XCTAssertEqual(state.selectedTranscriptCleanupProvider.id, .none)
+        XCTAssertFalse(state.supportsSelectedTranscriptProcessing)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+    }
+
     func testGroqAndOpenAICompatibleAPIKeysAreIndependent() throws {
         try KeychainHelper.save(apiKey: "groq-key", for: .groq)
         try KeychainHelper.save(apiKey: "local-key", for: .openAICompatible)

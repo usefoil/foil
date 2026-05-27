@@ -311,6 +311,30 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertTrue(result.cleanupFailed)
     }
 
+    func testInvalidCustomChatCleanupBaseURLDoesNotSendCleanupRequest() async {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "not a url"
+        appState.customTranscriptCleanupModel = "llama3.1:8b"
+
+        let transport = ControllerStubTransport { request in
+            XCTFail("Unexpected cleanup request to \(request.url?.absoluteString ?? "<nil>")")
+            throw URLError(.badURL)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw stays local",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "raw stays local")
+        XCTAssertFalse(result.cleanupFailed)
+        XCTAssertEqual(transport.requests.count, 0)
+    }
+
     // MARK: - transcribe without API key
 
     func testTranscribeFailsGracefullyWithoutApiKey() async throws {

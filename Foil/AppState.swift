@@ -154,7 +154,7 @@ final class AppState {
                 ? .groq
                 : .customOpenAICompatible
             isSynchronizingProviderSelection = false
-            resetGroqCleanupIfNeeded()
+            syncCleanupProviderWithTranscriptionPreset()
             resetProviderConnectionTest()
         }
     }
@@ -166,7 +166,7 @@ final class AppState {
             isSynchronizingProviderSelection = true
             selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
             isSynchronizingProviderSelection = false
-            resetGroqCleanupIfNeeded()
+            syncCleanupProviderWithTranscriptionPreset()
             resetProviderConnectionTest()
             refreshApiKeyState()
         }
@@ -363,8 +363,11 @@ final class AppState {
         case .groq:
             return .groq(model: transcriptCleanupModel)
         case .customOpenAICompatibleChat:
+            guard let baseURL = customTranscriptCleanupBaseURLValue else {
+                return .none
+            }
             return .customOpenAICompatibleChat(
-                baseURL: customTranscriptCleanupBaseURLValue ?? URL(string: "http://127.0.0.1:11434/v1")!,
+                baseURL: baseURL,
                 model: customTranscriptCleanupModel
             )
         }
@@ -836,12 +839,17 @@ final class AppState {
         isSynchronizingProviderSelection = true
         selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
         isSynchronizingProviderSelection = false
-        resetGroqCleanupIfNeeded()
+        syncCleanupProviderWithTranscriptionPreset()
     }
 
-    private func resetGroqCleanupIfNeeded() {
-        if selectedTranscriptionProviderPresetID != .groq && transcriptCleanupProviderID == .groq {
+    private func syncCleanupProviderWithTranscriptionPreset() {
+        if selectedTranscriptionProviderPresetID != .groq,
+           transcriptCleanupProviderID == .groq {
             transcriptCleanupProviderID = .none
+        } else if selectedTranscriptionProviderPresetID == .groq,
+                  transcriptProcessingMode != .raw,
+                  transcriptCleanupProviderID == .none {
+            transcriptCleanupProviderID = .groq
         }
     }
 
