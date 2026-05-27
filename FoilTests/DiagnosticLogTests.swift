@@ -207,13 +207,13 @@ final class DiagnosticLogTests: XCTestCase {
         appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         appState.transcriptProcessingMode = .cleanUp
         appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
-        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupBaseURL = "https://cleanup.example/v1?api_key=cleanup-secret"
         appState.customTranscriptCleanupModel = "llama3.1:8b"
 
         let report = DiagnosticLog.setupReportText(appState: appState)
 
         XCTAssertTrue(report.contains("- Cleanup Provider: Custom OpenAI-compatible chat"))
-        XCTAssertTrue(report.contains("- Cleanup Base URL: http://127.0.0.1:11434/v1"))
+        XCTAssertTrue(report.contains("- Cleanup Base URL: https://cleanup.example/v1?api_key=<redacted>"))
         XCTAssertTrue(report.contains("- Cleanup Model: llama3.1:8b"))
         XCTAssertFalse(report.contains("cleanup-secret"))
     }

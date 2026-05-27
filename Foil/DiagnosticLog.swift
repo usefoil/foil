@@ -201,7 +201,7 @@ enum DiagnosticLog {
             "- Input Device UID: \(redacted(appState.selectedInputDeviceUID ?? "System Default"))",
             "- Transcript Processing: \(appState.effectiveTranscriptProcessingMode.rawValue)",
             "- Cleanup Provider: \(cleanupProvider.displayName)",
-            "- Cleanup Base URL: \(cleanupProvider.baseURL?.absoluteString ?? "None")",
+            "- Cleanup Base URL: \(cleanupProvider.baseURL.map { redacted($0.absoluteString) } ?? "None")",
             "- Cleanup Model: \(cleanupProvider.model.isEmpty ? "None" : cleanupProvider.model)",
             "- Async Paste: \(appState.asyncPasteEnabled ? "enabled" : "disabled")",
             "- Keep Final Text On Clipboard: \(appState.keepOnClipboard ? "enabled" : "disabled")",
