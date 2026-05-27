@@ -54,6 +54,9 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptProcessingMode")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupModel")
+        UserDefaults.standard.removeObject(forKey: "transcriptCleanupProvider")
+        UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupBaseURL")
+        UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupModel")
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
@@ -1030,6 +1033,31 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(state.selectedTranscriptionProvider.displayName, "Local whisper.cpp")
         XCTAssertEqual(state.selectedTranscriptionModel, "whisper-1")
+        XCTAssertFalse(state.supportsSelectedTranscriptProcessing)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+    }
+
+    func testGroqPresetRestoresGroqCleanupWhenProcessingEnabled() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+
+        XCTAssertEqual(state.transcriptCleanupProviderID, .none)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+
+        state.selectedTranscriptionProviderPresetID = .groq
+
+        XCTAssertEqual(state.transcriptCleanupProviderID, .groq)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .cleanUp)
+    }
+
+    func testInvalidCustomCleanupBaseURLDisablesCleanupRouting() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+        state.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        state.customTranscriptCleanupBaseURL = "not a url"
+
+        XCTAssertEqual(state.selectedTranscriptCleanupProvider.id, .none)
         XCTAssertFalse(state.supportsSelectedTranscriptProcessing)
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
     }

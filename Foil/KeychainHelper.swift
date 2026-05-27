@@ -34,6 +34,15 @@ enum KeychainHelper {
         }
     }
 
+    private static func cleanupAccount(for providerID: TranscriptCleanupProviderID) -> String {
+        #if DEBUG
+        let base = accountOverride ?? defaultAccount
+        #else
+        let base = defaultAccount
+        #endif
+        return "\(base).cleanup.\(providerID.rawValue)"
+    }
+
     private static var legacyPlaintextStorageURL: URL? {
         guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
@@ -95,11 +104,29 @@ enum KeychainHelper {
         }
     }
 
+    static func saveCleanupApiKey(_ apiKey: String, for providerID: TranscriptCleanupProviderID) throws {
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        try saveToKeychain(apiKey: trimmed, account: cleanupAccount(for: providerID))
+    }
+
+    static func readCleanupApiKey(for providerID: TranscriptCleanupProviderID) -> String? {
+        readFromKeychain(account: cleanupAccount(for: providerID))
+    }
+
+    static func deleteCleanupApiKey(for providerID: TranscriptCleanupProviderID) {
+        deleteFromKeychain(account: cleanupAccount(for: providerID))
+    }
+
     // MARK: - Keychain storage
 
     private static func saveToKeychain(apiKey: String, for providerID: TranscriptionProviderID = .groq) throws {
+        try saveToKeychain(apiKey: apiKey, account: account(for: providerID))
+    }
+
+    private static func saveToKeychain(apiKey: String, account: String) throws {
         let data = Data(apiKey.utf8)
-        let query = baseQuery(for: providerID)
+        let query = baseQuery(account: account)
         let attributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -120,7 +147,11 @@ enum KeychainHelper {
     }
 
     private static func readFromKeychain(for providerID: TranscriptionProviderID = .groq) -> String? {
-        var query = baseQuery(for: providerID)
+        readFromKeychain(account: account(for: providerID))
+    }
+
+    private static func readFromKeychain(account: String) -> String? {
+        var query = baseQuery(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         let context = LAContext()
@@ -182,14 +213,22 @@ enum KeychainHelper {
     }
 
     private static func deleteFromKeychain(for providerID: TranscriptionProviderID = .groq) {
-        SecItemDelete(baseQuery(for: providerID) as CFDictionary)
+        deleteFromKeychain(account: account(for: providerID))
+    }
+
+    private static func deleteFromKeychain(account: String) {
+        SecItemDelete(baseQuery(account: account) as CFDictionary)
     }
 
     private static func baseQuery(for providerID: TranscriptionProviderID = .groq) -> [String: Any] {
+        baseQuery(account: account(for: providerID))
+    }
+
+    private static func baseQuery(account: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account(for: providerID)
+            kSecAttrAccount as String: account
         ]
     }
 

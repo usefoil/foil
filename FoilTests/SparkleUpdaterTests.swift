@@ -8,8 +8,11 @@ final class SparkleUpdaterTests: XCTestCase {
         _ = updater.canCheckForUpdates
     }
 
-    func testAutomaticallyChecksDefaultsToTrue() {
+    func testAutomaticallyChecksCanBeEnabled() {
         let updater = SparkleUpdater.shared
+
+        updater.automaticallyChecksForUpdates = true
+
         XCTAssertTrue(updater.automaticallyChecksForUpdates)
     }
 

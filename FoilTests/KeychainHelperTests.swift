@@ -19,6 +19,7 @@ final class KeychainHelperTests: XCTestCase {
     override func tearDown() {
         KeychainHelper.delete()
         KeychainHelper.delete(for: .openAICompatible)
+        KeychainHelper.deleteCleanupApiKey(for: .customOpenAICompatibleChat)
         KeychainHelper.storageDirectoryOverride = nil
         KeychainHelper.serviceOverride = nil
         KeychainHelper.accountOverride = nil
@@ -108,6 +109,16 @@ final class KeychainHelperTests: XCTestCase {
 
         XCTAssertEqual(KeychainHelper.readApiKey(for: .groq), "groq-key")
         XCTAssertNil(KeychainHelper.readApiKey(for: .openAICompatible))
+    }
+
+    func testCleanupApiKeyDoesNotOverwriteGroqOrCustomTranscriptionKeys() throws {
+        try KeychainHelper.save(apiKey: "groq-key", for: .groq)
+        try KeychainHelper.save(apiKey: "transcription-key", for: .openAICompatible)
+        try KeychainHelper.saveCleanupApiKey("cleanup-key", for: .customOpenAICompatibleChat)
+
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .groq), "groq-key")
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .openAICompatible), "transcription-key")
+        XCTAssertEqual(KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat), "cleanup-key")
     }
 
     func testLegacyPlaintextMigrationOnlyAppliesToGroqProvider() throws {

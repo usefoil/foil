@@ -58,8 +58,10 @@ final class TranscriptionControllerTests: XCTestCase {
     private var controller: TranscriptionController!
     private var spy: TranscriptionDelegateSpy!
     private var keychainStorageDirectory: URL!
+    private let defaultsDomainName = Bundle.main.bundleIdentifier ?? "com.neonwatty.Foil"
 
     override func setUpWithError() throws {
+        UserDefaults.standard.removePersistentDomain(forName: defaultsDomainName)
         keychainStorageDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("FoilTranscriptionControllerTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: keychainStorageDirectory, withIntermediateDirectories: true)
@@ -84,6 +86,7 @@ final class TranscriptionControllerTests: XCTestCase {
         KeychainHelper.serviceOverride = nil
         KeychainHelper.storageDirectoryOverride = nil
         keychainStorageDirectory = nil
+        UserDefaults.standard.removePersistentDomain(forName: defaultsDomainName)
     }
 
     // MARK: - errorMessage mapping
@@ -209,6 +212,7 @@ final class TranscriptionControllerTests: XCTestCase {
         appState.transcriptProcessingMode = .cleanUp
         let transport = ControllerStubTransport { request in
             XCTAssertEqual(request.url?.absoluteString, "https://api.groq.com/openai/v1/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -232,6 +236,103 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(result.text, "clean transcript")
         XCTAssertFalse(result.cleanupFailed)
         XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testLocalProviderWithCleanupModeDoesNotCallGroqByDefault() async {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .none
+        let transport = ControllerStubTransport { request in
+            XCTFail("Unexpected cleanup request to \(request.url?.absoluteString ?? "<nil>")")
+            throw URLError(.badURL)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw local transcript",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "raw local transcript")
+        XCTAssertFalse(result.cleanupFailed)
+        XCTAssertEqual(transport.requests.count, 0)
+    }
+
+    func testCustomChatCleanupUsesCustomEndpointModelAndKey() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+        try KeychainHelper.saveCleanupApiKey("cleanup-secret", for: .customOpenAICompatibleChat)
+
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer cleanup-secret")
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains(#""model":"qwen2.5:7b""#), body)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"choices":[{"message":{"content":"cleaned locally"}}]}"#.utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw words",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "cleaned locally")
+        XCTAssertFalse(result.cleanupFailed)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testCustomChatCleanupFailureFallsBackToRaw() async {
+        appState.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+        appState.transcriptProcessingMode = .rewriteClearly
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "llama3.1:8b"
+
+        let transport = ControllerStubTransport { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"error":{"message":"server unavailable"}}"#.utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw survives",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "raw survives")
+        XCTAssertTrue(result.cleanupFailed)
+    }
+
+    func testInvalidCustomChatCleanupBaseURLDoesNotSendCleanupRequest() async {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "not a url"
+        appState.customTranscriptCleanupModel = "llama3.1:8b"
+
+        let transport = ControllerStubTransport { request in
+            XCTFail("Unexpected cleanup request to \(request.url?.absoluteString ?? "<nil>")")
+            throw URLError(.badURL)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw stays local",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "raw stays local")
+        XCTAssertFalse(result.cleanupFailed)
+        XCTAssertEqual(transport.requests.count, 0)
     }
 
     // MARK: - transcribe without API key

@@ -141,6 +141,79 @@ struct TranscriptionProvider: Equatable {
     }
 }
 
+enum TranscriptCleanupProviderID: String, CaseIterable, Identifiable {
+    case none
+    case groq
+    case customOpenAICompatibleChat = "custom-openai-compatible-chat"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .none:
+            "None"
+        case .groq:
+            "Groq"
+        case .customOpenAICompatibleChat:
+            "Custom OpenAI-compatible chat"
+        }
+    }
+}
+
+struct TranscriptCleanupProvider: Equatable {
+    let id: TranscriptCleanupProviderID
+    let displayName: String
+    let baseURL: URL?
+    let model: String
+    let requiresAPIKey: Bool
+
+    static let none = TranscriptCleanupProvider(
+        id: .none,
+        displayName: "None",
+        baseURL: nil,
+        model: "",
+        requiresAPIKey: false
+    )
+
+    static func groq(model: String) -> TranscriptCleanupProvider {
+        TranscriptCleanupProvider(
+            id: .groq,
+            displayName: "Groq",
+            baseURL: URL(string: "https://api.groq.com/openai/v1")!,
+            model: model,
+            requiresAPIKey: true
+        )
+    }
+
+    static func customOpenAICompatibleChat(
+        baseURL: URL,
+        model: String,
+        requiresAPIKey: Bool = false
+    ) -> TranscriptCleanupProvider {
+        TranscriptCleanupProvider(
+            id: .customOpenAICompatibleChat,
+            displayName: "Custom OpenAI-compatible chat",
+            baseURL: baseURL,
+            model: model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "llama3.1:8b" : model,
+            requiresAPIKey: requiresAPIKey
+        )
+    }
+
+    var chatCompletionsEndpoint: URL? {
+        endpoint("chat/completions")
+    }
+
+    var modelsEndpoint: URL? {
+        endpoint("models")
+    }
+
+    private func endpoint(_ path: String) -> URL? {
+        guard let baseURL else { return nil }
+        let root = baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return URL(string: "\(root)/\(path)")
+    }
+}
+
 enum LocalWhisperSetupModelID: String, CaseIterable, Identifiable {
     case tinyEN = "tiny.en"
     case baseEN = "base.en"
@@ -425,6 +498,56 @@ struct TranscriptionService {
         throw error
     }
 
+    func processTranscript(
+        _ transcript: String,
+        apiKey: String?,
+        mode: TranscriptProcessingMode,
+        provider cleanupProvider: TranscriptCleanupProvider
+    ) async throws -> String {
+        guard mode != .raw else { return transcript }
+        guard let endpoint = cleanupProvider.chatCompletionsEndpoint else {
+            return transcript
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try buildTranscriptProcessingBody(
+            transcript: transcript,
+            mode: mode,
+            model: cleanupProvider.model
+        )
+
+        DiagnosticLog.write("processTranscript: sending cleanupProvider=\(cleanupProvider.id.rawValue) mode=\(mode.rawValue) model=\(cleanupProvider.model) inputLength=\(transcript.count)")
+        let (data, response) = try await transport.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            DiagnosticLog.write("processTranscript: invalid response type")
+            throw TranscriptionError.invalidResponse
+        }
+        DiagnosticLog.write("processTranscript: response status=\(http.statusCode) responseBytes=\(data.count)")
+
+        if http.statusCode == 200 {
+            let decoded: ChatCompletionResponse
+            do {
+                decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+            } catch {
+                DiagnosticLog.write("processTranscript: failed to decode response")
+                throw TranscriptionError.invalidResponse
+            }
+            guard let content = decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !content.isEmpty else {
+                throw TranscriptionError.invalidResponse
+            }
+            DiagnosticLog.write("processTranscript: success outputLength=\(content.count)")
+            return content
+        }
+
+        let error = mapAPIError(statusCode: http.statusCode, data: data)
+        DiagnosticLog.write("processTranscript: API error status=\(http.statusCode) mapped=\(error.logName) bodyBytes=\(data.count)")
+        throw error
+    }
+
     func validateApiKey(apiKey: String?, requiredModels: [String] = []) async throws {
         guard provider.supportsModelValidation else {
             DiagnosticLog.write("validateApiKey: skipping model validation for provider=\(provider.id.rawValue)")
@@ -501,6 +624,98 @@ struct TranscriptionService {
             return .reachableWithoutModelValidation
         default:
             throw mapAPIError(statusCode: http.statusCode, data: data)
+        }
+    }
+
+    func validateCleanupProviderConfiguration(
+        provider cleanupProvider: TranscriptCleanupProvider,
+        apiKey: String?
+    ) async throws -> ProviderValidationResult {
+        guard cleanupProvider.id != .none,
+              let baseURL = cleanupProvider.baseURL,
+              let modelsEndpoint = cleanupProvider.modelsEndpoint,
+              isValidHTTPBaseURL(baseURL) else {
+            DiagnosticLog.write("validateCleanupProviderConfiguration: invalid cleanup base URL provider=\(cleanupProvider.id.rawValue)")
+            throw TranscriptionError.invalidProviderURL
+        }
+
+        var request = URLRequest(url: modelsEndpoint)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Self.providerValidationTimeout
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
+
+        DiagnosticLog.write("validateCleanupProviderConfiguration: checking models provider=\(cleanupProvider.id.rawValue) model=\(cleanupProvider.model)")
+        let (data, response) = try await transport.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            DiagnosticLog.write("validateCleanupProviderConfiguration: invalid response type")
+            throw TranscriptionError.invalidResponse
+        }
+        DiagnosticLog.write("validateCleanupProviderConfiguration: models status=\(http.statusCode) responseBytes=\(data.count)")
+
+        switch http.statusCode {
+        case 200:
+            guard let responseBody = try? JSONDecoder().decode(ModelsResponse.self, from: data) else {
+                return try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
+            }
+            let availableModels = Set(responseBody.data.map(\.id))
+            if !cleanupProvider.model.isEmpty && !availableModels.contains(cleanupProvider.model) {
+                throw TranscriptionError.modelUnavailable(cleanupProvider.model)
+            }
+            _ = try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
+            return .modelsValidated
+        case 404, 405:
+            return try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
+        default:
+            throw mapAPIError(statusCode: http.statusCode, data: data)
+        }
+    }
+
+    private func validateCleanupChatSmoke(
+        provider cleanupProvider: TranscriptCleanupProvider,
+        apiKey: String?
+    ) async throws -> ProviderValidationResult {
+        guard let endpoint = cleanupProvider.chatCompletionsEndpoint else {
+            throw TranscriptionError.invalidProviderURL
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = Self.providerValidationTimeout
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try buildTranscriptProcessingBody(
+            transcript: "Connection test.",
+            mode: .cleanUp,
+            model: cleanupProvider.model
+        )
+
+        DiagnosticLog.write("validateCleanupChatSmoke: checking chat provider=\(cleanupProvider.id.rawValue) model=\(cleanupProvider.model)")
+        let (data, response) = try await transport.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            DiagnosticLog.write("validateCleanupChatSmoke: invalid response type")
+            throw TranscriptionError.invalidResponse
+        }
+        DiagnosticLog.write("validateCleanupChatSmoke: response status=\(http.statusCode) responseBytes=\(data.count)")
+
+        guard http.statusCode == 200 else {
+            throw mapAPIError(statusCode: http.statusCode, data: data)
+        }
+        try validateChatCompletionResponse(data)
+        return .reachableWithoutModelValidation
+    }
+
+    private func validateChatCompletionResponse(_ data: Data) throws {
+        let decoded: ChatCompletionResponse
+        do {
+            decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+        } catch {
+            DiagnosticLog.write("validateCleanupChatSmoke: failed to decode response")
+            throw TranscriptionError.invalidResponse
+        }
+
+        guard let content = decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else {
+            throw TranscriptionError.invalidResponse
         }
     }
 

@@ -325,11 +325,9 @@ final class FoilUITests: XCTestCase {
                       app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Start the local whisper-server first").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["Test connection"].exists || app.buttons["settings.testProviderConnectionButton"].exists || app.buttons["menu.settings.testProviderConnectionButton"].exists, app.debugDescription)
-        XCTAssertTrue(
-            app.staticTexts["Cleanup requires a Groq-compatible chat provider."].waitForExistence(timeout: 2)
-                || app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].waitForExistence(timeout: 2),
-            app.debugDescription
-        )
+        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists, app.debugDescription)
+        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].exists)
+        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
     }
 
     func testProviderQALocalWhisperCanBeSelectedFromDefaultSettings() {
@@ -346,11 +344,9 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["whisper-1"].exists || staticTextContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Install whisper.cpp").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(providerConnectionButton().waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(
-            app.staticTexts["Cleanup requires a Groq-compatible chat provider."].waitForExistence(timeout: 2)
-                || app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].waitForExistence(timeout: 2),
-            app.debugDescription
-        )
+        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists, app.debugDescription)
+        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].exists)
+        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
     }
 
     func testProviderQALocalWhisperSetupHelperShowsModelCommands() {

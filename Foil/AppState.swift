@@ -104,6 +104,7 @@ final class AppState {
     var setupCheckState: SetupCheckState = .idle
     var setupCheckSuccessDetail = "Ready to record"
     var providerConnectionTestState: ProviderConnectionTestState = .idle
+    var cleanupConnectionTestState: ProviderConnectionTestState = .idle
 
     // MARK: - UserDefaults-backed preferences
     //
@@ -153,6 +154,7 @@ final class AppState {
                 ? .groq
                 : .customOpenAICompatible
             isSynchronizingProviderSelection = false
+            syncCleanupProviderWithTranscriptionPreset()
             resetProviderConnectionTest()
         }
     }
@@ -164,6 +166,7 @@ final class AppState {
             isSynchronizingProviderSelection = true
             selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
             isSynchronizingProviderSelection = false
+            syncCleanupProviderWithTranscriptionPreset()
             resetProviderConnectionTest()
             refreshApiKeyState()
         }
@@ -196,7 +199,31 @@ final class AppState {
     }
 
     var transcriptCleanupModel: String = "llama-3.3-70b-versatile" {
-        didSet { Self.defaults.set(transcriptCleanupModel, forKey: "transcriptCleanupModel") }
+        didSet {
+            Self.defaults.set(transcriptCleanupModel, forKey: "transcriptCleanupModel")
+            resetCleanupConnectionTest()
+        }
+    }
+
+    var transcriptCleanupProviderID: TranscriptCleanupProviderID = .groq {
+        didSet {
+            Self.defaults.set(transcriptCleanupProviderID.rawValue, forKey: "transcriptCleanupProvider")
+            resetCleanupConnectionTest()
+        }
+    }
+
+    var customTranscriptCleanupBaseURL: String = "http://127.0.0.1:11434/v1" {
+        didSet {
+            Self.defaults.set(customTranscriptCleanupBaseURL, forKey: "customTranscriptCleanupBaseURL")
+            resetCleanupConnectionTest()
+        }
+    }
+
+    var customTranscriptCleanupModel: String = "llama3.1:8b" {
+        didSet {
+            Self.defaults.set(customTranscriptCleanupModel, forKey: "customTranscriptCleanupModel")
+            resetCleanupConnectionTest()
+        }
     }
 
     var keepOnClipboard: Bool = false {
@@ -318,12 +345,40 @@ final class AppState {
         selectedTranscriptionProvider.transcriptionModel
     }
 
+    var customTranscriptCleanupBaseURLValue: URL? {
+        let trimmed = customTranscriptCleanupBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil else {
+            return nil
+        }
+        return url
+    }
+
+    var selectedTranscriptCleanupProvider: TranscriptCleanupProvider {
+        switch transcriptCleanupProviderID {
+        case .none:
+            return .none
+        case .groq:
+            return .groq(model: transcriptCleanupModel)
+        case .customOpenAICompatibleChat:
+            guard let baseURL = customTranscriptCleanupBaseURLValue else {
+                return .none
+            }
+            return .customOpenAICompatibleChat(
+                baseURL: baseURL,
+                model: customTranscriptCleanupModel
+            )
+        }
+    }
+
     var supportsSelectedTranscriptProcessing: Bool {
-        selectedTranscriptionProvider.supportsTranscriptProcessing
+        selectedTranscriptCleanupProvider.id != .none
     }
 
     var effectiveTranscriptProcessingMode: TranscriptProcessingMode {
-        supportsSelectedTranscriptProcessing ? transcriptProcessingMode : .raw
+        transcriptProcessingMode == .raw || !supportsSelectedTranscriptProcessing ? .raw : transcriptProcessingMode
     }
 
     var customTranscriptionBaseURLValue: URL? {
@@ -699,6 +754,9 @@ final class AppState {
                 "language",
                 "transcriptProcessingMode",
                 "transcriptCleanupModel",
+                "transcriptCleanupProvider",
+                "customTranscriptCleanupBaseURL",
+                "customTranscriptCleanupModel",
                 "selectedInputDeviceUID"
             ] {
                 defaults.removeObject(forKey: key)
@@ -726,7 +784,10 @@ final class AppState {
             "hotkeyChoice": "rightCommand",
             "language": "auto",
             "transcriptProcessingMode": "raw",
-            "transcriptCleanupModel": "llama-3.3-70b-versatile"
+            "transcriptCleanupModel": "llama-3.3-70b-versatile",
+            "transcriptCleanupProvider": "groq",
+            "customTranscriptCleanupBaseURL": "http://127.0.0.1:11434/v1",
+            "customTranscriptCleanupModel": "llama3.1:8b"
         ])
 
         // Load persisted values into stored properties.
@@ -755,6 +816,12 @@ final class AppState {
         selectedLanguage = Language(rawValue: defaults.string(forKey: "language") ?? "") ?? .auto
         transcriptProcessingMode = TranscriptProcessingMode(rawValue: defaults.string(forKey: "transcriptProcessingMode") ?? "") ?? .raw
         transcriptCleanupModel = defaults.string(forKey: "transcriptCleanupModel") ?? "llama-3.3-70b-versatile"
+        transcriptCleanupProviderID = TranscriptCleanupProviderID(
+            rawValue: defaults.string(forKey: "transcriptCleanupProvider") ?? ""
+        ) ?? .groq
+        customTranscriptCleanupBaseURL = defaults.string(forKey: "customTranscriptCleanupBaseURL")
+            ?? "http://127.0.0.1:11434/v1"
+        customTranscriptCleanupModel = defaults.string(forKey: "customTranscriptCleanupModel") ?? "llama3.1:8b"
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
@@ -772,6 +839,18 @@ final class AppState {
         isSynchronizingProviderSelection = true
         selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
         isSynchronizingProviderSelection = false
+        syncCleanupProviderWithTranscriptionPreset()
+    }
+
+    private func syncCleanupProviderWithTranscriptionPreset() {
+        if selectedTranscriptionProviderPresetID != .groq,
+           transcriptCleanupProviderID == .groq {
+            transcriptCleanupProviderID = .none
+        } else if selectedTranscriptionProviderPresetID == .groq,
+                  transcriptProcessingMode != .raw,
+                  transcriptCleanupProviderID == .none {
+            transcriptCleanupProviderID = .groq
+        }
     }
 
     func setStatus(_ newStatus: Status) {
@@ -847,6 +926,10 @@ final class AppState {
         providerConnectionTestState = .idle
     }
 
+    func resetCleanupConnectionTest() {
+        cleanupConnectionTestState = .idle
+    }
+
     func testSelectedProviderConnection(
         service: TranscriptionService = TranscriptionService(),
         apiKey: String? = nil
@@ -885,6 +968,41 @@ final class AppState {
             providerConnectionTestState = .failed(providerConnectionUnreachableMessage)
         } catch {
             providerConnectionTestState = .failed("Connection test failed: \(error.localizedDescription)")
+        }
+    }
+
+    func testSelectedCleanupProviderConnection(
+        service: TranscriptionService = TranscriptionService(),
+        apiKey: String? = nil
+    ) async {
+        let provider = selectedTranscriptCleanupProvider
+        guard provider.id == .customOpenAICompatibleChat else {
+            cleanupConnectionTestState = .warning("Connection test is only needed for custom chat cleanup.")
+            return
+        }
+        guard customTranscriptCleanupBaseURLValue != nil else {
+            cleanupConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+            return
+        }
+
+        cleanupConnectionTestState = .running
+        let key = apiKey ?? KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat)
+        do {
+            let result = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: key)
+            switch result {
+            case .modelsValidated:
+                cleanupConnectionTestState = .succeeded("Cleanup server reachable. Model \(provider.model) is available.")
+            case .reachableWithoutModelValidation:
+                cleanupConnectionTestState = .warning("Cleanup server reachable. Model availability was not checked.")
+            }
+        } catch TranscriptionService.TranscriptionError.modelUnavailable(let model) {
+            cleanupConnectionTestState = .failed("Cleanup server reachable, but model \(model) was not listed.")
+        } catch TranscriptionService.TranscriptionError.invalidProviderURL {
+            cleanupConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+        } catch is URLError {
+            cleanupConnectionTestState = .failed("Could not reach custom cleanup endpoint. Check that the server is running.")
+        } catch {
+            cleanupConnectionTestState = .failed("Cleanup connection test failed: \(error.localizedDescription)")
         }
     }
 
