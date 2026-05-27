@@ -57,8 +57,8 @@ published DMG.
 
 Foil is a menu bar app (`LSUIElement`), so it does not keep a normal Dock
 window open. The built app includes macOS AppIcon assets for Finder,
-Applications, and DMG presentation; the menu bar itself uses SF Symbol state
-icons.
+Applications, and the branded drag-to-Applications DMG presentation; the menu
+bar itself uses SF Symbol state icons.
 
 ## Providers
 

@@ -29,4 +29,6 @@ git push origin v1.12.1
 
 Run the `Release` workflow manually with `version` set to `1.12.1` and `build` set to `33`.
 
-The workflow checks out `v1.12.1`, creates the GitHub Release if it does not already exist, builds and notarizes the DMG, uploads the DMG and checksum, generates `appcast.xml`, and attempts the Homebrew cask update.
+The workflow checks out `v1.12.1`, creates the GitHub Release if it does not already exist, builds a branded drag-to-Applications DMG using `.github/assets/dmg-background.png`, notarizes it, uploads the DMG and checksum, generates `appcast.xml`, and attempts the Homebrew cask update.
+
+After the workflow completes, mount the DMG locally during release QA and confirm the Finder window uses the Foil-branded background, shows `Foil.app` on the left, and shows the Applications drop link on the right.
