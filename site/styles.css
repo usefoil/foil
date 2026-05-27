@@ -407,10 +407,65 @@ kbd {
 }
 
 .workflow-steps,
+.screenshot-feature,
 .provider-grid,
 .install-grid {
   max-width: var(--max);
   margin: 0 auto;
+}
+
+.screenshots {
+  background: #f7f8f4;
+}
+
+.screenshot-feature {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.78fr) minmax(360px, 1.22fr);
+  gap: clamp(24px, 5vw, 70px);
+  align-items: start;
+}
+
+.screenshot-feature figure {
+  margin: 0;
+}
+
+.screenshot-feature img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid rgb(110 119 116 / 32%);
+  border-radius: 8px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.screenshot-feature figcaption {
+  margin-top: 12px;
+  color: #344043;
+  font-size: 0.96rem;
+  font-weight: 640;
+}
+
+.screenshot-primary {
+  position: sticky;
+  top: 98px;
+}
+
+.screenshot-stack {
+  display: grid;
+  gap: 24px;
+}
+
+.screenshot-stack figure {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.72fr) minmax(180px, 0.28fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.screenshot-stack img {
+  max-height: 370px;
+  object-fit: contain;
 }
 
 .workflow-steps {
@@ -655,6 +710,7 @@ kbd {
   }
 
   .workflow-steps,
+  .screenshot-feature,
   .provider-grid,
   .install-grid {
     grid-template-columns: 1fr 1fr;
@@ -681,7 +737,8 @@ kbd {
 
   .nav {
     width: 100%;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    gap: 12px 20px;
     padding-bottom: 4px;
   }
 
@@ -723,9 +780,18 @@ kbd {
   }
 
   .workflow-steps,
+  .screenshot-feature,
   .provider-grid,
   .install-grid,
   .site-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .screenshot-primary {
+    position: static;
+  }
+
+  .screenshot-stack figure {
     grid-template-columns: 1fr;
   }
 
