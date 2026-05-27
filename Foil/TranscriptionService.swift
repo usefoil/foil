@@ -627,6 +627,81 @@ struct TranscriptionService {
         }
     }
 
+    func validateCleanupProviderConfiguration(
+        provider cleanupProvider: TranscriptCleanupProvider,
+        apiKey: String?
+    ) async throws -> ProviderValidationResult {
+        guard cleanupProvider.id != .none,
+              let baseURL = cleanupProvider.baseURL,
+              let modelsEndpoint = cleanupProvider.modelsEndpoint,
+              isValidHTTPBaseURL(baseURL) else {
+            DiagnosticLog.write("validateCleanupProviderConfiguration: invalid cleanup base URL provider=\(cleanupProvider.id.rawValue)")
+            throw TranscriptionError.invalidProviderURL
+        }
+
+        var request = URLRequest(url: modelsEndpoint)
+        request.httpMethod = "GET"
+        request.timeoutInterval = Self.providerValidationTimeout
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
+
+        DiagnosticLog.write("validateCleanupProviderConfiguration: checking models provider=\(cleanupProvider.id.rawValue) model=\(cleanupProvider.model)")
+        let (data, response) = try await transport.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            DiagnosticLog.write("validateCleanupProviderConfiguration: invalid response type")
+            throw TranscriptionError.invalidResponse
+        }
+        DiagnosticLog.write("validateCleanupProviderConfiguration: models status=\(http.statusCode) responseBytes=\(data.count)")
+
+        switch http.statusCode {
+        case 200:
+            guard let responseBody = try? JSONDecoder().decode(ModelsResponse.self, from: data) else {
+                return .reachableWithoutModelValidation
+            }
+            let availableModels = Set(responseBody.data.map(\.id))
+            if !cleanupProvider.model.isEmpty && !availableModels.contains(cleanupProvider.model) {
+                throw TranscriptionError.modelUnavailable(cleanupProvider.model)
+            }
+            return .modelsValidated
+        case 404, 405:
+            return try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
+        default:
+            throw mapAPIError(statusCode: http.statusCode, data: data)
+        }
+    }
+
+    private func validateCleanupChatSmoke(
+        provider cleanupProvider: TranscriptCleanupProvider,
+        apiKey: String?
+    ) async throws -> ProviderValidationResult {
+        guard let endpoint = cleanupProvider.chatCompletionsEndpoint else {
+            throw TranscriptionError.invalidProviderURL
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = Self.providerValidationTimeout
+        setAuthorizationHeader(apiKey: apiKey, on: &request)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try buildTranscriptProcessingBody(
+            transcript: "Connection test.",
+            mode: .cleanUp,
+            model: cleanupProvider.model
+        )
+
+        DiagnosticLog.write("validateCleanupChatSmoke: checking chat provider=\(cleanupProvider.id.rawValue) model=\(cleanupProvider.model)")
+        let (data, response) = try await transport.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            DiagnosticLog.write("validateCleanupChatSmoke: invalid response type")
+            throw TranscriptionError.invalidResponse
+        }
+        DiagnosticLog.write("validateCleanupChatSmoke: response status=\(http.statusCode) responseBytes=\(data.count)")
+
+        guard http.statusCode == 200 else {
+            throw mapAPIError(statusCode: http.statusCode, data: data)
+        }
+        return .reachableWithoutModelValidation
+    }
+
     func buildTranscriptProcessingBody(
         transcript: String,
         mode: TranscriptProcessingMode,

@@ -823,6 +823,53 @@ final class TranscriptionServiceTests: XCTestCase {
         }
     }
 
+    func testValidateCustomCleanupProviderUsesModelsEndpoint() async throws {
+        let transport = StubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/models")
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            let response = Self.httpResponse(statusCode: 200, url: request.url!)
+            return (Data(#"{"data":[{"id":"llama3.1:8b"}]}"#.utf8), response)
+        }
+        let service = TranscriptionService(transport: transport)
+        let provider = TranscriptCleanupProvider.customOpenAICompatibleChat(
+            baseURL: URL(string: "http://127.0.0.1:11434/v1")!,
+            model: "llama3.1:8b"
+        )
+
+        let result = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: nil)
+
+        XCTAssertEqual(result, .modelsValidated)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testValidateCustomCleanupProviderFallsBackToChatSmokeWhenModelsUnsupported() async throws {
+        let transport = StubTransport { request in
+            if request.url?.path.hasSuffix("/models") == true {
+                let response = Self.httpResponse(statusCode: 404, url: request.url!)
+                return (Data(), response)
+            }
+
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains(#""model":"llama3.1:8b""#), body)
+            let response = Self.httpResponse(statusCode: 200, url: request.url!)
+            return (Data(#"{"choices":[{"message":{"content":"ok"}}]}"#.utf8), response)
+        }
+        let service = TranscriptionService(transport: transport)
+        let provider = TranscriptCleanupProvider.customOpenAICompatibleChat(
+            baseURL: URL(string: "http://127.0.0.1:11434/v1")!,
+            model: "llama3.1:8b"
+        )
+
+        let result = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: nil)
+
+        XCTAssertEqual(result, .reachableWithoutModelValidation)
+        XCTAssertEqual(transport.requests.count, 2)
+    }
+
     func testValidateApiKeyMapsHTTP401ToInvalidApiKey() async throws {
         let service = TranscriptionService(transport: StubTransport { request in
             (Data("unauthorized".utf8), Self.httpResponse(statusCode: 401, url: request.url!))

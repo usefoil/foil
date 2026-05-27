@@ -104,6 +104,7 @@ final class AppState {
     var setupCheckState: SetupCheckState = .idle
     var setupCheckSuccessDetail = "Ready to record"
     var providerConnectionTestState: ProviderConnectionTestState = .idle
+    var cleanupConnectionTestState: ProviderConnectionTestState = .idle
 
     // MARK: - UserDefaults-backed preferences
     //
@@ -198,19 +199,31 @@ final class AppState {
     }
 
     var transcriptCleanupModel: String = "llama-3.3-70b-versatile" {
-        didSet { Self.defaults.set(transcriptCleanupModel, forKey: "transcriptCleanupModel") }
+        didSet {
+            Self.defaults.set(transcriptCleanupModel, forKey: "transcriptCleanupModel")
+            resetCleanupConnectionTest()
+        }
     }
 
     var transcriptCleanupProviderID: TranscriptCleanupProviderID = .groq {
-        didSet { Self.defaults.set(transcriptCleanupProviderID.rawValue, forKey: "transcriptCleanupProvider") }
+        didSet {
+            Self.defaults.set(transcriptCleanupProviderID.rawValue, forKey: "transcriptCleanupProvider")
+            resetCleanupConnectionTest()
+        }
     }
 
     var customTranscriptCleanupBaseURL: String = "http://127.0.0.1:11434/v1" {
-        didSet { Self.defaults.set(customTranscriptCleanupBaseURL, forKey: "customTranscriptCleanupBaseURL") }
+        didSet {
+            Self.defaults.set(customTranscriptCleanupBaseURL, forKey: "customTranscriptCleanupBaseURL")
+            resetCleanupConnectionTest()
+        }
     }
 
     var customTranscriptCleanupModel: String = "llama3.1:8b" {
-        didSet { Self.defaults.set(customTranscriptCleanupModel, forKey: "customTranscriptCleanupModel") }
+        didSet {
+            Self.defaults.set(customTranscriptCleanupModel, forKey: "customTranscriptCleanupModel")
+            resetCleanupConnectionTest()
+        }
     }
 
     var keepOnClipboard: Bool = false {
@@ -905,6 +918,10 @@ final class AppState {
         providerConnectionTestState = .idle
     }
 
+    func resetCleanupConnectionTest() {
+        cleanupConnectionTestState = .idle
+    }
+
     func testSelectedProviderConnection(
         service: TranscriptionService = TranscriptionService(),
         apiKey: String? = nil
@@ -943,6 +960,41 @@ final class AppState {
             providerConnectionTestState = .failed(providerConnectionUnreachableMessage)
         } catch {
             providerConnectionTestState = .failed("Connection test failed: \(error.localizedDescription)")
+        }
+    }
+
+    func testSelectedCleanupProviderConnection(
+        service: TranscriptionService = TranscriptionService(),
+        apiKey: String? = nil
+    ) async {
+        let provider = selectedTranscriptCleanupProvider
+        guard provider.id == .customOpenAICompatibleChat else {
+            cleanupConnectionTestState = .warning("Connection test is only needed for custom chat cleanup.")
+            return
+        }
+        guard customTranscriptCleanupBaseURLValue != nil else {
+            cleanupConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+            return
+        }
+
+        cleanupConnectionTestState = .running
+        let key = apiKey ?? KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat)
+        do {
+            let result = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: key)
+            switch result {
+            case .modelsValidated:
+                cleanupConnectionTestState = .succeeded("Cleanup server reachable. Model \(provider.model) is available.")
+            case .reachableWithoutModelValidation:
+                cleanupConnectionTestState = .warning("Cleanup server reachable. Model availability was not checked.")
+            }
+        } catch TranscriptionService.TranscriptionError.modelUnavailable(let model) {
+            cleanupConnectionTestState = .failed("Cleanup server reachable, but model \(model) was not listed.")
+        } catch TranscriptionService.TranscriptionError.invalidProviderURL {
+            cleanupConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+        } catch is URLError {
+            cleanupConnectionTestState = .failed("Could not reach custom cleanup endpoint. Check that the server is running.")
+        } catch {
+            cleanupConnectionTestState = .failed("Cleanup connection test failed: \(error.localizedDescription)")
         }
     }
 
