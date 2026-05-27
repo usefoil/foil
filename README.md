@@ -71,9 +71,11 @@ Foil supports three transcription provider paths:
   configure. API keys are optional when your server allows unauthenticated
   requests.
 
-Cleanup modes currently require Groq-compatible chat completions. Local and
-custom transcription providers use raw transcripts until a compatible cleanup
-provider is added.
+Cleanup modes can use Groq chat models or a Custom OpenAI-compatible chat
+endpoint. Local whisper.cpp and custom transcription remain raw by default;
+Foil will not send local/custom transcripts to Groq for cleanup unless you
+explicitly select Groq as the cleanup provider. If you choose a custom cleanup
+endpoint, transcript text is sent to that endpoint.
 
 For local setup details and the opt-in local E2E check, see
 [`docs/local-openai-compatible-transcription-e2e.md`](docs/local-openai-compatible-transcription-e2e.md).
@@ -200,6 +202,10 @@ provider expects `http://127.0.0.1:8080/v1` and the compatibility model
 `http://` or `https://`, that the server exposes `/v1/audio/transcriptions`,
 and that any required local network, firewall, or authentication setup is ready.
 
+**Custom cleanup endpoint not reachable:** Confirm the chat server is running,
+the base URL includes `/v1`, the model name matches the server, and any required
+API key is saved in Cleanup settings.
+
 **Microphone not available:** Open System Settings → Privacy & Security →
 Microphone and allow Foil. Use **Run Check** after changing the permission.
 
@@ -212,8 +218,9 @@ reopen Foil, enable the new row, and restart the app.
 paste events. Open History to copy or paste the transcript again. If Foil
 reports clipboard fallback, the transcript is on the clipboard.
 
-**Cleanup failed:** Whisper transcription succeeded, but the cleanup model did
-not return usable text. Foil uses the raw transcript and keeps going.
+**Cleanup failed but raw transcript pasted:** Transcription succeeded, but the
+cleanup endpoint failed or returned an unsupported response. Foil pasted the raw
+transcript so your dictation is not lost.
 
 **Recording too long:** Foil stops oversized recordings before upload to
 avoid runaway memory use and Groq request-size failures. Try a shorter

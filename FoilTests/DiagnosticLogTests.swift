@@ -36,6 +36,9 @@ final class DiagnosticLogTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptProcessingMode")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupModel")
+        UserDefaults.standard.removeObject(forKey: "transcriptCleanupProvider")
+        UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupBaseURL")
+        UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupModel")
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
@@ -196,6 +199,23 @@ final class DiagnosticLogTests: XCTestCase {
         XCTAssertTrue(report.contains("validate failed apiKey=<redacted>"))
         XCTAssertFalse(report.contains("gsk_secret"))
         XCTAssertFalse(report.contains("sk-secret123456789"))
+    }
+
+    @MainActor
+    func testSetupReportIncludesCleanupProviderWithoutSecrets() {
+        let appState = AppState()
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "llama3.1:8b"
+
+        let report = DiagnosticLog.setupReportText(appState: appState)
+
+        XCTAssertTrue(report.contains("- Cleanup Provider: Custom OpenAI-compatible chat"))
+        XCTAssertTrue(report.contains("- Cleanup Base URL: http://127.0.0.1:11434/v1"))
+        XCTAssertTrue(report.contains("- Cleanup Model: llama3.1:8b"))
+        XCTAssertFalse(report.contains("cleanup-secret"))
     }
 
     @MainActor

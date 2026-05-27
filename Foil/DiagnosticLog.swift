@@ -153,6 +153,7 @@ enum DiagnosticLog {
     ) -> String {
         let generatedAt = formatter.string(from: Date())
         let provider = appState.selectedTranscriptionProvider
+        let cleanupProvider = appState.selectedTranscriptCleanupProvider
         let preset = appState.selectedTranscriptionProviderPreset
         let lines = recentLines(limit: recentLineLimit)
         let lastIssue = [
@@ -199,7 +200,9 @@ enum DiagnosticLog {
             "- Audio Format: \(appState.selectedAudioFormat.rawValue)",
             "- Input Device UID: \(redacted(appState.selectedInputDeviceUID ?? "System Default"))",
             "- Transcript Processing: \(appState.effectiveTranscriptProcessingMode.rawValue)",
-            "- Cleanup Model: \(appState.transcriptCleanupModel)",
+            "- Cleanup Provider: \(cleanupProvider.displayName)",
+            "- Cleanup Base URL: \(cleanupProvider.baseURL?.absoluteString ?? "None")",
+            "- Cleanup Model: \(cleanupProvider.model.isEmpty ? "None" : cleanupProvider.model)",
             "- Async Paste: \(appState.asyncPasteEnabled ? "enabled" : "disabled")",
             "- Keep Final Text On Clipboard: \(appState.keepOnClipboard ? "enabled" : "disabled")",
             "- Floating Status: \(appState.shouldShowFloatingStatus ? "enabled" : "disabled")",
