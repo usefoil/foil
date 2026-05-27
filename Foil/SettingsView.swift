@@ -65,6 +65,7 @@ struct SettingsView: View {
     @State private var launchAtLoginManager = LaunchAtLoginManager()
     @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
     @State private var selectedLocalWhisperSetupModelID = LocalWhisperSetupModel.recommendedDefaultID
+    @State private var customCleanupAPIKey = ""
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
     private let soundPreviewPlayer = SoundPlayer()
 
@@ -368,31 +369,109 @@ struct SettingsView: View {
             }
 
             Section("Cleanup") {
-                if appState.supportsSelectedTranscriptProcessing {
-                    Picker("After transcription", selection: $appState.transcriptProcessingMode) {
-                        ForEach(TranscriptProcessingMode.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
+                Picker("After transcription", selection: $appState.transcriptProcessingMode) {
+                    ForEach(TranscriptProcessingMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
                     }
-                    .accessibilityIdentifier("settings.transcriptProcessingPicker")
+                }
+                .accessibilityIdentifier("settings.transcriptProcessingPicker")
 
-                    if appState.transcriptProcessingMode != .raw {
-                        Picker("Cleanup model", selection: $appState.transcriptCleanupModel) {
-                            Text("Llama 3.3 70B Versatile").tag("llama-3.3-70b-versatile")
-                            Text("Llama 3.1 8B Instant").tag("llama-3.1-8b-instant")
-                        }
-                        .accessibilityIdentifier("settings.cleanupModelPicker")
-                    }
-                } else {
-                    Text("Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("settings.transcriptProcessingUnavailable")
+                if appState.transcriptProcessingMode != .raw {
+                    cleanupProviderSettings
                 }
             }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var cleanupProviderSettings: some View {
+        Picker("Cleanup provider", selection: $appState.transcriptCleanupProviderID) {
+            ForEach(availableCleanupProviderIDs) { providerID in
+                Text(providerID.displayName).tag(providerID)
+            }
+        }
+        .accessibilityIdentifier("settings.cleanupProviderPicker")
+
+        Text("Cleanup uses the selected chat endpoint. Foil will not send local/custom transcripts to Groq unless you choose Groq here.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("settings.cleanupRoutingHelp")
+
+        switch appState.transcriptCleanupProviderID {
+        case .groq:
+            groqCleanupModelPicker
+        case .customOpenAICompatibleChat:
+            customChatCleanupSettings
+        case .none:
+            Text("Foil will paste raw transcripts until a cleanup provider is selected.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.transcriptProcessingUnavailable")
+        }
+    }
+
+    private var availableCleanupProviderIDs: [TranscriptCleanupProviderID] {
+        switch appState.selectedTranscriptionProviderPresetID {
+        case .groq:
+            [.groq, .none, .customOpenAICompatibleChat]
+        case .localWhisperCPP, .customOpenAICompatible:
+            [.none, .customOpenAICompatibleChat]
+        }
+    }
+
+    private var groqCleanupModelPicker: some View {
+        Picker("Cleanup model", selection: $appState.transcriptCleanupModel) {
+            Text("Llama 3.3 70B Versatile").tag("llama-3.3-70b-versatile")
+            Text("Llama 3.1 8B Instant").tag("llama-3.1-8b-instant")
+        }
+        .accessibilityIdentifier("settings.cleanupModelPicker")
+    }
+
+    private var customChatCleanupSettings: some View {
+        Group {
+            TextField("Chat base URL", text: $appState.customTranscriptCleanupBaseURL)
+                .accessibilityIdentifier("settings.customTranscriptCleanupBaseURL")
+            TextField("Chat model", text: $appState.customTranscriptCleanupModel)
+                .accessibilityIdentifier("settings.customTranscriptCleanupModel")
+
+            HStack {
+                Button("Test cleanup connection") {
+                    Task {
+                        await appState.testSelectedCleanupProviderConnection()
+                    }
+                }
+                .disabled(appState.cleanupConnectionTestState.isRunning)
+                .accessibilityIdentifier("settings.testCleanupConnectionButton")
+
+                cleanupConnectionStatus
+            }
+
+            Text("API key is optional. If your endpoint requires one, save it for custom cleanup before testing.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.customCleanupHelp")
+
+            SecureField("Optional cleanup API key", text: $customCleanupAPIKey)
+                .accessibilityIdentifier("settings.customCleanupAPIKey")
+
+            HStack {
+                Button("Save cleanup key") {
+                    saveCustomCleanupAPIKey()
+                }
+                .disabled(customCleanupAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("settings.saveCustomCleanupAPIKeyButton")
+
+                Button("Delete cleanup key") {
+                    KeychainHelper.deleteCleanupApiKey(for: .customOpenAICompatibleChat)
+                    customCleanupAPIKey = ""
+                }
+                .accessibilityIdentifier("settings.deleteCustomCleanupAPIKeyButton")
+            }
+        }
     }
 
     private var selectedLocalWhisperSetupModel: LocalWhisperSetupModel {
@@ -536,6 +615,39 @@ struct SettingsView: View {
             Label(message, systemImage: "xmark.circle.fill")
                 .foregroundStyle(.red)
                 .accessibilityIdentifier("settings.providerConnectionStatus")
+        }
+    }
+
+    @ViewBuilder
+    private var cleanupConnectionStatus: some View {
+        switch appState.cleanupConnectionTestState {
+        case .idle:
+            EmptyView()
+        case .running:
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityIdentifier("settings.cleanupConnectionProgress")
+        case .succeeded(let message):
+            Label(message, systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .accessibilityIdentifier("settings.cleanupConnectionSucceeded")
+        case .warning(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("settings.cleanupConnectionWarning")
+        case .failed(let message):
+            Label(message, systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("settings.cleanupConnectionFailed")
+        }
+    }
+
+    private func saveCustomCleanupAPIKey() {
+        do {
+            try KeychainHelper.saveCleanupApiKey(customCleanupAPIKey, for: .customOpenAICompatibleChat)
+            customCleanupAPIKey = ""
+        } catch {
+            appState.cleanupConnectionTestState = .failed("Could not save cleanup API key: \(error.localizedDescription)")
         }
     }
 
