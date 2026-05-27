@@ -14,7 +14,7 @@ publishing.
 - Manual fallback: GitHub release asset `Foil-1.12.2-macos.dmg`, verified against `Foil-1.12.2-macos.dmg.sha256` and release asset digest.
 - Public cask status: `Casks/foil.rb` version `1.12.2`, SHA-256 `39180396a7d29bd43c03165167823f91f4b7358a3937198f155a7eaae30574ad`, matching the GitHub release DMG digest.
 - Latest recorded public cask smoke: temp-dir install in `/tmp/foil-brew-apps-1779902384` passed version/build, Gatekeeper, and deep strict codesign checks; cleanup removed the cask, tap, and temp app dir.
-- Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; tracked in issue #154.
+- Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; tracked in issue #154 with the runbook in `docs/fresh-machine-homebrew-onboarding-smoke.md`.
 
 ## Test Command Policy
 

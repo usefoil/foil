@@ -432,6 +432,7 @@ Release dry-run checklist:
 10. After the workflow completes, download the release DMG and verify locally:
    `spctl -a -vv -t open --context context:primary-signature Foil-VERSION-macos.dmg`
 11. Mount the DMG, copy the app to Applications, launch it, and complete a fresh setup smoke test for Accessibility, Microphone, API key, and one transcription.
+12. For the public stranger-path smoke, use `docs/fresh-machine-homebrew-onboarding-smoke.md` on a disposable macOS user, VM, spare Mac, or freshly erased machine.
 
 Homebrew/DMG verification path:
 
