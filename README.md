@@ -23,15 +23,8 @@ The static landing page lives in [`site/`](site/) and is deployed by the
 
 ## Install
 
-Foil is still in beta. The supported beta install paths are the signed,
-notarized DMG and the verified Homebrew cask.
-
-**Manual DMG:** Download `Foil-VERSION-macos.dmg` from
-[Releases](https://github.com/mean-weasel/foil/releases), verify it against
-the GitHub release asset digest or matching `.sha256` checksum when one is
-published, open it, and drag Foil into Applications.
-
-### Homebrew
+Foil is still in beta. Homebrew is the primary supported install path; manual
+DMG download is available if you prefer to install from GitHub Releases.
 
 The `mean-weasel/homebrew-foil` tap is verified for the current public beta
 release. It installs the same signed and notarized DMG published on GitHub:
@@ -44,6 +37,11 @@ brew install --cask foil
 If the tap is already configured, `brew install --cask mean-weasel/foil/foil`
 also works. The cask checksum should match the release asset digest for the
 published DMG.
+
+**Manual DMG:** Download `Foil-VERSION-macos.dmg` from
+[Releases](https://github.com/mean-weasel/foil/releases), verify it against
+the GitHub release asset digest or matching `.sha256` checksum when one is
+published, open it, and drag Foil into Applications.
 
 ## Setup
 
