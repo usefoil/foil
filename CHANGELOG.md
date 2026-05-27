@@ -1,3 +1,15 @@
+## [1.12.2](https://github.com/mean-weasel/foil/compare/v1.12.1...v1.12.2) (2026-05-27)
+
+### Visual polish
+
+- Updated the macOS app icon assets with the new Foil abstract cylinder/wave mark.
+- Added a Foil-branded drag-to-Applications DMG background for the release installer.
+
+### Release notes
+
+- Documented the branded DMG presentation check in the release process.
+
+
 ## [1.12.1](https://github.com/mean-weasel/foil/compare/v1.12.0...v1.12.1) (2026-05-24)
 
 ### Bug Fixes
