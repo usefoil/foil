@@ -13,6 +13,8 @@ EXPORT_PATH="$RUNNER_TEMP/export"
 DMG_ROOT="$RUNNER_TEMP/dmg-root"
 DMG_PATH="$RUNNER_TEMP/Foil-${VERSION}-macos.dmg"
 CHECKSUM_PATH="${DMG_PATH}.sha256"
+REPO_ROOT="${GITHUB_WORKSPACE:-$(pwd)}"
+DMG_BACKGROUND="$REPO_ROOT/.github/assets/dmg-background.png"
 BUILD_NUMBER="${BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-1}}"
 REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/foil}}"
 
@@ -53,8 +55,14 @@ brew install create-dmg
 mkdir -p "$DMG_ROOT"
 cp -R "$EXPORT_PATH/Foil.app" "$DMG_ROOT/Foil.app"
 
+if [ ! -f "$DMG_BACKGROUND" ]; then
+  echo "Expected DMG background at $DMG_BACKGROUND" >&2
+  exit 1
+fi
+
 create-dmg \
   --volname "Foil" \
+  --background "$DMG_BACKGROUND" \
   --window-pos 200 120 \
   --window-size 600 400 \
   --icon-size 100 \
