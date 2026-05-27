@@ -655,12 +655,13 @@ struct TranscriptionService {
         switch http.statusCode {
         case 200:
             guard let responseBody = try? JSONDecoder().decode(ModelsResponse.self, from: data) else {
-                return .reachableWithoutModelValidation
+                return try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
             }
             let availableModels = Set(responseBody.data.map(\.id))
             if !cleanupProvider.model.isEmpty && !availableModels.contains(cleanupProvider.model) {
                 throw TranscriptionError.modelUnavailable(cleanupProvider.model)
             }
+            _ = try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
             return .modelsValidated
         case 404, 405:
             return try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
@@ -699,7 +700,23 @@ struct TranscriptionService {
         guard http.statusCode == 200 else {
             throw mapAPIError(statusCode: http.statusCode, data: data)
         }
+        try validateChatCompletionResponse(data)
         return .reachableWithoutModelValidation
+    }
+
+    private func validateChatCompletionResponse(_ data: Data) throws {
+        let decoded: ChatCompletionResponse
+        do {
+            decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+        } catch {
+            DiagnosticLog.write("validateCleanupChatSmoke: failed to decode response")
+            throw TranscriptionError.invalidResponse
+        }
+
+        guard let content = decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else {
+            throw TranscriptionError.invalidResponse
+        }
     }
 
     func buildTranscriptProcessingBody(

@@ -825,11 +825,18 @@ final class TranscriptionServiceTests: XCTestCase {
 
     func testValidateCustomCleanupProviderUsesModelsEndpoint() async throws {
         let transport = StubTransport { request in
-            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/models")
-            XCTAssertEqual(request.httpMethod, "GET")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            if request.url?.path.hasSuffix("/models") == true {
+                XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/models")
+                XCTAssertEqual(request.httpMethod, "GET")
+                let response = Self.httpResponse(statusCode: 200, url: request.url!)
+                return (Data(#"{"data":[{"id":"llama3.1:8b"}]}"#.utf8), response)
+            }
+
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/chat/completions")
+            XCTAssertEqual(request.httpMethod, "POST")
             let response = Self.httpResponse(statusCode: 200, url: request.url!)
-            return (Data(#"{"data":[{"id":"llama3.1:8b"}]}"#.utf8), response)
+            return (Data(#"{"choices":[{"message":{"content":"ok"}}]}"#.utf8), response)
         }
         let service = TranscriptionService(transport: transport)
         let provider = TranscriptCleanupProvider.customOpenAICompatibleChat(
@@ -840,7 +847,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let result = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: nil)
 
         XCTAssertEqual(result, .modelsValidated)
-        XCTAssertEqual(transport.requests.count, 1)
+        XCTAssertEqual(transport.requests.map(\.url?.path), ["/v1/models", "/v1/chat/completions"])
     }
 
     func testValidateCustomCleanupProviderFallsBackToChatSmokeWhenModelsUnsupported() async throws {
@@ -868,6 +875,56 @@ final class TranscriptionServiceTests: XCTestCase {
 
         XCTAssertEqual(result, .reachableWithoutModelValidation)
         XCTAssertEqual(transport.requests.count, 2)
+    }
+
+    func testValidateCustomCleanupProviderFailsWhenChatSmokeReturnsMalformedJSON() async throws {
+        let transport = StubTransport { request in
+            if request.url?.path.hasSuffix("/models") == true {
+                let response = Self.httpResponse(statusCode: 200, url: request.url!)
+                return (Data(#"{"data":[{"id":"llama3.1:8b"}]}"#.utf8), response)
+            }
+
+            let response = Self.httpResponse(statusCode: 200, url: request.url!)
+            return (Data("not json".utf8), response)
+        }
+        let service = TranscriptionService(transport: transport)
+        let provider = TranscriptCleanupProvider.customOpenAICompatibleChat(
+            baseURL: URL(string: "http://127.0.0.1:11434/v1")!,
+            model: "llama3.1:8b"
+        )
+
+        do {
+            _ = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: nil)
+            XCTFail("Expected invalid response")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .invalidResponse)
+        }
+        XCTAssertEqual(transport.requests.map(\.url?.path), ["/v1/models", "/v1/chat/completions"])
+    }
+
+    func testValidateCustomCleanupProviderFailsWhenChatSmokeReturnsEmptyContent() async throws {
+        let transport = StubTransport { request in
+            if request.url?.path.hasSuffix("/models") == true {
+                let response = Self.httpResponse(statusCode: 200, url: request.url!)
+                return (Data(#"{"data":[{"id":"llama3.1:8b"}]}"#.utf8), response)
+            }
+
+            let response = Self.httpResponse(statusCode: 200, url: request.url!)
+            return (Data(#"{"choices":[{"message":{"content":"   "}}]}"#.utf8), response)
+        }
+        let service = TranscriptionService(transport: transport)
+        let provider = TranscriptCleanupProvider.customOpenAICompatibleChat(
+            baseURL: URL(string: "http://127.0.0.1:11434/v1")!,
+            model: "llama3.1:8b"
+        )
+
+        do {
+            _ = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: nil)
+            XCTFail("Expected invalid response")
+        } catch let error as TranscriptionService.TranscriptionError {
+            XCTAssertEqual(error, .invalidResponse)
+        }
+        XCTAssertEqual(transport.requests.map(\.url?.path), ["/v1/models", "/v1/chat/completions"])
     }
 
     func testValidateApiKeyMapsHTTP401ToInvalidApiKey() async throws {
