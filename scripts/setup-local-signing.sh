@@ -106,6 +106,15 @@ EOF
     "$KEYCHAIN_PATH" >/dev/null
 }
 
+allow_codesign_access() {
+  security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+  security set-key-partition-list \
+    -S apple-tool:,apple:,codesign: \
+    -s \
+    -k "$KEYCHAIN_PASSWORD" \
+    "$KEYCHAIN_PATH" >/dev/null
+}
+
 delete_stale_login_certificates
 create_keychain
 
@@ -116,4 +125,5 @@ else
   echo "Created local signing identity: $CERT_NAME"
 fi
 
+allow_codesign_access
 security find-identity -p codesigning "$KEYCHAIN_PATH" | sed -n '1,12p'
