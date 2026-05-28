@@ -112,10 +112,35 @@ func findAXElement(in element: AXUIElement, role wantedRole: String) -> AXUIElem
     return nil
 }
 
+func axRole(_ element: AXUIElement) -> String {
+    var roleRef: CFTypeRef?
+    AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef)
+    return roleRef as? String ?? ""
+}
+
 func axValue(_ element: AXUIElement) -> String {
     var valueRef: CFTypeRef?
     AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef)
     return valueRef as? String ?? ""
+}
+
+func textValues(in element: AXUIElement) -> [String] {
+    let role = axRole(element)
+    var values: [String] = []
+    if role == "AXTextArea" || role == "AXTextField" {
+        let value = axValue(element)
+        if !value.isEmpty {
+            values.append(value)
+        }
+    }
+
+    var childrenRef: CFTypeRef?
+    AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
+    guard let children = childrenRef as? [AXUIElement] else { return values }
+    for child in children {
+        values.append(contentsOf: textValues(in: child))
+    }
+    return values
 }
 
 func textValue(in window: AXUIElement) -> String {
@@ -240,7 +265,9 @@ func testChrome() -> SmokeResult {
     }
     chrome.activate()
     Thread.sleep(forTimeInterval: 1.0)
-    guard let window = windows(forBundleID: "com.google.Chrome").first else {
+    let chromeWindows = windows(forBundleID: "com.google.Chrome")
+    guard let window = chromeWindows.first(where: { windowTitle($0).contains("Foil Queued Chrome Target") })
+            ?? chromeWindows.first else {
         return SmokeResult(name: "Chrome queued delivery", passed: false, detail: "Chrome window not found")
     }
     let title = windowTitle(window)
@@ -251,9 +278,17 @@ func testChrome() -> SmokeResult {
 
     let pasted = waitUntil(timeout: 6) {
         activateWindow(window, app: chrome)
-        return textValue(in: window).contains(queuedText)
+        return textValues(in: window).contains(where: { $0.contains(queuedText) })
     }
-    let detail = "target=Google Chrome pid=\(chrome.processIdentifier) title=\(title)"
+    var detail = "target=Google Chrome pid=\(chrome.processIdentifier) title=\(title)"
+    if !pasted {
+        let observed = textValues(in: window)
+            .map { $0.replacingOccurrences(of: "\n", with: "\\n") }
+            .filter { !$0.isEmpty }
+            .prefix(3)
+            .joined(separator: " | ")
+        detail += " observedTextControls=\(observed.isEmpty ? "none" : observed)"
+    }
     return SmokeResult(name: "Chrome queued delivery", passed: pasted, detail: detail)
 }
 

@@ -90,6 +90,42 @@ For fallback:
 | Browser text field | Automation hook plus prerequisite command `ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility` | Prerequisite evidence from `make test-cross-app`: Chrome textarea target passed, with text reaching the captured textarea and frontmost after paste reported as `Google Chrome`. Foil's installed-app automation captured `Google Chrome pid=30174` but no AX window because `accessibilityTrusted=false` for `/Applications/Foil.app` in this session. | `tests/test_queued_paste_compatibility.swift` triggered `QueuedPaste.enqueue: status=pending target=Google Chrome`, then `QueuedPaste.deliver` and `automation queued smoke: deliver next result=original app command posted`. | Failed in this desktop session: queued item delivered according to Foil, but text did not land in the Chrome textarea. | Artifact: `/tmp/foil-queued-paste-compatibility-20260528-043456/queued-real-targets.log`. Follow-up: refresh/grant Accessibility/Input Monitoring for `/Applications/Foil.app`, then rerun. |
 | Closed/unavailable target | Automation hook in `tests/test_queued_paste_compatibility.swift` | Captured TextEdit target before quitting TextEdit. | `QueuedPaste.enqueue: status=pending target=TextEdit`, followed by target process termination before delivery. | Passed: delivery returned clipboard fallback and the clipboard contained the queued transcript text. | Artifact: `/tmp/foil-queued-paste-compatibility-20260528-043456/queued-real-targets.log`. |
 
+## 2026-05-28 Trusted-App Product-Fix Rerun
+
+Command:
+
+```sh
+swiftc -parse tests/test_queued_paste_compatibility.swift
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilTests/BackgroundPasteTests
+make prepare-local-permissions-qa-check
+ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility
+```
+
+Result: pass. The queued compatibility command wrote artifacts to
+`/tmp/foil-queued-paste-compatibility-20260528-081907`.
+
+Observed:
+
+- `make prepare-local-permissions-qa-check` passed for `/Applications/Foil.app`
+  with bundle id `com.neonwatty.Foil` and authority `Foil Local Code Signing`.
+- Foil diagnostics showed `SetupHealth: accessibilityTrusted=true`.
+- The focused `FoilTests/BackgroundPasteTests` suite passed 14 tests, including
+  the new guard that rejects unchanged AX text values.
+- TextEdit queued delivery passed for `TextEdit pid=57807`, title
+  `FoilQueuedTextEditTarget.txt`.
+- Chrome queued delivery passed for `Google Chrome pid=76811`, title
+  `Foil Queued Chrome Target - Google Chrome - Jeremy`.
+- Unavailable-target fallback passed and verified the clipboard contained the
+  queued transcript text.
+- Chrome diagnostics showed direct AX selected-text insertion reported success
+  but did not change the value, so Foil fell through to Tier 2 choreography and
+  delivered via `original app command posted`.
+
+Conclusion: after refreshing Accessibility for the signed installed app and
+tightening AX insertion verification, the real-target queued-paste smoke passes
+TextEdit, Chrome, and unavailable-target fallback without closing Chrome tabs or
+quitting Chrome.
+
 ## 2026-05-28 Local Rerun
 
 Command:

@@ -63,6 +63,30 @@ final class BackgroundPasteTests: XCTestCase {
         XCTAssertEqual(result, .failed)
     }
 
+    func testInsertedTextVerificationRequiresChangedValueContainingInsertedText() {
+        XCTAssertTrue(BackgroundPaste.insertedTextWasApplied(
+            before: "hello ",
+            after: "hello transcript",
+            inserted: "transcript"
+        ))
+    }
+
+    func testInsertedTextVerificationRejectsUnchangedValue() {
+        XCTAssertFalse(BackgroundPaste.insertedTextWasApplied(
+            before: "Chrome queued target\n",
+            after: "Chrome queued target\n",
+            inserted: "Mock queued paste automation smoke"
+        ))
+    }
+
+    func testInsertedTextVerificationRejectsMissingAfterValue() {
+        XCTAssertFalse(BackgroundPaste.insertedTextWasApplied(
+            before: "before",
+            after: nil,
+            inserted: "transcript"
+        ))
+    }
+
     func testGuardedRestoreSkipsWhenClipboardChangesDuringPasteDelay() {
         let pasteboardName = NSPasteboard.Name("FoilTests.\(UUID().uuidString)")
         let pasteboard = NSPasteboard(name: pasteboardName)

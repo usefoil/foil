@@ -81,13 +81,41 @@ struct BackgroundPaste {
     /// Avoid blind AXValue append because the first text field in a window is
     /// not necessarily the user's intended insertion target.
     private static func insertViaAX(text: String, into textArea: AXUIElement) -> Bool {
+        let before = editableTextValue(textArea)
         let selectedResult = AXUIElementSetAttributeValue(
             textArea, kAXSelectedTextAttribute as CFString, text as CFTypeRef
         )
-        if selectedResult == .success { return true }
+        if selectedResult == .success {
+            Thread.sleep(forTimeInterval: 0.05)
+            let after = editableTextValue(textArea)
+            if insertedTextWasApplied(before: before, after: after, inserted: text) {
+                return true
+            }
+            DiagnosticLog.write("BackgroundPaste: AX selected-text insertion reported success but value did not change")
+            return false
+        }
 
         DiagnosticLog.write("BackgroundPaste: AX selected-text insertion failed (error \(selectedResult.rawValue))")
         return false
+    }
+
+    static func insertedTextWasApplied(before: String?, after: String?, inserted text: String) -> Bool {
+        guard !text.isEmpty,
+              let after,
+              after.contains(text) else {
+            return false
+        }
+        if let before, after == before {
+            return false
+        }
+        return true
+    }
+
+    private static func editableTextValue(_ element: AXUIElement) -> String? {
+        var valueRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef)
+        guard result == .success else { return nil }
+        return valueRef as? String
     }
 
     /// Return the focused editable element only when it belongs to the captured
