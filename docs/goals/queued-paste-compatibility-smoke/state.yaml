@@ -1,0 +1,344 @@
+version: 2
+
+goal:
+  title: "Queued Paste Compatibility Smoke"
+  slug: "queued-paste-compatibility-smoke"
+  kind: specific
+  tranche: "Validate queued paste against real target apps before adding hotkey or concurrency work."
+  status: active
+  oracle:
+    signal: "TextEdit and at least one browser text-entry queued-paste smoke are executed or automated, target app/window identity behavior is recorded, fallback behavior is documented, and a compatibility matrix/runbook is added or updated."
+    cadence: "after Scout findings, after smoke execution, and at final audit"
+    final_proof: "Final Judge or PM audit maps smoke receipts, matrix artifact, and follow-up decisions back to the tranche oracle with full_outcome_complete: true."
+  intake:
+    original_request: "Continue and make a GoalBuddy plan for the next steps."
+    interpreted_outcome: "Plan the next issue 159 tranche: queued-paste compatibility smoke coverage for real paste targets before hotkey or overlapping-transcription work."
+    input_shape: specific
+    audience: "Foil users relying on queued paste to return text to the original app/window."
+    authority: approved
+    proof_type: demo
+    completion_proof: "A committed compatibility matrix/runbook plus smoke receipts demonstrate queued paste behavior in TextEdit and a browser target."
+    likely_misfire: "Adding more architecture or tests while skipping real target compatibility evidence."
+    blind_spots_considered:
+      - "Queued paste stores app/window target identity, not only click location, but app compatibility still needs realistic smoke evidence."
+      - "Accessibility and paste behavior can differ between TextEdit, browsers, and unavailable target windows."
+      - "Global hotkey and overlapping transcription work are intentionally out of scope until compatibility is understood."
+    existing_plan_facts:
+      - "PR1 queued-paste MVP is merged as PR #160."
+      - "PR2 recommendation is compatibility smoke matrix."
+      - "Later PRs may cover global delivery hotkey and overlapping recording/transcription architecture."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: blocked
+    url: "http://goalbuddy.localhost:41737/queued-paste-compatibility-smoke/"
+    command: "npx goalbuddy board docs/goals/queued-paste-compatibility-smoke"
+    block_reason: "npx is not available on PATH in this environment."
+
+active_task: T007
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: medium
+    objective: "Map the safest compatibility-smoke approach for queued paste across TextEdit and browser targets."
+    inputs:
+      - "Merged PR1 queued-paste behavior from local main or PR #160."
+      - "Existing app UI-test and automation harness."
+      - "docs/goals/queued-paste-compatibility-smoke/goal.md"
+    constraints:
+      - "Read-only."
+      - "Do not implement product changes."
+      - "Do not add a global queued-paste hotkey."
+      - "Do not touch overlapping recording/transcription architecture."
+      - "Prefer concrete smoke commands, target apps, and artifact paths over generic QA advice."
+    expected_output:
+      - "Recommended smoke matrix dimensions."
+      - "Whether TextEdit/browser smoke should be manual, scripted, automated UI test, or mixed."
+      - "Likely files or docs to update."
+      - "Risks and blocked prerequisites."
+      - "Candidate Worker slice with allowed_files and verify commands."
+    receipt:
+      result: done
+      note: "docs/goals/queued-paste-compatibility-smoke/notes/T001-smoke-scout.md"
+      summary: "Scout found that queued paste records app/window target identity, while existing queued-paste UI tests only prove a fake Foil target. Recommended a mixed compatibility smoke covering TextEdit and one browser with matrix rows that distinguish target identity from clipboard-only success."
+      evidence:
+        - "`PasteTarget` stores `pid`, `appName`, optional Accessibility window element, and optional `windowID`."
+        - "`runAutomationMockSuccess()` captures the real frontmost target before pasting."
+        - "`simulateUITestTranscription(success:)` queues against a synthetic `Foil UI Test` target."
+        - "`Makefile` already has local paste gates including `test-cross-app`, `test-app-smoke`, and `test-paste-real`."
+      candidate_worker:
+        objective: "Create and execute a compatibility smoke runbook/matrix for queued paste covering TextEdit and one browser target, recording target app/window identity behavior and fallback status without adding a global hotkey or overlapping transcription architecture."
+        allowed_files:
+          - "docs/queued-paste-compatibility-smoke.md"
+          - "docs/release-qa-log.md"
+          - "scripts/run-queued-paste-compatibility-smoke.sh"
+          - "Makefile"
+          - "docs/goals/queued-paste-compatibility-smoke/state.yaml"
+          - "docs/goals/queued-paste-compatibility-smoke/notes/*"
+        verify:
+          - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.7/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
+          - "bash -n scripts/run-queued-paste-compatibility-smoke.sh if the script is added"
+          - "make test-paste-real or the new smoke command if local permissions allow it"
+          - "git diff --check"
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose the largest safe compatibility-smoke slice based on Scout evidence."
+    inputs:
+      - "T001 receipt"
+      - "docs/goals/queued-paste-compatibility-smoke/goal.md"
+      - "Current repo status"
+    constraints:
+      - "Read-only."
+      - "Reject plans that add a global queued-paste hotkey."
+      - "Reject plans that require overlapping recording/transcription architecture."
+      - "Require proof that target app/window identity behavior is observed, not just clipboard contents."
+    expected_output:
+      - "approved | revise | blocked"
+      - "Exact Worker objective"
+      - "allowed_files"
+      - "verify commands"
+      - "stop_if conditions"
+    receipt:
+      result: done
+      decision: approved
+      note: "docs/goals/queued-paste-compatibility-smoke/notes/T002-judge-plan.md"
+      summary: "Approved one vertical compatibility-smoke slice: create a repo-native matrix/runbook, optionally add a local smoke harness, execute or document TextEdit and browser target evidence, and capture follow-ups without product architecture changes."
+      worker_objective: "Create and execute a compatibility smoke runbook/matrix for queued paste covering TextEdit and one browser text-entry target. Record whether queued paste returns to the intended app/window, not merely whether text appears on the clipboard or somewhere on screen."
+      allowed_files:
+        - "docs/queued-paste-compatibility-smoke.md"
+        - "docs/release-qa-log.md"
+        - "scripts/run-queued-paste-compatibility-smoke.sh"
+        - "Makefile"
+        - "docs/goals/queued-paste-compatibility-smoke/state.yaml"
+        - "docs/goals/queued-paste-compatibility-smoke/notes/*"
+      verify:
+        - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.7/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
+        - "bash -n scripts/run-queued-paste-compatibility-smoke.sh if the script is added"
+        - "make test-paste-real or the new smoke command if local permissions allow"
+        - "git diff --check"
+      stop_if:
+        - "Need files outside the allowed list."
+        - "Need a global queued-paste hotkey."
+        - "Need overlapping recording/transcription architecture."
+        - "Accessibility, Automation, or browser permissions block execution after one documented attempt."
+        - "Evidence cannot distinguish target app/window behavior from clipboard-only success."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Create and execute a compatibility smoke runbook/matrix for queued paste covering TextEdit and one browser text-entry target, recording target app/window identity behavior and fallback status."
+    allowed_files:
+      - "docs/queued-paste-compatibility-smoke.md"
+      - "docs/release-qa-log.md"
+      - "scripts/run-queued-paste-compatibility-smoke.sh"
+      - "Makefile"
+      - "docs/goals/queued-paste-compatibility-smoke/state.yaml"
+      - "docs/goals/queued-paste-compatibility-smoke/notes/*"
+    verify:
+      - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.7/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
+      - "bash -n scripts/run-queued-paste-compatibility-smoke.sh if the script is added"
+      - "make test-paste-real or the new smoke command if local permissions allow"
+      - "git diff --check"
+    stop_if:
+      - "Need files outside allowed_files."
+      - "Smoke requires adding a global queued-paste hotkey."
+      - "Smoke requires overlapping recording/transcription architecture."
+      - "Target app automation requires permissions or credentials unavailable in this environment."
+      - "Verification fails twice with the same unexplained failure."
+    receipt:
+      result: done
+      note: "docs/goals/queued-paste-compatibility-smoke/notes/T003-worker-smoke.md"
+      summary: "Added the compatibility runbook, local prerequisite smoke wrapper, Make target, and QA-log entries. Final accepted local run passed with an explicit installed-app TextEdit AX-window skip and passed TextEdit/SkyLight/Terminal/Chrome target mechanics, but did not prove real-target queued delivery."
+      changed_files:
+        - "docs/queued-paste-compatibility-smoke.md"
+        - "docs/release-qa-log.md"
+        - "scripts/run-queued-paste-compatibility-smoke.sh"
+        - "Makefile"
+      commands:
+        - command: "bash -n scripts/run-queued-paste-compatibility-smoke.sh"
+          status: pass
+        - command: "make -n test-queued-paste-compatibility"
+          status: pass
+        - command: "ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility"
+          status: pass
+          note: "Passed with the known installed-app TextEdit AX-window skip explicitly allowed and recorded."
+      artifacts:
+        - "/tmp/foil-queued-paste-compatibility-20260528-042455"
+      remaining_gap: "Actual real-target queued-paste rows for TextEdit, browser, and unavailable-target fallback still need manual execution or an approved automation-only hook."
+
+  - id: T004
+    type: pm
+    assignee: PM
+    status: done
+    reasoning_hint: default
+    objective: "Record follow-up issues or board tasks for compatibility gaps discovered by the smoke matrix."
+    inputs:
+      - "T001-T003 receipts"
+      - "Compatibility matrix artifact"
+    constraints:
+      - "Control files and repo-native follow-up artifacts only unless the user approves external issue creation."
+      - "Keep global hotkey and overlapping transcription work separate from this tranche."
+    expected_output:
+      - "Follow-up list grouped by bug, limitation, test gap, and later PR candidate."
+      - "Decision on whether each follow-up stays in GoalBuddy or should become a GitHub issue."
+    receipt:
+      result: done
+      note: "docs/goals/queued-paste-compatibility-smoke/notes/T004-followups.md"
+      summary: "Recorded follow-ups for manual real-target queued rows, a possible bounded automation-only test hook, the installed-app TextEdit AX-window skip, and app-specific compatibility findings."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Complete the missing real-target queued-paste evidence rows for TextEdit, one browser text field, and unavailable-target fallback."
+    allowed_files:
+      - "docs/queued-paste-compatibility-smoke.md"
+      - "docs/release-qa-log.md"
+      - "docs/goals/queued-paste-compatibility-smoke/state.yaml"
+      - "docs/goals/queued-paste-compatibility-smoke/notes/*"
+    verify:
+      - "Manual smoke evidence is recorded for TextEdit queued delivery."
+      - "Manual smoke evidence is recorded for one browser queued delivery."
+      - "Manual smoke evidence or explicit blocker is recorded for unavailable-target fallback."
+      - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.7/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
+      - "git diff --check"
+    stop_if:
+      - "Manual desktop control is required from the user and cannot be performed by the agent."
+      - "Completing the row requires product code changes outside the allowed files."
+      - "A product test hook is approved, requiring a new Judge slice with expanded allowed_files."
+    receipt:
+      result: done
+      note: "docs/goals/queued-paste-compatibility-smoke/notes/T006-judge-automation-hook.md"
+      summary: "Manual rows were not enough for agent-controlled completion, so Judge approved a bounded automation-only hook slice to capture real targets, enqueue mock queued transcripts, and deliver them without adding user-facing hotkeys or concurrency changes."
+      changed_files:
+        - "docs/goals/queued-paste-compatibility-smoke/state.yaml"
+        - "docs/goals/queued-paste-compatibility-smoke/notes/T006-judge-automation-hook.md"
+      commands:
+        - command: "Manual row gap audited; expanded Judge slice created."
+          status: pass
+
+  - id: T006
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Approve or reject a bounded automation-only hook for missing real-target queued-paste evidence."
+    constraints:
+      - "No global queued-paste hotkey."
+      - "No overlapping recording/transcription architecture."
+      - "Hook must only respond under --automation-smoke."
+    receipt:
+      result: done
+      decision: approved
+      note: "docs/goals/queued-paste-compatibility-smoke/notes/T006-judge-automation-hook.md"
+      summary: "Approved an automation-only hook to enqueue and deliver mock queued transcripts against real frontmost targets."
+      allowed_files:
+        - "Foil/UITestingController.swift"
+        - "tests/test_queued_paste_compatibility.swift"
+        - "scripts/run-queued-paste-compatibility-smoke.sh"
+        - "Makefile"
+        - "docs/queued-paste-compatibility-smoke.md"
+        - "docs/release-qa-log.md"
+        - "docs/goals/queued-paste-compatibility-smoke/state.yaml"
+        - "docs/goals/queued-paste-compatibility-smoke/notes/*"
+
+  - id: T007
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Add and run local queued-paste compatibility automation that proves real-target queued delivery for TextEdit and one browser text field, and records unavailable-target fallback behavior."
+    allowed_files:
+      - "Foil/UITestingController.swift"
+      - "tests/test_queued_paste_compatibility.swift"
+      - "scripts/run-queued-paste-compatibility-smoke.sh"
+      - "Makefile"
+      - "docs/queued-paste-compatibility-smoke.md"
+      - "docs/release-qa-log.md"
+      - "docs/goals/queued-paste-compatibility-smoke/state.yaml"
+      - "docs/goals/queued-paste-compatibility-smoke/notes/*"
+    verify:
+      - "bash -n scripts/run-queued-paste-compatibility-smoke.sh"
+      - "ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility"
+      - "make test"
+      - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.7/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
+      - "git diff --check"
+    stop_if:
+      - "The hook needs to run outside --automation-smoke."
+      - "A global queued-paste hotkey becomes necessary."
+      - "Overlapping recording/transcription changes become necessary."
+      - "TextEdit and browser smoke cannot run after two attempts with the same unexplained failure."
+    receipt: null
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit whether the queued-paste compatibility-smoke tranche is complete."
+    inputs:
+      - "All done task receipts"
+      - "Last verification"
+      - "Current dirty diff"
+      - "docs/goals/queued-paste-compatibility-smoke/goal.md"
+    constraints:
+      - "Read-only."
+      - "Reject completion if TextEdit and browser target evidence is missing."
+      - "Reject completion if the matrix does not distinguish target app/window identity from screen location."
+      - "Reject completion if global hotkey or overlapping recording/transcription work slipped in."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Acceptance criteria mapping"
+      - "Missing evidence"
+      - "Next task if not complete"
+    receipt:
+      result: done
+      decision: not_complete
+      full_outcome_complete: false
+      note: "docs/goals/queued-paste-compatibility-smoke/notes/T999-audit.md"
+      summary: "Runbook and prerequisite target mechanics are in place, but the oracle remains incomplete because TextEdit/browser queued delivery and unavailable-target fallback rows have not been executed against real targets."
+
+checks:
+  dirty_fingerprint: unknown
+  last_verification:
+    result: partial
+    task: T003
+    commands:
+      - "ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility"
