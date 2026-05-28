@@ -123,6 +123,41 @@ the TextEdit and browser success rows still require reinstalling with a trusted
 signing identity, refreshing macOS Accessibility/Input Monitoring consent for
 `/Applications/Foil.app`, and rerunning the smoke.
 
+## 2026-05-28 Signed-App Rerun
+
+Command:
+
+```sh
+make setup-local-signing LOCAL_SIGN_KEYCHAIN_PASSWORD=foil-local-codesign
+security unlock-keychain -p foil-local-codesign ~/Library/Keychains/foil-codesign.keychain-db
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k foil-local-codesign ~/Library/Keychains/foil-codesign.keychain-db
+make install SIGN_IDENTITY="Foil Local Code Signing" LOCAL_SIGN_KEYCHAIN_PASSWORD=foil-local-codesign
+ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility
+```
+
+Result: failed with one prerequisite gate failure. The command wrote artifacts to
+`/tmp/foil-queued-paste-compatibility-20260528-050432`.
+
+Observed:
+
+- The installed app identity is now coherent: `codesign` reports
+  `Identifier=com.neonwatty.Foil` with authority `Foil Local Code Signing`, and
+  `make prepare-local-permissions-qa-check` passed with local-signing warnings.
+- The installed-app TextEdit path still skipped because the running Foil process
+  did not receive the target AX window.
+- Foil diagnostics still show `SetupHealth: accessibilityTrusted=false`.
+- `make test-cross-app` passed TextEdit async paste, SkyLight background paste,
+  Terminal, and Chrome textarea checks.
+- `tests/test_queued_paste_compatibility.swift` enqueued and delivered queued
+  items for TextEdit pid `41791` and Google Chrome pid `76811`, but text did not
+  land in either target.
+- Unavailable-target fallback passed and verified the clipboard contained the
+  queued transcript text.
+
+Conclusion: the local signing/TCC identity mismatch is fixed. The remaining
+blocker is macOS Accessibility/Input Monitoring consent for the newly signed
+`/Applications/Foil.app` identity.
+
 ## 2026-05-28 Local Evidence
 
 Command:
