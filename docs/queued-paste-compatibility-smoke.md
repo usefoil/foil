@@ -45,6 +45,12 @@ make test-queued-paste-compatibility
 This command runs the available local target-identity gates and writes logs under
 `/tmp/foil-queued-paste-compatibility-*`.
 
+The wrapper also runs `make prepare-local-permissions-qa-check` after installing
+`/Applications/Foil.app`. If that precheck reports a signing identifier mismatch
+or ad-hoc signing, treat subsequent installed-app Accessibility failures as a
+local TCC identity problem until the app is reinstalled with a trusted signing
+identity and macOS privacy consent is refreshed.
+
 Important: the command is a prerequisite harness, not a complete substitute for
 the manual queued-paste rows below. The current automated installed-app smoke
 uses the real frontmost target and the production async paste path, while the
@@ -83,6 +89,39 @@ For fallback:
 | TextEdit disposable document | Automation hook plus prerequisite command `ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility` | Prerequisite evidence from `tests/test_async_paste.swift`: captured `TextEdit pid=26348` with a window element and pasted into `AsyncPasteTestA.txt`, not the current `AsyncPasteTestB.txt`; `tests/test_skylight_paste.swift` captured `TextEdit wid=123587` and pasted while Finder stayed frontmost. Foil's installed-app automation captured `TextEdit pid=29687` but no AX window because `accessibilityTrusted=false` for `/Applications/Foil.app` in this session. | `tests/test_queued_paste_compatibility.swift` triggered `QueuedPaste.enqueue: status=pending target=TextEdit`, then `QueuedPaste.deliver` and `automation queued smoke: deliver next result=original app command posted`. | Failed in this desktop session: queued item delivered according to Foil, but text did not land in the TextEdit target. | Artifact: `/tmp/foil-queued-paste-compatibility-20260528-043456/queued-real-targets.log`. Follow-up: refresh/grant Accessibility/Input Monitoring for `/Applications/Foil.app`, then rerun. |
 | Browser text field | Automation hook plus prerequisite command `ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility` | Prerequisite evidence from `make test-cross-app`: Chrome textarea target passed, with text reaching the captured textarea and frontmost after paste reported as `Google Chrome`. Foil's installed-app automation captured `Google Chrome pid=30174` but no AX window because `accessibilityTrusted=false` for `/Applications/Foil.app` in this session. | `tests/test_queued_paste_compatibility.swift` triggered `QueuedPaste.enqueue: status=pending target=Google Chrome`, then `QueuedPaste.deliver` and `automation queued smoke: deliver next result=original app command posted`. | Failed in this desktop session: queued item delivered according to Foil, but text did not land in the Chrome textarea. | Artifact: `/tmp/foil-queued-paste-compatibility-20260528-043456/queued-real-targets.log`. Follow-up: refresh/grant Accessibility/Input Monitoring for `/Applications/Foil.app`, then rerun. |
 | Closed/unavailable target | Automation hook in `tests/test_queued_paste_compatibility.swift` | Captured TextEdit target before quitting TextEdit. | `QueuedPaste.enqueue: status=pending target=TextEdit`, followed by target process termination before delivery. | Passed: delivery returned clipboard fallback and the clipboard contained the queued transcript text. | Artifact: `/tmp/foil-queued-paste-compatibility-20260528-043456/queued-real-targets.log`. |
+
+## 2026-05-28 Local Rerun
+
+Command:
+
+```sh
+ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility
+```
+
+Result: failed with one prerequisite gate failure. The command wrote artifacts to
+`/tmp/foil-queued-paste-compatibility-20260528-044803`.
+
+Observed:
+
+- The installed-app TextEdit path again reached the production async paste path
+  and was recorded as an explicit local AX skip.
+- `make test-cross-app` passed TextEdit async paste, SkyLight background paste,
+  Terminal, and Chrome textarea checks.
+- `tests/test_queued_paste_compatibility.swift` enqueued and delivered queued
+  items for TextEdit pid `39669` and Google Chrome pid `76811`, but text did not
+  land in either target.
+- Unavailable-target fallback passed and verified the clipboard contained the
+  queued transcript text.
+- `make prepare-local-permissions-qa-check` failed after the run because the
+  installed app's `Info.plist` bundle id is `com.neonwatty.Foil`, while
+  `codesign` reports identifier `Foil` with ad-hoc signing and no team id. This
+  explains why `/Applications/Foil.app` launched with
+  `SetupHealth: accessibilityTrusted=false` despite local permission history.
+
+Conclusion: this rerun confirms the automation hook and fallback behavior, but
+the TextEdit and browser success rows still require reinstalling with a trusted
+signing identity, refreshing macOS Accessibility/Input Monitoring consent for
+`/Applications/Foil.app`, and rerunning the smoke.
 
 ## 2026-05-28 Local Evidence
 

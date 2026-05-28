@@ -40,4 +40,3 @@ The tranche cannot be marked complete until the actual queued-paste rows are exe
 ## Next Task
 
 Complete real-target queued-paste rows for TextEdit, one browser text field, and unavailable-target fallback, either manually using the runbook or by adding an approved automation-only hook in a later bounded worker slice.
-

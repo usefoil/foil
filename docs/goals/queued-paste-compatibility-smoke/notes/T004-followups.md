@@ -26,4 +26,3 @@ The compatibility smoke exposed follow-up work rather than a completed tranche.
 4. Keep app-specific compatibility findings separate from hotkey delivery.
    - Scope: browser focus quirks, window identity failures, and fallback/manual-paste behavior.
    - Do not fold global queue delivery hotkey work into this smoke tranche.
-

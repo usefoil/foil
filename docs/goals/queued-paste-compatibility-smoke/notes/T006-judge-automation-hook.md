@@ -43,4 +43,3 @@ Add and run a local queued-paste compatibility automation that proves real-targe
 - A global queued-paste hotkey becomes necessary.
 - Overlapping recording/transcription changes become necessary.
 - TextEdit and browser smoke cannot run after two attempts with the same unexplained failure.
-

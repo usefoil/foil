@@ -58,4 +58,3 @@ If the worker discovers that a product hook is required, stop and return a follo
 2. Activate T003 with the worker objective above.
 3. After T003, run T004 only if the smoke exposes limitations or defects that need follow-up tracking.
 4. Run T999 final audit against the oracle before calling the tranche complete.
-

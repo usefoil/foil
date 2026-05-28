@@ -72,6 +72,7 @@ echo
 if [[ "$SKIP_RUNS" == "0" ]]; then
   failures=0
   run_step "textedit-installed-app-target" make test-paste-real || failures=$((failures + 1))
+  run_step "installed-app-identity" make prepare-local-permissions-qa-check || failures=$((failures + 1))
   run_step "cross-app-browser-targets" make test-cross-app || failures=$((failures + 1))
   run_step "queued-real-targets" swift tests/test_queued_paste_compatibility.swift || failures=$((failures + 1))
 else

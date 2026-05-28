@@ -48,4 +48,3 @@ Result:
 ## Remaining Gap
 
 The oracle still requires real-target queued-paste rows for TextEdit and one browser. The runbook records the exact manual procedure, but those rows have not been executed in this agent-controlled session. The fully automated queued path available in `FoilUITests` uses a synthetic `Foil UI Test` target, so it cannot prove app/window return behavior for TextEdit or Chrome.
-

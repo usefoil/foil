@@ -62,4 +62,3 @@ Stop if:
 - Automation requires overlapping recording/transcription architecture.
 - Accessibility, Automation, or browser permissions block TextEdit/browser execution after one documented attempt.
 - Smoke results cannot distinguish target app/window return behavior from simple clipboard contents.
-

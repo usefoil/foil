@@ -339,6 +339,13 @@ checks:
   dirty_fingerprint: unknown
   last_verification:
     result: partial
-    task: T003
+    task: T007
     commands:
       - "ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility"
+      - "make prepare-local-permissions-qa-check"
+      - "bash -n scripts/run-queued-paste-compatibility-smoke.sh"
+      - "swiftc -parse tests/test_queued_paste_compatibility.swift"
+      - "node /Users/jeremywatt/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.7/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
+      - "git diff --check"
+      - "make test"
+    summary: "Queued real-target rerun reproduced TextEdit/Chrome delivery failures and unavailable-target fallback pass. Installed-app identity precheck failed because codesign reports identifier Foil with ad-hoc signing while Info.plist bundle id is com.neonwatty.Foil, leaving /Applications/Foil.app accessibilityTrusted=false. Static checks, GoalBuddy state validation, whitespace check, and make test passed after adding an installed-app identity gate to the smoke wrapper."
