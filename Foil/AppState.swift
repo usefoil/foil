@@ -251,6 +251,20 @@ final class AppState {
         didSet { Self.defaults.set(queuedPasteMode.rawValue, forKey: "queuedPasteMode") }
     }
 
+    static let queuedPasteDeliveryShortcut = QueuedPasteDeliveryShortcut.default
+
+    var queuedPasteDeliveryShortcutLabel: String {
+        Self.queuedPasteDeliveryShortcut.displayName
+    }
+
+    var queuedPasteDeliveryShortcutConflictsWithRecordingHotkey: Bool {
+        guard hotkeyChoice == .custom else { return false }
+        return Self.queuedPasteDeliveryShortcut.conflictsWithCustomRecordingShortcut(
+            keyCode: customHotkeyKeyCode,
+            modifiers: customHotkeyModifiers
+        )
+    }
+
     var experimentalSkyLightPasteEnabled: Bool = false {
         didSet { Self.defaults.set(experimentalSkyLightPasteEnabled, forKey: "experimentalSkyLightPasteEnabled") }
     }

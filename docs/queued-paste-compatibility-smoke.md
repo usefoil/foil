@@ -6,16 +6,15 @@ and browser text-entry behavior depend on the active macOS desktop session.
 
 ## Scope
 
-This smoke is for the queued-paste MVP only:
+This smoke is for the experimental queued-paste workflow:
 
 - Verify that target identity is app/window based, not a stored screen point.
 - Cover TextEdit and disposable browser text-entry targets.
 - Record fallback or unavailable-target behavior.
-- Capture follow-ups before adding a global queued-paste delivery hotkey.
+- Verify delivery through the user-facing queued-paste delivery hotkey.
 
 Out of scope:
 
-- Global queued-paste hotkey delivery.
 - Overlapping recording or overlapping transcription architecture.
 - Release packaging or distribution checks.
 
@@ -27,7 +26,7 @@ Each target row must record:
 - Captured identity signal: app name, pid, and window/title/window ID when
   observable.
 - Whether the transcript was queued before delivery.
-- Delivery action used: Paste Next or Drain Queue.
+- Delivery action used: queued-paste delivery hotkey, Paste Next, or Drain Queue.
 - Whether text landed in the intended target app/window.
 - Whether the app returned focus as expected.
 - Fallback behavior for unavailable targets, or the exact reason fallback could
@@ -51,12 +50,9 @@ or ad-hoc signing, treat subsequent installed-app Accessibility failures as a
 local TCC identity problem until the app is reinstalled with a trusted signing
 identity and macOS privacy consent is refreshed.
 
-Important: the command is a prerequisite harness, not a complete substitute for
-the manual queued-paste rows below. The current automated installed-app smoke
-uses the real frontmost target and the production async paste path, while the
-deterministic queued-paste UI test uses a synthetic Foil target. Until a real
-target queued-paste automation hook exists, the actual queued TextEdit/browser
-rows must be executed manually or recorded as blocked with the reason.
+Important: the command is a visible desktop harness. It uses an automation hook
+only to enqueue a mock transcript against the real frontmost target, then
+delivers through Foil's user-facing queued-paste delivery hotkey.
 
 ## Manual Queued-Paste Procedure
 
@@ -70,7 +66,7 @@ Use disposable targets only.
 5. Start and stop a transcription while the target app/window is frontmost.
 6. Confirm Foil shows `Transcript queued`.
 7. Move focus away from the target app/window.
-8. Use Foil's `Paste Next` action.
+8. Use Foil's queued-paste delivery hotkey.
 9. Confirm the text lands in the original target app/window.
 10. Record app/window identity behavior and evidence in the matrix.
 
@@ -313,6 +309,6 @@ Create a follow-up when:
 - Text reaches the clipboard but not the intended app/window.
 - The queue cannot distinguish target unavailable from paste failure.
 - Browser text fields need app-specific activation or focus handling.
-- A fully automated real-target queued smoke needs a product-only test hook.
+- A fully automated real-target queued smoke needs additional disposable target coverage.
 
-Do not fold hotkey delivery or overlapping transcription into this tranche.
+Do not fold overlapping transcription into this tranche.

@@ -448,6 +448,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 2), app.debugDescription)
         clickElement(toggle)
         XCTAssertTrue(elementExists(id: "settings.queuedPasteModePicker", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.queuedPasteDeliveryShortcut", timeout: 2), app.debugDescription)
 
         launchApp(arguments: [
             "--ui-testing",

@@ -7,6 +7,7 @@ final class HotkeyMonitor {
     var onRecordingStarted: (() -> Void)?
     var onRecordingStopped: (() -> Void)?
     var onRecordingCancelled: (() -> Void)?
+    var onQueuedPasteDeliveryRequested: (() -> Void)?
 
     // MARK: - Configuration
 
@@ -47,10 +48,26 @@ final class HotkeyMonitor {
 
     var customKeyCode: UInt16 = 0
     var customModifiers: UInt64 = 0
+    private var queuedPasteDeliveryShortcut: QueuedPasteDeliveryShortcut = .default
+    private var queuedPasteDeliveryShortcutEnabled = true
 
     func configureCustomKey(keyCode: UInt16, modifiers: UInt64) {
         customKeyCode = keyCode
         customModifiers = modifiers
+    }
+
+    func configureQueuedPasteDeliveryShortcut(
+        _ shortcut: QueuedPasteDeliveryShortcut = .default,
+        enabled: Bool
+    ) {
+        queuedPasteDeliveryShortcut = shortcut
+        queuedPasteDeliveryShortcutEnabled = enabled
+        guard hotkeyChoice == .globeFn, hidManager != nil else { return }
+        if enabled, eventTap == nil {
+            _ = startCGEvent()
+        } else if !enabled {
+            stopCGEvent()
+        }
     }
 
     // MARK: - CGEvent state
@@ -95,7 +112,9 @@ final class HotkeyMonitor {
     func start() -> Bool {
         stop()
         if hotkeyChoice == .globeFn {
-            return startHID()
+            let hidStarted = startHID()
+            let deliveryStarted = queuedPasteDeliveryShortcutEnabled ? startCGEvent() : true
+            return hidStarted && deliveryStarted
         } else {
             return startCGEvent()
         }
@@ -160,6 +179,14 @@ final class HotkeyMonitor {
             return Unmanaged.passUnretained(event)
         }
 
+        if type == .keyDown, handleQueuedPasteDeliveryShortcutIfNeeded(event: event) {
+            return nil
+        }
+
+        if hotkeyChoice == .globeFn {
+            return Unmanaged.passUnretained(event)
+        }
+
         if hotkeyChoice == .custom {
             let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
             if type == .keyDown && keyCode == customKeyCode {
@@ -191,6 +218,26 @@ final class HotkeyMonitor {
         }
 
         return Unmanaged.passUnretained(event)
+    }
+
+    @discardableResult
+    func handleQueuedPasteDeliveryShortcutForTesting(keyCode: UInt16, flags: CGEventFlags) -> Bool {
+        handleQueuedPasteDeliveryShortcut(keyCode: keyCode, flags: flags)
+    }
+
+    private func handleQueuedPasteDeliveryShortcutIfNeeded(event: CGEvent) -> Bool {
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        return handleQueuedPasteDeliveryShortcut(keyCode: keyCode, flags: event.flags)
+    }
+
+    private func handleQueuedPasteDeliveryShortcut(keyCode: UInt16, flags: CGEventFlags) -> Bool {
+        guard queuedPasteDeliveryShortcutEnabled,
+              queuedPasteDeliveryShortcut.matches(keyCode: keyCode, flags: flags),
+              let onQueuedPasteDeliveryRequested else {
+            return false
+        }
+        onQueuedPasteDeliveryRequested()
+        return true
     }
 
     // MARK: - IOKit HID strategy (Globe/Fn)
