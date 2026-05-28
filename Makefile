@@ -27,7 +27,7 @@ APP_BUILD_VERSION := $(shell sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/
 LIVE_GROQ_TEST_CLASS := FoilTests/LiveGroqIntegrationTests
 DEFAULT_UNIT_TEST_FILTERS := -only-testing:FoilTests -skip-testing:$(LIVE_GROQ_TEST_CLASS)
 
-.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real test-queued-paste-compatibility qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -177,6 +177,9 @@ test-app-smoke:
 
 test-paste-real: install
 	swift tests/test_app_mock_async_paste.swift
+
+test-queued-paste-compatibility:
+	scripts/run-queued-paste-compatibility-smoke.sh
 
 qa-paste: test-paste-real
 

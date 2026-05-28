@@ -47,6 +47,10 @@ final class UITestingController {
 
     static let automationMockSuccessNotification =
         Notification.Name("com.neonwatty.Foil.automation.mockSuccess")
+    static let automationQueuedEnqueueNotification =
+        Notification.Name("com.neonwatty.Foil.automation.queuedEnqueue")
+    static let automationQueuedDeliverNextNotification =
+        Notification.Name("com.neonwatty.Foil.automation.queuedDeliverNext")
     static let openHistoryNotification =
         Notification.Name("com.neonwatty.Foil.uiTests.openHistory")
     static let openSettingsNotification =
@@ -307,6 +311,18 @@ final class UITestingController {
             name: UITestingController.automationMockSuccessNotification,
             object: nil
         )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(enqueueAutomationQueuedMock),
+            name: UITestingController.automationQueuedEnqueueNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(deliverAutomationQueuedNext),
+            name: UITestingController.automationQueuedDeliverNextNotification,
+            object: nil
+        )
         DiagnosticLog.write("automation smoke: enabled")
     }
 
@@ -551,6 +567,37 @@ final class UITestingController {
                 DiagnosticLog.write("ASYNC PATH: automation smoke pasting via pasteController target=\(target!.appName) pid=\(target!.pid)")
             }
             await pasteController.paste(text: text)
+        }
+    }
+
+    @objc private func enqueueAutomationQueuedMock() {
+        let target = PasteTarget.captureCurrentTarget()
+        DiagnosticLog.write("automation queued smoke: enqueue requested target=\(String(describing: target))")
+        Task { @MainActor in
+            appState.queuedPasteEnabled = true
+            appState.queuedPasteMode = .stepThrough
+            appState.recordTargetCapture(target)
+            #if DEBUG
+            appState.mockTranscriptionEnabled = true
+            #endif
+            appState.clearError()
+            let text = "Mock queued paste automation smoke"
+            history.addSuccess(text: text)
+            queuedPasteQueue.enqueue(text: text, target: target, recordingStartTime: Date())
+            appState.feedbackMessage = "Transcript queued"
+            appState.floatingStatusTransientVisible = true
+            appState.setStatus(.idle)
+            DiagnosticLog.write("automation queued smoke: enqueued target=\(target?.appName ?? "nil") pending=\(queuedPasteQueue.pendingCount) blocked=\(queuedPasteQueue.blockedCount)")
+        }
+    }
+
+    @objc private func deliverAutomationQueuedNext() {
+        let frontmost = NSWorkspace.shared.frontmostApplication?.localizedName ?? "nil"
+        DiagnosticLog.write("automation queued smoke: deliver next requested frontmost=\(frontmost)")
+        Task { @MainActor in
+            let delivery = await queuedPasteQueue.deliverNext()
+            let after = NSWorkspace.shared.frontmostApplication?.localizedName ?? "nil"
+            DiagnosticLog.write("automation queued smoke: deliver next result=\(delivery?.label ?? "nil") frontmostAfter=\(after) pending=\(queuedPasteQueue.pendingCount) blocked=\(queuedPasteQueue.blockedCount)")
         }
     }
 
