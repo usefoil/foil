@@ -243,6 +243,14 @@ final class AppState {
         didSet { Self.defaults.set(asyncPasteEnabled, forKey: "asyncPasteEnabled") }
     }
 
+    var queuedPasteEnabled: Bool = false {
+        didSet { Self.defaults.set(queuedPasteEnabled, forKey: "queuedPasteEnabled") }
+    }
+
+    var queuedPasteMode: QueuedPasteMode = .stepThrough {
+        didSet { Self.defaults.set(queuedPasteMode.rawValue, forKey: "queuedPasteMode") }
+    }
+
     var experimentalSkyLightPasteEnabled: Bool = false {
         didSet { Self.defaults.set(experimentalSkyLightPasteEnabled, forKey: "experimentalSkyLightPasteEnabled") }
     }
@@ -541,7 +549,7 @@ final class AppState {
             case nil:
                 return SessionPresentation(
                     title: "Ready",
-                    detail: "\(hotkeyLabel) · \(asyncPasteEnabled ? "Paste target is captured when recording starts" : "Paste target is the current app")",
+                    detail: "\(hotkeyLabel) · \(readyPasteDetail)",
                     timerText: nil,
                     systemImage: "waveform",
                     tone: .neutral,
@@ -577,6 +585,13 @@ final class AppState {
 
     private var currentTargetDetail: String {
         capturedTargetName.map { "Target: \($0)" } ?? "Target: current app"
+    }
+
+    private var readyPasteDetail: String {
+        if queuedPasteEnabled {
+            return "Transcripts queue for later paste"
+        }
+        return asyncPasteEnabled ? "Paste target is captured when recording starts" : "Paste target is the current app"
     }
 
     private func setupSessionPresentation() -> SessionPresentation? {
@@ -743,6 +758,8 @@ final class AppState {
                 "showLiveFeedbackHUD",
                 "showFloatingStatus",
                 "asyncPasteEnabled",
+                "queuedPasteEnabled",
+                "queuedPasteMode",
                 "experimentalSkyLightPasteEnabled",
                 "pauseBrowserMediaWhileRecording",
                 "mockTranscriptionEnabled",
@@ -777,6 +794,8 @@ final class AppState {
             "keepOnClipboard": false,
             "showFloatingStatus": false,
             "asyncPasteEnabled": false,
+            "queuedPasteEnabled": false,
+            "queuedPasteMode": QueuedPasteMode.stepThrough.rawValue,
             "experimentalSkyLightPasteEnabled": false,
             "pauseBrowserMediaWhileRecording": false,
             "mockTranscriptionEnabled": false,
@@ -825,6 +844,8 @@ final class AppState {
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
+        queuedPasteEnabled = defaults.bool(forKey: "queuedPasteEnabled")
+        queuedPasteMode = QueuedPasteMode(rawValue: defaults.string(forKey: "queuedPasteMode") ?? "") ?? .stepThrough
         experimentalSkyLightPasteEnabled = defaults.bool(forKey: "experimentalSkyLightPasteEnabled")
         pauseBrowserMediaWhileRecording = defaults.bool(forKey: "pauseBrowserMediaWhileRecording")
         #if DEBUG
@@ -1051,7 +1072,7 @@ final class AppState {
         if let target {
             capturedTargetName = target.appName.isEmpty ? "Unknown app" : target.appName
             feedbackMessage = "Target: \(capturedTargetName!)"
-        } else if asyncPasteEnabled {
+        } else if asyncPasteEnabled || queuedPasteEnabled {
             capturedTargetName = nil
             feedbackMessage = "Target unavailable"
         } else {

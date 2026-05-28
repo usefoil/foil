@@ -49,6 +49,8 @@ struct SettingsView: View {
         static let pasteTargetTitle = "Return to starting app"
         static let pasteTargetOnDescription = "After transcribing, refocuses the app where recording began and pastes there."
         static let pasteTargetOffDescription = "Pastes into the app active when transcription finishes."
+        static let queuedPasteTitle = "Queue transcriptions for later paste"
+        static let queuedPasteDescription = "Completed transcripts wait in the menu until you paste them. Delivery may briefly switch apps or windows."
         static let backgroundPasteTitle = "Try background paste"
         static let backgroundPasteDescription = "Uses a lower-level paste route. Leave off unless normal paste fails."
     }
@@ -738,6 +740,19 @@ struct SettingsView: View {
                 Text(appState.asyncPasteEnabled ? ExperimentalCopy.pasteTargetOnDescription : ExperimentalCopy.pasteTargetOffDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle(ExperimentalCopy.queuedPasteTitle, isOn: $appState.queuedPasteEnabled)
+                    .accessibilityIdentifier("settings.queuedPasteToggle")
+                Text(ExperimentalCopy.queuedPasteDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if appState.queuedPasteEnabled {
+                    Picker("Queue mode", selection: $appState.queuedPasteMode) {
+                        ForEach(QueuedPasteMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .accessibilityIdentifier("settings.queuedPasteModePicker")
+                }
                 Toggle(ExperimentalCopy.backgroundPasteTitle, isOn: $appState.experimentalSkyLightPasteEnabled)
                     .accessibilityIdentifier("settings.experimentalSkyLightPasteToggle")
                 Text(ExperimentalCopy.backgroundPasteDescription)

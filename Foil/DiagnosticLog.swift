@@ -120,6 +120,8 @@ enum DiagnosticLog {
             "Audio Format: \(appState.selectedAudioFormat.rawValue)",
             "Recording Mode: \(appState.recordingMode.rawValue)",
             "Async Paste: \(appState.asyncPasteEnabled)",
+            "Queued Paste: \(appState.queuedPasteEnabled)",
+            "Queued Paste Mode: \(appState.queuedPasteMode.rawValue)",
             "Keep Final Text On Clipboard: \(appState.keepOnClipboard)",
             "Floating Status: \(appState.shouldShowFloatingStatus)",
             "Sound Effects: \(appState.soundEffectsEnabled)"
@@ -204,6 +206,8 @@ enum DiagnosticLog {
             "- Cleanup Base URL: \(cleanupProvider.baseURL.map { redacted($0.absoluteString) } ?? "None")",
             "- Cleanup Model: \(cleanupProvider.model.isEmpty ? "None" : cleanupProvider.model)",
             "- Async Paste: \(appState.asyncPasteEnabled ? "enabled" : "disabled")",
+            "- Queued Paste: \(appState.queuedPasteEnabled ? "enabled" : "disabled")",
+            "- Queued Paste Mode: \(appState.queuedPasteMode.rawValue)",
             "- Keep Final Text On Clipboard: \(appState.keepOnClipboard ? "enabled" : "disabled")",
             "- Floating Status: \(appState.shouldShowFloatingStatus ? "enabled" : "disabled")",
             "",

@@ -440,6 +440,26 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(checkBox(id: "settings.mockToggle", fallbackLabel: "Mock transcription").exists)
     }
 
+    func testQueuedPasteSettingsPersistAcrossLaunches() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-experimental"])
+        openSettingsPanel()
+
+        let toggle = checkBox(id: "settings.queuedPasteToggle", fallbackLabel: "Queue transcriptions for later paste")
+        XCTAssertTrue(toggle.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(toggle)
+        XCTAssertTrue(elementExists(id: "settings.queuedPasteModePicker", timeout: 2), app.debugDescription)
+
+        launchApp(arguments: [
+            "--ui-testing",
+            "--seed-history",
+            "--settings-tab-experimental"
+        ])
+
+        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5))
+        openSettingsPanel()
+        XCTAssertTrue(elementExists(id: "settings.queuedPasteModePicker", timeout: 2), app.debugDescription)
+    }
+
     func testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--simulate-success-after-launch"])
 
@@ -457,6 +477,32 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Mock async paste transcript"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Pasted into the test target"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Target: Foil UI Test"].exists)
+    }
+
+    func testQueuedPasteShowsCountAndPastesNextItem() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-queued-paste-enabled",
+            "--simulate-success-after-launch"
+        ])
+
+        XCTAssertTrue(app.staticTexts["Transcript queued"].waitForExistence(timeout: 6), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Paste Queue"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["1 queued"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Pending"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Mock async paste transcript"].waitForExistence(timeout: 2), app.debugDescription)
+
+        let pasteNextButton = app.buttons
+            .matching(NSPredicate(format: "label == %@", "Paste Next"))
+            .firstMatch
+        XCTAssertTrue(pasteNextButton.waitForExistence(timeout: 5), app.debugDescription)
+        clickElement(pasteNextButton)
+
+        XCTAssertTrue(app.staticTexts["Pasted into the test target"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["0 queued"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(app.staticTexts["Pending"].waitForExistence(timeout: 1))
     }
 
     func testSimulatedRecordingFailureKeepsRetryVisibleInHistory() {
@@ -530,6 +576,7 @@ final class FoilUITests: XCTestCase {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-experimental"])
         openSettingsPanel()
         XCTAssertTrue(checkBox(id: "settings.asyncPasteToggle", fallbackLabel: "Return to starting app").exists)
+        XCTAssertTrue(checkBox(id: "settings.queuedPasteToggle", fallbackLabel: "Queue transcriptions for later paste").exists)
         XCTAssertTrue(checkBox(id: "settings.experimentalSkyLightPasteToggle", fallbackLabel: "Try background paste").exists)
         XCTAssertTrue(checkBox(id: "settings.mockToggle", fallbackLabel: "Mock transcription").exists)
     }

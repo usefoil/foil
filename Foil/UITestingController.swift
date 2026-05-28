@@ -79,6 +79,7 @@ final class UITestingController {
     // MARK: - Dependencies
 
     private let appState: AppState
+    private let queuedPasteQueue: QueuedPasteQueue
     private let history: TranscriptionHistory
     private let pasteController: PasteController
 
@@ -127,6 +128,7 @@ final class UITestingController {
 
     init(
         appState: AppState,
+        queuedPasteQueue: QueuedPasteQueue,
         history: TranscriptionHistory,
         pasteController: PasteController,
         startTranscribingAnimation: @escaping () -> Void,
@@ -146,6 +148,7 @@ final class UITestingController {
         onReplaceRecordingController: @escaping (RecordingController) -> Void
     ) {
         self.appState = appState
+        self.queuedPasteQueue = queuedPasteQueue
         self.history = history
         self.pasteController = pasteController
         self.startTranscribingAnimation = startTranscribingAnimation
@@ -180,6 +183,8 @@ final class UITestingController {
             appState.soundEffectsEnabled = true
             appState.keepOnClipboard = false
             appState.asyncPasteEnabled = false
+            appState.queuedPasteEnabled = false
+            appState.queuedPasteMode = .stepThrough
             appState.selectedModel = "whisper-large-v3-turbo"
             appState.selectedAudioFormat = .m4a
             appState.selectedLanguage = .auto
@@ -248,6 +253,14 @@ final class UITestingController {
 
         if args.contains("--seed-async-paste-enabled") {
             appState.asyncPasteEnabled = true
+        }
+
+        if args.contains("--seed-queued-paste-enabled") {
+            appState.queuedPasteEnabled = true
+        }
+
+        if args.contains("--seed-queued-paste-drain") {
+            appState.queuedPasteMode = .drain
         }
 
         if args.contains("--seed-floating-status-enabled") {
@@ -547,6 +560,7 @@ final class UITestingController {
         activateUITestApplication()
         let view = MenuBarView(
             appState: appState,
+            queuedPasteQueue: queuedPasteQueue,
             history: history,
             onRetry: onRetry,
             onPasteLast: onPasteLast,
@@ -876,7 +890,17 @@ final class UITestingController {
                 let text = "Mock async paste transcript"
                 history.addSuccess(text: text)
                 appState.setStatus(.idle)
-                if appState.asyncPasteEnabled {
+                if appState.queuedPasteEnabled {
+                    let target = PasteTarget(
+                        windowElement: nil,
+                        windowID: nil,
+                        pid: ProcessInfo.processInfo.processIdentifier,
+                        appName: "Foil UI Test"
+                    )
+                    appState.recordTargetCapture(target)
+                    queuedPasteQueue.enqueue(text: text, target: target, recordingStartTime: Date())
+                    appState.feedbackMessage = "Transcript queued"
+                } else if appState.asyncPasteEnabled {
                     let target = PasteTarget(
                         windowElement: nil,
                         windowID: nil,
