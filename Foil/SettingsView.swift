@@ -51,6 +51,7 @@ struct SettingsView: View {
         static let pasteTargetOffDescription = "Pastes into the app active when transcription finishes."
         static let queuedPasteTitle = "Queue transcriptions for later paste"
         static let queuedPasteDescription = "Completed transcripts wait in the menu until you paste them. Delivery may briefly switch apps or windows."
+        static let queuedPasteShortcutConflict = "Delivery shortcut conflicts with the custom recording shortcut."
         static let backgroundPasteTitle = "Try background paste"
         static let backgroundPasteDescription = "Uses a lower-level paste route. Leave off unless normal paste fails."
     }
@@ -742,6 +743,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
                 Toggle(ExperimentalCopy.queuedPasteTitle, isOn: $appState.queuedPasteEnabled)
                     .accessibilityIdentifier("settings.queuedPasteToggle")
+                    .onChange(of: appState.queuedPasteEnabled) { _, _ in onHotkeyChanged?() }
                 Text(ExperimentalCopy.queuedPasteDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -752,6 +754,18 @@ struct SettingsView: View {
                         }
                     }
                     .accessibilityIdentifier("settings.queuedPasteModePicker")
+
+                    Text("Delivery shortcut: \(appState.queuedPasteDeliveryShortcutLabel)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("settings.queuedPasteDeliveryShortcut")
+
+                    if appState.queuedPasteDeliveryShortcutConflictsWithRecordingHotkey {
+                        Label(ExperimentalCopy.queuedPasteShortcutConflict, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .accessibilityIdentifier("settings.queuedPasteDeliveryShortcutConflict")
+                    }
                 }
                 Toggle(ExperimentalCopy.backgroundPasteTitle, isOn: $appState.experimentalSkyLightPasteEnabled)
                     .accessibilityIdentifier("settings.experimentalSkyLightPasteToggle")

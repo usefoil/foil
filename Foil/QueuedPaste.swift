@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import Observation
 
 enum QueuedPasteMode: String, CaseIterable, Identifiable {
@@ -14,6 +15,38 @@ enum QueuedPasteMode: String, CaseIterable, Identifiable {
         case .drain:
             "Drain queue"
         }
+    }
+}
+
+struct QueuedPasteDeliveryShortcut: Equatable {
+    static let `default` = QueuedPasteDeliveryShortcut(
+        keyCode: 0x09, // ANSI V
+        modifiers: [.maskControl, .maskShift],
+        displayName: "Control-Shift-V"
+    )
+
+    private static let relevantModifierMask =
+        CGEventFlags.maskControl.rawValue
+        | CGEventFlags.maskShift.rawValue
+        | CGEventFlags.maskAlternate.rawValue
+        | CGEventFlags.maskCommand.rawValue
+
+    let keyCode: UInt16
+    let modifiers: CGEventFlags
+    let displayName: String
+
+    func matches(keyCode: UInt16, flags: CGEventFlags) -> Bool {
+        keyCode == self.keyCode
+            && Self.normalizedModifiers(flags.rawValue) == Self.normalizedModifiers(modifiers.rawValue)
+    }
+
+    func conflictsWithCustomRecordingShortcut(keyCode: UInt16, modifiers: UInt64) -> Bool {
+        keyCode == self.keyCode
+            && Self.normalizedModifiers(modifiers) == Self.normalizedModifiers(self.modifiers.rawValue)
+    }
+
+    private static func normalizedModifiers(_ rawValue: UInt64) -> UInt64 {
+        rawValue & relevantModifierMask
     }
 }
 
@@ -61,6 +94,14 @@ struct QueuedPasteItem: Identifiable {
         guard let target else { return false }
         return target.isValid && (status == .pending || status == .failed)
     }
+}
+
+enum QueuedPasteHotkeyDeliveryResult: Equatable {
+    case disabled
+    case conflict
+    case empty
+    case deliveredNext(PasteDelivery?)
+    case drained(Int)
 }
 
 @MainActor @Observable
@@ -211,6 +252,46 @@ final class QueuedPasteQueue {
                 return lhs.completionTime < rhs.completionTime
             }
             return lhs.recordingStartTime < rhs.recordingStartTime
+        }
+    }
+}
+
+@MainActor
+struct QueuedPasteDeliveryController {
+    let appState: AppState
+    let queue: QueuedPasteQueue
+    var shortcut: QueuedPasteDeliveryShortcut = .default
+
+    @discardableResult
+    func deliverFromHotkey() async -> QueuedPasteHotkeyDeliveryResult {
+        if appState.queuedPasteDeliveryShortcutConflictsWithRecordingHotkey {
+            appState.feedbackMessage = "Queued paste shortcut conflicts with recording shortcut"
+            appState.floatingStatusTransientVisible = true
+            DiagnosticLog.write("QueuedPaste.hotkey: ignored conflict shortcut=\(shortcut.displayName)")
+            return .conflict
+        }
+
+        guard appState.queuedPasteEnabled else {
+            DiagnosticLog.write("QueuedPaste.hotkey: ignored disabled shortcut=\(shortcut.displayName)")
+            return .disabled
+        }
+
+        guard queue.pendingCount > 0 else {
+            appState.feedbackMessage = "Paste queue empty"
+            appState.floatingStatusTransientVisible = true
+            DiagnosticLog.write("QueuedPaste.hotkey: ignored empty mode=\(appState.queuedPasteMode.rawValue)")
+            return .empty
+        }
+
+        switch appState.queuedPasteMode {
+        case .stepThrough:
+            DiagnosticLog.write("QueuedPaste.hotkey: deliverNext shortcut=\(shortcut.displayName) pending=\(queue.pendingCount)")
+            let delivery = await queue.deliverNext()
+            return .deliveredNext(delivery)
+        case .drain:
+            DiagnosticLog.write("QueuedPaste.hotkey: drain shortcut=\(shortcut.displayName) pending=\(queue.pendingCount)")
+            let deliveries = await queue.drain()
+            return .drained(deliveries.count)
         }
     }
 }

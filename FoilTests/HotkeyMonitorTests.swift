@@ -11,6 +11,7 @@ final class HotkeyMonitorTests: XCTestCase {
         monitor.onRecordingStarted = { [weak self] in self?.events.append("started") }
         monitor.onRecordingStopped = { [weak self] in self?.events.append("stopped") }
         monitor.onRecordingCancelled = { [weak self] in self?.events.append("cancelled") }
+        monitor.onQueuedPasteDeliveryRequested = { [weak self] in self?.events.append("queued") }
     }
 
     // MARK: - Hold mode (default)
@@ -144,6 +145,52 @@ final class HotkeyMonitorTests: XCTestCase {
         XCTAssertEqual(monitor.hotkeyChoice, .rightCommand)
         monitor.configure(hotkeyChoice: .globeFn, recordingMode: .hold)
         XCTAssertEqual(monitor.hotkeyChoice, .globeFn)
+    }
+
+    // MARK: - Queued paste delivery shortcut
+
+    func testQueuedPasteDeliveryShortcutFiresOnDefaultChord() {
+        let handled = monitor.handleQueuedPasteDeliveryShortcutForTesting(
+            keyCode: QueuedPasteDeliveryShortcut.default.keyCode,
+            flags: [.maskControl, .maskShift]
+        )
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(events, ["queued"])
+    }
+
+    func testQueuedPasteDeliveryShortcutDoesNotTriggerRecording() {
+        monitor.configure(hotkeyChoice: .rightCommand, recordingMode: .hold)
+
+        let handled = monitor.handleQueuedPasteDeliveryShortcutForTesting(
+            keyCode: QueuedPasteDeliveryShortcut.default.keyCode,
+            flags: [.maskControl, .maskShift]
+        )
+
+        XCTAssertTrue(handled)
+        XCTAssertEqual(events, ["queued"])
+    }
+
+    func testQueuedPasteDeliveryShortcutCanBeDisabled() {
+        monitor.configureQueuedPasteDeliveryShortcut(.default, enabled: false)
+
+        let handled = monitor.handleQueuedPasteDeliveryShortcutForTesting(
+            keyCode: QueuedPasteDeliveryShortcut.default.keyCode,
+            flags: [.maskControl, .maskShift]
+        )
+
+        XCTAssertFalse(handled)
+        XCTAssertEqual(events, [])
+    }
+
+    func testQueuedPasteDeliveryShortcutRejectsExtraRelevantModifier() {
+        let handled = monitor.handleQueuedPasteDeliveryShortcutForTesting(
+            keyCode: QueuedPasteDeliveryShortcut.default.keyCode,
+            flags: [.maskControl, .maskShift, .maskCommand]
+        )
+
+        XCTAssertFalse(handled)
+        XCTAssertEqual(events, [])
     }
 
     // MARK: - HotkeyChoice properties

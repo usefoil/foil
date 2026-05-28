@@ -2,8 +2,10 @@
 //
 // Real-target queued paste compatibility smoke.
 //
-// This drives Foil's --automation-smoke hooks against disposable TextEdit and
-// browser targets. It is visible desktop automation, not a headless test.
+// This uses Foil's --automation-smoke enqueue hook against disposable TextEdit
+// and browser targets, then triggers user-facing queued delivery through the
+// global queued-paste hotkey. It is visible desktop automation, not a headless
+// test.
 
 import AppKit
 import ApplicationServices
@@ -14,7 +16,9 @@ let appBundleID = "com.neonwatty.Foil"
 let appPath = "/Applications/Foil.app"
 let queuedText = "Mock queued paste automation smoke"
 let enqueueNotification = Notification.Name("com.neonwatty.Foil.automation.queuedEnqueue")
-let deliverNotification = Notification.Name("com.neonwatty.Foil.automation.queuedDeliverNext")
+let queuedPasteDeliveryShortcutName = "Control-Shift-V"
+let queuedPasteDeliveryKeyCode = CGKeyCode(0x09) // ANSI V
+let queuedPasteDeliveryFlags: CGEventFlags = [.maskControl, .maskShift]
 let diagnosticLogURL = FileManager.default
     .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
     .appendingPathComponent("Foil", isDirectory: true)
@@ -305,6 +309,17 @@ func switchToFinder() {
     Thread.sleep(forTimeInterval: 0.5)
 }
 
+func postQueuedPasteDeliveryHotkey() {
+    let source = CGEventSource(stateID: .hidSystemState)
+    let keyDown = CGEvent(keyboardEventSource: source, virtualKey: queuedPasteDeliveryKeyCode, keyDown: true)
+    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: queuedPasteDeliveryKeyCode, keyDown: false)
+    keyDown?.flags = queuedPasteDeliveryFlags
+    keyUp?.flags = queuedPasteDeliveryFlags
+    keyDown?.post(tap: .cghidEventTap)
+    Thread.sleep(forTimeInterval: 0.05)
+    keyUp?.post(tap: .cghidEventTap)
+}
+
 func launchFoil() -> Bool {
     run("/usr/bin/defaults", ["write", appBundleID, "queuedPasteEnabled", "-bool", "true"])
     run("/usr/bin/defaults", ["write", appBundleID, "asyncPasteEnabled", "-bool", "false"])
@@ -332,9 +347,12 @@ func enqueueAndDeliver(switchAwayBeforeDelivery: Bool = true) -> Bool {
         switchToFinder()
     }
     print("  Frontmost before deliver: \(frontmostAppName())")
-    post(deliverNotification)
+    postQueuedPasteDeliveryHotkey()
     let delivered = waitUntil(timeout: 8) {
-        readDiagnosticLog().contains("automation queued smoke: deliver next result=")
+        let log = readDiagnosticLog()
+        return log.contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
+            && (log.contains("QueuedPaste.deliver: pasted")
+                || log.contains("QueuedPaste.deliver: fallback"))
     }
     print("  Frontmost after deliver: \(frontmostAppName())")
     return enqueued && delivered
@@ -576,12 +594,13 @@ func testUnavailableTargetFallback() -> SmokeResult {
 
     run("/usr/bin/pkill", ["-x", "TextEdit"])
     Thread.sleep(forTimeInterval: 1.0)
-    post(deliverNotification)
+    postQueuedPasteDeliveryHotkey()
     let fallback = waitUntil(timeout: 8) {
         let log = readDiagnosticLog()
-        return log.contains("clipboardFallback")
-            || log.contains("QueuedPaste.deliver: fallback")
-            || log.contains("Target unavailable; text copied to clipboard")
+        return log.contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
+            && (log.contains("clipboardFallback")
+                || log.contains("QueuedPaste.deliver: fallback")
+                || log.contains("Target unavailable; text copied to clipboard"))
     }
     let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
     let passed = fallback && clipboard.contains(queuedText)

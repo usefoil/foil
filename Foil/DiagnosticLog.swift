@@ -122,6 +122,7 @@ enum DiagnosticLog {
             "Async Paste: \(appState.asyncPasteEnabled)",
             "Queued Paste: \(appState.queuedPasteEnabled)",
             "Queued Paste Mode: \(appState.queuedPasteMode.rawValue)",
+            "Queued Paste Delivery Shortcut: \(queuedPasteDeliveryShortcutDescription(appState))",
             "Keep Final Text On Clipboard: \(appState.keepOnClipboard)",
             "Floating Status: \(appState.shouldShowFloatingStatus)",
             "Sound Effects: \(appState.soundEffectsEnabled)"
@@ -208,6 +209,7 @@ enum DiagnosticLog {
             "- Async Paste: \(appState.asyncPasteEnabled ? "enabled" : "disabled")",
             "- Queued Paste: \(appState.queuedPasteEnabled ? "enabled" : "disabled")",
             "- Queued Paste Mode: \(appState.queuedPasteMode.rawValue)",
+            "- Queued Paste Delivery Shortcut: \(queuedPasteDeliveryShortcutDescription(appState))",
             "- Keep Final Text On Clipboard: \(appState.keepOnClipboard ? "enabled" : "disabled")",
             "- Floating Status: \(appState.shouldShowFloatingStatus ? "enabled" : "disabled")",
             "",
@@ -311,6 +313,14 @@ enum DiagnosticLog {
             return Data(suffix)
         }
         return Data(suffix[suffix.index(after: newline)...])
+    }
+
+    @MainActor
+    private static func queuedPasteDeliveryShortcutDescription(_ appState: AppState) -> String {
+        if appState.queuedPasteDeliveryShortcutConflictsWithRecordingHotkey {
+            return "\(appState.queuedPasteDeliveryShortcutLabel) (conflicts with recording shortcut)"
+        }
+        return appState.queuedPasteDeliveryShortcutLabel
     }
 
     private static func diagnosticDescription(for status: AppState.Status) -> String {

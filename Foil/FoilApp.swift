@@ -515,6 +515,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Hotkey configuration
 
     func applyHotkeyConfig() {
+        let deliveryShortcutEnabled = appState.queuedPasteEnabled
+            && !appState.queuedPasteDeliveryShortcutConflictsWithRecordingHotkey
+        hotkeyMonitor.configureQueuedPasteDeliveryShortcut(
+            AppState.queuedPasteDeliveryShortcut,
+            enabled: deliveryShortcutEnabled
+        )
+        if appState.queuedPasteDeliveryShortcutConflictsWithRecordingHotkey {
+            DiagnosticLog.write("QueuedPaste.hotkey: disabled conflict shortcut=\(appState.queuedPasteDeliveryShortcutLabel)")
+        }
         hotkeyMonitor.configure(
             hotkeyChoice: appState.hotkeyChoice,
             recordingMode: appState.recordingMode
@@ -605,6 +614,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         hotkeyMonitor.onRecordingCancelled = { [weak self] in
             self?.recordingController.cancelRecording()
+        }
+        hotkeyMonitor.onQueuedPasteDeliveryRequested = { [weak self] in
+            self?.deliverQueuedPasteFromHotkey()
+        }
+    }
+
+    func deliverQueuedPasteFromHotkey() {
+        Task { @MainActor in
+            let controller = QueuedPasteDeliveryController(
+                appState: appState,
+                queue: queuedPasteQueue,
+                shortcut: AppState.queuedPasteDeliveryShortcut
+            )
+            await controller.deliverFromHotkey()
         }
     }
 

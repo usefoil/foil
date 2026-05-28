@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 @testable import Foil
 
 @MainActor
@@ -46,6 +47,9 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "keepOnClipboard")
         UserDefaults.standard.removeObject(forKey: "recordingMode")
         UserDefaults.standard.removeObject(forKey: "hotkeyChoice")
+        UserDefaults.standard.removeObject(forKey: "customHotkeyKeyCode")
+        UserDefaults.standard.removeObject(forKey: "customHotkeyModifiers")
+        UserDefaults.standard.removeObject(forKey: "customHotkeyLabel")
         UserDefaults.standard.removeObject(forKey: "language")
         UserDefaults.standard.removeObject(forKey: "asyncPasteEnabled")
         UserDefaults.standard.removeObject(forKey: "queuedPasteEnabled")
@@ -840,6 +844,37 @@ final class AppStateTests: XCTestCase {
         let reloaded = AppState()
         XCTAssertTrue(reloaded.queuedPasteEnabled)
         XCTAssertEqual(reloaded.queuedPasteMode, .drain)
+    }
+
+    func testQueuedPasteDeliveryShortcutLabel() {
+        let state = AppState()
+
+        XCTAssertEqual(state.queuedPasteDeliveryShortcutLabel, "Control-Shift-V")
+    }
+
+    func testQueuedPasteDeliveryShortcutDoesNotConflictWithDefaultRecordingHotkey() {
+        let state = AppState()
+        state.hotkeyChoice = .rightCommand
+
+        XCTAssertFalse(state.queuedPasteDeliveryShortcutConflictsWithRecordingHotkey)
+    }
+
+    func testQueuedPasteDeliveryShortcutConflictsWithMatchingCustomRecordingHotkey() {
+        let state = AppState()
+        state.hotkeyChoice = .custom
+        state.customHotkeyKeyCode = QueuedPasteDeliveryShortcut.default.keyCode
+        state.customHotkeyModifiers = QueuedPasteDeliveryShortcut.default.modifiers.rawValue
+
+        XCTAssertTrue(state.queuedPasteDeliveryShortcutConflictsWithRecordingHotkey)
+    }
+
+    func testQueuedPasteDeliveryShortcutDoesNotConflictWithDifferentCustomRecordingHotkey() {
+        let state = AppState()
+        state.hotkeyChoice = .custom
+        state.customHotkeyKeyCode = QueuedPasteDeliveryShortcut.default.keyCode
+        state.customHotkeyModifiers = CGEventFlags.maskControl.rawValue
+
+        XCTAssertFalse(state.queuedPasteDeliveryShortcutConflictsWithRecordingHotkey)
     }
 
     func testExperimentalSkyLightPasteDefaultsOff() {
