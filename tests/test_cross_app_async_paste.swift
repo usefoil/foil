@@ -216,16 +216,9 @@ func testChrome() -> TestResult {
     let textArea = findAXElement(in: window, role: "AXTextArea")
         ?? findAXElement(in: window, role: "AXTextField")
     let value = textArea.map(axValue) ?? ""
-    osascript("""
-    tell application "Google Chrome"
-      try
-        close active tab of front window
-      end try
-    end tell
-    """)
 
     if value.contains(text) {
-        return TestResult(name: "Chrome", status: .passed, detail: "Text reached captured textarea; frontmost after paste: \(frontAfterPaste ?? "unknown")")
+        return TestResult(name: "Chrome", status: .passed, detail: "Text reached captured textarea; frontmost after paste: \(frontAfterPaste ?? "unknown"); no tab close")
     }
     return TestResult(name: "Chrome", status: .failed, detail: "Pasted text not found in Chrome AX value")
 }

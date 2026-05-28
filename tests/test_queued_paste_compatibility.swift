@@ -23,8 +23,36 @@ var diagnosticLogStartOffset: UInt64 = 0
 
 struct SmokeResult {
     let name: String
-    let passed: Bool
+    let status: Status
     let detail: String
+
+    enum Status {
+        case passed
+        case failed
+        case skipped
+    }
+
+    static func passed(name: String, detail: String) -> SmokeResult {
+        SmokeResult(name: name, status: .passed, detail: detail)
+    }
+
+    static func failed(name: String, detail: String) -> SmokeResult {
+        SmokeResult(name: name, status: .failed, detail: detail)
+    }
+
+    static func skipped(name: String, detail: String) -> SmokeResult {
+        SmokeResult(name: name, status: .skipped, detail: detail)
+    }
+}
+
+struct BrowserSmokeTarget {
+    let name: String
+    let bundleID: String
+    let appPath: String
+    let pageTitle: String
+    let initialText: String
+    let htmlFileName: String
+    let required: Bool
 }
 
 func frontmostAppName() -> String {
@@ -210,16 +238,16 @@ func testTextEdit() -> SmokeResult {
     NSWorkspace.shared.open(fileURL)
     Thread.sleep(forTimeInterval: 1.5)
     guard let textEdit = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.TextEdit").first else {
-        return SmokeResult(name: "TextEdit queued delivery", passed: false, detail: "TextEdit did not launch")
+        return .failed(name: "TextEdit queued delivery", detail: "TextEdit did not launch")
     }
     guard let window = windows(forBundleID: "com.apple.TextEdit").first(where: { windowTitle($0).contains("FoilQueuedTextEditTarget") }) else {
-        return SmokeResult(name: "TextEdit queued delivery", passed: false, detail: "Target window not found")
+        return .failed(name: "TextEdit queued delivery", detail: "Target window not found")
     }
 
     let title = windowTitle(window)
     activateWindow(window, app: textEdit)
     guard enqueueAndDeliver(switchAwayBeforeDelivery: false) else {
-        return SmokeResult(name: "TextEdit queued delivery", passed: false, detail: "Queue enqueue/deliver notifications did not complete")
+        return .failed(name: "TextEdit queued delivery", detail: "Queue enqueue/deliver notifications did not complete")
     }
 
     let pasted = waitUntil(timeout: 6) {
@@ -227,20 +255,26 @@ func testTextEdit() -> SmokeResult {
         return textValue(in: window).contains(queuedText)
     }
     let detail = "target=TextEdit pid=\(textEdit.processIdentifier) title=\(title)"
-    return SmokeResult(name: "TextEdit queued delivery", passed: pasted, detail: detail)
+    if pasted {
+        return .passed(name: "TextEdit queued delivery", detail: detail)
+    }
+    return .failed(name: "TextEdit queued delivery", detail: detail)
 }
 
-func testChrome() -> SmokeResult {
-    let chromeURL = URL(fileURLWithPath: "/Applications/Google Chrome.app")
-    guard FileManager.default.fileExists(atPath: chromeURL.path) else {
-        return SmokeResult(name: "Chrome queued delivery", passed: false, detail: "Google Chrome.app not found")
+func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
+    let appURL = URL(fileURLWithPath: target.appPath)
+    guard FileManager.default.fileExists(atPath: appURL.path) else {
+        let detail = "\(target.name).app not found"
+        return target.required
+            ? .failed(name: "\(target.name) queued delivery", detail: detail)
+            : .skipped(name: "\(target.name) queued delivery", detail: detail)
     }
 
-    let htmlURL = FileManager.default.temporaryDirectory.appendingPathComponent("foil-queued-chrome-target.html")
+    let htmlURL = FileManager.default.temporaryDirectory.appendingPathComponent(target.htmlFileName)
     let html = """
     <!doctype html>
-    <html><head><title>Foil Queued Chrome Target</title></head><body>
-    <textarea id="target" autofocus style="width:600px;height:240px;">Chrome queued target
+    <html><head><title>\(target.pageTitle)</title></head><body>
+    <textarea id="target" autofocus style="width:600px;height:240px;">\(target.initialText)
     </textarea>
     <script>
     setTimeout(() => {
@@ -256,31 +290,45 @@ func testChrome() -> SmokeResult {
 
     NSWorkspace.shared.open(
         [htmlURL],
-        withApplicationAt: chromeURL,
+        withApplicationAt: appURL,
         configuration: NSWorkspace.OpenConfiguration()
     )
-    Thread.sleep(forTimeInterval: 2.5)
-    guard let chrome = NSRunningApplication.runningApplications(withBundleIdentifier: "com.google.Chrome").first else {
-        return SmokeResult(name: "Chrome queued delivery", passed: false, detail: "Chrome did not launch")
+    var browser: NSRunningApplication?
+    var browserWindows: [AXUIElement] = []
+    let exposedTargetWindow = waitUntil(timeout: 10, poll: 0.5) {
+        browser = NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleID).first
+        browser?.activate()
+        if browser != nil {
+            browserWindows = windows(forBundleID: target.bundleID)
+        }
+        return browserWindows.contains(where: { windowTitle($0).contains(target.pageTitle) })
     }
-    chrome.activate()
+    guard let browser else {
+        let detail = "\(target.name) did not launch"
+        return target.required
+            ? .failed(name: "\(target.name) queued delivery", detail: detail)
+            : .skipped(name: "\(target.name) queued delivery", detail: detail)
+    }
     Thread.sleep(forTimeInterval: 1.0)
-    let chromeWindows = windows(forBundleID: "com.google.Chrome")
-    guard let window = chromeWindows.first(where: { windowTitle($0).contains("Foil Queued Chrome Target") })
-            ?? chromeWindows.first else {
-        return SmokeResult(name: "Chrome queued delivery", passed: false, detail: "Chrome window not found")
+    guard exposedTargetWindow,
+          let window = browserWindows.first(where: { windowTitle($0).contains(target.pageTitle) }) else {
+        let titles = browserWindows.map(windowTitle).filter { !$0.isEmpty }.joined(separator: " | ")
+        let detail = "\(target.name) target page window not found titles=\(titles.isEmpty ? "none" : titles)"
+        return target.required
+            ? .failed(name: "\(target.name) queued delivery", detail: detail)
+            : .skipped(name: "\(target.name) queued delivery", detail: detail)
     }
     let title = windowTitle(window)
-    activateWindow(window, app: chrome)
+    activateWindow(window, app: browser)
     guard enqueueAndDeliver(switchAwayBeforeDelivery: false) else {
-        return SmokeResult(name: "Chrome queued delivery", passed: false, detail: "Queue enqueue/deliver notifications did not complete")
+        return .failed(name: "\(target.name) queued delivery", detail: "Queue enqueue/deliver notifications did not complete")
     }
 
     let pasted = waitUntil(timeout: 6) {
-        activateWindow(window, app: chrome)
+        activateWindow(window, app: browser)
         return textValues(in: window).contains(where: { $0.contains(queuedText) })
     }
-    var detail = "target=Google Chrome pid=\(chrome.processIdentifier) title=\(title)"
+    var detail = "target=\(target.name) pid=\(browser.processIdentifier) title=\(title) noTabClose=true"
     if !pasted {
         let observed = textValues(in: window)
             .map { $0.replacingOccurrences(of: "\n", with: "\\n") }
@@ -289,7 +337,46 @@ func testChrome() -> SmokeResult {
             .joined(separator: " | ")
         detail += " observedTextControls=\(observed.isEmpty ? "none" : observed)"
     }
-    return SmokeResult(name: "Chrome queued delivery", passed: pasted, detail: detail)
+    if pasted {
+        return .passed(name: "\(target.name) queued delivery", detail: detail)
+    }
+    return .failed(name: "\(target.name) queued delivery", detail: detail)
+}
+
+func testChrome() -> SmokeResult {
+    testBrowser(BrowserSmokeTarget(
+        name: "Google Chrome",
+        bundleID: "com.google.Chrome",
+        appPath: "/Applications/Google Chrome.app",
+        pageTitle: "Foil Queued Chrome Target",
+        initialText: "Chrome queued target",
+        htmlFileName: "foil-queued-chrome-target.html",
+        required: true
+    ))
+}
+
+func testFirefox() -> SmokeResult {
+    testBrowser(BrowserSmokeTarget(
+        name: "Firefox",
+        bundleID: "org.mozilla.firefox",
+        appPath: "/Applications/Firefox.app",
+        pageTitle: "Foil Queued Firefox Target",
+        initialText: "Firefox queued target",
+        htmlFileName: "foil-queued-firefox-target.html",
+        required: false
+    ))
+}
+
+func testSafari() -> SmokeResult {
+    testBrowser(BrowserSmokeTarget(
+        name: "Safari",
+        bundleID: "com.apple.Safari",
+        appPath: "/Applications/Safari.app",
+        pageTitle: "Foil Queued Safari Target",
+        initialText: "Safari queued target",
+        htmlFileName: "foil-queued-safari-target.html",
+        required: false
+    ))
 }
 
 func testUnavailableTargetFallback() -> SmokeResult {
@@ -303,7 +390,7 @@ func testUnavailableTargetFallback() -> SmokeResult {
     Thread.sleep(forTimeInterval: 1.5)
     guard let textEdit = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.TextEdit").first,
           let window = windows(forBundleID: "com.apple.TextEdit").first(where: { windowTitle($0).contains("FoilQueuedClosedTarget") }) else {
-        return SmokeResult(name: "Unavailable target fallback", passed: false, detail: "TextEdit fallback target not found")
+        return .failed(name: "Unavailable target fallback", detail: "TextEdit fallback target not found")
     }
 
     let title = windowTitle(window)
@@ -313,7 +400,7 @@ func testUnavailableTargetFallback() -> SmokeResult {
         readDiagnosticLog().contains("automation queued smoke: enqueued")
             && readDiagnosticLog().contains("QueuedPaste.enqueue: status=pending")
     }) else {
-        return SmokeResult(name: "Unavailable target fallback", passed: false, detail: "Could not enqueue fallback target")
+        return .failed(name: "Unavailable target fallback", detail: "Could not enqueue fallback target")
     }
 
     run("/usr/bin/pkill", ["-x", "TextEdit"])
@@ -327,8 +414,11 @@ func testUnavailableTargetFallback() -> SmokeResult {
     }
     let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
     let passed = fallback && clipboard.contains(queuedText)
-    let detail = "captured=TextEdit pid=\(textEdit.processIdentifier) title=\(title) clipboardFallback=\(clipboard.contains(queuedText))"
-    return SmokeResult(name: "Unavailable target fallback", passed: passed, detail: detail)
+    let detail = "captured=TextEdit pid=\(textEdit.processIdentifier) title=\(title) clipboardFallback=\(clipboard.contains(queuedText)) recovery=\"Target unavailable; text copied to clipboard\""
+    if passed {
+        return .passed(name: "Unavailable target fallback", detail: detail)
+    }
+    return .failed(name: "Unavailable target fallback", detail: detail)
 }
 
 print("=== Queued Paste Compatibility Smoke ===")
@@ -360,6 +450,8 @@ guard launchFoil() else {
 let results = [
     testTextEdit(),
     testChrome(),
+    testFirefox(),
+    testSafari(),
     testUnavailableTargetFallback()
 ]
 
@@ -367,9 +459,12 @@ print()
 print("Results:")
 var failed = false
 for result in results {
-    if result.passed {
+    switch result.status {
+    case .passed:
         print("✅ \(result.name): \(result.detail)")
-    } else {
+    case .skipped:
+        print("⚠️  \(result.name): \(result.detail)")
+    case .failed:
         failed = true
         print("❌ \(result.name): \(result.detail)")
     }
