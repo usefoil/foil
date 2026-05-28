@@ -126,6 +126,42 @@ tightening AX insertion verification, the real-target queued-paste smoke passes
 TextEdit, Chrome, and unavailable-target fallback without closing Chrome tabs or
 quitting Chrome.
 
+## 2026-05-28 Browser/Fallback Expansion Rerun
+
+Command:
+
+```sh
+swiftc -parse tests/test_queued_paste_compatibility.swift
+swiftc -parse tests/test_cross_app_async_paste.swift
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilTests/QueuedPasteTests
+ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility
+```
+
+Result: pass with one optional browser skip. The queued compatibility command
+wrote artifacts to `/tmp/foil-queued-paste-compatibility-20260528-091151`.
+
+Observed:
+
+- The prerequisite cross-app Chrome row passed and no longer closes the active
+  Chrome tab after verification.
+- TextEdit queued delivery passed for `TextEdit pid=62707`, title
+  `FoilQueuedTextEditTarget.txt`.
+- Chrome queued delivery passed for the existing Chrome process
+  `Google Chrome pid=76811`, title
+  `Foil Queued Chrome Target - Google Chrome - Jeremy`, with `noTabClose=true`.
+- Firefox is installed, but its disposable local-file target exposed a
+  `Problem loading page` window instead of the test page, so the optional row
+  was recorded as a skip rather than writing into an arbitrary Firefox page.
+- Safari queued delivery passed for `Safari pid=62276`, title
+  `Foil Queued Safari Target`, with `noTabClose=true`.
+- Unavailable-target fallback passed, verified the clipboard contained the
+  queued transcript text, and recorded the recovery message
+  `Target unavailable; text copied to clipboard`.
+
+Conclusion: the experimental queued-paste smoke now records an additional
+browser target when available, avoids closing browser tabs in the compatibility
+path, and captures the manual-paste recovery message for unavailable targets.
+
 ## 2026-05-28 Local Rerun
 
 Command:

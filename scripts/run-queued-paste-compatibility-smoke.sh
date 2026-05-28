@@ -13,7 +13,8 @@ Runs local prerequisite smoke checks for queued-paste compatibility evidence and
 prints or records the queued-paste rows in docs/queued-paste-compatibility-smoke.md.
 
 This script drives the visible macOS desktop. It may open TextEdit, Terminal,
-Google Chrome, and /Applications/Foil.app. It must not quit the user's browser.
+Google Chrome, Firefox/Safari when installed, and /Applications/Foil.app. It
+must not quit the user's browser or close browser tabs.
 
 Options:
   --skip-runs    Print checklist and create the artifact directory without
@@ -90,8 +91,12 @@ Record or confirm these rows in docs/queued-paste-compatibility-smoke.md:
   state before Paste Next, delivery result, focus result, evidence path.
 - Browser text field: browser app name, pid, page/window title, queued state
   before Paste Next, delivery result, focus result, evidence path.
+- Additional browser text field when installed: app name, pid, page/window
+  title, queued state before Paste Next, delivery result, focus result,
+  evidence path.
 - Closed/unavailable target: captured target identity before close/quit,
-  queued state before Paste Next, fallback/manual-paste result, evidence path.
+  queued state before Paste Next, fallback/manual-paste result, recovery
+  message, evidence path.
 
 The queued-real-targets log is the authoritative local automation evidence for
 real-target queued delivery.

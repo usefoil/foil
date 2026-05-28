@@ -62,6 +62,7 @@ final class QueuedPasteTests: XCTestCase {
         XCTAssertEqual(queue.items.count, 1)
         XCTAssertEqual(queue.items.first?.status, .needsManualPaste)
         XCTAssertEqual(queue.items.first?.text, "keep me")
+        XCTAssertEqual(queue.items.first?.failureReason, "Target unavailable; text copied to clipboard")
         XCTAssertEqual(queue.blockedCount, 1)
     }
 
