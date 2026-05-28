@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarView: View {
     @Bindable var appState: AppState
+    @Bindable var queuedPasteQueue: QueuedPasteQueue
     var history: TranscriptionHistory
     var onRetry: (() -> Void)?
     var onRetryRecord: ((TranscriptionRecord) -> Void)?
@@ -74,6 +75,9 @@ struct MenuBarView: View {
             }
             if shouldShowFeedbackPanel {
                 feedbackPanel
+            }
+            if shouldShowQueuedPasteSection {
+                queuedPasteSection
             }
             recordingControlsSection
             lastResultSection
@@ -363,6 +367,125 @@ struct MenuBarView: View {
             || appState.feedbackMessage != nil
             || appState.clipboardFeedback != nil
             || (appState.asyncPasteEnabled && appState.status == .recording)
+            || (appState.queuedPasteEnabled && appState.status == .recording)
+    }
+
+    private var shouldShowQueuedPasteSection: Bool {
+        appState.queuedPasteEnabled || queuedPasteQueue.hasItems
+    }
+
+    private var queuedPasteSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Paste Queue", systemImage: "tray.full")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(queueCountSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("menu.queuedPaste.count")
+            }
+
+            if queuedPasteQueue.hasItems {
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await queuedPasteQueue.deliverNext() }
+                    } label: {
+                        Label("Paste Next", systemImage: "arrow.down.doc")
+                    }
+                    .disabled(queuedPasteQueue.pendingCount == 0)
+                    .accessibilityIdentifier("menu.queuedPaste.pasteNextButton")
+
+                    Button {
+                        Task { await queuedPasteQueue.drain() }
+                    } label: {
+                        Label("Drain", systemImage: "forward.end")
+                    }
+                    .disabled(queuedPasteQueue.pendingCount == 0)
+                    .accessibilityIdentifier("menu.queuedPaste.drainButton")
+                }
+                .buttonStyle(.borderless)
+
+                ForEach(queuedPasteQueue.items.prefix(4)) { item in
+                    queuedPasteRow(item)
+                }
+            } else {
+                Text(appState.queuedPasteEnabled ? "Queued transcripts will appear here." : "Queued paste is off.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("menu.queuedPaste.empty")
+            }
+        }
+        .padding(10)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityIdentifier("menu.queuedPaste.section")
+    }
+
+    private var queueCountSummary: String {
+        if queuedPasteQueue.pendingCount == 0 && queuedPasteQueue.blockedCount == 0 {
+            return "0 queued"
+        }
+        if queuedPasteQueue.blockedCount == 0 {
+            return "\(queuedPasteQueue.pendingCount) queued"
+        }
+        return "\(queuedPasteQueue.pendingCount) queued, \(queuedPasteQueue.blockedCount) need attention"
+    }
+
+    private func queuedPasteRow(_ item: QueuedPasteItem) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(item.targetName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                Spacer()
+                Text(item.status.displayName)
+                    .font(.caption2)
+                    .foregroundStyle(statusColor(for: item.status))
+            }
+
+            Text(item.previewText)
+                .font(.caption)
+                .lineLimit(2)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let failureReason = item.failureReason {
+                Text(failureReason)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    copy(item.text)
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                }
+                .accessibilityIdentifier("menu.queuedPaste.copyButton")
+
+                Button {
+                    Task { await queuedPasteQueue.retry(id: item.id) }
+                } label: {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                }
+                .disabled(!item.canDeliver)
+                .accessibilityIdentifier("menu.queuedPaste.retryButton")
+
+                Button {
+                    queuedPasteQueue.remove(id: item.id)
+                } label: {
+                    Label("Remove", systemImage: "trash")
+                }
+                .accessibilityIdentifier("menu.queuedPaste.removeButton")
+            }
+            .buttonStyle(.borderless)
+            .labelStyle(.titleAndIcon)
+        }
+        .padding(8)
+        .background(.background.opacity(0.55), in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityIdentifier("menu.queuedPaste.item")
     }
 
     private var lastResultSection: some View {
@@ -554,6 +677,17 @@ struct MenuBarView: View {
         case .success:
             .green
         case .warning:
+            .orange
+        }
+    }
+
+    private func statusColor(for status: QueuedPasteStatus) -> Color {
+        switch status {
+        case .pending:
+            .blue
+        case .pasted:
+            .green
+        case .failed, .needsManualPaste:
             .orange
         }
     }

@@ -15,6 +15,7 @@ struct FoilApp: App {
         MenuBarExtra {
             MenuBarView(
                 appState: appDelegate.appState,
+                queuedPasteQueue: appDelegate.queuedPasteQueue,
                 history: appDelegate.history,
                 onRetry: { [weak appDelegate] in appDelegate?.retryLast() },
                 onRetryRecord: { [weak appDelegate] record in appDelegate?.retryRecord(record) },
@@ -98,6 +99,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let textInserter = TextInserter()
     private let soundPlayer = SoundPlayer()
     private let singleInstanceGuard: SingleInstanceGuarding
+    lazy var queuedPasteQueue = QueuedPasteQueue { [weak self] text, target in
+        guard let self, let pasteController = self.pasteController else {
+            return .clipboardFallback
+        }
+        return await pasteController.pasteQueued(text: text, target: target)
+    }
     private lazy var browserMediaController = BrowserMediaController(
         isEnabled: { [weak self] in self?.appState.pauseBrowserMediaWhileRecording == true }
     )
@@ -214,6 +221,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DiagnosticLog.write("applicationDidFinishLaunching: controllers ready")
         let uiTestingCtrl = UITestingController(
             appState: appState,
+            queuedPasteQueue: queuedPasteQueue,
             history: history,
             pasteController: pasteController,
             startTranscribingAnimation: { [weak self] in self?.startTranscribingAnimation() },
@@ -1029,11 +1037,22 @@ extension AppDelegate: TranscriptionControllerDelegate {
             // Normal flow: add new success record, handle paste routing
             history.addSuccess(text: text)
 
-            DiagnosticLog.write("paste decision: delegating to pasteController asyncOn=\(appState.asyncPasteEnabled) pendingTarget=\(String(describing: pasteController.pendingTarget))")
+            DiagnosticLog.write("paste decision: delegating to pasteController asyncOn=\(appState.asyncPasteEnabled) queuedOn=\(appState.queuedPasteEnabled) pendingTarget=\(String(describing: pasteController.pendingTarget))")
             appState.transcriptionStage = .pasting
 
             Task {
-                await pasteController.paste(text: text)
+                if appState.queuedPasteEnabled {
+                    let context = pasteController.consumePendingContext()
+                    queuedPasteQueue.enqueue(
+                        text: text,
+                        target: context.target,
+                        recordingStartTime: context.recordingStartTime ?? Date()
+                    )
+                    appState.feedbackMessage = "Transcript queued"
+                    appState.floatingStatusTransientVisible = true
+                } else {
+                    await pasteController.paste(text: text)
+                }
                 if cleanupFailed {
                     appState.feedbackMessage = "Cleanup failed; raw transcript used"
                 }

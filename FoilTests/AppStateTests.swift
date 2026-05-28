@@ -48,6 +48,8 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "hotkeyChoice")
         UserDefaults.standard.removeObject(forKey: "language")
         UserDefaults.standard.removeObject(forKey: "asyncPasteEnabled")
+        UserDefaults.standard.removeObject(forKey: "queuedPasteEnabled")
+        UserDefaults.standard.removeObject(forKey: "queuedPasteMode")
         UserDefaults.standard.removeObject(forKey: "experimentalSkyLightPasteEnabled")
         UserDefaults.standard.removeObject(forKey: "showLiveFeedbackHUD")
         UserDefaults.standard.removeObject(forKey: "showFloatingStatus")
@@ -825,6 +827,19 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         state.asyncPasteEnabled = true
         XCTAssertTrue(state.asyncPasteEnabled)
+    }
+
+    func testQueuedPasteSettingsPersist() {
+        let state = AppState()
+        XCTAssertFalse(state.queuedPasteEnabled)
+        XCTAssertEqual(state.queuedPasteMode, .stepThrough)
+
+        state.queuedPasteEnabled = true
+        state.queuedPasteMode = .drain
+
+        let reloaded = AppState()
+        XCTAssertTrue(reloaded.queuedPasteEnabled)
+        XCTAssertEqual(reloaded.queuedPasteMode, .drain)
     }
 
     func testExperimentalSkyLightPasteDefaultsOff() {
