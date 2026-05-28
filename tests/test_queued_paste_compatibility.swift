@@ -8,6 +8,7 @@
 import AppKit
 import ApplicationServices
 import Foundation
+import Network
 
 let appBundleID = "com.neonwatty.Foil"
 let appPath = "/Applications/Foil.app"
@@ -49,10 +50,93 @@ struct BrowserSmokeTarget {
     let name: String
     let bundleID: String
     let appPath: String
+    let executablePath: String?
+    let launchArguments: [String]
     let pageTitle: String
     let initialText: String
     let htmlFileName: String
     let required: Bool
+    let privateBrowsingRequested: Bool
+}
+
+final class LocalHTTPServer {
+    private let root: URL
+    private let listener: NWListener
+    private let queue = DispatchQueue(label: "foil.queued-paste.local-http")
+    private let ready = DispatchSemaphore(value: 0)
+    private var startError: Error?
+
+    init(root: URL) throws {
+        self.root = root
+        self.listener = try NWListener(using: .tcp, on: .any)
+    }
+
+    func start(timeout: TimeInterval = 2) -> UInt16? {
+        listener.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready:
+                self?.ready.signal()
+            case .failed(let error):
+                self?.startError = error
+                self?.ready.signal()
+            default:
+                break
+            }
+        }
+        listener.newConnectionHandler = { [weak self] connection in
+            self?.handle(connection)
+        }
+        listener.start(queue: queue)
+
+        let deadline = DispatchTime.now() + .milliseconds(Int(timeout * 1000))
+        guard ready.wait(timeout: deadline) == .success,
+              startError == nil,
+              let port = listener.port?.rawValue else {
+            return nil
+        }
+        return port
+    }
+
+    func stop() {
+        listener.cancel()
+    }
+
+    private func handle(_ connection: NWConnection) {
+        connection.start(queue: queue)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] data, _, _, _ in
+            guard let self else {
+                connection.cancel()
+                return
+            }
+            let request = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            let requestLine = request.components(separatedBy: "\r\n").first ?? ""
+            let parts = requestLine.split(separator: " ")
+            let rawPath = parts.count > 1 ? String(parts[1]) : "/"
+            let pathWithoutQuery = rawPath.split(separator: "?", maxSplits: 1).first.map(String.init) ?? rawPath
+            let decodedPath = pathWithoutQuery.removingPercentEncoding ?? pathWithoutQuery
+            let fileName = URL(fileURLWithPath: decodedPath).lastPathComponent.isEmpty
+                ? "index.html"
+                : URL(fileURLWithPath: decodedPath).lastPathComponent
+            let fileURL = self.root.appendingPathComponent(fileName, isDirectory: false)
+
+            let statusLine: String
+            let body: Data
+            if let fileData = try? Data(contentsOf: fileURL) {
+                statusLine = "HTTP/1.1 200 OK"
+                body = fileData
+            } else {
+                statusLine = "HTTP/1.1 404 Not Found"
+                body = Data("Not found".utf8)
+            }
+
+            let header = "\(statusLine)\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
+            var response = Data(header.utf8)
+            response.append(body)
+            connection.send(content: response, completion: .contentProcessed { _ in
+                connection.cancel()
+            })
+        }
+    }
 }
 
 func frontmostAppName() -> String {
@@ -84,6 +168,34 @@ func waitUntil(timeout: TimeInterval, poll: TimeInterval = 0.25, _ condition: ()
         Thread.sleep(forTimeInterval: poll)
     }
     return condition()
+}
+
+func launch(_ launchPath: String, _ arguments: [String]) {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: launchPath)
+    process.arguments = arguments
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
+}
+
+func jsStringLiteral(_ value: String) -> String {
+    var escaped = ""
+    for scalar in value.unicodeScalars {
+        switch scalar {
+        case "\\":
+            escaped += "\\\\"
+        case "\"":
+            escaped += "\\\""
+        case "\n":
+            escaped += "\\n"
+        case "\r":
+            escaped += "\\r"
+        default:
+            escaped.append(Character(scalar))
+        }
+    }
+    return "\"\(escaped)\""
 }
 
 func readDiagnosticLog() -> String {
@@ -270,29 +382,76 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
             : .skipped(name: "\(target.name) queued delivery", detail: detail)
     }
 
-    let htmlURL = FileManager.default.temporaryDirectory.appendingPathComponent(target.htmlFileName)
+    let existingProcessID = NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleID).first?.processIdentifier
+    let serverRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("foil-queued-\(UUID().uuidString)", isDirectory: true)
+    do {
+        try FileManager.default.createDirectory(at: serverRoot, withIntermediateDirectories: true)
+    } catch {
+        let detail = "Could not create localhost target directory: \(error)"
+        return target.required
+            ? .failed(name: "\(target.name) queued delivery", detail: detail)
+            : .skipped(name: "\(target.name) queued delivery", detail: detail)
+    }
+    defer { try? FileManager.default.removeItem(at: serverRoot) }
+
+    let htmlURL = serverRoot.appendingPathComponent(target.htmlFileName)
+    let pastedTitle = "\(target.pageTitle) Pasted"
     let html = """
     <!doctype html>
     <html><head><title>\(target.pageTitle)</title></head><body>
     <textarea id="target" autofocus style="width:600px;height:240px;">\(target.initialText)
     </textarea>
     <script>
+    const queuedText = \(jsStringLiteral(queuedText));
+    const pastedTitle = \(jsStringLiteral(pastedTitle));
+    function updateTitleIfPasted() {
+      const t = document.getElementById('target');
+      if (t.value.includes(queuedText)) {
+        document.title = pastedTitle;
+      }
+    }
     setTimeout(() => {
       const t = document.getElementById('target');
       t.focus();
       t.setSelectionRange(t.value.length, t.value.length);
     }, 300);
+    document.getElementById('target').addEventListener('input', updateTitleIfPasted);
+    setInterval(updateTitleIfPasted, 250);
     </script>
     </body></html>
     """
     try? html.write(to: htmlURL, atomically: true, encoding: .utf8)
-    defer { try? FileManager.default.removeItem(at: htmlURL) }
 
-    NSWorkspace.shared.open(
-        [htmlURL],
-        withApplicationAt: appURL,
-        configuration: NSWorkspace.OpenConfiguration()
-    )
+    let server: LocalHTTPServer
+    do {
+        server = try LocalHTTPServer(root: serverRoot)
+    } catch {
+        let detail = "Could not create localhost server: \(error)"
+        return target.required
+            ? .failed(name: "\(target.name) queued delivery", detail: detail)
+            : .skipped(name: "\(target.name) queued delivery", detail: detail)
+    }
+    guard let port = server.start(),
+          let pageURL = URL(string: "http://127.0.0.1:\(port)/\(target.htmlFileName)") else {
+        let detail = "Could not start localhost target server"
+        return target.required
+            ? .failed(name: "\(target.name) queued delivery", detail: detail)
+            : .skipped(name: "\(target.name) queued delivery", detail: detail)
+    }
+    defer { server.stop() }
+
+    if let executablePath = target.executablePath,
+       FileManager.default.fileExists(atPath: executablePath),
+       !target.launchArguments.isEmpty {
+        launch(executablePath, target.launchArguments + [pageURL.absoluteString])
+    } else {
+        NSWorkspace.shared.open(
+            [pageURL],
+            withApplicationAt: appURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        )
+    }
     var browser: NSRunningApplication?
     var browserWindows: [AXUIElement] = []
     let exposedTargetWindow = waitUntil(timeout: 10, poll: 0.5) {
@@ -327,8 +486,11 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
     let pasted = waitUntil(timeout: 6) {
         activateWindow(window, app: browser)
         return textValues(in: window).contains(where: { $0.contains(queuedText) })
+            || windowTitle(window).contains(pastedTitle)
     }
-    var detail = "target=\(target.name) pid=\(browser.processIdentifier) title=\(title) noTabClose=true"
+    let reusedProcess = existingProcessID == browser.processIdentifier
+    let privateMode = target.privateBrowsingRequested ? "requested" : "notRequested"
+    var detail = "target=\(target.name) pid=\(browser.processIdentifier) title=\(title) transport=localhost privateMode=\(privateMode) reusedExistingProcess=\(reusedProcess) noTabClose=true noUserBrowserQuit=true"
     if !pasted {
         let observed = textValues(in: window)
             .map { $0.replacingOccurrences(of: "\n", with: "\\n") }
@@ -348,10 +510,13 @@ func testChrome() -> SmokeResult {
         name: "Google Chrome",
         bundleID: "com.google.Chrome",
         appPath: "/Applications/Google Chrome.app",
+        executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        launchArguments: ["--incognito", "--new-window"],
         pageTitle: "Foil Queued Chrome Target",
         initialText: "Chrome queued target",
         htmlFileName: "foil-queued-chrome-target.html",
-        required: true
+        required: true,
+        privateBrowsingRequested: true
     ))
 }
 
@@ -360,10 +525,13 @@ func testFirefox() -> SmokeResult {
         name: "Firefox",
         bundleID: "org.mozilla.firefox",
         appPath: "/Applications/Firefox.app",
+        executablePath: "/Applications/Firefox.app/Contents/MacOS/firefox",
+        launchArguments: ["--private-window"],
         pageTitle: "Foil Queued Firefox Target",
         initialText: "Firefox queued target",
         htmlFileName: "foil-queued-firefox-target.html",
-        required: false
+        required: false,
+        privateBrowsingRequested: true
     ))
 }
 
@@ -372,10 +540,13 @@ func testSafari() -> SmokeResult {
         name: "Safari",
         bundleID: "com.apple.Safari",
         appPath: "/Applications/Safari.app",
+        executablePath: nil,
+        launchArguments: [],
         pageTitle: "Foil Queued Safari Target",
         initialText: "Safari queued target",
         htmlFileName: "foil-queued-safari-target.html",
-        required: false
+        required: false,
+        privateBrowsingRequested: false
     ))
 }
 

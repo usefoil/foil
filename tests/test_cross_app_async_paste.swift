@@ -8,6 +8,7 @@
 import AppKit
 import ApplicationServices
 import Foundation
+import Network
 
 struct PasteTarget {
     let window: AXUIElement?
@@ -24,6 +25,85 @@ struct TestResult {
         case passed
         case failed
         case skipped
+    }
+}
+
+final class LocalHTTPServer {
+    private let root: URL
+    private let listener: NWListener
+    private let queue = DispatchQueue(label: "foil.cross-app.local-http")
+    private let ready = DispatchSemaphore(value: 0)
+    private var startError: Error?
+
+    init(root: URL) throws {
+        self.root = root
+        self.listener = try NWListener(using: .tcp, on: .any)
+    }
+
+    func start(timeout: TimeInterval = 2) -> UInt16? {
+        listener.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .ready:
+                self?.ready.signal()
+            case .failed(let error):
+                self?.startError = error
+                self?.ready.signal()
+            default:
+                break
+            }
+        }
+        listener.newConnectionHandler = { [weak self] connection in
+            self?.handle(connection)
+        }
+        listener.start(queue: queue)
+
+        guard ready.wait(timeout: .now() + .milliseconds(Int(timeout * 1000))) == .success,
+              startError == nil,
+              let port = listener.port?.rawValue else {
+            return nil
+        }
+        return port
+    }
+
+    func stop() {
+        listener.cancel()
+    }
+
+    private func handle(_ connection: NWConnection) {
+        connection.start(queue: queue)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] data, _, _, _ in
+            guard let self else {
+                connection.cancel()
+                return
+            }
+            let request = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            let requestLine = request.components(separatedBy: "\r\n").first ?? ""
+            let parts = requestLine.split(separator: " ")
+            let rawPath = parts.count > 1 ? String(parts[1]) : "/"
+            let pathWithoutQuery = rawPath.split(separator: "?", maxSplits: 1).first.map(String.init) ?? rawPath
+            let decodedPath = pathWithoutQuery.removingPercentEncoding ?? pathWithoutQuery
+            let fileName = URL(fileURLWithPath: decodedPath).lastPathComponent.isEmpty
+                ? "index.html"
+                : URL(fileURLWithPath: decodedPath).lastPathComponent
+            let fileURL = self.root.appendingPathComponent(fileName, isDirectory: false)
+
+            let statusLine: String
+            let body: Data
+            if let fileData = try? Data(contentsOf: fileURL) {
+                statusLine = "HTTP/1.1 200 OK"
+                body = fileData
+            } else {
+                statusLine = "HTTP/1.1 404 Not Found"
+                body = Data("Not found".utf8)
+            }
+
+            let header = "\(statusLine)\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
+            var response = Data(header.utf8)
+            response.append(body)
+            connection.send(content: response, completion: .contentProcessed { _ in
+                connection.cancel()
+            })
+        }
     }
 }
 
@@ -47,6 +127,15 @@ func run(_ launchPath: String, _ arguments: [String]) -> String {
 
 func osascript(_ source: String) -> String {
     run("/usr/bin/osascript", ["-e", source])
+}
+
+func launch(_ launchPath: String, _ arguments: [String]) {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: launchPath)
+    process.arguments = arguments
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try? process.run()
 }
 
 func captureCurrentTarget() -> PasteTarget? {
@@ -173,10 +262,19 @@ func testChrome() -> TestResult {
     }
 
     let text = "FOIL_CHROME_ASYNC_PASTE"
-    let htmlURL = FileManager.default.temporaryDirectory.appendingPathComponent("foil-chrome-paste-test.html")
+    let serverRoot = FileManager.default.temporaryDirectory
+        .appendingPathComponent("foil-cross-app-chrome-\(UUID().uuidString)", isDirectory: true)
+    do {
+        try FileManager.default.createDirectory(at: serverRoot, withIntermediateDirectories: true)
+    } catch {
+        return TestResult(name: "Chrome", status: .failed, detail: "Could not create localhost target directory: \(error)")
+    }
+    defer { try? FileManager.default.removeItem(at: serverRoot) }
+
+    let htmlURL = serverRoot.appendingPathComponent("foil-chrome-paste-test.html")
     let html = """
     <!doctype html>
-    <html><body>
+    <html><head><title>Foil Cross-App Chrome Target</title></head><body>
     <textarea id="target" autofocus style="width:600px;height:240px;">Chrome target
     </textarea>
     <script>
@@ -189,13 +287,29 @@ func testChrome() -> TestResult {
     </body></html>
     """
     try? html.write(to: htmlURL, atomically: true, encoding: .utf8)
-    defer { try? FileManager.default.removeItem(at: htmlURL) }
 
-    NSWorkspace.shared.open(
-        [htmlURL],
-        withApplicationAt: chromeURL,
-        configuration: NSWorkspace.OpenConfiguration()
-    )
+    let server: LocalHTTPServer
+    do {
+        server = try LocalHTTPServer(root: serverRoot)
+    } catch {
+        return TestResult(name: "Chrome", status: .failed, detail: "Could not create localhost server: \(error)")
+    }
+    guard let port = server.start(),
+          let pageURL = URL(string: "http://127.0.0.1:\(port)/foil-chrome-paste-test.html") else {
+        return TestResult(name: "Chrome", status: .failed, detail: "Could not start localhost target server")
+    }
+    defer { server.stop() }
+
+    let chromeExecutable = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    if FileManager.default.fileExists(atPath: chromeExecutable) {
+        launch(chromeExecutable, ["--incognito", "--new-window", pageURL.absoluteString])
+    } else {
+        NSWorkspace.shared.open(
+            [pageURL],
+            withApplicationAt: chromeURL,
+            configuration: NSWorkspace.OpenConfiguration()
+        )
+    }
     Thread.sleep(forTimeInterval: 2.5)
     NSRunningApplication.runningApplications(withBundleIdentifier: "com.google.Chrome").first?.activate()
     Thread.sleep(forTimeInterval: 0.8)
@@ -218,7 +332,7 @@ func testChrome() -> TestResult {
     let value = textArea.map(axValue) ?? ""
 
     if value.contains(text) {
-        return TestResult(name: "Chrome", status: .passed, detail: "Text reached captured textarea; frontmost after paste: \(frontAfterPaste ?? "unknown"); no tab close")
+        return TestResult(name: "Chrome", status: .passed, detail: "Text reached captured textarea; frontmost after paste: \(frontAfterPaste ?? "unknown"); transport=localhost; privateMode=requested; no tab close; no browser quit")
     }
     return TestResult(name: "Chrome", status: .failed, detail: "Pasted text not found in Chrome AX value")
 }

@@ -9,7 +9,7 @@ and browser text-entry behavior depend on the active macOS desktop session.
 This smoke is for the queued-paste MVP only:
 
 - Verify that target identity is app/window based, not a stored screen point.
-- Cover TextEdit and one browser text-entry target.
+- Cover TextEdit and disposable browser text-entry targets.
 - Record fallback or unavailable-target behavior.
 - Capture follow-ups before adding a global queued-paste delivery hotkey.
 
@@ -161,6 +161,53 @@ Observed:
 Conclusion: the experimental queued-paste smoke now records an additional
 browser target when available, avoids closing browser tabs in the compatibility
 path, and captures the manual-paste recovery message for unavailable targets.
+
+## 2026-05-28 Localhost Browser/Fallback Rerun
+
+Command:
+
+```sh
+swiftc -parse tests/test_queued_paste_compatibility.swift
+swiftc -parse tests/test_cross_app_async_paste.swift
+xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilTests/QueuedPasteTests
+ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility
+```
+
+Result: pass. The queued compatibility command wrote artifacts to
+`/tmp/foil-queued-paste-compatibility-20260528-095356`; the focused XCTest
+result is `Test-Foil-2026.05.28_09-51-55--0700.xcresult`.
+
+Observed:
+
+- The prerequisite cross-app Chrome row passed against a disposable localhost
+  target with `privateMode=requested`, `no tab close`, and `no browser quit`.
+- TextEdit queued delivery passed for `TextEdit pid=66632`, title
+  `FoilQueuedTextEditTarget.txt`.
+- Chrome queued delivery passed for the existing Chrome process
+  `Google Chrome pid=76811`, title
+  `Foil Queued Chrome Target - Google Chrome (Incognito)`, with
+  `transport=localhost`, `privateMode=requested`, `reusedExistingProcess=true`,
+  `noTabClose=true`, and `noUserBrowserQuit=true`.
+- Firefox queued delivery passed for the existing Firefox process
+  `Firefox pid=61995`, title
+  `Foil Queued Firefox Target — Private Browsing`, with `transport=localhost`,
+  `privateMode=requested`, `reusedExistingProcess=true`, `noTabClose=true`, and
+  `noUserBrowserQuit=true`. The disposable page title changes after input so
+  Firefox can be verified without reading an AX textarea value that Firefox does
+  not expose in this private-window configuration.
+- Safari queued delivery passed for `Safari pid=62276`, title
+  `Foil Queued Safari Target`, with `transport=localhost`,
+  `privateMode=notRequested`, `reusedExistingProcess=true`, `noTabClose=true`,
+  and `noUserBrowserQuit=true`.
+- Unavailable-target fallback passed, verified the clipboard contained the
+  queued transcript text, and recorded the recovery message
+  `Target unavailable; text copied to clipboard`.
+
+Conclusion: the local-file Firefox skip is resolved by serving disposable
+browser targets from localhost. Chrome and Firefox request private windows to
+avoid persistent profile history/content changes where the browser supports it;
+Safari remains an optional disposable-localhost row with no automated tab close
+or browser quit path.
 
 ## 2026-05-28 Local Rerun
 
