@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Observation
 
@@ -947,6 +948,23 @@ final class AppState {
 
     func updateMicrophoneState(isReady: Bool, message: String = "Allow microphone access") {
         microphoneState = isReady ? .ready : .needsAction(message)
+    }
+
+    func applySetupHealth(
+        accessibilityTrusted: Bool,
+        microphoneAuthorizationStatus: AVAuthorizationStatus
+    ) {
+        updateAccessibilityState(isTrusted: accessibilityTrusted)
+        switch microphoneAuthorizationStatus {
+        case .authorized:
+            updateMicrophoneState(isReady: true)
+        case .denied, .restricted:
+            updateMicrophoneState(isReady: false, message: "Allow microphone access")
+        case .notDetermined:
+            microphoneState = .unknown
+        @unknown default:
+            microphoneState = .unknown
+        }
     }
 
     func refreshApiKeyState() {

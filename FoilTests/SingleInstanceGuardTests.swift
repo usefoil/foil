@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 @testable import Foil
 
@@ -16,6 +17,16 @@ private final class NotRunningStub: SingleInstanceGuarding {
     func activateExistingInstanceIfRunning() -> Bool {
         callCount += 1
         return false
+    }
+}
+
+private struct StubSetupPermissionProvider: SetupPermissionProviding {
+    var accessibilityTrusted: Bool
+    var microphoneAuthorizationStatus: AVAuthorizationStatus
+    var microphoneAccessRequestResult = false
+
+    func requestMicrophoneAccess() async -> Bool {
+        microphoneAccessRequestResult
     }
 }
 
@@ -86,6 +97,25 @@ final class SingleInstanceGuardTests: XCTestCase {
         let stub = NotRunningStub()
         let delegate = AppDelegate(singleInstanceGuard: stub)
         XCTAssertNotNil(delegate, "AppDelegate should accept an injected guard")
+    }
+
+    func testAppDelegateRefreshSetupHealthUsesInjectedPermissionProvider() {
+        let delegate = AppDelegate(
+            singleInstanceGuard: NotRunningStub(),
+            setupPermissionProvider: StubSetupPermissionProvider(
+                accessibilityTrusted: true,
+                microphoneAuthorizationStatus: .authorized
+            )
+        )
+        delegate.appState.updateAccessibilityState(isTrusted: false)
+        delegate.appState.updateMicrophoneState(isReady: false)
+        delegate.appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+
+        delegate.refreshSetupHealth()
+
+        XCTAssertEqual(delegate.appState.accessibilityState, .ready)
+        XCTAssertEqual(delegate.appState.microphoneState, .ready)
+        XCTAssertTrue(delegate.appState.isSetupReady)
     }
 
     func testAppDelegateCanOpenSettingsWindowExplicitly() {

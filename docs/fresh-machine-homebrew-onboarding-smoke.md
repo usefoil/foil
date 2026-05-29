@@ -55,6 +55,29 @@ codesign --verify --deep --strict --verbose=2 /Applications/Foil.app
 Do not paste API keys, transcript content containing private data, or Keychain
 details into GitHub issues, PRs, or QA logs.
 
+## Real TCC Permission Regression Matrix
+
+Run these rows against the production `/Applications/Foil.app` bundle with
+bundle id `com.neonwatty.Foil`. Prefer a fresh disposable macOS account, VM,
+spare Mac, or freshly erased machine. If the operator approves `tccutil reset`,
+run it only in that disposable environment and only for Foil:
+
+```sh
+tccutil reset Accessibility com.neonwatty.Foil
+tccutil reset ListenEvent com.neonwatty.Foil
+tccutil reset Microphone com.neonwatty.Foil
+```
+
+| Row | Starting state | Steps | Expected visible UI | Expected setup/diagnostic state | Result |
+| --- | --- | --- | --- | --- | --- |
+| Fresh install | No prior Foil TCC, Keychain, or app data. | Install with `brew install --cask mean-weasel/foil/foil`, launch `/Applications/Foil.app`, and open onboarding. | First-run setup appears. Permission rows do not show stale ready state before consent. | Diagnostics are for `/Applications/Foil.app`; bundle id is `com.neonwatty.Foil`. | PASS/FAIL |
+| Accessibility already granted | Accessibility is already enabled for `/Applications/Foil.app` before onboarding reaches that step. | Relaunch Foil, go to the Accessibility step. | Step shows `Ready`; `Enable Accessibility` is not shown. | `SetupHealth: accessibilityTrusted=true`. | PASS/FAIL |
+| Accessibility granted while on step | Accessibility starts disabled. | Stay on the Accessibility step, enable Foil in System Settings, return to Foil or relaunch if macOS requires it. | The Accessibility step updates to `Ready` without continuing to show `Enable Accessibility`. | `SetupHealth: accessibilityTrusted=true`; hotkey monitor starts after relaunch/check. | PASS/FAIL |
+| Microphone prompt grant | Microphone starts not determined. | Stay on the Microphone step and choose the in-app microphone action. Grant the macOS prompt. | Microphone step updates to `Ready`; final `Get Started` becomes enabled once provider/API setup is also ready. | Diagnostics include microphone authorization changing to granted/authorized. | PASS/FAIL |
+| Microphone already granted | Microphone is already authorized before onboarding reaches that step. | Relaunch Foil and go to the Microphone step. | Microphone step shows `Ready`; final `Get Started` is enabled when the other setup requirements are ready. | `SetupHealth: microphone=authorized`. | PASS/FAIL |
+| Permission revoked while running | Foil is running and previously ready. | Revoke Accessibility or Microphone in System Settings, return to Foil, run Test Setup, then re-enable it. | Setup returns to an actionable state, then returns to `Ready`; `Get Started` is disabled while any required permission is missing. | Diagnostics record the revoked state and the later ready state for the same production app path. | PASS/FAIL |
+| Quit/relaunch persistence | Accessibility, Microphone, and provider setup are complete. | Quit Foil, relaunch from `/Applications/Foil.app`, open setup/status. | Setup remains `Ready`; onboarding does not re-block on stale permission text. | Diagnostics show Accessibility trusted, Microphone authorized, and provider/API readiness restored. | PASS/FAIL |
+
 ## Evidence Template
 
 Append a completed entry to `docs/release-qa-log.md` or attach it to issue #154:
@@ -75,10 +98,12 @@ Append a completed entry to `docs/release-qa-log.md` or attach it to issue #154:
 - Onboarding appeared on first launch: PASS/FAIL
 - Accessibility setup from Foil: PASS/FAIL
 - Microphone setup from Foil: PASS/FAIL
+- Microphone final Get Started enabled after grant: PASS/FAIL
 - Provider setup path tested:
 - Setup check after configuration: PASS/FAIL
 - Hold-to-record transcription/paste: PASS/FAIL
 - Quit/relaunch setup persistence: PASS/FAIL
+- Real TCC matrix rows completed:
 - Friction observed:
 - Follow-up issues filed:
 ```
@@ -91,6 +116,9 @@ Append a completed entry to `docs/release-qa-log.md` or attach it to issue #154:
 - First-run onboarding appears for the fresh account.
 - Accessibility and Microphone setup can be completed without undocumented
   workarounds.
+- Already-granted Accessibility and Microphone show `Ready` during onboarding.
+- Accessibility and Microphone changes made while onboarding is open refresh the
+  visible state and final `Get Started` enabled state.
 - At least one provider path can be configured.
 - One hold-to-record transcription successfully pastes into a disposable target.
 - Setup state survives quit and relaunch.

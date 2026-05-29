@@ -47,3 +47,50 @@ version and DMG SHA-256, then verify `brew info --cask mean-weasel/foil/foil`
 shows the new version.
 
 After the workflow completes, mount the DMG locally during release QA and confirm the Finder window uses the Foil-branded background, shows `Foil.app` on the left, and shows the Applications drop link on the right.
+
+## Required Production Setup QA
+
+Before announcing a release as Homebrew-ready, complete the production install
+and permission setup gates in `docs/release-qa-log.md`.
+
+1. Install the public cask in a disposable app directory and verify the shipped
+   identity:
+
+   ```bash
+   brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil
+   brew info --cask mean-weasel/foil/foil
+   brew install --cask --appdir=/tmp/foil-release-apps mean-weasel/foil/foil
+   /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' /tmp/foil-release-apps/Foil.app/Contents/Info.plist
+   /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /tmp/foil-release-apps/Foil.app/Contents/Info.plist
+   /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /tmp/foil-release-apps/Foil.app/Contents/Info.plist
+   spctl -a -vv -t execute /tmp/foil-release-apps/Foil.app
+   codesign --verify --deep --strict --verbose=2 /tmp/foil-release-apps/Foil.app
+   ```
+
+   Expected result: bundle id is `com.neonwatty.Foil`, version/build match the
+   release, Gatekeeper reports `Notarized Developer ID`, and deep strict
+   codesign verification passes.
+
+2. Install or reinstall the same cask into `/Applications`, launch
+   `/Applications/Foil.app`, and run `make guide-installed-permissions-qa`.
+   Record the helper output, installed version/build, signature, notarization
+   result, launch result, and whether the active process path is
+   `/Applications/Foil.app/Contents/MacOS/Foil`.
+
+3. On a fresh macOS account, VM, spare Mac, or disposable user, run the real TCC
+   matrix in `docs/fresh-machine-homebrew-onboarding-smoke.md`. Do not run
+   destructive `tccutil reset` commands on a daily-driver account without
+   explicit operator approval. If a disposable account is used and a reset is
+   approved, scope it to Foil:
+
+   ```bash
+   tccutil reset Accessibility com.neonwatty.Foil
+   tccutil reset ListenEvent com.neonwatty.Foil
+   tccutil reset Microphone com.neonwatty.Foil
+   ```
+
+4. Record every row in `docs/release-qa-log.md`, including failures and exact
+   visible app text. A release is not setup-permission ready until the matrix
+   proves that Accessibility and Microphone readiness update while onboarding is
+   open and that the final `Get Started` button becomes enabled once all setup
+   requirements are ready.

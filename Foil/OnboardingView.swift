@@ -5,6 +5,7 @@ struct OnboardingView: View {
     var onOpenAccessibility: (() -> Void)?
     var onOpenMicrophone: (() -> Void)?
     var onCheckMicrophone: (() -> Void)?
+    var onRefreshSetupHealth: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onComplete: () -> Void
 
@@ -84,9 +85,20 @@ struct OnboardingView: View {
         }
         .frame(width: 420, height: 340)
         .accessibilityIdentifier("onboarding.root")
+        .onAppear {
+            onRefreshSetupHealth?()
+        }
         .onChange(of: currentStep) { _, step in
-            if step == 3 && !isUITesting {
-                onCheckMicrophone?()
+            switch step {
+            case 2:
+                onRefreshSetupHealth?()
+            case 3:
+                onRefreshSetupHealth?()
+                if !isUITesting {
+                    onCheckMicrophone?()
+                }
+            default:
+                break
             }
         }
         .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
@@ -236,6 +248,8 @@ struct OnboardingView: View {
         switch command.name {
         case "goToMicrophone":
             currentStep = 3
+        case "goToAccessibility":
+            currentStep = 2
         case "goToCredentials":
             currentStep = 1
         case "goToFinal":
@@ -244,6 +258,10 @@ struct OnboardingView: View {
             appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         case "checkMicrophone":
             onCheckMicrophone?()
+        case "grantAccessibility":
+            appState.updateAccessibilityState(isTrusted: true)
+        case "grantMicrophone":
+            appState.updateMicrophoneState(isReady: true)
         case "complete":
             onComplete()
         default:
