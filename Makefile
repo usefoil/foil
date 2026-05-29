@@ -32,7 +32,7 @@ APP_BUILD_VERSION := $(shell sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/
 LIVE_GROQ_TEST_CLASS := FoilTests/LiveGroqIntegrationTests
 DEFAULT_UNIT_TEST_FILTERS := -only-testing:FoilTests -skip-testing:$(LIVE_GROQ_TEST_CLASS)
 
-.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-dev build-warnings-as-errors unlock-local-signing-keychain run run-dev start start-dev stop stop-dev restart restart-dev install install-dev uninstall uninstall-dev clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real test-queued-paste-compatibility qa-paste prepare-local-permissions-qa prepare-local-permissions-dev-qa prepare-local-permissions-qa-check prepare-local-permissions-dev-qa-check guide-installed-permissions-qa guide-installed-dev-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-dev build-warnings-as-errors unlock-local-signing-keychain run run-dev start start-dev stop stop-dev restart restart-dev install install-dev uninstall uninstall-dev clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real test-queued-paste-compatibility qa-paste prepare-local-permissions-qa prepare-local-permissions-dev-qa prepare-local-permissions-qa-check prepare-local-permissions-dev-qa-check check-production-permissions-cask guide-production-permissions-qa production-permissions-evidence-template guide-installed-permissions-qa guide-installed-dev-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -237,6 +237,15 @@ prepare-local-permissions-qa-check:
 
 prepare-local-permissions-dev-qa-check:
 	APP_NAME="$(DEV_APP_NAME)" SCHEME="$(DEV_SCHEME)" APP_PATH="/Applications/$(DEV_APP_NAME).app" scripts/prepare-local-permissions-qa.sh --check
+
+check-production-permissions-cask:
+	scripts/prepare-production-permissions-qa.sh --check-cask
+
+guide-production-permissions-qa:
+	scripts/prepare-production-permissions-qa.sh --guide-applications
+
+production-permissions-evidence-template:
+	scripts/prepare-production-permissions-qa.sh --evidence-template
 
 guide-installed-permissions-qa:
 	EXPECTED_VERSION="$(APP_MARKETING_VERSION)" EXPECTED_BUILD="$(APP_BUILD_VERSION)" scripts/prepare-local-permissions-qa.sh --guide-installed

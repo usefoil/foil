@@ -54,7 +54,15 @@ Before announcing a release as Homebrew-ready, complete the production install
 and permission setup gates in `docs/release-qa-log.md`.
 
 1. Install the public cask in a disposable app directory and verify the shipped
-   identity:
+   identity. Prefer the helper because it checks the latest GitHub release,
+   public Homebrew cask metadata, Gatekeeper notarization, and deep strict
+   codesign in one run:
+
+   ```bash
+   REQUIRED_COMMIT=<commit-that-must-be-in-the-release> make check-production-permissions-cask
+   ```
+
+   The manual equivalent is:
 
    ```bash
    brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil
@@ -72,10 +80,17 @@ and permission setup gates in `docs/release-qa-log.md`.
    codesign verification passes.
 
 2. Install or reinstall the same cask into `/Applications`, launch
-   `/Applications/Foil.app`, and run `make guide-installed-permissions-qa`.
+   `/Applications/Foil.app`, and run:
+
+   ```bash
+   make guide-production-permissions-qa
+   ```
+
    Record the helper output, installed version/build, signature, notarization
    result, launch result, and whether the active process path is
-   `/Applications/Foil.app/Contents/MacOS/Foil`.
+   `/Applications/Foil.app/Contents/MacOS/Foil`. This production helper should
+   pass with Developer ID signing and `Notarized Developer ID`; do not use the
+   local-signing helper as release proof.
 
 3. On a fresh macOS account, VM, spare Mac, or disposable user, run the real TCC
    matrix in `docs/fresh-machine-homebrew-onboarding-smoke.md`. Do not run
@@ -94,3 +109,10 @@ and permission setup gates in `docs/release-qa-log.md`.
    proves that Accessibility and Microphone readiness update while onboarding is
    open and that the final `Get Started` button becomes enabled once all setup
    requirements are ready.
+
+   Use this template when posting evidence to a release PR, QA log, or tracking
+   issue:
+
+   ```bash
+   make production-permissions-evidence-template
+   ```
