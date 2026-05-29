@@ -107,6 +107,34 @@ app's Accessibility permission attached across rebuilds.
 `make setup-local-signing` creates that identity once in a dedicated local
 keychain and removes stale local copies from the login keychain.
 
+### Production and Development Apps
+
+Use tagged releases or Homebrew for the production app at `/Applications/Foil.app`
+with bundle ID `com.neonwatty.Foil`. Use the local dev flavor for work from
+`main` or feature branches:
+
+```sh
+make install-dev
+make start-dev
+```
+
+The dev flavor installs `/Applications/Foil Dev.app` with bundle ID
+`com.neonwatty.Foil.Dev`. It keeps separate macOS permissions, preferences,
+Keychain entries, diagnostics, and transcription history from production. Sparkle
+updates are disabled in the dev flavor so it will not replace itself with a
+production release.
+
+To repair or inspect the dev app's macOS permission rows, use:
+
+```sh
+make prepare-local-permissions-dev-qa
+make prepare-local-permissions-dev-qa-check
+```
+
+The Codex Run action also uses the dev flavor by default. Set
+`FOIL_RUN_FLAVOR=prod` only when you intentionally want that script to rebuild
+and launch the production app identity.
+
 ### Local Permission State Repair
 
 During development, macOS can keep Accessibility or Input Monitoring rows for an

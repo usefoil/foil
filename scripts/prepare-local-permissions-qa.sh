@@ -6,6 +6,7 @@ SCHEME="${SCHEME:-Foil}"
 CONFIG="${CONFIG:-Debug}"
 INSTALL_DIR="${INSTALL_DIR:-/Applications}"
 APP_PATH="${APP_PATH:-$INSTALL_DIR/$APP_NAME.app}"
+INSTALL_TARGET="${INSTALL_TARGET:-install}"
 EXPECTED_VERSION="${EXPECTED_VERSION:-}"
 EXPECTED_BUILD="${EXPECTED_BUILD:-}"
 
@@ -338,7 +339,7 @@ section "Ensure stable local signing identity"
 "$MAKE_CMD" setup-local-signing
 
 section "Build and install local app"
-"$MAKE_CMD" install CONFIG="$CONFIG"
+"$MAKE_CMD" "$INSTALL_TARGET" CONFIG="$CONFIG"
 
 if [ ! -d "$APP_PATH" ]; then
   echo "error: expected installed app at $APP_PATH" >&2

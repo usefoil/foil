@@ -810,7 +810,7 @@ struct SettingsView: View {
         guard let appSupport = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask
         ).first else { return }
-        let dir = appSupport.appendingPathComponent("Foil", isDirectory: true)
+        let dir = appSupport.appendingPathComponent(AppBrand.applicationSupportDirectoryName, isDirectory: true)
         NSWorkspace.shared.activateFileViewerSelecting([dir])
     }
 }
