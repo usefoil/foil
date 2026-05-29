@@ -1,3 +1,29 @@
+## [1.13.0](https://github.com/mean-weasel/foil/compare/v1.12.2...v1.13.0) (2026-05-28)
+
+### Experimental queued paste
+
+- Added the experimental queued-paste workflow for collecting multiple transcripts before delivery.
+- Added a user-facing queued-paste delivery hotkey, `Control-Shift-V`, with step-through and drain behavior based on queued-paste mode.
+- Added settings, diagnostics, and conflict handling for the queued-paste delivery shortcut.
+- Expanded queued-paste compatibility smoke coverage for TextEdit, Chrome, Safari, and local browser fallback targets.
+
+### Providers and cleanup
+
+- Added custom OpenAI-compatible chat cleanup provider routing so transcript cleanup can use a selected custom chat endpoint.
+
+### Production and development workflow
+
+- Added a separate `Foil Dev` app flavor with bundle ID `com.neonwatty.Foil.Dev`.
+- Isolated dev app preferences, Keychain service, diagnostics, transcription history, app support data, macOS TCC identity, and single-instance behavior from production.
+- Added dev build/install/run and permission QA targets, and made the Codex Run action use the dev flavor by default.
+- Disabled Sparkle production updates in the dev flavor.
+
+### Install and release documentation
+
+- Clarified Homebrew as the primary production install path and documented current public install status.
+- Added fresh-machine onboarding smoke documentation and Homebrew release validation notes.
+
+
 ## [1.12.2](https://github.com/mean-weasel/foil/compare/v1.12.1...v1.12.2) (2026-05-27)
 
 ### Visual polish
