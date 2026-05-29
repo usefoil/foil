@@ -43,7 +43,10 @@ make test-queued-paste-compatibility
 ```
 
 This command runs the available local target-identity gates and writes logs under
-`/tmp/foil-queued-paste-compatibility-*`.
+`/tmp/foil-queued-paste-compatibility-*`. It does not run the older
+`make test-cross-app` gate by default because that test drives Chrome/Terminal.
+Use `scripts/run-queued-paste-compatibility-smoke.sh --include-cross-app` only on
+an idle desktop where browser-tab automation is acceptable.
 
 Important: the command is a prerequisite harness, not a complete substitute for
 the manual queued-paste rows below. The current automated installed-app smoke
