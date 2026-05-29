@@ -48,12 +48,12 @@ This command runs the available local target-identity gates and writes logs unde
 Use `scripts/run-queued-paste-compatibility-smoke.sh --include-cross-app` only on
 an idle desktop where browser-tab automation is acceptable.
 
-Important: the command is a prerequisite harness, not a complete substitute for
-the manual queued-paste rows below. The current automated installed-app smoke
-uses the real frontmost target and the production async paste path, while the
-deterministic queued-paste UI test uses a synthetic Foil target. Until a real
-target queued-paste automation hook exists, the actual queued TextEdit/browser
-rows must be executed manually or recorded as blocked with the reason.
+Important: the command includes a bounded real-target queued-paste automation
+hook, but it still depends on the local desktop permission state. If TextEdit or
+browser delivery fails while Foil logs `accessibilityTrusted=false`, refresh or
+grant Accessibility and Input Monitoring for `/Applications/Foil.app`, then
+rerun the smoke. Record failures as compatibility evidence rather than treating
+clipboard contents alone as success.
 
 ## Manual Queued-Paste Procedure
 

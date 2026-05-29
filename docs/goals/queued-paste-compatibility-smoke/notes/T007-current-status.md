@@ -35,3 +35,12 @@ ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility
 
 This is not marked complete because the TextEdit and browser queued-delivery rows are still failing.
 
+## 2026-05-29 Handoff Update
+
+The default wrapper was tightened for transfer-machine safety:
+
+- It no longer runs `make test-cross-app` by default.
+- The older cross-app gate is opt-in with `--include-cross-app` because it drives Chrome/Terminal and may close the Chrome tab it opens.
+- The queued real-target smoke still may open a disposable Chrome tab, but it must not quit Chrome or close browser tabs.
+- Static verification passed with the current GoalBuddy checker path on this machine.
+

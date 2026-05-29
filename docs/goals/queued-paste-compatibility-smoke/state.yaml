@@ -297,7 +297,7 @@ tasks:
       - "bash -n scripts/run-queued-paste-compatibility-smoke.sh"
       - "ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility"
       - "make test"
-      - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.7/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
+      - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
       - "git diff --check"
     stop_if:
       - "The hook needs to run outside --automation-smoke."
@@ -339,6 +339,9 @@ checks:
   dirty_fingerprint: unknown
   last_verification:
     result: partial
-    task: T003
+    task: T007
     commands:
-      - "ALLOW_LOCAL_QA_SKIP=1 make test-queued-paste-compatibility"
+      - "bash -n scripts/run-queued-paste-compatibility-smoke.sh"
+      - "swiftc -parse tests/test_queued_paste_compatibility.swift"
+      - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
+      - "git diff --check"
