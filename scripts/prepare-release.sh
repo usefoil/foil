@@ -7,6 +7,7 @@ Usage: scripts/prepare-release.sh VERSION BUILD_NUMBER NOTES_FILE
 
 Prepares an intentional Foil release PR by updating:
   - Foil.xcodeproj MARKETING_VERSION and CURRENT_PROJECT_VERSION
+  - project.yml MARKETING_VERSION and CURRENT_PROJECT_VERSION
   - package.json/package-lock.json version
   - CHANGELOG.md with release notes
 
@@ -53,11 +54,14 @@ if [ ! -s "$NOTES_FILE" ]; then
 fi
 
 PROJECT_FILE="Foil.xcodeproj/project.pbxproj"
+PROJECT_SPEC="project.yml"
 TODAY="$(date +%Y-%m-%d)"
 PREVIOUS_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
 
 perl -0pi -e "s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = $VERSION;/g" "$PROJECT_FILE"
 perl -0pi -e "s/CURRENT_PROJECT_VERSION = [^;]+;/CURRENT_PROJECT_VERSION = $BUILD_NUMBER;/g" "$PROJECT_FILE"
+perl -0pi -e "s/MARKETING_VERSION: \"[^\"]+\"/MARKETING_VERSION: \"$VERSION\"/g" "$PROJECT_SPEC"
+perl -0pi -e "s/CURRENT_PROJECT_VERSION: [0-9]+/CURRENT_PROJECT_VERSION: $BUILD_NUMBER/g" "$PROJECT_SPEC"
 
 npm pkg set "version=$VERSION" >/dev/null
 npm install --package-lock-only >/dev/null
