@@ -3,7 +3,6 @@ import LocalAuthentication
 import Security
 
 enum KeychainHelper {
-    private static let defaultService = "com.neonwatty.Foil"
     private static let defaultAccount = "groq-api-key"
 
     #if DEBUG
@@ -14,9 +13,9 @@ enum KeychainHelper {
 
     private static var service: String {
         #if DEBUG
-        serviceOverride ?? defaultService
+        serviceOverride ?? AppBrand.keychainService
         #else
-        defaultService
+        AppBrand.keychainService
         #endif
     }
 
@@ -53,7 +52,7 @@ enum KeychainHelper {
         }
         #endif
 
-        let dir = appSupport.appendingPathComponent("Foil", isDirectory: true)
+        let dir = appSupport.appendingPathComponent(AppBrand.applicationSupportDirectoryName, isDirectory: true)
         return dir.appendingPathComponent("api-key")
     }
 

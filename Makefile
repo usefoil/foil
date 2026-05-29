@@ -4,6 +4,9 @@ SHELL := /bin/bash
 APP_NAME := Foil
 BUNDLE_ID := com.neonwatty.Foil
 SCHEME := Foil
+DEV_APP_NAME := Foil Dev
+DEV_BUNDLE_ID := com.neonwatty.Foil.Dev
+DEV_SCHEME := FoilDev
 CONFIG := Debug
 LOCAL_SIGN_IDENTITY := Foil Local Code Signing
 LOCAL_SIGN_KEYCHAIN := $(HOME)/Library/Keychains/foil-codesign.keychain-db
@@ -22,12 +25,14 @@ endif
 
 BUILD_DIR := $(shell xcodebuild -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
 APP_PATH := $(BUILD_DIR)/$(APP_NAME).app
+DEV_BUILD_DIR := $(shell xcodebuild -scheme $(DEV_SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' -showBuildSettings 2>/dev/null | grep -m1 BUILT_PRODUCTS_DIR | awk '{print $$NF}')
+DEV_APP_PATH := $(DEV_BUILD_DIR)/$(DEV_APP_NAME).app
 APP_MARKETING_VERSION := $(shell sed -n 's/.*MARKETING_VERSION = \([^;]*\);.*/\1/p' Foil.xcodeproj/project.pbxproj | head -1)
 APP_BUILD_VERSION := $(shell sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/\1/p' Foil.xcodeproj/project.pbxproj | head -1)
 LIVE_GROQ_TEST_CLASS := FoilTests/LiveGroqIntegrationTests
 DEFAULT_UNIT_TEST_FILTERS := -only-testing:FoilTests -skip-testing:$(LIVE_GROQ_TEST_CLASS)
 
-.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-warnings-as-errors unlock-local-signing-keychain run start stop restart install uninstall clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real test-queued-paste-compatibility qa-paste prepare-local-permissions-qa prepare-local-permissions-qa-check guide-installed-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-dev build-warnings-as-errors unlock-local-signing-keychain run run-dev start start-dev stop stop-dev restart restart-dev install install-dev uninstall uninstall-dev clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real test-queued-paste-compatibility qa-paste prepare-local-permissions-qa prepare-local-permissions-dev-qa prepare-local-permissions-qa-check prepare-local-permissions-dev-qa-check guide-installed-permissions-qa guide-installed-dev-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -61,6 +66,14 @@ build: unlock-local-signing-keychain
 	if ! grep -q '\*\* BUILD SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
 	rm -f "$$tmp"; exit $$status
 
+build-dev: unlock-local-signing-keychain
+	@if [ -d "$(DEV_APP_PATH)" ]; then find "$(DEV_APP_PATH)" -name '*.cstemp*' -delete; fi
+	@tmp=$$(mktemp); \
+	xcodebuild -scheme $(DEV_SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' $(SIGNING_FLAGS) build >"$$tmp" 2>&1; \
+	status=$$?; tail -3 "$$tmp"; \
+	if ! grep -q '\*\* BUILD SUCCEEDED \*\*' "$$tmp"; then status=1; fi; \
+	rm -f "$$tmp"; exit $$status
+
 build-warnings-as-errors:
 	@tmp=$$(mktemp); \
 	xcodebuild build -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' OTHER_SWIFT_FLAGS='-warnings-as-errors' >"$$tmp" 2>&1; \
@@ -77,15 +90,34 @@ run:
 	$(MAKE) install SIGN_IDENTITY="$$identity" DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)"
 	open /Applications/$(APP_NAME).app
 
+run-dev:
+	@identity=$$(security find-identity -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application: Mean Weasel LLC (B3A6AN2HA4)\)".*/\1/p' | head -1); \
+	if [ -z "$$identity" ]; then \
+		$(MAKE) setup-local-signing; \
+		identity="$(LOCAL_SIGN_IDENTITY)"; \
+	fi; \
+	$(MAKE) install-dev SIGN_IDENTITY="$$identity" DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)"
+	open "/Applications/$(DEV_APP_NAME).app"
+
 start:
 	@open /Applications/$(APP_NAME).app 2>/dev/null || open $(APP_PATH) 2>/dev/null || echo "Run 'make install' or 'make build' first"
+
+start-dev:
+	@open "/Applications/$(DEV_APP_NAME).app" 2>/dev/null || open "$(DEV_APP_PATH)" 2>/dev/null || echo "Run 'make install-dev' or 'make build-dev' first"
 
 stop:
 	@pkill -x $(APP_NAME) 2>/dev/null && echo "Stopped" || echo "Not running"
 
+stop-dev:
+	@pkill -x "$(DEV_APP_NAME)" 2>/dev/null && echo "Stopped $(DEV_APP_NAME)" || echo "$(DEV_APP_NAME) not running"
+
 restart: stop
 	@sleep 0.5
 	@open /Applications/$(APP_NAME).app 2>/dev/null || open $(APP_PATH)
+
+restart-dev: stop-dev
+	@sleep 0.5
+	@open "/Applications/$(DEV_APP_NAME).app" 2>/dev/null || open "$(DEV_APP_PATH)"
 
 install: build
 	-@pkill -x $(APP_NAME) 2>/dev/null; sleep 0.5
@@ -93,10 +125,21 @@ install: build
 	cp -R $(APP_PATH) /Applications/$(APP_NAME).app
 	@echo "Installed to /Applications/$(APP_NAME).app"
 
+install-dev: build-dev
+	-@pkill -x "$(DEV_APP_NAME)" 2>/dev/null; sleep 0.5
+	rm -rf "/Applications/$(DEV_APP_NAME).app"
+	cp -R "$(DEV_APP_PATH)" "/Applications/$(DEV_APP_NAME).app"
+	@echo "Installed to /Applications/$(DEV_APP_NAME).app"
+
 uninstall:
 	-@pkill -x $(APP_NAME) 2>/dev/null
 	rm -rf /Applications/$(APP_NAME).app
 	@echo "Removed /Applications/$(APP_NAME).app"
+
+uninstall-dev:
+	-@pkill -x "$(DEV_APP_NAME)" 2>/dev/null
+	rm -rf "/Applications/$(DEV_APP_NAME).app"
+	@echo "Removed /Applications/$(DEV_APP_NAME).app"
 
 test:
 	@tmp=$$(mktemp); \
@@ -186,11 +229,20 @@ qa-paste: test-paste-real
 prepare-local-permissions-qa:
 	scripts/prepare-local-permissions-qa.sh
 
+prepare-local-permissions-dev-qa:
+	APP_NAME="$(DEV_APP_NAME)" SCHEME="$(DEV_SCHEME)" APP_PATH="/Applications/$(DEV_APP_NAME).app" INSTALL_TARGET=install-dev scripts/prepare-local-permissions-qa.sh
+
 prepare-local-permissions-qa-check:
 	scripts/prepare-local-permissions-qa.sh --check
 
+prepare-local-permissions-dev-qa-check:
+	APP_NAME="$(DEV_APP_NAME)" SCHEME="$(DEV_SCHEME)" APP_PATH="/Applications/$(DEV_APP_NAME).app" scripts/prepare-local-permissions-qa.sh --check
+
 guide-installed-permissions-qa:
 	EXPECTED_VERSION="$(APP_MARKETING_VERSION)" EXPECTED_BUILD="$(APP_BUILD_VERSION)" scripts/prepare-local-permissions-qa.sh --guide-installed
+
+guide-installed-dev-permissions-qa:
+	APP_NAME="$(DEV_APP_NAME)" SCHEME="$(DEV_SCHEME)" APP_PATH="/Applications/$(DEV_APP_NAME).app" EXPECTED_VERSION="$(APP_MARKETING_VERSION)" EXPECTED_BUILD="$(APP_BUILD_VERSION)" scripts/prepare-local-permissions-qa.sh --guide-installed
 
 test-local-permissions-qa-script:
 	scripts/test-prepare-local-permissions-qa.sh
