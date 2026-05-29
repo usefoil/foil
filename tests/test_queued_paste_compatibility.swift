@@ -14,6 +14,7 @@ let appPath = "/Applications/Foil.app"
 let queuedText = "Mock queued paste automation smoke"
 let enqueueNotification = Notification.Name("com.neonwatty.Foil.automation.queuedEnqueue")
 let deliverNotification = Notification.Name("com.neonwatty.Foil.automation.queuedDeliverNext")
+let skipBrowser = CommandLine.arguments.contains("--skip-browser")
 let diagnosticLogURL = FileManager.default
     .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
     .appendingPathComponent("Foil", isDirectory: true)
@@ -324,9 +325,12 @@ guard launchFoil() else {
 
 let results = [
     testTextEdit(),
-    testChrome(),
     testUnavailableTargetFallback()
-]
+] + (skipBrowser ? [] : [testChrome()])
+
+if skipBrowser {
+    print("Browser queued delivery: skipped by --skip-browser")
+}
 
 print()
 print("Results:")

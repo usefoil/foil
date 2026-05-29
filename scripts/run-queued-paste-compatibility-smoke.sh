@@ -7,18 +7,22 @@ ARTIFACT_DIR="${ARTIFACT_DIR:-/tmp/foil-queued-paste-compatibility-${STAMP}}"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/run-queued-paste-compatibility-smoke.sh [--skip-runs] [--include-cross-app]
+Usage: scripts/run-queued-paste-compatibility-smoke.sh [--skip-runs] [--include-browser] [--include-cross-app]
 
 Runs local prerequisite smoke checks for queued-paste compatibility evidence and
 prints or records the queued-paste rows in docs/queued-paste-compatibility-smoke.md.
 
 This script drives the visible macOS desktop. By default it may open TextEdit
-and /Applications/Foil.app, and it may open a disposable browser tab for the
-queued smoke. It must not quit the user's browser or close browser tabs.
+and /Applications/Foil.app. Browser automation is opt-in so the default command
+does not disturb an active browser session.
 
 Options:
   --skip-runs    Print checklist and create the artifact directory without
                  running desktop automation commands.
+  --include-browser
+                 Include the browser queued-paste row. This may open a
+                 disposable browser tab, but must not quit the browser or close
+                 browser tabs.
   --include-cross-app
                  Also run make test-cross-app. This is opt-in because that
                  existing local integration test drives Terminal/Chrome and may
@@ -27,6 +31,7 @@ EOF
 }
 
 SKIP_RUNS=0
+INCLUDE_BROWSER=0
 INCLUDE_CROSS_APP=0
 for arg in "$@"; do
   case "$arg" in
@@ -36,6 +41,9 @@ for arg in "$@"; do
       ;;
     --skip-runs)
       SKIP_RUNS=1
+      ;;
+    --include-browser)
+      INCLUDE_BROWSER=1
       ;;
     --include-cross-app)
       INCLUDE_CROSS_APP=1
@@ -88,7 +96,14 @@ if [[ "$SKIP_RUNS" == "0" ]]; then
     echo "Pass --include-cross-app on an idle desktop if you want that prerequisite gate."
     echo
   fi
-  run_step "queued-real-targets" swift tests/test_queued_paste_compatibility.swift || failures=$((failures + 1))
+  queued_args=()
+  if [[ "$INCLUDE_BROWSER" != "1" ]]; then
+    queued_args+=(--skip-browser)
+    echo "Skipping browser queued-paste row by default."
+    echo "Pass --include-browser on an idle desktop if you want the browser row."
+    echo
+  fi
+  run_step "queued-real-targets" swift tests/test_queued_paste_compatibility.swift "${queued_args[@]}" || failures=$((failures + 1))
 else
   failures=0
   echo "Skipping desktop automation runs."

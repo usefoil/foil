@@ -345,3 +345,4 @@ checks:
       - "swiftc -parse tests/test_queued_paste_compatibility.swift"
       - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
       - "git diff --check"
+      - "Browser queued-paste row made opt-in with --include-browser; default static path does not touch Chrome."
