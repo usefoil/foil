@@ -93,6 +93,8 @@ jobs:
         run: .github/scripts/generate-appcast.sh
 
       - name: Update Homebrew cask
+        # Keep the GitHub release publishable if the separate tap push fails;
+        # docs/release-process.md treats a warning here as manual follow-up.
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}

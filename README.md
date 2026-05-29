@@ -158,7 +158,10 @@ For a Developer ID install, pass your signing identity and team:
 make install SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM=YOURTEAMID
 ```
 
-Release DMG notarization uses App Store Connect API key secrets:
+Release automation uses GitHub secrets for signing, notarization, and Homebrew
+tap updates.
+
+Apple signing and notarization:
 
 - `DEVELOPER_ID_CERT_BASE64`
 - `DEVELOPER_ID_CERT_PASSWORD`
@@ -166,6 +169,12 @@ Release DMG notarization uses App Store Connect API key secrets:
 - `APP_STORE_CONNECT_KEY_ID`
 - `APP_STORE_CONNECT_ISSUER_ID`
 - `APP_STORE_CONNECT_PRIVATE_KEY`
+
+Homebrew cask publishing:
+
+- `HOMEBREW_TAP_TOKEN` — a GitHub token with write access to
+  `mean-weasel/homebrew-foil`. If this is missing or under-scoped, the release
+  can still publish, but the cask update must be handled manually.
 
 If the certificate files are in `~/Desktop/apple-developer-certificates`, run:
 
