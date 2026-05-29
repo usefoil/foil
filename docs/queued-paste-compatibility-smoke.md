@@ -50,6 +50,12 @@ browser queued-paste row on an idle desktop. Use
 `scripts/run-queued-paste-compatibility-smoke.sh --include-cross-app` only where
 the older Chrome/Terminal integration gate is acceptable.
 
+Make targets:
+
+- `make test-queued-paste-compatibility`: safe default; skips browser automation.
+- `make test-queued-paste-compatibility-browser`: includes the browser queued-paste row.
+- `make test-queued-paste-compatibility-cross-app`: includes the browser queued-paste row and the older cross-app Chrome/Terminal gate.
+
 Important: the command includes a bounded real-target queued-paste automation
 hook, but it still depends on the local desktop permission state. If TextEdit or
 browser delivery fails while Foil logs `accessibilityTrusted=false`, refresh or

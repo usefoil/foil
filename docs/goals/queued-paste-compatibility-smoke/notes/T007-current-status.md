@@ -43,4 +43,8 @@ The default wrapper was tightened for transfer-machine safety:
 - It no longer opens the browser queued-paste row by default.
 - The older cross-app gate is opt-in with `--include-cross-app` because it drives Chrome/Terminal and may close the Chrome tab it opens.
 - The browser queued-paste row is opt-in with `--include-browser` for idle desktops.
+- Added Make handoff targets:
+  - `make test-queued-paste-compatibility` for the safe default.
+  - `make test-queued-paste-compatibility-browser` for the browser queued row.
+  - `make test-queued-paste-compatibility-cross-app` for browser plus the older cross-app gate.
 - Static verification passed with the current GoalBuddy checker path on this machine.

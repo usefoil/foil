@@ -346,3 +346,4 @@ checks:
       - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/queued-paste-compatibility-smoke/state.yaml"
       - "git diff --check"
       - "Browser queued-paste row made opt-in with --include-browser; default static path does not touch Chrome."
+      - "Added Make handoff targets for safe default, browser row, and full cross-app/browser smoke."
