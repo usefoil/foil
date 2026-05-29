@@ -88,6 +88,30 @@ struct FoilApp: App {
     }
 }
 
+protocol SetupPermissionProviding {
+    var accessibilityTrusted: Bool { get }
+    var microphoneAuthorizationStatus: AVAuthorizationStatus { get }
+    func requestMicrophoneAccess() async -> Bool
+}
+
+struct SystemSetupPermissionProvider: SetupPermissionProviding {
+    var accessibilityTrusted: Bool {
+        AXIsProcessTrusted()
+    }
+
+    var microphoneAuthorizationStatus: AVAuthorizationStatus {
+        AVCaptureDevice.authorizationStatus(for: .audio)
+    }
+
+    func requestMicrophoneAccess() async -> Bool {
+        await withCheckedContinuation { continuation in
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                continuation.resume(returning: granted)
+            }
+        }
+    }
+}
+
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     let appState: AppState
@@ -99,6 +123,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let textInserter = TextInserter()
     private let soundPlayer = SoundPlayer()
     private let singleInstanceGuard: SingleInstanceGuarding
+    private let setupPermissionProvider: SetupPermissionProviding
     lazy var queuedPasteQueue = QueuedPasteQueue { [weak self] text, target in
         guard let self, let pasteController = self.pasteController else {
             return .clipboardFallback
@@ -137,8 +162,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.init(singleInstanceGuard: SingleInstanceGuard())
     }
 
-    init(singleInstanceGuard: SingleInstanceGuarding) {
+    init(
+        singleInstanceGuard: SingleInstanceGuarding,
+        setupPermissionProvider: SetupPermissionProviding = SystemSetupPermissionProvider()
+    ) {
         self.singleInstanceGuard = singleInstanceGuard
+        self.setupPermissionProvider = setupPermissionProvider
         self.appState = AppState()
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
             let dir = FileManager.default.temporaryDirectory
@@ -348,6 +377,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
             onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
             onCheckMicrophone: { [weak self] in self?.checkMicrophonePermission() },
+            onRefreshSetupHealth: { [weak self] in self?.refreshSetupHealth() },
             onOpenSettings: { [weak self] in self?.showSettingsWindow(initialTab: .transcription) },
             onComplete: { [weak self] in
                 guard let self else { return }
@@ -704,14 +734,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func refreshSetupHealth() {
-        let isTestHost = Self.isTestingProcess()
+    func refreshSetupHealth() {
+        let isUITesting = ProcessInfo.processInfo.arguments.contains("--ui-testing")
         defer {
-            if isTestHost {
+            if isUITesting {
                 uiTestingController?.writeStateSnapshot()
             }
         }
-        if isTestHost {
+        if isUITesting {
             if ProcessInfo.processInfo.arguments.contains("--seed-setup-unknown") {
                 appState.accessibilityState = .unknown
                 appState.microphoneState = .unknown
@@ -744,19 +774,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let trusted = accessibilityTrusted()
         DiagnosticLog.write("SetupHealth: accessibilityTrusted=\(trusted)")
-        appState.updateAccessibilityState(isTrusted: trusted)
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        let microphoneStatus = setupPermissionProvider.microphoneAuthorizationStatus
+        appState.applySetupHealth(accessibilityTrusted: trusted, microphoneAuthorizationStatus: microphoneStatus)
+        switch microphoneStatus {
         case .authorized:
-            appState.updateMicrophoneState(isReady: true)
             DiagnosticLog.write("SetupHealth: microphone=authorized")
         case .denied, .restricted:
-            appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
             DiagnosticLog.write("SetupHealth: microphone=denied")
         case .notDetermined:
-            appState.microphoneState = .unknown
             DiagnosticLog.write("SetupHealth: microphone=notDetermined")
         @unknown default:
-            appState.microphoneState = .unknown
             DiagnosticLog.write("SetupHealth: microphone=unknown")
         }
         DiagnosticLog.write("SetupHealth: refreshing API key state")
@@ -821,6 +848,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task { @MainActor in
             let ready = await requestMicrophoneAccessIfNeeded()
+            refreshSetupHealth()
             appState.updateMicrophoneState(isReady: ready)
             DiagnosticLog.write("MicrophonePermission: checked ready=\(ready)")
         }
@@ -946,11 +974,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func accessibilityTrusted() -> Bool {
-        AXIsProcessTrusted()
+        setupPermissionProvider.accessibilityTrusted
     }
 
     private func requestMicrophoneAccessIfNeeded() async -> Bool {
-        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        let status = setupPermissionProvider.microphoneAuthorizationStatus
         DiagnosticLog.write("MicrophonePermission: authorizationStatus=\(status.rawValue)")
         switch status {
         case .authorized:
@@ -958,12 +986,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case .denied, .restricted:
             return false
         case .notDetermined:
-            return await withCheckedContinuation { continuation in
-                AVCaptureDevice.requestAccess(for: .audio) { granted in
-                    DiagnosticLog.write("MicrophonePermission: requestAccess granted=\(granted)")
-                    continuation.resume(returning: granted)
-                }
-            }
+            let granted = await setupPermissionProvider.requestMicrophoneAccess()
+            DiagnosticLog.write("MicrophonePermission: requestAccess granted=\(granted)")
+            return granted
         @unknown default:
             return false
         }

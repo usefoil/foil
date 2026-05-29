@@ -27,6 +27,25 @@ publishing.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
 
+## Setup Permission Release Gate
+
+Copy this table into the active release section and fill every row before
+declaring a release setup-permission ready. Use the production
+`/Applications/Foil.app` installed from `brew install --cask mean-weasel/foil/foil`
+unless the row explicitly uses a temporary app directory.
+
+| Gate | Command / steps | Expected result | Result | Evidence / notes |
+| --- | --- | --- | --- | --- |
+| Public cask identity smoke | `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`; `brew info --cask mean-weasel/foil/foil`; `brew install --cask --appdir=/tmp/foil-release-apps mean-weasel/foil/foil`; `PlistBuddy` version/build/bundle id; `spctl -a -vv -t execute`; `codesign --verify --deep --strict --verbose=2` | Version/build match release, bundle id is `com.neonwatty.Foil`, Gatekeeper reports `Notarized Developer ID`, and codesign passes. | PENDING | |
+| `/Applications` production install | Uninstall or move aside any previous Foil only with operator approval, then `brew install --cask mean-weasel/foil/foil`; launch `/Applications/Foil.app`; run `make guide-installed-permissions-qa`. | Previous version is gone or explicitly backed up, active process path is `/Applications/Foil.app/Contents/MacOS/Foil`, helper reports expected identity/signature, and privacy panes open. | PENDING | |
+| Fresh install onboarding | Use a fresh/disposable account, VM, or spare Mac. If approved in that environment only, reset Foil TCC with `tccutil reset Accessibility com.neonwatty.Foil`, `tccutil reset ListenEvent com.neonwatty.Foil`, and `tccutil reset Microphone com.neonwatty.Foil`. Install with Homebrew and launch. | First-run setup appears and no row incorrectly starts as stale `Ready`. | PENDING | |
+| Accessibility already granted | Grant Accessibility for `/Applications/Foil.app`, quit/relaunch, then navigate to the Accessibility onboarding step. | The step shows `Ready`; `Enable Accessibility` is absent. Diagnostics include `SetupHealth: accessibilityTrusted=true`. | PENDING | |
+| Accessibility grant while onboarding is open | Start with Accessibility disabled, stay on the Accessibility step, enable Foil in System Settings, return to Foil or relaunch if macOS requires it. | The step updates to `Ready` and stops showing `Enable Accessibility`. | PENDING | |
+| Microphone prompt grant while onboarding is open | Start with Microphone not determined, stay on the Microphone step, trigger the in-app microphone action, and grant the macOS prompt. | The step updates to `Ready`; final `Get Started` becomes enabled once provider/API setup is also ready. | PENDING | |
+| Microphone already granted | Grant Microphone before reaching the Microphone step, then relaunch and navigate there. | The step shows `Ready`; final `Get Started` is enabled when Accessibility and provider/API setup are ready. Diagnostics show `SetupHealth: microphone=authorized`. | PENDING | |
+| Permission revoked while app is running | From ready state, revoke Accessibility or Microphone in System Settings, return to Foil, run Test Setup, then re-enable the permission. | Setup moves to an actionable non-ready state, then returns to `Ready`; `Get Started` is disabled while a required permission is missing. | PENDING | |
+| Quit/relaunch persistence | Complete Accessibility, Microphone, and provider setup; quit and relaunch `/Applications/Foil.app`. | Setup remains `Ready`; onboarding does not re-block on stale permission text. | PENDING | |
+
 ## Release Candidate
 
 - Version: `v1.8.2`

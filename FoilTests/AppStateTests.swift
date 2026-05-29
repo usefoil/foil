@@ -1,3 +1,4 @@
+import AVFoundation
 import XCTest
 import CoreGraphics
 @testable import Foil
@@ -218,6 +219,59 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.accessibilityState, .ready)
         XCTAssertFalse(state.needsSetupAttention)
         XCTAssertEqual(state.menuBarIcon, "waveform")
+    }
+
+    func testApplyingSetupHealthRefreshClearsStalePermissionWarnings() {
+        let state = AppState()
+
+        state.updateAccessibilityState(isTrusted: false)
+        state.updateMicrophoneState(isReady: false)
+        state.apiKeyState = .ready
+
+        state.applySetupHealth(accessibilityTrusted: true, microphoneAuthorizationStatus: .authorized)
+
+        XCTAssertEqual(state.accessibilityState, .ready)
+        XCTAssertEqual(state.microphoneState, .ready)
+        XCTAssertTrue(state.isSetupReady)
+    }
+
+    func testApplyingSetupHealthMapsMicrophoneAuthorizationStatuses() {
+        let cases: [(AVAuthorizationStatus, AppState.PermissionState, Bool)] = [
+            (.authorized, .ready, true),
+            (.denied, .needsAction("Allow microphone access"), false),
+            (.restricted, .needsAction("Allow microphone access"), false),
+            (.notDetermined, .unknown, false)
+        ]
+
+        for (status, expectedMicrophoneState, expectedSetupReady) in cases {
+            let state = AppState()
+            state.updateAccessibilityState(isTrusted: false)
+            state.updateMicrophoneState(isReady: true)
+            state.apiKeyState = .ready
+
+            state.applySetupHealth(accessibilityTrusted: true, microphoneAuthorizationStatus: status)
+
+            XCTAssertEqual(state.accessibilityState, .ready, "accessibility should refresh for \(status)")
+            XCTAssertEqual(state.microphoneState, expectedMicrophoneState, "microphone should map \(status)")
+            XCTAssertEqual(state.isSetupReady, expectedSetupReady, "setup readiness should map \(status)")
+        }
+    }
+
+    func testLocalProviderApiReadinessDoesNotMaskMissingMicrophonePermission() {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+
+        state.refreshApiKeyState()
+        state.applySetupHealth(accessibilityTrusted: true, microphoneAuthorizationStatus: .denied)
+
+        XCTAssertEqual(state.apiKeyState, .ready)
+        XCTAssertEqual(state.accessibilityState, .ready)
+        XCTAssertEqual(state.microphoneState, .needsAction("Allow microphone access"))
+        XCTAssertFalse(state.isSetupReady)
+
+        state.applySetupHealth(accessibilityTrusted: true, microphoneAuthorizationStatus: .authorized)
+
+        XCTAssertTrue(state.isSetupReady)
     }
 
     func testUnknownSetupSessionPresentationDoesNotReportReady() {

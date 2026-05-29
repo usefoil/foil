@@ -151,6 +151,73 @@ final class FoilUITests: XCTestCase {
 
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "checkMicrophone"])
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
+
+        let getStartedButton = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        XCTAssertTrue(getStartedButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(getStartedButton.isEnabled)
+    }
+
+    func testOnboardingAccessibilityStepShowsAlreadyGrantedPermission() {
+        launchApp(arguments: [
+            "--ui-testing",
+            "--reset-defaults",
+            "--show-onboarding",
+            "--seed-setup-ready"
+        ], requireControlCenter: false)
+
+        let onboardingWindow = app.windows["Welcome to Foil"]
+        XCTAssertTrue(onboardingWindow.waitForExistence(timeout: 5), app.debugDescription)
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToAccessibility"])
+
+        XCTAssertTrue(onboardingWindow.staticTexts["Accessibility Permission"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(onboardingWindow.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(staticTextLabelOrValueContaining("Enable Accessibility", in: onboardingWindow).exists, app.debugDescription)
+    }
+
+    func testOnboardingAccessibilityStepUpdatesWhenPermissionBecomesReady() {
+        launchApp(arguments: [
+            "--ui-testing",
+            "--reset-defaults",
+            "--show-onboarding",
+            "--seed-setup-failures"
+        ], requireControlCenter: false)
+
+        let onboardingWindow = app.windows["Welcome to Foil"]
+        XCTAssertTrue(onboardingWindow.waitForExistence(timeout: 5), app.debugDescription)
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToAccessibility"])
+
+        XCTAssertTrue(onboardingWindow.staticTexts["Accessibility Permission"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Enable Accessibility", in: onboardingWindow).waitForExistence(timeout: 2), app.debugDescription)
+
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "grantAccessibility"])
+
+        XCTAssertTrue(onboardingWindow.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(staticTextLabelOrValueContaining("Enable Accessibility", in: onboardingWindow).exists, app.debugDescription)
+    }
+
+    func testOnboardingMicrophoneStepUpdatesWhenPermissionBecomesReady() {
+        launchApp(arguments: [
+            "--ui-testing",
+            "--reset-defaults",
+            "--show-onboarding",
+            "--seed-local-provider",
+            "--seed-microphone-denied"
+        ], requireControlCenter: false)
+
+        let onboardingWindow = app.windows["Welcome to Foil"]
+        XCTAssertTrue(onboardingWindow.waitForExistence(timeout: 5), app.debugDescription)
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToMicrophone"])
+
+        XCTAssertTrue(onboardingWindow.staticTexts["Microphone Access"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Allow microphone access", in: onboardingWindow).waitForExistence(timeout: 2), app.debugDescription)
+        let getStartedButton = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        XCTAssertTrue(getStartedButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(getStartedButton.isEnabled)
+
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "grantMicrophone"])
+
+        XCTAssertTrue(onboardingWindow.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(getStartedButton.isEnabled)
     }
 
     func testOnboardingCompletionKeepsMenuBarAppRunning() {
