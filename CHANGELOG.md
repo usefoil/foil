@@ -1,3 +1,12 @@
+## [1.13.1](https://github.com/mean-weasel/foil/compare/v1.13.0...v1.13.1) (2026-05-29)
+
+### Setup permission release proof
+
+- Added production setup-permission smoke tooling for the public Homebrew cask and notarized Developer ID app.
+- Added release-gate checks for required commit inclusion, Gatekeeper notarization, deep codesign verification, and `/Applications/Foil.app` process identity.
+- Documented the production Accessibility and Microphone evidence template for release QA and issue follow-up.
+
+
 ## [1.13.0](https://github.com/mean-weasel/foil/compare/v1.12.2...v1.13.0) (2026-05-28)
 
 ### Experimental queued paste
