@@ -1,3 +1,9 @@
+## [1.13.2](https://github.com/mean-weasel/foil/compare/v1.13.1...v1.13.2) (2026-05-30)
+
+- Added recovery handling for rare macOS Microphone permission prompt timeouts so setup no longer spins indefinitely when TCC has a stale or stuck row.
+- Documented stale TCC cleanup steps for production permission QA, including Foil-scoped Microphone reset and TCC cache restart guidance.
+
+
 ## [1.13.1](https://github.com/mean-weasel/foil/compare/v1.13.0...v1.13.1) (2026-05-29)
 
 ### Setup permission release proof
