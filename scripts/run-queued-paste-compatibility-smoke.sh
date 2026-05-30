@@ -7,7 +7,7 @@ ARTIFACT_DIR="${ARTIFACT_DIR:-/tmp/foil-queued-paste-compatibility-${STAMP}}"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/run-queued-paste-compatibility-smoke.sh [--skip-runs]
+Usage: scripts/run-queued-paste-compatibility-smoke.sh [--skip-runs] [--installed-app]
 
 Runs local prerequisite smoke checks for queued-paste compatibility evidence and
 prints or records the queued-paste rows in docs/queued-paste-compatibility-smoke.md.
@@ -18,12 +18,17 @@ targets use disposable localhost pages, request private windows where supported,
 and must not quit the user's browser or close browser tabs.
 
 Options:
+  --installed-app
+                 Run against the existing /Applications/Foil.app. This mode
+                 does not build or install a local debug app and runs identity
+                 checks before visible desktop automation.
   --skip-runs    Print checklist and create the artifact directory without
                  running desktop automation commands.
 EOF
 }
 
 SKIP_RUNS=0
+INSTALLED_APP_MODE=0
 for arg in "$@"; do
   case "$arg" in
     --help|-h)
@@ -32,6 +37,9 @@ for arg in "$@"; do
       ;;
     --skip-runs)
       SKIP_RUNS=1
+      ;;
+    --installed-app)
+      INSTALLED_APP_MODE=1
       ;;
     *)
       echo "Unknown argument: $arg" >&2
@@ -63,6 +71,7 @@ cat >"$ARTIFACT_DIR/README.md" <<EOF
 
 Created: ${STAMP}
 Runbook: docs/queued-paste-compatibility-smoke.md
+Mode: $([[ "$INSTALLED_APP_MODE" == "1" ]] && echo "installed app" || echo "local debug")
 
 The logs in this directory are local compatibility evidence for target capture,
 browser text-entry behavior, and real-target queued delivery.
@@ -73,10 +82,23 @@ echo
 
 if [[ "$SKIP_RUNS" == "0" ]]; then
   failures=0
-  run_step "textedit-installed-app-target" make test-paste-real || failures=$((failures + 1))
-  run_step "installed-app-identity" make prepare-local-permissions-qa-check || failures=$((failures + 1))
-  run_step "cross-app-browser-targets" make test-cross-app || failures=$((failures + 1))
-  run_step "queued-real-targets" swift tests/test_queued_paste_compatibility.swift || failures=$((failures + 1))
+  if [[ "$INSTALLED_APP_MODE" == "1" ]]; then
+    if run_step "installed-app-identity" make prepare-local-permissions-qa-check; then
+      run_step "textedit-installed-app-target" make test-paste-real-installed || failures=$((failures + 1))
+    else
+      failures=$((failures + 1))
+      echo "Installed-app identity failed; skipping visible desktop queued-paste automation in --installed-app mode."
+      echo
+      SKIP_REMAINING_INSTALLED_APP_STEPS=1
+    fi
+  else
+    run_step "textedit-installed-app-target" make test-paste-real || failures=$((failures + 1))
+    run_step "installed-app-identity" make prepare-local-permissions-qa-check || failures=$((failures + 1))
+  fi
+  if [[ "${SKIP_REMAINING_INSTALLED_APP_STEPS:-0}" != "1" ]]; then
+    run_step "cross-app-browser-targets" make test-cross-app || failures=$((failures + 1))
+    run_step "queued-real-targets" swift tests/test_queued_paste_compatibility.swift || failures=$((failures + 1))
+  fi
 else
   failures=0
   echo "Skipping desktop automation runs."

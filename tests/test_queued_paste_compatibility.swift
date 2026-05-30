@@ -334,7 +334,7 @@ func launchFoil() -> Bool {
     }
 }
 
-func enqueueAndDeliver(switchAwayBeforeDelivery: Bool = true) -> Bool {
+func enqueueAndDeliver(switchAwayBeforeDelivery: Bool = true) -> (success: Bool, detail: String) {
     markDiagnosticLogStart()
     print("  Frontmost before enqueue: \(frontmostAppName())")
     post(enqueueNotification)
@@ -343,19 +343,31 @@ func enqueueAndDeliver(switchAwayBeforeDelivery: Bool = true) -> Bool {
         return log.contains("automation queued smoke: enqueued")
             && log.contains("QueuedPaste.enqueue: status=pending")
     }
+    guard enqueued else {
+        return (false, "enqueue notification was not observed")
+    }
     if switchAwayBeforeDelivery {
         switchToFinder()
     }
     print("  Frontmost before deliver: \(frontmostAppName())")
     postQueuedPasteDeliveryHotkey()
+    let hotkeyObserved = waitUntil(timeout: 4) {
+        readDiagnosticLog().contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
+    }
+    guard hotkeyObserved else {
+        print("  Frontmost after deliver: \(frontmostAppName())")
+        return (false, "enqueued item, but queued-paste delivery hotkey was not observed")
+    }
     let delivered = waitUntil(timeout: 8) {
         let log = readDiagnosticLog()
-        return log.contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
-            && (log.contains("QueuedPaste.deliver: pasted")
-                || log.contains("QueuedPaste.deliver: fallback"))
+        return log.contains("QueuedPaste.deliver: pasted")
+            || log.contains("QueuedPaste.deliver: fallback")
     }
     print("  Frontmost after deliver: \(frontmostAppName())")
-    return enqueued && delivered
+    guard delivered else {
+        return (false, "hotkey was observed, but queued delivery did not complete")
+    }
+    return (true, "enqueue, hotkey, and delivery notifications completed")
 }
 
 func testTextEdit() -> SmokeResult {
@@ -376,8 +388,9 @@ func testTextEdit() -> SmokeResult {
 
     let title = windowTitle(window)
     activateWindow(window, app: textEdit)
-    guard enqueueAndDeliver(switchAwayBeforeDelivery: false) else {
-        return .failed(name: "TextEdit queued delivery", detail: "Queue enqueue/deliver notifications did not complete")
+    let delivery = enqueueAndDeliver(switchAwayBeforeDelivery: false)
+    guard delivery.success else {
+        return .failed(name: "TextEdit queued delivery", detail: delivery.detail)
     }
 
     let pasted = waitUntil(timeout: 6) {
@@ -497,8 +510,9 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
     }
     let title = windowTitle(window)
     activateWindow(window, app: browser)
-    guard enqueueAndDeliver(switchAwayBeforeDelivery: false) else {
-        return .failed(name: "\(target.name) queued delivery", detail: "Queue enqueue/deliver notifications did not complete")
+    let delivery = enqueueAndDeliver(switchAwayBeforeDelivery: false)
+    guard delivery.success else {
+        return .failed(name: "\(target.name) queued delivery", detail: delivery.detail)
     }
 
     let pasted = waitUntil(timeout: 6) {
@@ -595,16 +609,19 @@ func testUnavailableTargetFallback() -> SmokeResult {
     run("/usr/bin/pkill", ["-x", "TextEdit"])
     Thread.sleep(forTimeInterval: 1.0)
     postQueuedPasteDeliveryHotkey()
-    let fallback = waitUntil(timeout: 8) {
+    let hotkeyObserved = waitUntil(timeout: 4) {
+        readDiagnosticLog().contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
+    }
+    let fallback = hotkeyObserved && waitUntil(timeout: 8) {
         let log = readDiagnosticLog()
-        return log.contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
-            && (log.contains("clipboardFallback")
-                || log.contains("QueuedPaste.deliver: fallback")
-                || log.contains("Target unavailable; text copied to clipboard"))
+        return log.contains("clipboardFallback")
+            || log.contains("QueuedPaste.deliver: fallback")
+            || log.contains("Target unavailable; text copied to clipboard")
     }
     let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
     let passed = fallback && clipboard.contains(queuedText)
-    let detail = "captured=TextEdit pid=\(textEdit.processIdentifier) title=\(title) clipboardFallback=\(clipboard.contains(queuedText)) recovery=\"Target unavailable; text copied to clipboard\""
+    let deliveryDetail = hotkeyObserved ? "hotkeyObserved=true" : "hotkeyObserved=false"
+    let detail = "captured=TextEdit pid=\(textEdit.processIdentifier) title=\(title) \(deliveryDetail) clipboardFallback=\(clipboard.contains(queuedText)) recovery=\"Target unavailable; text copied to clipboard\""
     if passed {
         return .passed(name: "Unavailable target fallback", detail: detail)
     }
