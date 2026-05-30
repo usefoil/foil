@@ -157,7 +157,9 @@ enum KeychainHelper {
         context.interactionNotAllowed = true
         query[kSecUseAuthenticationContext as String] = context
 
+        let started = Date()
         let (status, result) = copyMatching(query)
+        logKeychainRead(status: status, account: account, started: started)
         guard status == errSecSuccess,
               let data = result as? Data,
               let key = String(data: data, encoding: .utf8)?
@@ -166,6 +168,30 @@ enum KeychainHelper {
             return nil
         }
         return key
+    }
+
+    private static func logKeychainRead(status: OSStatus, account: String, started: Date) {
+        let elapsedMilliseconds = Int(Date().timeIntervalSince(started) * 1000)
+        DiagnosticLog.write(
+            "KeychainHelper: read account=\(account) service=\(service) status=\(statusName(status)) durationMs=\(elapsedMilliseconds) interactionAllowed=false"
+        )
+    }
+
+    private static func statusName(_ status: OSStatus) -> String {
+        switch status {
+        case errSecSuccess:
+            return "success"
+        case errSecItemNotFound:
+            return "itemNotFound"
+        case errSecInteractionNotAllowed:
+            return "interactionNotAllowed"
+        case errSecAuthFailed:
+            return "authFailed"
+        case errSecUserCanceled:
+            return "userCanceled"
+        default:
+            return "osStatus(\(status))"
+        }
     }
 
     private static func copyMatching(_ query: [String: Any]) -> (OSStatus, AnyObject?) {
