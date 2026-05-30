@@ -576,6 +576,7 @@ final class UITestingController {
         Task { @MainActor in
             appState.queuedPasteEnabled = true
             appState.queuedPasteMode = .stepThrough
+            onHotkeyChanged()
             appState.recordTargetCapture(target)
             #if DEBUG
             appState.mockTranscriptionEnabled = true

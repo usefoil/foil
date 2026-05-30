@@ -33,7 +33,7 @@ Each target row must record:
   not be exercised.
 - Evidence: command, log path, screenshot path, or manual transcript notes.
 
-## Local Command
+## Local Debug Command
 
 Run:
 
@@ -44,15 +44,44 @@ make test-queued-paste-compatibility
 This command runs the available local target-identity gates and writes logs under
 `/tmp/foil-queued-paste-compatibility-*`.
 
-The wrapper also runs `make prepare-local-permissions-qa-check` after installing
-`/Applications/Foil.app`. If that precheck reports a signing identifier mismatch
-or ad-hoc signing, treat subsequent installed-app Accessibility failures as a
-local TCC identity problem until the app is reinstalled with a trusted signing
-identity and macOS privacy consent is refreshed.
+This is the local development path. It may install the local debug build to
+`/Applications/Foil.app` through `make test-paste-real`, which can change the
+macOS TCC identity used by Accessibility and Input Monitoring.
+
+The wrapper also runs `make prepare-local-permissions-qa-check` after the local
+install. If that precheck reports a signing identifier mismatch, ad-hoc signing,
+missing team identifier, or stale Accessibility state, treat subsequent
+installed-app Accessibility failures as a local TCC identity problem until the
+app is reinstalled with a trusted signing identity and macOS privacy consent is
+refreshed.
+
+## Production Installed-App Command
+
+Run:
+
+```sh
+make test-production-queued-paste-compatibility
+```
+
+This is the production/cask path. It runs
+`scripts/run-queued-paste-compatibility-smoke.sh --installed-app`, starts with
+`make prepare-local-permissions-qa-check`, and intentionally does not run
+`make install` or replace `/Applications/Foil.app`.
+
+Use this path after installing the notarized cask or release DMG. If it fails
+before queued delivery, preserve the artifact directory and inspect the identity
+and diagnostics logs before refreshing TCC. Production evidence is only valid if
+`/Applications/Foil.app` remains the intended notarized app for the whole run.
 
 Important: the command is a visible desktop harness. It uses an automation hook
 only to enqueue a mock transcript against the real frontmost target, then
 delivers through Foil's user-facing queued-paste delivery hotkey.
+
+Optional Codex Browser-plugin evidence may be used for browser rows by pointing
+the in-app browser at a disposable localhost textarea and reading back the
+textarea value, page title, or status node after delivery. That is an additional
+browser-target oracle; it does not replace Foil's native macOS target capture,
+Accessibility, Input Monitoring, or delivery-hotkey path.
 
 ## Manual Queued-Paste Procedure
 

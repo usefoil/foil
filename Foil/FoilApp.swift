@@ -289,7 +289,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onStopRecording: { [weak self] in self?.stopRecordingFromControl() },
             onCancelRecording: { [weak self] in self?.cancelRecordingFromControl() },
             onCancelTranscription: { [weak self] in self?.cancelTranscriptionFromControl() },
-            onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() },
+            onHotkeyChanged: { [weak self] in self?.applyHotkeyConfigAndStartIfPossible() },
             onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
             onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
             onRunSetupCheck: { [weak self] in self?.runSetupCheck() },
@@ -592,6 +592,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 modifiers: appState.customHotkeyModifiers
             )
         }
+    }
+
+    private func applyHotkeyConfigAndStartIfPossible() {
+        applyHotkeyConfig()
+        retryHotkeyMonitorAfterPermissionChange()
     }
 
     // MARK: - Transcribing animation
