@@ -249,17 +249,29 @@ print_manual_checklist() {
 
 Manual production setup-permission checklist:
 1. Confirm /Applications/$APP_NAME.app is the active app.
-2. Remove stale $APP_NAME privacy rows only if this is an approved disposable/fresh QA environment.
-3. Launch $APP_NAME and confirm first-run setup or Settings setup is visible.
-4. Grant Accessibility for /Applications/$APP_NAME.app.
-5. Grant Input Monitoring if macOS presents that row.
-6. Trigger the in-app Microphone action and allow the macOS prompt.
-7. Confirm diagnostics show:
+2. If this Mac has prior local-signed or older production Foil history, remove
+   stale $APP_NAME rows before granting permissions again.
+3. Add/enable the exact /Applications/$APP_NAME.app row in Accessibility.
+4. Grant Input Monitoring if macOS presents that row.
+5. Trigger the in-app Microphone action and allow the macOS prompt.
+6. Confirm diagnostics show:
    - SetupHealth: accessibilityTrusted=true
    - MicrophonePermission: requestAccess granted=true
    - SetupHealth: microphone=authorized
-8. Quit and relaunch /Applications/$APP_NAME.app.
-9. Confirm diagnostics still show Accessibility trusted and Microphone authorized.
+7. Quit and relaunch /Applications/$APP_NAME.app.
+8. Confirm diagnostics still show Accessibility trusted and Microphone authorized.
+
+Stale TCC recovery for contaminated QA machines:
+- If System Settings shows $APP_NAME enabled but diagnostics still report
+  accessibilityTrusted=false, remove the Accessibility row and add
+  /Applications/$APP_NAME.app again from the file picker.
+- If System Settings shows $APP_NAME enabled for Microphone but diagnostics stay
+  microphone=notDetermined, reset only this app's microphone row and retry the
+  in-app Microphone action:
+    tccutil reset Microphone $BUNDLE_ID
+- If the in-app Microphone request logs authorizationStatus=0 and then hangs,
+  restart the user TCC cache and wait for the pending request to complete:
+    killall tccd
 
 Record all PASS/FAIL results, exact diagnostics, and any visible setup text in docs/release-qa-log.md or the release tracking issue.
 EOF
@@ -289,6 +301,7 @@ print_evidence_template() {
 - Microphone grant result: PASS/FAIL
 - Microphone diagnostics:
 - Quit/relaunch persistence: PASS/FAIL
+- Stale TCC cleanup needed:
 - Provider/API setup path:
 - Final setup state / Get Started state:
 - Friction observed:

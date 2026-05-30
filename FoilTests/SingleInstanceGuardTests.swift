@@ -23,9 +23,9 @@ private final class NotRunningStub: SingleInstanceGuarding {
 private struct StubSetupPermissionProvider: SetupPermissionProviding {
     var accessibilityTrusted: Bool
     var microphoneAuthorizationStatus: AVAuthorizationStatus
-    var microphoneAccessRequestResult = false
+    var microphoneAccessRequestResult: MicrophoneAccessRequestResult = .denied
 
-    func requestMicrophoneAccess() async -> Bool {
+    func requestMicrophoneAccess() async -> MicrophoneAccessRequestResult {
         microphoneAccessRequestResult
     }
 }
@@ -116,6 +116,25 @@ final class SingleInstanceGuardTests: XCTestCase {
         XCTAssertEqual(delegate.appState.accessibilityState, .ready)
         XCTAssertEqual(delegate.appState.microphoneState, .ready)
         XCTAssertTrue(delegate.appState.isSetupReady)
+    }
+
+    func testAppDelegateMicrophoneCheckShowsRecoveryWhenRequestTimesOut() async {
+        let delegate = AppDelegate(
+            singleInstanceGuard: NotRunningStub(),
+            setupPermissionProvider: StubSetupPermissionProvider(
+                accessibilityTrusted: true,
+                microphoneAuthorizationStatus: .notDetermined,
+                microphoneAccessRequestResult: .timedOut
+            )
+        )
+
+        delegate.checkMicrophonePermission()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertEqual(
+            delegate.appState.microphoneState,
+            .needsAction("Microphone prompt did not finish; reopen Foil or reset Microphone privacy")
+        )
     }
 
     func testAppDelegateCanOpenSettingsWindowExplicitly() {

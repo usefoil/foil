@@ -110,6 +110,20 @@ and permission setup gates in `docs/release-qa-log.md`.
    open and that the final `Get Started` button becomes enabled once all setup
    requirements are ready.
 
+   On non-fresh Macs, System Settings can show a stale Foil privacy row as
+   enabled even while the current `/Applications/Foil.app` still reports missing
+   permissions. If diagnostics and System Settings disagree, remove the stale
+   row, add the exact `/Applications/Foil.app` again from the file picker, and
+   relaunch Foil. For a stuck Microphone prompt where diagnostics log
+   `MicrophonePermission: authorizationStatus=0` but no `requestAccess` result,
+   reset only Foil's Microphone row and restart the user TCC cache before
+   retrying the in-app Microphone action:
+
+   ```bash
+   tccutil reset Microphone com.neonwatty.Foil
+   killall tccd
+   ```
+
    Use this template when posting evidence to a release PR, QA log, or tracking
    issue:
 
