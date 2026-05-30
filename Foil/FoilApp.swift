@@ -91,10 +91,22 @@ struct FoilApp: App {
 protocol SetupPermissionProviding {
     var accessibilityTrusted: Bool { get }
     var microphoneAuthorizationStatus: AVAuthorizationStatus { get }
-    func requestMicrophoneAccess() async -> Bool
+    func requestMicrophoneAccess() async -> MicrophoneAccessRequestResult
+}
+
+enum MicrophoneAccessRequestResult: Equatable {
+    case granted
+    case denied
+    case timedOut
+
+    var isReady: Bool {
+        self == .granted
+    }
 }
 
 struct SystemSetupPermissionProvider: SetupPermissionProviding {
+    private let microphoneRequestTimeout: TimeInterval = 15
+
     var accessibilityTrusted: Bool {
         AXIsProcessTrusted()
     }
@@ -103,10 +115,26 @@ struct SystemSetupPermissionProvider: SetupPermissionProviding {
         AVCaptureDevice.authorizationStatus(for: .audio)
     }
 
-    func requestMicrophoneAccess() async -> Bool {
+    func requestMicrophoneAccess() async -> MicrophoneAccessRequestResult {
         await withCheckedContinuation { continuation in
+            let lock = NSLock()
+            var didResume = false
+
+            func resumeOnce(_ result: MicrophoneAccessRequestResult) {
+                lock.lock()
+                defer { lock.unlock() }
+                guard !didResume else { return }
+                didResume = true
+                continuation.resume(returning: result)
+            }
+
             AVCaptureDevice.requestAccess(for: .audio) { granted in
-                continuation.resume(returning: granted)
+                resumeOnce(granted ? .granted : .denied)
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + microphoneRequestTimeout) {
+                DiagnosticLog.write("MicrophonePermission: requestAccess timed out after \(microphoneRequestTimeout)s")
+                resumeOnce(.timedOut)
             }
         }
     }
@@ -847,10 +875,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         Task { @MainActor in
-            let ready = await requestMicrophoneAccessIfNeeded()
+            let result = await requestMicrophoneAccessIfNeeded()
             refreshSetupHealth()
-            appState.updateMicrophoneState(isReady: ready)
-            DiagnosticLog.write("MicrophonePermission: checked ready=\(ready)")
+            appState.updateMicrophoneState(
+                isReady: result.isReady,
+                message: microphoneRecoveryMessage(for: result)
+            )
+            DiagnosticLog.write("MicrophonePermission: checked ready=\(result.isReady)")
         }
     }
 
@@ -916,10 +947,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             appState.updateAccessibilityState(isTrusted: true)
 
-            let microphoneReady = await requestMicrophoneAccessIfNeeded()
-            guard microphoneReady else {
-                appState.updateMicrophoneState(isReady: false)
-                appState.failSetupCheck("Allow microphone access")
+            let microphoneResult = await requestMicrophoneAccessIfNeeded()
+            guard microphoneResult.isReady else {
+                let recoveryMessage = microphoneRecoveryMessage(for: microphoneResult)
+                appState.updateMicrophoneState(isReady: false, message: recoveryMessage)
+                appState.failSetupCheck(recoveryMessage)
                 return
             }
             appState.updateMicrophoneState(isReady: true)
@@ -977,20 +1009,38 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupPermissionProvider.accessibilityTrusted
     }
 
-    private func requestMicrophoneAccessIfNeeded() async -> Bool {
+    private func requestMicrophoneAccessIfNeeded() async -> MicrophoneAccessRequestResult {
         let status = setupPermissionProvider.microphoneAuthorizationStatus
         DiagnosticLog.write("MicrophonePermission: authorizationStatus=\(status.rawValue)")
         switch status {
         case .authorized:
-            return true
+            return .granted
         case .denied, .restricted:
-            return false
+            return .denied
         case .notDetermined:
-            let granted = await setupPermissionProvider.requestMicrophoneAccess()
-            DiagnosticLog.write("MicrophonePermission: requestAccess granted=\(granted)")
-            return granted
+            let result = await setupPermissionProvider.requestMicrophoneAccess()
+            switch result {
+            case .granted:
+                DiagnosticLog.write("MicrophonePermission: requestAccess granted=true")
+            case .denied:
+                DiagnosticLog.write("MicrophonePermission: requestAccess granted=false")
+            case .timedOut:
+                DiagnosticLog.write("MicrophonePermission: requestAccess timedOut=true")
+            }
+            return result
         @unknown default:
-            return false
+            return .denied
+        }
+    }
+
+    private func microphoneRecoveryMessage(for result: MicrophoneAccessRequestResult) -> String {
+        switch result {
+        case .granted:
+            return "Microphone access granted"
+        case .denied:
+            return "Allow microphone access"
+        case .timedOut:
+            return "Microphone prompt did not finish; reopen Foil or reset Microphone privacy"
         }
     }
 
