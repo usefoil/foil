@@ -147,6 +147,37 @@ func frontmostAppName() -> String {
     NSWorkspace.shared.frontmostApplication?.localizedName ?? "nil"
 }
 
+func frontmostAppDescription() -> String {
+    guard let app = NSWorkspace.shared.frontmostApplication else { return "nil" }
+    let name = app.localizedName ?? "unknown"
+    let bundle = app.bundleIdentifier ?? "unknown"
+    return "\(name) bundle=\(bundle) pid=\(app.processIdentifier)"
+}
+
+func failIfSecurityAgentFrontmost(stage: String) -> SmokeResult? {
+    guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
+    if app.localizedName == "SecurityAgent" || app.bundleIdentifier == "com.apple.SecurityAgent" {
+        return .failed(
+            name: "SecurityAgent prompt",
+            detail: "SecurityAgent frontmost during \(stage); a macOS keychain/security prompt is blocking installed-app automation. Handle the prompt manually, quit Foil, and rerun. frontmost=\(frontmostAppDescription())"
+        )
+    }
+    return nil
+}
+
+func requireFrontmost(bundleID expectedBundleID: String, stage: String) -> SmokeResult? {
+    if let result = failIfSecurityAgentFrontmost(stage: stage) {
+        return result
+    }
+    guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == expectedBundleID else {
+        return .failed(
+            name: "Frontmost target",
+            detail: "Expected \(expectedBundleID) frontmost during \(stage), got \(frontmostAppDescription())"
+        )
+    }
+    return nil
+}
+
 @discardableResult
 func run(_ launchPath: String, _ arguments: [String]) -> String {
     let process = Process()
@@ -329,7 +360,10 @@ func launchFoil() -> Bool {
     Thread.sleep(forTimeInterval: 1.0)
     run("/usr/bin/open", ["-n", appPath, "--args", "--automation-smoke"])
     return waitUntil(timeout: 8) {
-        NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).first != nil
+        if failIfSecurityAgentFrontmost(stage: "Foil launch") != nil {
+            return false
+        }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).first != nil
             && readDiagnosticLog().contains("automation smoke: enabled")
     }
 }
@@ -337,8 +371,14 @@ func launchFoil() -> Bool {
 func enqueueAndDeliver(switchAwayBeforeDelivery: Bool = true) -> (success: Bool, detail: String) {
     markDiagnosticLogStart()
     print("  Frontmost before enqueue: \(frontmostAppName())")
+    if let result = failIfSecurityAgentFrontmost(stage: "before enqueue") {
+        return (false, result.detail)
+    }
     post(enqueueNotification)
     let enqueued = waitUntil(timeout: 5) {
+        if failIfSecurityAgentFrontmost(stage: "waiting for enqueue") != nil {
+            return false
+        }
         let log = readDiagnosticLog()
         return log.contains("automation queued smoke: enqueued")
             && log.contains("QueuedPaste.enqueue: status=pending")
@@ -350,15 +390,24 @@ func enqueueAndDeliver(switchAwayBeforeDelivery: Bool = true) -> (success: Bool,
         switchToFinder()
     }
     print("  Frontmost before deliver: \(frontmostAppName())")
+    if let result = failIfSecurityAgentFrontmost(stage: "before deliver") {
+        return (false, result.detail)
+    }
     postQueuedPasteDeliveryHotkey()
     let hotkeyObserved = waitUntil(timeout: 4) {
-        readDiagnosticLog().contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
+        if failIfSecurityAgentFrontmost(stage: "waiting for delivery hotkey") != nil {
+            return false
+        }
+        return readDiagnosticLog().contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
     }
     guard hotkeyObserved else {
         print("  Frontmost after deliver: \(frontmostAppName())")
         return (false, "enqueued item, but queued-paste delivery hotkey was not observed")
     }
     let delivered = waitUntil(timeout: 8) {
+        if failIfSecurityAgentFrontmost(stage: "waiting for delivery completion") != nil {
+            return false
+        }
         let log = readDiagnosticLog()
         return log.contains("QueuedPaste.deliver: pasted")
             || log.contains("QueuedPaste.deliver: fallback")
@@ -388,6 +437,9 @@ func testTextEdit() -> SmokeResult {
 
     let title = windowTitle(window)
     activateWindow(window, app: textEdit)
+    if let result = requireFrontmost(bundleID: "com.apple.TextEdit", stage: "TextEdit enqueue") {
+        return result
+    }
     let delivery = enqueueAndDeliver(switchAwayBeforeDelivery: false)
     guard delivery.success else {
         return .failed(name: "TextEdit queued delivery", detail: delivery.detail)
@@ -510,6 +562,9 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
     }
     let title = windowTitle(window)
     activateWindow(window, app: browser)
+    if let result = requireFrontmost(bundleID: target.bundleID, stage: "\(target.name) enqueue") {
+        return result
+    }
     let delivery = enqueueAndDeliver(switchAwayBeforeDelivery: false)
     guard delivery.success else {
         return .failed(name: "\(target.name) queued delivery", detail: delivery.detail)
@@ -598,9 +653,15 @@ func testUnavailableTargetFallback() -> SmokeResult {
 
     let title = windowTitle(window)
     activateWindow(window, app: textEdit)
+    if let result = requireFrontmost(bundleID: "com.apple.TextEdit", stage: "unavailable target enqueue") {
+        return result
+    }
     post(enqueueNotification)
     guard waitUntil(timeout: 5, poll: 0.25, {
-        readDiagnosticLog().contains("automation queued smoke: enqueued")
+        if failIfSecurityAgentFrontmost(stage: "waiting for unavailable-target enqueue") != nil {
+            return false
+        }
+        return readDiagnosticLog().contains("automation queued smoke: enqueued")
             && readDiagnosticLog().contains("QueuedPaste.enqueue: status=pending")
     }) else {
         return .failed(name: "Unavailable target fallback", detail: "Could not enqueue fallback target")
@@ -608,9 +669,15 @@ func testUnavailableTargetFallback() -> SmokeResult {
 
     run("/usr/bin/pkill", ["-x", "TextEdit"])
     Thread.sleep(forTimeInterval: 1.0)
+    if let result = failIfSecurityAgentFrontmost(stage: "before unavailable-target deliver") {
+        return result
+    }
     postQueuedPasteDeliveryHotkey()
     let hotkeyObserved = waitUntil(timeout: 4) {
-        readDiagnosticLog().contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
+        if failIfSecurityAgentFrontmost(stage: "waiting for unavailable-target hotkey") != nil {
+            return false
+        }
+        return readDiagnosticLog().contains("QueuedPaste.hotkey: deliverNext shortcut=\(queuedPasteDeliveryShortcutName)")
     }
     let fallback = hotkeyObserved && waitUntil(timeout: 8) {
         let log = readDiagnosticLog()
@@ -650,7 +717,16 @@ try? FileManager.default.createDirectory(
 diagnosticLogStartOffset = ((try? diagnosticLogURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(UInt64.init)) ?? 0
 
 guard launchFoil() else {
-    print("ERROR: Foil automation smoke did not launch.")
+    if let result = failIfSecurityAgentFrontmost(stage: "Foil launch") {
+        print("❌ \(result.name): \(result.detail)")
+    } else {
+        print("ERROR: Foil automation smoke did not launch.")
+    }
+    exit(1)
+}
+
+if let result = failIfSecurityAgentFrontmost(stage: "after Foil launch") {
+    print("❌ \(result.name): \(result.detail)")
     exit(1)
 }
 

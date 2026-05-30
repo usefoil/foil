@@ -370,7 +370,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        guard !Self.isTestingProcess() else { return }
+        guard !Self.isTestingProcess(), !Self.isAutomationSmokeProcess() else { return }
         refreshSetupHealth()
         if accessibilityTrusted() {
             retryHotkeyMonitorAfterPermissionChange()
@@ -386,6 +386,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             || arguments.contains { $0.localizedCaseInsensitiveContains(".xctest") }
     }
 
+    static func isAutomationSmokeProcess(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> Bool {
+        arguments.contains("--automation-smoke")
+    }
+
     private static func diagnosticsFilenameTimestamp() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
@@ -395,6 +401,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func shouldShowOnboarding(isTesting: Bool) -> Bool {
         if isTesting {
             return ProcessInfo.processInfo.arguments.contains("--show-onboarding")
+        }
+        if Self.isAutomationSmokeProcess() {
+            return false
         }
         return !hasCompletedOnboarding
     }
@@ -769,6 +778,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func refreshSetupHealth() {
         let isUITesting = ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        let isAutomationSmoke = Self.isAutomationSmokeProcess()
         defer {
             if isUITesting {
                 uiTestingController?.writeStateSnapshot()
@@ -820,6 +830,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DiagnosticLog.write("SetupHealth: microphone=unknown")
         }
         DiagnosticLog.write("SetupHealth: refreshing API key state")
+        if isAutomationSmoke {
+            appState.apiKeyState = .ready
+            DiagnosticLog.write("SetupHealth: automation smoke skipping API key keychain refresh")
+            DiagnosticLog.write("SetupHealth: API key state refreshed")
+            return
+        }
         appState.refreshApiKeyState()
         DiagnosticLog.write("SetupHealth: API key state refreshed")
     }

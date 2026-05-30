@@ -81,6 +81,30 @@ func windowTitles(forBundleID bundleID: String) -> [String] {
     return windows.map(windowTitle)
 }
 
+func frontmostAppDescription() -> String {
+    guard let app = NSWorkspace.shared.frontmostApplication else { return "nil" }
+    let name = app.localizedName ?? "unknown"
+    let bundle = app.bundleIdentifier ?? "unknown"
+    return "\(name) bundle=\(bundle) pid=\(app.processIdentifier)"
+}
+
+func failIfSecurityAgentFrontmost(stage: String) {
+    guard let app = NSWorkspace.shared.frontmostApplication else { return }
+    if app.localizedName == "SecurityAgent" || app.bundleIdentifier == "com.apple.SecurityAgent" {
+        print("ERROR: SecurityAgent is frontmost during \(stage). A macOS keychain/security prompt is blocking installed-app automation; handle the prompt manually, quit Foil, and rerun.")
+        print("Frontmost: \(frontmostAppDescription())")
+        exit(2)
+    }
+}
+
+func requireFrontmost(bundleID expectedBundleID: String, stage: String) {
+    failIfSecurityAgentFrontmost(stage: stage)
+    guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == expectedBundleID else {
+        print("ERROR: Expected \(expectedBundleID) frontmost during \(stage), got \(frontmostAppDescription()).")
+        exit(1)
+    }
+}
+
 func waitUntil(timeout: TimeInterval, poll: TimeInterval = 0.25, _ condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
@@ -133,12 +157,14 @@ Thread.sleep(forTimeInterval: 1.0)
 run("/usr/bin/open", ["-n", appPath, "--args", "--automation-smoke"])
 
 guard waitUntil(timeout: 8, poll: 0.25, {
-    NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).first != nil
+    failIfSecurityAgentFrontmost(stage: "Foil launch")
+    return NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).first != nil
 }) else {
     print("ERROR: Foil did not launch.")
     exit(1)
 }
 Thread.sleep(forTimeInterval: 1.5)
+failIfSecurityAgentFrontmost(stage: "after Foil launch")
 
 run("/usr/bin/pkill", ["-x", "TextEdit"])
 Thread.sleep(forTimeInterval: 1.0)
@@ -175,8 +201,10 @@ AXUIElementSetAttributeValue(targetWindow, kAXMainAttribute as CFString, true as
 AXUIElementSetAttributeValue(targetWindow, kAXFocusedAttribute as CFString, true as CFTypeRef)
 textEditApp.activate()
 Thread.sleep(forTimeInterval: 1.0)
+requireFrontmost(bundleID: "com.apple.TextEdit", stage: "TextEdit target capture")
 
 print("Requesting automation mock transcription against TextEdit target...")
+failIfSecurityAgentFrontmost(stage: "before automation mock notification")
 DistributedNotificationCenter.default().postNotificationName(
     Notification.Name("com.neonwatty.Foil.automation.mockSuccess"),
     object: nil,
@@ -188,6 +216,7 @@ NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.finder
 Thread.sleep(forTimeInterval: 0.5)
 
 let pasted = waitUntil(timeout: 9, poll: 0.5, {
+    failIfSecurityAgentFrontmost(stage: "paste verification")
     AXUIElementPerformAction(targetWindow, kAXRaiseAction as CFString)
     textEditApp.activate()
     Thread.sleep(forTimeInterval: 0.1)

@@ -84,7 +84,12 @@ if [[ "$SKIP_RUNS" == "0" ]]; then
   failures=0
   if [[ "$INSTALLED_APP_MODE" == "1" ]]; then
     if run_step "installed-app-identity" make prepare-local-permissions-qa-check; then
-      run_step "textedit-installed-app-target" make test-paste-real-installed || failures=$((failures + 1))
+      if ! run_step "textedit-installed-app-target" make test-paste-real-installed; then
+        failures=$((failures + 1))
+        echo "Installed-app TextEdit target smoke failed; skipping remaining visible desktop automation in --installed-app mode."
+        echo
+        SKIP_REMAINING_INSTALLED_APP_STEPS=1
+      fi
     else
       failures=$((failures + 1))
       echo "Installed-app identity failed; skipping visible desktop queued-paste automation in --installed-app mode."
