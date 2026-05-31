@@ -14,6 +14,8 @@ REQUIRED_COMMIT="${REQUIRED_COMMIT:-}"
 BREW="${BREW:-brew}"
 GH="${GH:-gh}"
 GIT="${GIT:-git}"
+HDIUTIL="${HDIUTIL:-hdiutil}"
+DITTO="${DITTO:-ditto}"
 PLISTBUDDY="${PLISTBUDDY:-/usr/libexec/PlistBuddy}"
 SPCTL="${SPCTL:-spctl}"
 CODESIGN="${CODESIGN:-codesign}"
@@ -30,7 +32,8 @@ Usage: $(basename "$0") [--check-cask|--guide-applications|--evidence-template]
 
 Modes:
   --check-cask
-            Tap the public Homebrew repo, install the cask into TEMP_APP_DIR,
+            Tap the public Homebrew repo, fetch the cask DMG into Homebrew's
+            cache, copy the app into TEMP_APP_DIR without installing it,
             and verify bundle identity, Gatekeeper notarization, and codesign.
             This does not touch /Applications.
   --guide-applications
@@ -47,6 +50,43 @@ Environment:
   REPO              GitHub repo for release lookup. Default: mean-weasel/foil
   CASK              Homebrew cask token. Default: mean-weasel/foil/foil
 EOF
+}
+
+fetch_cask_app_to_temp_dir() {
+  rm -rf "$TEMP_APP_DIR"
+  mkdir -p "$TEMP_APP_DIR"
+
+  "$BREW" fetch --cask --force "$CASK"
+
+  local dmg_path
+  dmg_path="$("$BREW" --cache --cask "$CASK")"
+  if [ -z "$dmg_path" ] || [ ! -f "$dmg_path" ]; then
+    fail "could not find fetched cask artifact for $CASK"
+    return
+  fi
+
+  local mount_output mount_point
+  mount_output="$("$HDIUTIL" attach -nobrowse -readonly "$dmg_path" 2>&1)" || {
+    printf '%s\n' "$mount_output"
+    fail "could not mount fetched cask artifact: $dmg_path"
+    return
+  }
+  mount_point="$(printf '%s\n' "$mount_output" | sed -n 's|^/dev/.*[[:space:]]\(/Volumes/.*\)$|\1|p' | tail -1)"
+  if [ -z "$mount_point" ] || [ ! -d "$mount_point" ]; then
+    printf '%s\n' "$mount_output"
+    fail "could not determine mounted DMG volume"
+    return
+  fi
+
+  local source_app="$mount_point/$APP_NAME.app"
+  if [ ! -d "$source_app" ]; then
+    "$HDIUTIL" detach "$mount_point" >/dev/null 2>&1 || true
+    fail "fetched cask artifact does not contain $APP_NAME.app at volume root"
+    return
+  fi
+
+  "$DITTO" "$source_app" "$TEMP_APP_DIR/$APP_NAME.app"
+  "$HDIUTIL" detach "$mount_point" >/dev/null
 }
 
 while [ "$#" -gt 0 ]; do
@@ -317,10 +357,8 @@ run_check_cask() {
   "$BREW" tap "$TAP" "$TAP_URL"
   "$BREW" info --cask "$CASK"
 
-  section "Temporary cask install"
-  rm -rf "$TEMP_APP_DIR"
-  mkdir -p "$TEMP_APP_DIR"
-  "$BREW" install --cask --appdir="$TEMP_APP_DIR" "$CASK"
+  section "Temporary cask artifact extraction"
+  fetch_cask_app_to_temp_dir
   verify_app_bundle "$TEMP_APP_DIR/$APP_NAME.app" yes
 
   section "Next step"
