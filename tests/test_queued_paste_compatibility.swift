@@ -246,6 +246,36 @@ func markDiagnosticLogStart() {
     diagnosticLogStartOffset = ((try? diagnosticLogURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(UInt64.init)) ?? 0
 }
 
+func runningFoilProcessSummary() -> String {
+    let output = run("/bin/ps", ["-axo", "pid=,stat=,rss=,vsz=,command="])
+    let lines = output
+        .split(separator: "\n")
+        .map(String.init)
+        .filter { $0.contains("/Applications/Foil.app/Contents/MacOS/Foil") }
+    return lines.isEmpty ? "none" : lines.joined(separator: "\n")
+}
+
+func appExtendedAttributesSummary() -> String {
+    let output = run("/usr/bin/xattr", ["-l", appPath])
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    return output.isEmpty ? "none" : output
+}
+
+func printFoilLaunchDiagnosticFailure() {
+    print("ERROR: Foil launched as a process but did not reach automation smoke mode.")
+    print("Expected diagnostics after launch to contain `automation smoke: enabled`.")
+    print("This usually means the installed /Applications bundle is blocked before app code runs, for example by Gatekeeper/quarantine/syspolicyd state.")
+    print()
+    print("Foil process summary:")
+    print(runningFoilProcessSummary())
+    print()
+    print("Foil.app extended attributes:")
+    print(appExtendedAttributesSummary())
+    print()
+    print("Check system policy logs with:")
+    print("/usr/bin/log show --style compact --last 10m --predicate '(process CONTAINS[c] \"syspolicyd\") OR (eventMessage CONTAINS[c] \"Foil\")'")
+}
+
 func post(_ notification: Notification.Name) {
     DistributedNotificationCenter.default().postNotificationName(
         notification,
@@ -359,12 +389,20 @@ func launchFoil() -> Bool {
     run("/usr/bin/pkill", ["-x", "Foil"])
     Thread.sleep(forTimeInterval: 1.0)
     run("/usr/bin/open", ["-n", appPath, "--args", "--automation-smoke"])
-    return waitUntil(timeout: 8) {
+    let processStarted = waitUntil(timeout: 8) {
         if failIfSecurityAgentFrontmost(stage: "Foil launch") != nil {
             return false
         }
         return NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).first != nil
-            && readDiagnosticLog().contains("automation smoke: enabled")
+    }
+    guard processStarted else {
+        return false
+    }
+    return waitUntil(timeout: 8) {
+        if failIfSecurityAgentFrontmost(stage: "Foil automation smoke startup") != nil {
+            return false
+        }
+        return readDiagnosticLog().contains("automation smoke: enabled")
     }
 }
 
@@ -719,6 +757,8 @@ diagnosticLogStartOffset = ((try? diagnosticLogURL.resourceValues(forKeys: [.fil
 guard launchFoil() else {
     if let result = failIfSecurityAgentFrontmost(stage: "Foil launch") {
         print("❌ \(result.name): \(result.detail)")
+    } else if NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).first != nil {
+        printFoilLaunchDiagnosticFailure()
     } else {
         print("ERROR: Foil automation smoke did not launch.")
     }
