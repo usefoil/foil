@@ -97,6 +97,37 @@ func failIfSecurityAgentFrontmost(stage: String) {
     }
 }
 
+func runningFoilProcessSummary() -> String {
+    let output = run("/bin/ps", ["-axo", "pid=,stat=,rss=,vsz=,command="])
+    let lines = output
+        .split(separator: "\n")
+        .map(String.init)
+        .filter { $0.contains("/Applications/Foil.app/Contents/MacOS/Foil") }
+    return lines.isEmpty ? "none" : lines.joined(separator: "\n")
+}
+
+func appExtendedAttributesSummary() -> String {
+    let output = run("/usr/bin/xattr", ["-l", appPath])
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    return output.isEmpty ? "none" : output
+}
+
+func failFoilLaunchDidNotReachAutomationSmoke() -> Never {
+    print("ERROR: Foil launched as a process but did not reach automation smoke mode.")
+    print("Expected diagnostics after launch to contain `automation smoke: enabled`.")
+    print("This usually means the installed /Applications bundle is blocked before app code runs, for example by Gatekeeper/quarantine/syspolicyd state.")
+    print()
+    print("Foil process summary:")
+    print(runningFoilProcessSummary())
+    print()
+    print("Foil.app extended attributes:")
+    print(appExtendedAttributesSummary())
+    print()
+    print("Check system policy logs with:")
+    print("/usr/bin/log show --style compact --last 10m --predicate '(process CONTAINS[c] \"syspolicyd\") OR (eventMessage CONTAINS[c] \"Foil\")'")
+    exit(1)
+}
+
 func requireFrontmost(bundleID expectedBundleID: String, stage: String) {
     failIfSecurityAgentFrontmost(stage: stage)
     guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == expectedBundleID else {
@@ -156,12 +187,20 @@ run("/usr/bin/pkill", ["-x", "Foil"])
 Thread.sleep(forTimeInterval: 1.0)
 run("/usr/bin/open", ["-n", appPath, "--args", "--automation-smoke"])
 
-guard waitUntil(timeout: 8, poll: 0.25, {
+let foilProcessStarted = waitUntil(timeout: 8, poll: 0.25, {
     failIfSecurityAgentFrontmost(stage: "Foil launch")
     return NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).first != nil
-}) else {
+})
+guard foilProcessStarted else {
     print("ERROR: Foil did not launch.")
     exit(1)
+}
+
+guard waitUntil(timeout: 8, poll: 0.25, {
+    failIfSecurityAgentFrontmost(stage: "Foil automation smoke startup")
+    return readDiagnosticLog().contains("automation smoke: enabled")
+}) else {
+    failFoilLaunchDidNotReachAutomationSmoke()
 }
 Thread.sleep(forTimeInterval: 1.5)
 failIfSecurityAgentFrontmost(stage: "after Foil launch")
