@@ -1,3 +1,9 @@
+## [1.13.4](https://github.com/mean-weasel/foil/compare/v1.13.3...v1.13.4) (2026-05-31)
+
+- Fixed installed-app automation smoke launches so they no longer get diverted into an already-running Foil process before diagnostics and automation handlers are configured.
+- Hardened production cask QA so artifact validation fetches and extracts the release DMG without moving an existing `/Applications/Foil.app`.
+
+
 ## [1.13.3](https://github.com/mean-weasel/foil/compare/v1.13.2...v1.13.3) (2026-05-30)
 
 - Stabilized production queued-paste compatibility smoke runs so installed-app QA fails fast when macOS permission or target-app state blocks automation.
