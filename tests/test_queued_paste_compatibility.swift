@@ -196,6 +196,10 @@ func run(_ launchPath: String, _ arguments: [String]) -> String {
     return String(data: data, encoding: .utf8) ?? ""
 }
 
+func osascript(_ source: String) {
+    _ = run("/usr/bin/osascript", ["-e", source])
+}
+
 func waitUntil(timeout: TimeInterval, poll: TimeInterval = 0.25, _ condition: () -> Bool) -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
@@ -357,7 +361,10 @@ func textValue(in window: AXUIElement) -> String {
 }
 
 func activateWindow(_ window: AXUIElement, app: NSRunningApplication) {
-    app.activate()
+    app.activate(options: [.activateAllWindows])
+    if let bundleID = app.bundleIdentifier {
+        osascript("tell application id \"\(bundleID)\" to activate")
+    }
     Thread.sleep(forTimeInterval: 0.2)
     AXUIElementPerformAction(window, kAXRaiseAction as CFString)
     AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, true as CFTypeRef)
@@ -577,8 +584,9 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
     var browserWindows: [AXUIElement] = []
     let exposedTargetWindow = waitUntil(timeout: 10, poll: 0.5) {
         browser = NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleID).first
-        browser?.activate()
-        if browser != nil {
+        if let browser {
+            browser.activate(options: [.activateAllWindows])
+            osascript("tell application id \"\(target.bundleID)\" to activate")
             browserWindows = windows(forBundleID: target.bundleID)
         }
         return browserWindows.contains(where: { windowTitle($0).contains(target.pageTitle) })

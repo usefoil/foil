@@ -129,6 +129,13 @@ func osascript(_ source: String) -> String {
     run("/usr/bin/osascript", ["-e", source])
 }
 
+func activateApplication(bundleID: String) {
+    NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        .first?
+        .activate(options: [.activateAllWindows])
+    _ = osascript("tell application id \"\(bundleID)\" to activate")
+}
+
 func launch(_ launchPath: String, _ arguments: [String]) {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: launchPath)
@@ -175,7 +182,12 @@ func activateAndRaise(_ target: PasteTarget) {
         AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, true as CFTypeRef)
         AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, true as CFTypeRef)
     }
-    NSRunningApplication(processIdentifier: target.pid)?.activate()
+    if let app = NSRunningApplication(processIdentifier: target.pid) {
+        app.activate(options: [.activateAllWindows])
+        if let bundleID = app.bundleIdentifier {
+            activateApplication(bundleID: bundleID)
+        }
+    }
 }
 
 func switchToFinder() {
@@ -214,6 +226,12 @@ func axValue(_ element: AXUIElement) -> String {
     var valueRef: CFTypeRef?
     AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef)
     return valueRef as? String ?? ""
+}
+
+func windowTitle(_ element: AXUIElement) -> String {
+    var titleRef: CFTypeRef?
+    AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
+    return titleRef as? String ?? ""
 }
 
 func testTerminal() -> TestResult {
@@ -272,17 +290,27 @@ func testChrome() -> TestResult {
     defer { try? FileManager.default.removeItem(at: serverRoot) }
 
     let htmlURL = serverRoot.appendingPathComponent("foil-chrome-paste-test.html")
+    let pastedTitle = "Foil Cross-App Chrome Target Pasted"
     let html = """
     <!doctype html>
     <html><head><title>Foil Cross-App Chrome Target</title></head><body>
     <textarea id="target" autofocus style="width:600px;height:240px;">Chrome target
     </textarea>
     <script>
+    const pastedText = "\(text)";
     setTimeout(() => {
       const t = document.getElementById('target');
       t.focus();
       t.setSelectionRange(t.value.length, t.value.length);
     }, 300);
+    function updateTitleIfPasted() {
+      const t = document.getElementById('target');
+      if (t.value.includes(pastedText)) {
+        document.title = "\(pastedTitle)";
+      }
+    }
+    document.getElementById('target').addEventListener('input', updateTitleIfPasted);
+    setInterval(updateTitleIfPasted, 250);
     </script>
     </body></html>
     """
@@ -311,7 +339,7 @@ func testChrome() -> TestResult {
         )
     }
     Thread.sleep(forTimeInterval: 2.5)
-    NSRunningApplication.runningApplications(withBundleIdentifier: "com.google.Chrome").first?.activate()
+    activateApplication(bundleID: "com.google.Chrome")
     Thread.sleep(forTimeInterval: 0.8)
 
     guard let target = captureCurrentTarget(), target.appName == "Google Chrome" else {
@@ -330,11 +358,12 @@ func testChrome() -> TestResult {
     let textArea = findAXElement(in: window, role: "AXTextArea")
         ?? findAXElement(in: window, role: "AXTextField")
     let value = textArea.map(axValue) ?? ""
+    let title = windowTitle(window)
 
-    if value.contains(text) {
+    if value.contains(text) || title.contains(pastedTitle) {
         return TestResult(name: "Chrome", status: .passed, detail: "Text reached captured textarea; frontmost after paste: \(frontAfterPaste ?? "unknown"); transport=localhost; privateMode=requested; no tab close; no browser quit")
     }
-    return TestResult(name: "Chrome", status: .failed, detail: "Pasted text not found in Chrome AX value")
+    return TestResult(name: "Chrome", status: .failed, detail: "Pasted text not found in Chrome AX value or page title")
 }
 
 func testVSCodePresence() -> TestResult {
