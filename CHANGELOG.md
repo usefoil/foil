@@ -1,3 +1,10 @@
+## [1.13.3](https://github.com/mean-weasel/foil/compare/v1.13.2...v1.13.3) (2026-05-30)
+
+- Stabilized production queued-paste compatibility smoke runs so installed-app QA fails fast when macOS permission or target-app state blocks automation.
+- Added automation-safe Keychain handling and setup refresh guards so smoke runs do not trigger stale production security prompts.
+- Expanded smoke diagnostics around frontmost app capture and SecurityAgent interference for clearer release QA evidence.
+
+
 ## [1.13.2](https://github.com/mean-weasel/foil/compare/v1.13.1...v1.13.2) (2026-05-30)
 
 - Added recovery handling for rare macOS Microphone permission prompt timeouts so setup no longer spins indefinitely when TCC has a stale or stuck row.
