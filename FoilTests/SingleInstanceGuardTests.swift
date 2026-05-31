@@ -92,6 +92,36 @@ final class SingleInstanceGuardTests: XCTestCase {
         )
     }
 
+    func testNormalLaunchRunsSingleInstanceGuard() {
+        XCTAssertTrue(
+            AppDelegate.shouldRunSingleInstanceGuard(
+                arguments: ["/Applications/Foil.app/Contents/MacOS/Foil"],
+                environment: [:]
+            ),
+            "normal production launches should keep single-instance behavior"
+        )
+    }
+
+    func testAutomationSmokeBypassesSingleInstanceGuard() {
+        XCTAssertFalse(
+            AppDelegate.shouldRunSingleInstanceGuard(
+                arguments: ["/Applications/Foil.app/Contents/MacOS/Foil", "--automation-smoke"],
+                environment: [:]
+            ),
+            "automation smoke launches must not be diverted into an already-running app"
+        )
+    }
+
+    func testUITestingStillBypassesSingleInstanceGuard() {
+        XCTAssertFalse(
+            AppDelegate.shouldRunSingleInstanceGuard(
+                arguments: ["/Applications/Foil.app/Contents/MacOS/Foil", "--ui-testing"],
+                environment: [:]
+            ),
+            "UI test launches should continue to bypass the duplicate-app guard"
+        )
+    }
+
     func testAppDelegateAcceptsInjectedGuard() {
         // Verify the designated initializer accepts a custom guard.
         let stub = NotRunningStub()

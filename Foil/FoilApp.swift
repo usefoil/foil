@@ -255,7 +255,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // unit/integration tests (the test runner hosts the app process, so the
         // real app may also be running alongside).
         let isTesting = Self.isTestingProcess()
-        if !isTesting, singleInstanceGuard.activateExistingInstanceIfRunning() {
+        if Self.shouldRunSingleInstanceGuard(), singleInstanceGuard.activateExistingInstanceIfRunning() {
             // terminate is deferred to the next run loop tick because calling it
             // during applicationDidFinishLaunching can cause AppKit issues.
             // Safe here: no applicationShouldTerminate override can cancel it.
@@ -390,6 +390,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> Bool {
         arguments.contains("--automation-smoke")
+    }
+
+    static func shouldRunSingleInstanceGuard(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        !isTestingProcess(arguments: arguments, environment: environment)
+            && !isAutomationSmokeProcess(arguments: arguments)
     }
 
     private static func diagnosticsFilenameTimestamp() -> String {
