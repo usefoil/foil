@@ -81,6 +81,9 @@ struct MenuBarView: View {
             }
             recordingControlsSection
             lastResultSection
+            Divider()
+                .opacity(0.55)
+            AppVersionFooter(accessibilityIdentifier: "menu.appVersionFooter")
         }
         .accessibilityIdentifier("menu.controlCenter")
         .padding(14)

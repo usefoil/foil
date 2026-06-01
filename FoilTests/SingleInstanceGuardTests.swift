@@ -191,6 +191,26 @@ final class SingleInstanceGuardTests: XCTestCase {
         XCTAssertEqual(SettingsView.Tab.experimental.accessibilityIdentifier, "settings.tab.experimental")
     }
 
+    func testAppBrandVersionDisplayIncludesVersionAndBuild() throws {
+        let bundleURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FoilVersionDisplay-\(UUID().uuidString).bundle", isDirectory: true)
+        try FileManager.default.createDirectory(at: bundleURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: bundleURL) }
+
+        let info: [String: Any] = [
+            "CFBundleIdentifier": "com.neonwatty.Foil.tests.version",
+            "CFBundlePackageType": "BNDL",
+            "CFBundleShortVersionString": "2.3.4",
+            "CFBundleVersion": "567"
+        ]
+        let infoURL = bundleURL.appendingPathComponent("Info.plist")
+        try (info as NSDictionary).write(to: infoURL)
+
+        let bundle = try XCTUnwrap(Bundle(url: bundleURL))
+
+        XCTAssertEqual(AppBrand.versionDisplay(bundle: bundle), "\(AppBrand.name) 2.3.4 (567)")
+    }
+
     func testExperimentalPasteSettingCopyDistinguishesTargetFromPasteMethod() {
         XCTAssertEqual(SettingsView.ExperimentalCopy.pasteRoutingPurpose, "Auto-pastes back into the app you started from while you keep working elsewhere.")
         XCTAssertEqual(SettingsView.ExperimentalCopy.pasteTargetTitle, "Return to starting app")

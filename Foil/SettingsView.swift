@@ -94,10 +94,12 @@ struct SettingsView: View {
 
             selectedSettingsPane
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            AppVersionFooter(accessibilityIdentifier: "settings.appVersionFooter")
         }
         .accessibilityIdentifier("settings.root")
         .scenePadding()
-        .frame(width: 680, height: 430)
+        .frame(width: 680, height: 452)
         .alert("Clear History?", isPresented: $isShowingClearHistoryConfirmation) {
             Button("Clear History", role: .destructive) {
                 history.clear()
