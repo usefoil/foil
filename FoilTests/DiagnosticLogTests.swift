@@ -31,6 +31,7 @@ final class DiagnosticLogTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "language")
         UserDefaults.standard.removeObject(forKey: "asyncPasteEnabled")
         UserDefaults.standard.removeObject(forKey: "experimentalSkyLightPasteEnabled")
+        UserDefaults.standard.removeObject(forKey: "pauseBrowserMediaWhileRecording")
         UserDefaults.standard.removeObject(forKey: "showLiveFeedbackHUD")
         UserDefaults.standard.removeObject(forKey: "showFloatingStatus")
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
@@ -141,6 +142,7 @@ final class DiagnosticLogTests: XCTestCase {
         appState.failSetupCheck("Enable Accessibility")
         appState.asyncPasteEnabled = true
         appState.keepOnClipboard = true
+        appState.selectedInputDeviceUID = "missing-input-\(UUID().uuidString)"
         DiagnosticLog.write("provider failed apiKey=gsk_secret")
         let appInfo = DiagnosticAppInfo(
             appVersion: "1.2.3",
@@ -160,8 +162,10 @@ final class DiagnosticLogTests: XCTestCase {
         XCTAssertTrue(export.contains("Configuration:"))
         XCTAssertTrue(export.contains("Provider: Groq"))
         XCTAssertTrue(export.contains("Async Paste: true"))
+        XCTAssertTrue(export.contains("Input Device Transport: Unknown"))
         XCTAssertTrue(export.contains("Queued Paste Delivery Shortcut: Control-Shift-V"))
         XCTAssertTrue(export.contains("Keep Final Text On Clipboard: true"))
+        XCTAssertTrue(export.contains("Other Audio While Recording: unaffected"))
         XCTAssertTrue(export.contains("provider failed apiKey=<redacted>"))
         XCTAssertFalse(export.contains("gsk_secret"))
     }
@@ -176,6 +180,8 @@ final class DiagnosticLogTests: XCTestCase {
         appState.updateMicrophoneState(isReady: false, message: "Allow microphone")
         appState.apiKeyState = .needsAction("Add API key")
         appState.providerConnectionTestState = .failed("Server rejected apiKey=gsk_secret")
+        appState.pauseBrowserMediaWhileRecording = true
+        appState.selectedInputDeviceUID = "missing-input-\(UUID().uuidString)"
         appState.setStatus(.error("Transcription failed Authorization: Bearer sk-secret123456789"))
         DiagnosticLog.write("validate failed apiKey=gsk_secret")
         let appInfo = DiagnosticAppInfo(
@@ -196,6 +202,8 @@ final class DiagnosticLogTests: XCTestCase {
         XCTAssertTrue(report.contains("- Transcription Model: whisper-custom"))
         XCTAssertTrue(report.contains("- API Key Stored: no"))
         XCTAssertTrue(report.contains("- Input Monitoring: not directly detectable by Foil"))
+        XCTAssertTrue(report.contains("- Input Device Transport: Unknown"))
+        XCTAssertTrue(report.contains("- Other Audio While Recording: pause supported browser media"))
         XCTAssertTrue(report.contains("- Queued Paste Delivery Shortcut: Control-Shift-V"))
         XCTAssertTrue(report.contains("- Provider Connection Test: failed(Server rejected apiKey=<redacted>)"))
         XCTAssertTrue(report.contains("validate failed apiKey=<redacted>"))

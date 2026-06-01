@@ -103,10 +103,12 @@ final class BrowserMediaController {
     func recordingDidStart() -> UUID? {
         guard isEnabled() else {
             activeSessionID = nil
+            DiagnosticLog.write("otherAudio: unaffected policy=none")
             DiagnosticLog.write(BrowserMediaControlSummary.disabled.diagnosticMessage)
             return nil
         }
 
+        DiagnosticLog.write("otherAudio: pauseBrowserMedia enabled scope=chrome+chromium")
         activeSessionID = UUID()
         return activeSessionID
     }

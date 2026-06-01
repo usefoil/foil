@@ -23,7 +23,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Foil uses Apple Events to pause browser media in Chrome and Chromium while recording, when you enable this experimental setting.</string>
+	<string>Foil uses Apple Events only when you enable the setting to pause supported browser media in Chrome and Chromium while recording.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Foil needs microphone access to record audio for speech-to-text.</string>
 	<key>SUFeedURL</key>

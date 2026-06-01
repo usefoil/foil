@@ -1,0 +1,344 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Other Audio Recording Policy"
+  slug: "other-audio-recording-policy"
+  kind: specific
+  tranche: "Make default recording leave other audio unaffected, keep any Foil-controlled pausing opt-in, and resolve macOS/Bluetooth input-mode behavior with verified mitigation or clear guidance."
+  status: active
+  oracle:
+    signal: "Automated tests plus a manual audio smoke matrix prove the default path does not intentionally affect other audio, opt-in pausing only runs when enabled, diagnostics identify the active policy, and Bluetooth/input-mode findings have a product treatment."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Receipt-backed test results, manual smoke evidence, and final Judge/PM audit with full_outcome_complete: true."
+  intake:
+    original_request: "Plan with GoalBuddy prep how to stop Foil from silencing other audio, default audio on/unaffected, binary opt-in audio off/pause, and consider macOS/Bluetooth input-mode quieting."
+    interpreted_outcome: "Foil has a verified default-safe other-audio policy and a separate evidence-backed treatment for Bluetooth/macOS recording-side audio quieting."
+    input_shape: specific
+    audience: "Foil users who record while other audio is playing."
+    authority: requested
+    proof_type: test
+    completion_proof: "Default recording behavior, setting behavior, diagnostics, and Bluetooth/input-device treatment are verified by tests/manual smoke and audited against the goal oracle."
+    likely_misfire: "Only renaming the existing browser media pause setting or adding a generic audio toggle without proving default behavior and without distinguishing OS/device routing from Foil policy."
+    blind_spots_considered:
+      - "Persisted settings may already enable browser media pause for existing users."
+      - "Bluetooth headset mic use may switch macOS/audio device profile and quiet or degrade other audio outside Foil's direct control."
+      - "System-wide audio ducking or volume manipulation may require unsafe/private APIs or fragile UI scripting."
+      - "UI copy must not imply universal audio control if only browser media pausing is supported."
+    existing_plan_facts:
+      - "Default should be audio on / unaffected by Foil."
+      - "Start with a binary setting, not a volume dampening slider."
+      - "Any Foil-controlled audio pausing should be opt-in."
+      - "Bluetooth/macOS input-mode quieting should be considered as a separate layer."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/other-audio-recording-policy/"
+    command: "npx goalbuddy board docs/goals/other-audio-recording-policy"
+
+active_task: T007
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: medium
+    objective: "Map the current Foil other-audio behavior and identify which effects are intentional app policy versus macOS/device input-mode behavior."
+    inputs:
+      - "Foil audio recording, browser media, settings, diagnostics, and tests."
+      - "User requirement: default audio on/unaffected; binary opt-in setting; consider Bluetooth/macOS input-mode quieting."
+    constraints:
+      - "Read-only."
+      - "Do not edit implementation files."
+      - "Separate intentional Foil browser/media pausing from OS/device audio route/profile effects."
+      - "Prefer concrete file-path evidence and existing test evidence."
+    expected_output:
+      - "Current code paths that can affect other audio."
+      - "Current defaults and persistence behavior."
+      - "Existing tests and missing tests."
+      - "Manual smoke matrix needed to prove default unaffected behavior."
+      - "Bluetooth/input-device investigation targets and safe product options."
+      - "Candidate Worker slices with allowed_files and verification ideas."
+    receipt:
+      result: done
+      note: "notes/T001-other-audio-scout.md"
+      summary: "Mapped one intentional Foil audio-affecting path: opt-in Chrome/Chromium browser media pause. Found no system-wide mute/ducking code. Identified Apple-documented Bluetooth headset mic mode switching as separate OS/device behavior, and Core Audio transport metadata as a safe detection/warning candidate."
+      evidence:
+        - "Foil/BrowserMediaController.swift"
+        - "Foil/FoilApp.swift"
+        - "Foil/AppState.swift"
+        - "Foil/SettingsView.swift"
+        - "Foil/AudioRecorder.swift"
+        - "FoilTests/BrowserMediaControllerTests.swift"
+        - "FoilTests/AudioRecorderTests.swift"
+        - "Foil/Info.plist"
+        - "https://support.apple.com/en-us/102217"
+      spawned_tasks:
+        - T002
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Choose the first largest safe implementation slice for the default-safe binary other-audio policy."
+    inputs:
+      - "T001 receipt"
+      - "docs/goals/other-audio-recording-policy/goal.md"
+    constraints:
+      - "Do not implement."
+      - "Reject unsupported universal audio control."
+      - "Pick a slice that can be tested without relying on a specific Bluetooth device."
+      - "Require clear migration/default behavior."
+    expected_output:
+      - "Decision"
+      - "Exact Worker objective"
+      - "allowed_files"
+      - "verify"
+      - "stop_if"
+      - "Deferred Bluetooth/macOS follow-up task shape"
+    receipt:
+      result: done
+      note: "notes/T002-first-slice-judge.md"
+      decision: "approved"
+      full_outcome_complete: false
+      summary: "Approved a first Worker package for default-unaffected other-audio policy diagnostics, honest browser-media opt-in copy, and focused tests. Deferred Bluetooth/macOS input-mode treatment to T004 after the binary policy slice."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Implement the default-safe binary other-audio policy slice: explicit default-unaffected diagnostics, honest opt-in browser-media settings copy, and focused tests."
+    allowed_files:
+      - "Foil/BrowserMediaController.swift"
+      - "Foil/FoilApp.swift"
+      - "Foil/AppState.swift"
+      - "Foil/SettingsView.swift"
+      - "Foil/DiagnosticLog.swift"
+      - "Foil/Info.plist"
+      - "FoilTests/BrowserMediaControllerTests.swift"
+      - "FoilTests/DiagnosticLogTests.swift"
+      - "FoilTests/AppStateTests.swift"
+      - "docs/goals/other-audio-recording-policy/state.yaml"
+      - "docs/goals/other-audio-recording-policy/notes/"
+    verify:
+      - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/BrowserMediaControllerTests"
+      - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests"
+    stop_if:
+      - "Need files outside allowed_files."
+      - "Cannot preserve or deliberately document existing persisted setting behavior."
+      - "UI copy would imply unsupported system-wide audio control."
+      - "Verification fails twice."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/BrowserMediaController.swift"
+        - "Foil/AppState.swift"
+        - "Foil/SettingsView.swift"
+        - "Foil/DiagnosticLog.swift"
+        - "Foil/Info.plist"
+        - "FoilTests/BrowserMediaControllerTests.swift"
+        - "FoilTests/AppStateTests.swift"
+        - "FoilTests/DiagnosticLogTests.swift"
+      commands:
+        - cmd: "git diff --check"
+          status: pass
+        - cmd: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests"
+          status: pass
+        - cmd: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/BrowserMediaControllerTests"
+          status: pass
+        - cmd: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/DiagnosticLogTests"
+          status: pass
+      summary: "Default other-audio behavior is now explicit in diagnostics as policy=none/unaffected; opt-in browser media pausing logs its enabled scope; diagnostics exports/setup reports include the selected policy; Recording settings now show honest off-by-default browser-media copy; tests cover default, persisted opt-in, and diagnostic log/report behavior."
+
+  - id: T004
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: medium
+    objective: "Investigate macOS/Bluetooth input-mode quieting and identify the safest product treatment."
+    inputs:
+      - "T001 receipt"
+      - "T003 receipt if available"
+      - "Manual observations available on this Mac."
+    constraints:
+      - "Read-only unless PM later creates a Worker task."
+      - "Do not use private APIs."
+      - "Do not claim universal mitigation without evidence."
+      - "Record when local hardware cannot reproduce Bluetooth behavior."
+    expected_output:
+      - "Whether local testing can reproduce OS/device-level quieting."
+      - "Public API/device metadata available for warning or detection."
+      - "Recommended product treatment: warning, input recommendation, setting copy, docs, or bounded mitigation."
+      - "Candidate Worker task if implementation is justified."
+    receipt:
+      result: done
+      note: "notes/T004-bluetooth-input-scout.md"
+      summary: "Local system_profiler shows AirPods as default Bluetooth input/output, matching Apple-documented mic-use audio quality/volume reduction behavior. Public Core Audio exposes transport metadata, so a specific Bluetooth/Bluetooth LE input warning is feasible without private APIs."
+      evidence:
+        - "system_profiler SPAudioDataType"
+        - "AudioHardwareBase.h kAudioDevicePropertyTransportType"
+        - "https://support.apple.com/en-us/102217"
+      spawned_tasks:
+        - T005
+
+  - id: T005
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Decide whether Bluetooth/input-mode findings justify implementation, documentation, or an external follow-up issue."
+    inputs:
+      - "T004 receipt"
+      - "Current diff and verification results"
+    constraints:
+      - "Do not implement."
+      - "Reject fragile UI scripting or private API approaches."
+      - "Prefer clear guidance over fake control if the OS/device owns the behavior."
+    expected_output:
+      - "Decision"
+      - "If approved: exact Worker objective, allowed_files, verify, stop_if"
+      - "If deferred: issue/handoff wording or board-only rationale"
+    receipt:
+      result: done
+      note: "notes/T005-bluetooth-treatment-judge.md"
+      decision: "approved"
+      full_outcome_complete: false
+      summary: "Approved a bounded Bluetooth input warning using public Core Audio transport metadata. The warning must be guidance only, specific to Bluetooth/Bluetooth LE input, and must not claim system-wide audio control."
+
+  - id: T006
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Implement Bluetooth/Bluetooth LE input awareness and a Recording settings warning for OS-level audio quality/volume reduction risk."
+    allowed_files:
+      - "Foil/AudioRecorder.swift"
+      - "Foil/SettingsView.swift"
+      - "Foil/DiagnosticLog.swift"
+      - "FoilTests/AudioRecorderTests.swift"
+      - "FoilTests/DiagnosticLogTests.swift"
+      - "docs/goals/other-audio-recording-policy/state.yaml"
+      - "docs/goals/other-audio-recording-policy/notes/"
+    verify:
+      - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AudioRecorderTests"
+      - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/DiagnosticLogTests"
+      - "git diff --check"
+    stop_if:
+      - "Judge did not approve an implementation slice."
+      - "Need private APIs or unsupported system audio control."
+      - "Need unavailable hardware to verify the behavior."
+      - "Verification fails twice."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/AudioRecorder.swift"
+        - "Foil/SettingsView.swift"
+        - "Foil/DiagnosticLog.swift"
+        - "FoilTests/AudioRecorderTests.swift"
+        - "FoilTests/DiagnosticLogTests.swift"
+      commands:
+        - cmd: "git diff --check"
+          status: pass
+        - cmd: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AudioRecorderTests"
+          status: pass
+        - cmd: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/DiagnosticLogTests"
+          status: pass
+      summary: "Added public Core Audio transport metadata for input devices, Bluetooth/Bluetooth LE detection, effective input resolution for System Default or selected input, a Recording settings warning when the effective mic is Bluetooth, and diagnostic setup/export input transport reporting."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Audit whether the completed work satisfies the other-audio recording policy oracle."
+    inputs:
+      - "All done task receipts"
+      - "Last verification"
+      - "Current dirty diff"
+      - "Manual smoke matrix"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if default recording still intentionally pauses/silences/dampens other audio."
+      - "Reject completion if opt-in behavior is unclear or untested."
+      - "Reject completion if Bluetooth/macOS behavior has neither verified mitigation nor explicit documented/product guidance."
+      - "Reject completion if required Worker work is still queued or active."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "mapping from receipts to oracle"
+      - "missing evidence or next task if not complete"
+    receipt:
+      result: done
+      decision: "not_complete"
+      full_outcome_complete: false
+      summary: "Automated implementation evidence is strong: default policy is explicit/unaffected, opt-in browser media pausing is tested, diagnostics identify policy/input transport, and Bluetooth input has a warning based on public Core Audio metadata plus Apple behavior docs. Completion is not yet proven because the manual audio smoke matrix has not been executed or recorded."
+      missing_evidence:
+        - "Manual Chrome/media smoke with pause setting off and on."
+        - "Manual non-browser audio smoke with built-in/non-Bluetooth input."
+        - "Manual or operator-confirmed Bluetooth headset mic smoke showing warning and expected OS-level audio behavior."
+      next_task: T007
+
+  - id: T007
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Prepare and, where possible, execute the manual audio smoke matrix needed to prove the other-audio policy oracle."
+    allowed_files:
+      - "docs/goals/other-audio-recording-policy/state.yaml"
+      - "docs/goals/other-audio-recording-policy/notes/"
+      - "docs/release-qa-log.md"
+    verify:
+      - "node /Users/jeremywatt/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/other-audio-recording-policy/state.yaml"
+    stop_if:
+      - "Manual auditory confirmation from the operator is required."
+      - "Recording smoke would disturb production Foil state or require changing macOS permissions."
+      - "Need files outside allowed_files."
+    progress:
+      note: "notes/T007-manual-audio-smoke-matrix.md"
+      summary: "Prepared the manual audio smoke matrix, captured local Bluetooth-risk audio precheck evidence, verified the debug app builds, reran focused current-state XCTest rows, documented exact operator steps plus diagnostic log paths, added a release QA log section with automated pass/pending manual status, performed a visual-only dev-app Recording settings check, and verified the runtime setup report says System Default input, Input Device Transport: Unknown, and Other Audio While Recording: unaffected. The visual Bluetooth warning row could not run because the Bluetooth input disappeared before inspection. Execution still requires operator auditory confirmation of browser and non-browser audio behavior during live Foil recording."
+      blocked_on:
+        - "Operator must audibly confirm browser media continues with the setting off."
+        - "Operator must audibly confirm opt-in browser media pausing with the setting on."
+        - "Operator must audibly confirm non-browser audio behavior with a non-Bluetooth input when available."
+        - "Operator must reconnect/select a Bluetooth input, confirm the Bluetooth input warning appears, and record whether any audio reduction is OS/device behavior."
+    receipt: null
+
+checks:
+  dirty_fingerprint: unknown
+  last_verification:
+    result: unknown
+    task: null
+    commands: []

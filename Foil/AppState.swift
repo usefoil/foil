@@ -274,6 +274,10 @@ final class AppState {
         didSet { Self.defaults.set(pauseBrowserMediaWhileRecording, forKey: "pauseBrowserMediaWhileRecording") }
     }
 
+    var otherAudioPolicyDiagnosticDescription: String {
+        pauseBrowserMediaWhileRecording ? "pause supported browser media" : "unaffected"
+    }
+
     #if DEBUG
     var mockTranscriptionEnabled: Bool = false {
         didSet { Self.defaults.set(mockTranscriptionEnabled, forKey: "mockTranscriptionEnabled") }
