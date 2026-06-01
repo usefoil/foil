@@ -21,6 +21,7 @@ let diagnosticLogURL = FileManager.default
     .appendingPathComponent("foil.log", isDirectory: false)
 var diagnosticLogStartOffset: UInt64 = 0
 let testTextPrefix = "Mock transcription automation smoke"
+let textEditSmokeWindowMarker = "FoilAppSmokeTarget"
 
 @discardableResult
 func run(_ launchPath: String, _ arguments: [String]) -> String {
@@ -93,8 +94,25 @@ func failIfSecurityAgentFrontmost(stage: String) {
     if app.localizedName == "SecurityAgent" || app.bundleIdentifier == "com.apple.SecurityAgent" {
         print("ERROR: SecurityAgent is frontmost during \(stage). A macOS keychain/security prompt is blocking installed-app automation; handle the prompt manually, quit Foil, and rerun.")
         print("Frontmost: \(frontmostAppDescription())")
-        exit(2)
+        finish(2)
     }
+}
+
+func closeTextEditWindows(containing _: String) {
+    run("/usr/bin/pkill", ["-x", "TextEdit"])
+}
+
+func cleanup() {
+    closeTextEditWindows(containing: textEditSmokeWindowMarker)
+    try? FileManager.default.removeItem(
+        at: FileManager.default.temporaryDirectory.appendingPathComponent("FoilAppSmokeTarget.txt")
+    )
+    run("/usr/bin/pkill", ["-x", "Foil"])
+}
+
+func finish(_ status: Int32) -> Never {
+    cleanup()
+    exit(status)
 }
 
 func runningFoilProcessSummary() -> String {
@@ -125,14 +143,14 @@ func failFoilLaunchDidNotReachAutomationSmoke() -> Never {
     print()
     print("Check system policy logs with:")
     print("/usr/bin/log show --style compact --last 10m --predicate '(process CONTAINS[c] \"syspolicyd\") OR (eventMessage CONTAINS[c] \"Foil\")'")
-    exit(1)
+    finish(1)
 }
 
 func requireFrontmost(bundleID expectedBundleID: String, stage: String) {
     failIfSecurityAgentFrontmost(stage: stage)
     guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == expectedBundleID else {
         print("ERROR: Expected \(expectedBundleID) frontmost during \(stage), got \(frontmostAppDescription()).")
-        exit(1)
+        finish(1)
     }
 }
 
@@ -161,12 +179,12 @@ guard AXIsProcessTrusted() else {
     print("ERROR: Accessibility permission is required.")
     let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
     AXIsProcessTrustedWithOptions(opts)
-    exit(1)
+    finish(1)
 }
 
 guard FileManager.default.fileExists(atPath: appPath) else {
     print("ERROR: \(appPath) not found. Run `make install` first.")
-    exit(1)
+    finish(1)
 }
 
 try? FileManager.default.createDirectory(
@@ -193,7 +211,7 @@ let foilProcessStarted = waitUntil(timeout: 8, poll: 0.25, {
 })
 guard foilProcessStarted else {
     print("ERROR: Foil did not launch.")
-    exit(1)
+    finish(1)
 }
 
 guard waitUntil(timeout: 8, poll: 0.25, {
@@ -219,27 +237,32 @@ Thread.sleep(forTimeInterval: 1.5)
 
 guard let textEditApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.TextEdit").first else {
     print("ERROR: TextEdit did not launch.")
-    exit(1)
+    finish(1)
 }
 let axTextEdit = AXUIElementCreateApplication(textEditApp.processIdentifier)
 var windowsRef: CFTypeRef?
 AXUIElementCopyAttributeValue(axTextEdit, kAXWindowsAttribute as CFString, &windowsRef)
 guard let windows = windowsRef as? [AXUIElement] else {
     print("ERROR: Could not read TextEdit windows.")
-    exit(1)
+    finish(1)
 }
 
 let targetWindow = windows.first { windowTitle($0).contains("FoilAppSmokeTarget") }
 guard let targetWindow else {
     print("ERROR: Could not identify TextEdit smoke window.")
-    exit(1)
+    finish(1)
 }
 
 AXUIElementPerformAction(targetWindow, kAXRaiseAction as CFString)
 AXUIElementSetAttributeValue(targetWindow, kAXMainAttribute as CFString, true as CFTypeRef)
 AXUIElementSetAttributeValue(targetWindow, kAXFocusedAttribute as CFString, true as CFTypeRef)
-textEditApp.activate()
-Thread.sleep(forTimeInterval: 1.0)
+_ = waitUntil(timeout: 3, poll: 0.25) {
+    AXUIElementPerformAction(targetWindow, kAXRaiseAction as CFString)
+    AXUIElementSetAttributeValue(targetWindow, kAXMainAttribute as CFString, true as CFTypeRef)
+    AXUIElementSetAttributeValue(targetWindow, kAXFocusedAttribute as CFString, true as CFTypeRef)
+    textEditApp.activate(options: [.activateAllWindows])
+    return NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.TextEdit"
+}
 requireFrontmost(bundleID: "com.apple.TextEdit", stage: "TextEdit target capture")
 
 print("Requesting automation mock transcription against TextEdit target...")
@@ -278,28 +301,28 @@ print(!floatingStatusVisible ? "✓ floating status stayed off by default" : "�
 
 if log.contains("UITest paste queue") {
     print("ERROR: Real paste smoke test used the UI-test paste bypass.")
-    exit(1)
+    finish(1)
 }
 
 if !log.contains("insertAsync:") {
     print("ERROR: Real paste smoke test did not exercise TextInserter.insertAsync.")
-    exit(1)
+    finish(1)
 }
 
 if log.contains("Microphone unavailable") {
     print("ERROR: Foil reported microphone unavailable.")
-    exit(1)
+    finish(1)
 }
 
 if floatingStatusVisible {
     print("Foil windows: \(groqTalkWindows)")
-    exit(1)
+    finish(1)
 }
 
 if pasted && targetText.contains(testTextPrefix) {
     print()
     print("✅ PASS: Installed Foil used mock transcription and pasted into the TextEdit target.")
-    exit(0)
+    finish(0)
 }
 
 if log.contains("windowElement: nil") {
@@ -308,13 +331,13 @@ if log.contains("windowElement: nil") {
     print("Grant or refresh Accessibility permission for /Applications/Foil.app, then rerun `make test-paste-real`.")
     if ProcessInfo.processInfo.environment["ALLOW_LOCAL_QA_SKIP"] == "1" {
         print("ALLOW_LOCAL_QA_SKIP=1 set; recording this as an explicit local skip.")
-        exit(0)
+        finish(0)
     }
     print("Set ALLOW_LOCAL_QA_SKIP=1 only when this skip is recorded in the release QA log.")
-    exit(2)
+    finish(2)
 }
 
 print()
 print("❌ FAIL: Mock transcription text was not found in the TextEdit target.")
 print("Target prefix: \(targetText.prefix(120))")
-exit(1)
+finish(1)

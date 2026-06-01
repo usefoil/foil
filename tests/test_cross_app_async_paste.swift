@@ -129,11 +129,41 @@ func osascript(_ source: String) -> String {
     run("/usr/bin/osascript", ["-e", source])
 }
 
+func appleScriptStringLiteral(_ value: String) -> String {
+    var escaped = ""
+    for character in value {
+        switch character {
+        case "\\":
+            escaped += "\\\\"
+        case "\"":
+            escaped += "\\\""
+        default:
+            escaped.append(character)
+        }
+    }
+    return "\"\(escaped)\""
+}
+
 func activateApplication(bundleID: String) {
     NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
         .first?
         .activate(options: [.activateAllWindows])
     _ = osascript("tell application id \"\(bundleID)\" to activate")
+}
+
+func closeTerminalWindowsContaining(_ marker: String) {
+    _ = osascript("""
+    tell application "Terminal"
+      repeat with terminalWindow in windows
+        try
+          set windowContents to contents of selected tab of terminalWindow
+          if windowContents contains \(appleScriptStringLiteral(marker)) then
+            close terminalWindow
+          end if
+        end try
+      end repeat
+    end tell
+    """)
 }
 
 func launch(_ launchPath: String, _ arguments: [String]) {
@@ -174,6 +204,17 @@ func pasteText(_ text: String) {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(text, forType: .string)
     simulatePaste()
+}
+
+func postCommandW() {
+    let source = CGEventSource(stateID: .hidSystemState)
+    let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x0D, keyDown: true)
+    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x0D, keyDown: false)
+    keyDown?.flags = .maskCommand
+    keyUp?.flags = .maskCommand
+    keyDown?.post(tap: .cghidEventTap)
+    Thread.sleep(forTimeInterval: 0.05)
+    keyUp?.post(tap: .cghidEventTap)
 }
 
 func activateAndRaise(_ target: PasteTarget) {
@@ -241,6 +282,7 @@ func testTerminal() -> TestResult {
     }
 
     let text = "FOIL_TERMINAL_ASYNC_PASTE"
+    defer { closeTerminalWindowsContaining("Foil Terminal target") }
     _ = osascript("""
     tell application "Terminal"
       activate
@@ -260,9 +302,6 @@ func testTerminal() -> TestResult {
     let contents = osascript("""
     tell application "Terminal"
       set outputText to contents of selected tab of front window
-      try
-        close front window
-      end try
       return outputText
     end tell
     """)
@@ -327,6 +366,14 @@ func testChrome() -> TestResult {
         return TestResult(name: "Chrome", status: .failed, detail: "Could not start localhost target server")
     }
     defer { server.stop() }
+    var capturedChromeTarget: PasteTarget?
+    defer {
+        if let target = capturedChromeTarget {
+            activateAndRaise(target)
+            Thread.sleep(forTimeInterval: 0.3)
+            postCommandW()
+        }
+    }
 
     let chromeExecutable = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     if FileManager.default.fileExists(atPath: chromeExecutable) {
@@ -345,6 +392,7 @@ func testChrome() -> TestResult {
     guard let target = captureCurrentTarget(), target.appName == "Google Chrome" else {
         return TestResult(name: "Chrome", status: .failed, detail: "Could not capture Chrome target")
     }
+    capturedChromeTarget = target
 
     switchToFinder()
     let frontAfterPaste = pasteIntoCapturedTarget(target, text: text)
@@ -361,7 +409,7 @@ func testChrome() -> TestResult {
     let title = windowTitle(window)
 
     if value.contains(text) || title.contains(pastedTitle) {
-        return TestResult(name: "Chrome", status: .passed, detail: "Text reached captured textarea; frontmost after paste: \(frontAfterPaste ?? "unknown"); transport=localhost; privateMode=requested; no tab close; no browser quit")
+        return TestResult(name: "Chrome", status: .passed, detail: "Text reached captured textarea; frontmost after paste: \(frontAfterPaste ?? "unknown"); transport=localhost; privateMode=requested; disposableTabClosed=true; noBrowserQuit=true")
     }
     return TestResult(name: "Chrome", status: .failed, detail: "Pasted text not found in Chrome AX value or page title")
 }
