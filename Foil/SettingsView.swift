@@ -256,6 +256,26 @@ struct SettingsView: View {
                 }
             }
             .accessibilityIdentifier("settings.inputDevicePicker")
+
+            if let inputDevice = effectiveInputDevice, inputDevice.transport.isBluetooth {
+                Label {
+                    Text("Using \(inputDevice.name) as the microphone can reduce other audio quality or volume while recording. Choose the Mac microphone or another non-Bluetooth input to keep playback unchanged.")
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                }
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("settings.bluetoothInputWarning")
+            }
+
+            Section("Other Audio") {
+                Toggle("Pause supported browser media while recording", isOn: $appState.pauseBrowserMediaWhileRecording)
+                    .accessibilityIdentifier("settings.pauseBrowserMediaToggle")
+                Text("Off by default. When enabled, Foil attempts to pause playing Chrome and Chromium tabs while recording. Other apps and system audio are not controlled.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }
@@ -285,6 +305,10 @@ struct SettingsView: View {
             .help(previewHelp)
             .accessibilityIdentifier(previewIdentifier)
         }
+    }
+
+    private var effectiveInputDevice: AudioRecorder.AudioDevice? {
+        AudioRecorder.effectiveInputDevice(forUID: appState.selectedInputDeviceUID)
     }
 
     private var transcriptionSettings: some View {
@@ -770,14 +794,6 @@ struct SettingsView: View {
                 Toggle(ExperimentalCopy.backgroundPasteTitle, isOn: $appState.experimentalSkyLightPasteEnabled)
                     .accessibilityIdentifier("settings.experimentalSkyLightPasteToggle")
                 Text(ExperimentalCopy.backgroundPasteDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Browser Media") {
-                Toggle("Pause browser media while recording", isOn: $appState.pauseBrowserMediaWhileRecording)
-                    .accessibilityIdentifier("settings.pauseBrowserMediaToggle")
-                Text("Experimental. Chrome and Chromium only. Chrome must allow JavaScript from Apple Events.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

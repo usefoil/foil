@@ -301,11 +301,80 @@ final class AudioRecorder: @unchecked Sendable {
 
     // MARK: - Audio device enumeration
 
+    enum AudioDeviceTransport: String, Equatable, Hashable {
+        case unknown
+        case builtIn
+        case aggregate
+        case virtual
+        case pci
+        case usb
+        case fireWire
+        case bluetooth
+        case bluetoothLE
+        case hdmi
+        case displayPort
+        case airPlay
+        case avb
+        case thunderbolt
+        case continuityCaptureWired
+        case continuityCaptureWireless
+        case other
+
+        var displayName: String {
+            switch self {
+            case .unknown: "Unknown"
+            case .builtIn: "Built-in"
+            case .aggregate: "Aggregate"
+            case .virtual: "Virtual"
+            case .pci: "PCI"
+            case .usb: "USB"
+            case .fireWire: "FireWire"
+            case .bluetooth: "Bluetooth"
+            case .bluetoothLE: "Bluetooth LE"
+            case .hdmi: "HDMI"
+            case .displayPort: "DisplayPort"
+            case .airPlay: "AirPlay"
+            case .avb: "AVB"
+            case .thunderbolt: "Thunderbolt"
+            case .continuityCaptureWired: "Continuity Capture wired"
+            case .continuityCaptureWireless: "Continuity Capture wireless"
+            case .other: "Other"
+            }
+        }
+
+        var isBluetooth: Bool {
+            self == .bluetooth || self == .bluetoothLE
+        }
+
+        static func fromCoreAudioTransportType(_ rawValue: UInt32) -> Self {
+            switch rawValue {
+            case kAudioDeviceTransportTypeUnknown: .unknown
+            case kAudioDeviceTransportTypeBuiltIn: .builtIn
+            case kAudioDeviceTransportTypeAggregate: .aggregate
+            case kAudioDeviceTransportTypeVirtual: .virtual
+            case kAudioDeviceTransportTypePCI: .pci
+            case kAudioDeviceTransportTypeUSB: .usb
+            case kAudioDeviceTransportTypeFireWire: .fireWire
+            case kAudioDeviceTransportTypeBluetooth: .bluetooth
+            case kAudioDeviceTransportTypeBluetoothLE: .bluetoothLE
+            case kAudioDeviceTransportTypeHDMI: .hdmi
+            case kAudioDeviceTransportTypeDisplayPort: .displayPort
+            case kAudioDeviceTransportTypeAirPlay: .airPlay
+            case kAudioDeviceTransportTypeAVB: .avb
+            case kAudioDeviceTransportTypeThunderbolt: .thunderbolt
+            case kAudioDeviceTransportTypeContinuityCaptureWired: .continuityCaptureWired
+            case kAudioDeviceTransportTypeContinuityCaptureWireless: .continuityCaptureWireless
+            default: .other
+            }
+        }
+    }
+
     struct AudioDevice: Identifiable, Equatable, Hashable {
         let id: AudioDeviceID
         let uid: String
         let name: String
         let isInput: Bool
+        let transport: AudioDeviceTransport
     }
 
     static func availableInputDevices() -> [AudioDevice] {
@@ -387,15 +456,65 @@ final class AudioRecorder: @unchecked Sendable {
             let deviceUID = uidStatus == noErr ? (uidRef?.takeRetainedValue() as String? ?? "") : ""
             guard !deviceUID.isEmpty else { continue }
 
-            inputDevices.append(AudioDevice(id: deviceID, uid: deviceUID, name: deviceName, isInput: true))
+            inputDevices.append(AudioDevice(
+                id: deviceID,
+                uid: deviceUID,
+                name: deviceName,
+                isInput: true,
+                transport: transportType(for: deviceID)
+            ))
         }
 
         return inputDevices
     }
 
+    static func effectiveInputDevice(forUID uid: String?) -> AudioDevice? {
+        let devices = availableInputDevices()
+        if let uid {
+            return devices.first { $0.uid == uid }
+        }
+        guard let defaultID = defaultInputDeviceID() else {
+            return nil
+        }
+        return devices.first { $0.id == defaultID }
+    }
+
     /// Resolves a stable device UID to the current AudioDeviceID, or nil if not found.
     static func deviceID(forUID uid: String) -> AudioDeviceID? {
         availableInputDevices().first { $0.uid == uid }?.id
+    }
+
+    private static func defaultInputDeviceID() -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var deviceID = AudioDeviceID(0)
+        var dataSize = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &dataSize,
+            &deviceID
+        )
+        guard status == noErr, deviceID != 0 else { return nil }
+        return deviceID
+    }
+
+    private static func transportType(for deviceID: AudioDeviceID) -> AudioDeviceTransport {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var transport = UInt32(kAudioDeviceTransportTypeUnknown)
+        var dataSize = UInt32(MemoryLayout<UInt32>.size)
+        let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &transport)
+        guard status == noErr else { return .unknown }
+        return AudioDeviceTransport.fromCoreAudioTransportType(transport)
     }
 
     // MARK: - AudioRecording conformance

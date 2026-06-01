@@ -56,6 +56,7 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "queuedPasteEnabled")
         UserDefaults.standard.removeObject(forKey: "queuedPasteMode")
         UserDefaults.standard.removeObject(forKey: "experimentalSkyLightPasteEnabled")
+        UserDefaults.standard.removeObject(forKey: "pauseBrowserMediaWhileRecording")
         UserDefaults.standard.removeObject(forKey: "showLiveFeedbackHUD")
         UserDefaults.standard.removeObject(forKey: "showFloatingStatus")
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
@@ -89,6 +90,22 @@ final class AppStateTests: XCTestCase {
     func testInitialStatusIsIdle() {
         let state = AppState()
         XCTAssertEqual(state.status, .idle)
+    }
+
+    func testOtherAudioPolicyDefaultsToUnaffected() {
+        let state = AppState()
+
+        XCTAssertFalse(state.pauseBrowserMediaWhileRecording)
+        XCTAssertEqual(state.otherAudioPolicyDiagnosticDescription, "unaffected")
+    }
+
+    func testOtherAudioPolicyPreservesPersistedBrowserMediaOptIn() {
+        UserDefaults.standard.set(true, forKey: "pauseBrowserMediaWhileRecording")
+
+        let state = AppState()
+
+        XCTAssertTrue(state.pauseBrowserMediaWhileRecording)
+        XCTAssertEqual(state.otherAudioPolicyDiagnosticDescription, "pause supported browser media")
     }
 
     func testTransitionToRecording() {

@@ -299,11 +299,23 @@ final class AudioRecorderTests: XCTestCase {
     }
 
     func testAudioDeviceEquality() {
-        let a = AudioRecorder.AudioDevice(id: 1, uid: "uid-1", name: "Mic", isInput: true)
-        let b = AudioRecorder.AudioDevice(id: 1, uid: "uid-1", name: "Mic", isInput: true)
-        let c = AudioRecorder.AudioDevice(id: 2, uid: "uid-2", name: "Other", isInput: true)
+        let a = AudioRecorder.AudioDevice(id: 1, uid: "uid-1", name: "Mic", isInput: true, transport: .builtIn)
+        let b = AudioRecorder.AudioDevice(id: 1, uid: "uid-1", name: "Mic", isInput: true, transport: .builtIn)
+        let c = AudioRecorder.AudioDevice(id: 2, uid: "uid-2", name: "Other", isInput: true, transport: .usb)
         XCTAssertEqual(a, b)
         XCTAssertNotEqual(a, c)
+    }
+
+    func testTransportTypeMappingIdentifiesBluetoothInputs() {
+        XCTAssertTrue(AudioRecorder.AudioDeviceTransport.fromCoreAudioTransportType(kAudioDeviceTransportTypeBluetooth).isBluetooth)
+        XCTAssertTrue(AudioRecorder.AudioDeviceTransport.fromCoreAudioTransportType(kAudioDeviceTransportTypeBluetoothLE).isBluetooth)
+        XCTAssertFalse(AudioRecorder.AudioDeviceTransport.fromCoreAudioTransportType(kAudioDeviceTransportTypeBuiltIn).isBluetooth)
+    }
+
+    func testTransportTypeDisplayNamesAreUserReadable() {
+        XCTAssertEqual(AudioRecorder.AudioDeviceTransport.bluetooth.displayName, "Bluetooth")
+        XCTAssertEqual(AudioRecorder.AudioDeviceTransport.bluetoothLE.displayName, "Bluetooth LE")
+        XCTAssertEqual(AudioRecorder.AudioDeviceTransport.builtIn.displayName, "Built-in")
     }
 
     func testDeviceIDForUIDReturnsNilForUnknownUID() {
@@ -314,5 +326,10 @@ final class AudioRecorderTests: XCTestCase {
     func testAvailableDevicesHaveNonEmptyUIDs() {
         let devices = AudioRecorder.availableInputDevices()
         XCTAssertTrue(devices.allSatisfy { !$0.uid.isEmpty })
+    }
+
+    func testAvailableDevicesHaveTransportMetadata() {
+        let devices = AudioRecorder.availableInputDevices()
+        XCTAssertTrue(devices.allSatisfy { !$0.transport.displayName.isEmpty })
     }
 }

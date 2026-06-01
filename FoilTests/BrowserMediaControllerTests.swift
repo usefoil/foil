@@ -17,6 +17,26 @@ private final class StubBrowserMediaRunner: BrowserMediaScriptRunning {
 
 @MainActor
 final class BrowserMediaControllerTests: XCTestCase {
+    private var logURL: URL!
+
+    override func setUpWithError() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FoilBrowserMediaControllerTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        logURL = directory.appendingPathComponent("foil.log")
+        DiagnosticLog.logURLOverride = logURL
+        DiagnosticLog.isEnabledOverride = true
+        DiagnosticLog.clearForTesting()
+    }
+
+    override func tearDownWithError() throws {
+        DiagnosticLog.clearForTesting()
+        DiagnosticLog.logURLOverride = nil
+        DiagnosticLog.isEnabledOverride = nil
+        try? FileManager.default.removeItem(at: logURL.deletingLastPathComponent())
+        logURL = nil
+    }
+
     func testRecordingStartSkipsRunnerWhenDisabled() async {
         let runner = StubBrowserMediaRunner()
         let controller = BrowserMediaController(isEnabled: { false }, scriptRunner: runner)
@@ -26,6 +46,18 @@ final class BrowserMediaControllerTests: XCTestCase {
         XCTAssertEqual(summary, .disabled)
         XCTAssertEqual(runner.pauseCallCount, 0)
         XCTAssertFalse(controller.hasActiveSession)
+    }
+
+    func testRecordingStartLogsOtherAudioUnaffectedWhenDisabled() async {
+        let runner = StubBrowserMediaRunner()
+        let controller = BrowserMediaController(isEnabled: { false }, scriptRunner: runner)
+
+        _ = await controller.recordingDidStartAndPause()
+
+        let logText = DiagnosticLog.recentLines(limit: 10).joined(separator: "\n")
+        XCTAssertTrue(logText.contains("otherAudio: unaffected policy=none"))
+        XCTAssertTrue(logText.contains("browserMediaControl: skipped disabled"))
+        XCTAssertEqual(runner.pauseCallCount, 0)
     }
 
     func testRecordingStartHandlesBrowserNotRunning() async {
@@ -38,6 +70,10 @@ final class BrowserMediaControllerTests: XCTestCase {
         XCTAssertEqual(summary, .browserNotRunning)
         XCTAssertEqual(runner.pauseCallCount, 1)
         XCTAssertTrue(controller.hasActiveSession)
+
+        let logText = DiagnosticLog.recentLines(limit: 10).joined(separator: "\n")
+        XCTAssertTrue(logText.contains("otherAudio: pauseBrowserMedia enabled scope=chrome+chromium"))
+        XCTAssertTrue(logText.contains("browserMediaControl: skipped browserNotRunning"))
 
         controller.recordingDidEnd(reason: .stopped)
         XCTAssertFalse(controller.hasActiveSession)

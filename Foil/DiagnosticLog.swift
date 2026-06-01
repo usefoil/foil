@@ -118,6 +118,7 @@ enum DiagnosticLog {
             "Transcript Processing: \(appState.effectiveTranscriptProcessingMode.rawValue)",
             "Cleanup Model: \(appState.transcriptCleanupModel)",
             "Audio Format: \(appState.selectedAudioFormat.rawValue)",
+            "Input Device Transport: \(effectiveInputTransportDescription(appState))",
             "Recording Mode: \(appState.recordingMode.rawValue)",
             "Async Paste: \(appState.asyncPasteEnabled)",
             "Queued Paste: \(appState.queuedPasteEnabled)",
@@ -125,6 +126,7 @@ enum DiagnosticLog {
             "Queued Paste Delivery Shortcut: \(queuedPasteDeliveryShortcutDescription(appState))",
             "Keep Final Text On Clipboard: \(appState.keepOnClipboard)",
             "Floating Status: \(appState.shouldShowFloatingStatus)",
+            "Other Audio While Recording: \(appState.otherAudioPolicyDiagnosticDescription)",
             "Sound Effects: \(appState.soundEffectsEnabled)"
         ]
 
@@ -202,6 +204,8 @@ enum DiagnosticLog {
             "- Hotkey: \(appState.hotkeyChoice.label)",
             "- Audio Format: \(appState.selectedAudioFormat.rawValue)",
             "- Input Device UID: \(redacted(appState.selectedInputDeviceUID ?? "System Default"))",
+            "- Input Device Transport: \(effectiveInputTransportDescription(appState))",
+            "- Other Audio While Recording: \(appState.otherAudioPolicyDiagnosticDescription)",
             "- Transcript Processing: \(appState.effectiveTranscriptProcessingMode.rawValue)",
             "- Cleanup Provider: \(cleanupProvider.displayName)",
             "- Cleanup Base URL: \(cleanupProvider.baseURL.map { redacted($0.absoluteString) } ?? "None")",
@@ -404,6 +408,11 @@ enum DiagnosticLog {
         case .idle, .running, .succeeded:
             return nil
         }
+    }
+
+    @MainActor
+    private static func effectiveInputTransportDescription(_ appState: AppState) -> String {
+        AudioRecorder.effectiveInputDevice(forUID: appState.selectedInputDeviceUID)?.transport.displayName ?? "Unknown"
     }
 }
 
