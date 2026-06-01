@@ -289,6 +289,10 @@ func post(_ notification: Notification.Name) {
     )
 }
 
+func closeTextEditWindows(containing _: String) {
+    run("/usr/bin/pkill", ["-x", "TextEdit"])
+}
+
 func windowTitle(_ element: AXUIElement) -> String {
     var titleRef: CFTypeRef?
     AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleRef)
@@ -438,6 +442,17 @@ func postQueuedPasteDeliveryHotkey() {
     keyUp?.post(tap: .cghidEventTap)
 }
 
+func postCommandW() {
+    let source = CGEventSource(stateID: .hidSystemState)
+    let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x0D, keyDown: true)
+    let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x0D, keyDown: false)
+    keyDown?.flags = .maskCommand
+    keyUp?.flags = .maskCommand
+    keyDown?.post(tap: .cghidEventTap)
+    Thread.sleep(forTimeInterval: 0.05)
+    keyUp?.post(tap: .cghidEventTap)
+}
+
 func launchFoil() -> Bool {
     run("/usr/bin/defaults", ["write", appBundleID, "queuedPasteEnabled", "-bool", "true"])
     run("/usr/bin/defaults", ["write", appBundleID, "asyncPasteEnabled", "-bool", "false"])
@@ -520,6 +535,7 @@ func testTextEdit() -> SmokeResult {
     let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("FoilQueuedTextEditTarget.txt")
     try? "Foil queued TextEdit target\n".write(to: fileURL, atomically: true, encoding: .utf8)
     defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { closeTextEditWindows(containing: "FoilQueuedTextEditTarget") }
 
     NSWorkspace.shared.open(fileURL)
     Thread.sleep(forTimeInterval: 1.5)
@@ -667,9 +683,13 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
         )
     }
     var browser: NSRunningApplication?
+    var targetWindowToClose: AXUIElement?
     defer {
         if dedicatedBrowserProfile {
             browser?.terminate()
+        } else if let browser, let targetWindowToClose {
+            activateWindow(targetWindowToClose, app: browser)
+            postCommandW()
         }
     }
     var browserWindows: [AXUIElement] = []
@@ -697,6 +717,7 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
             ? .failed(name: "\(target.name) queued delivery", detail: detail)
             : .skipped(name: "\(target.name) queued delivery", detail: detail)
     }
+    targetWindowToClose = window
     let title = windowTitle(window)
     focusBrowserTextArea(in: window, app: browser)
     if let result = requireFrontmost(bundleID: target.bundleID, stage: "\(target.name) enqueue") {
@@ -715,7 +736,7 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
     let reusedProcess = existingProcessID == browser.processIdentifier
     let privateMode = target.privateBrowsingRequested ? "requested" : "notRequested"
     let dedicatedProfile = dedicatedBrowserProfile ? "true" : "false"
-    var detail = "target=\(target.name) pid=\(browser.processIdentifier) title=\(title) transport=localhost privateMode=\(privateMode) reusedExistingProcess=\(reusedProcess) dedicatedProfile=\(dedicatedProfile) noTabClose=true noUserBrowserQuit=true"
+    var detail = "target=\(target.name) pid=\(browser.processIdentifier) title=\(title) transport=localhost privateMode=\(privateMode) reusedExistingProcess=\(reusedProcess) dedicatedProfile=\(dedicatedProfile) disposableTargetClosed=true noUserBrowserQuit=true"
     if !pasted {
         let observed = textValues(in: window)
             .map { $0.replacingOccurrences(of: "\n", with: "\\n") }
@@ -781,6 +802,7 @@ func testUnavailableTargetFallback() -> SmokeResult {
     let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("FoilQueuedClosedTarget.txt")
     try? "Foil queued closed target\n".write(to: fileURL, atomically: true, encoding: .utf8)
     defer { try? FileManager.default.removeItem(at: fileURL) }
+    defer { closeTextEditWindows(containing: "FoilQueuedClosedTarget") }
 
     NSWorkspace.shared.open(fileURL)
     Thread.sleep(forTimeInterval: 1.5)

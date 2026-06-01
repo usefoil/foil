@@ -15,7 +15,8 @@ prints or records the queued-paste rows in docs/queued-paste-compatibility-smoke
 This script drives the visible macOS desktop. It may open TextEdit, Terminal,
 Google Chrome, Firefox/Safari when installed, and /Applications/Foil.app. Browser
 targets use disposable localhost pages, request private windows where supported,
-and must not quit the user's browser or close browser tabs.
+close only the disposable target tabs/windows they create, and must not quit the
+user's browser.
 
 Options:
   --installed-app
