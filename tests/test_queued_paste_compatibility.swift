@@ -360,6 +360,40 @@ func textValue(in window: AXUIElement) -> String {
     return axValue(textArea)
 }
 
+func axPoint(_ element: AXUIElement, attribute: String) -> CGPoint? {
+    var valueRef: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, attribute as CFString, &valueRef) == .success,
+          let value = valueRef else {
+        return nil
+    }
+    var point = CGPoint.zero
+    guard AXValueGetValue(value as! AXValue, .cgPoint, &point) else { return nil }
+    return point
+}
+
+func axSize(_ element: AXUIElement, attribute: String) -> CGSize? {
+    var valueRef: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, attribute as CFString, &valueRef) == .success,
+          let value = valueRef else {
+        return nil
+    }
+    var size = CGSize.zero
+    guard AXValueGetValue(value as! AXValue, .cgSize, &size) else { return nil }
+    return size
+}
+
+func clickScreenPoint(_ point: CGPoint) {
+    let source = CGEventSource(stateID: .hidSystemState)
+    let mouseDown = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left)
+    let mouseUp = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left)
+    CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?
+        .post(tap: .cghidEventTap)
+    Thread.sleep(forTimeInterval: 0.05)
+    mouseDown?.post(tap: .cghidEventTap)
+    Thread.sleep(forTimeInterval: 0.05)
+    mouseUp?.post(tap: .cghidEventTap)
+}
+
 func activateWindow(_ window: AXUIElement, app: NSRunningApplication) {
     app.activate(options: [.activateAllWindows])
     if let bundleID = app.bundleIdentifier {
@@ -370,6 +404,22 @@ func activateWindow(_ window: AXUIElement, app: NSRunningApplication) {
     AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, true as CFTypeRef)
     AXUIElementSetAttributeValue(window, kAXFocusedAttribute as CFString, true as CFTypeRef)
     Thread.sleep(forTimeInterval: 0.5)
+}
+
+func focusBrowserTextArea(in window: AXUIElement, app: NSRunningApplication) {
+    activateWindow(window, app: app)
+    guard let origin = axPoint(window, attribute: kAXPositionAttribute as String),
+          let size = axSize(window, attribute: kAXSizeAttribute as String) else {
+        return
+    }
+
+    // The smoke page puts a large textarea at the top-left of the document.
+    // Browser AX trees do not expose that textarea consistently, especially
+    // Firefox, so click into the page content before capturing/delivering.
+    let x = origin.x + min(140, max(40, size.width * 0.2))
+    let y = origin.y + min(190, max(120, size.height * 0.25))
+    clickScreenPoint(CGPoint(x: x, y: y))
+    Thread.sleep(forTimeInterval: 0.4)
 }
 
 func switchToFinder() {
@@ -569,10 +619,46 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
     }
     defer { server.stop() }
 
+    var launchArguments = target.launchArguments
+    var dedicatedBrowserProfile = false
+    if target.bundleID == "org.mozilla.firefox" {
+        let profileURL = serverRoot.appendingPathComponent("firefox-automation-profile", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: profileURL, withIntermediateDirectories: true)
+            let prefs = """
+            user_pref("app.normandy.first_run", false);
+            user_pref("browser.aboutwelcome.enabled", false);
+            user_pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons", false);
+            user_pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features", false);
+            user_pref("browser.shell.checkDefaultBrowser", false);
+            user_pref("browser.startup.firstrunSkipsHomepage", false);
+            user_pref("browser.startup.homepage_override.mstone", "ignore");
+            user_pref("browser.startup.homepage_welcome_url", "");
+            user_pref("browser.startup.homepage_welcome_url.additional", "");
+            user_pref("datareporting.policy.dataSubmissionPolicyAcceptedVersion", 2);
+            user_pref("datareporting.healthreport.uploadEnabled", false);
+            user_pref("datareporting.policy.dataSubmissionPolicyBypassNotification", true);
+            user_pref("datareporting.policy.dataSubmissionEnabled", false);
+            user_pref("datareporting.policy.firstRunURL", "");
+            user_pref("trailhead.firstrun.didSeeAboutWelcome", true);
+            user_pref("toolkit.telemetry.enabled", false);
+            user_pref("toolkit.telemetry.unified", false);
+            """
+            try prefs.write(to: profileURL.appendingPathComponent("user.js"), atomically: true, encoding: .utf8)
+            launchArguments = ["--no-remote", "--profile", profileURL.path] + target.launchArguments
+            dedicatedBrowserProfile = true
+        } catch {
+            let detail = "Could not create Firefox automation profile: \(error)"
+            return target.required
+                ? .failed(name: "\(target.name) queued delivery", detail: detail)
+                : .skipped(name: "\(target.name) queued delivery", detail: detail)
+        }
+    }
+
     if let executablePath = target.executablePath,
        FileManager.default.fileExists(atPath: executablePath),
-       !target.launchArguments.isEmpty {
-        launch(executablePath, target.launchArguments + [pageURL.absoluteString])
+       !launchArguments.isEmpty {
+        launch(executablePath, launchArguments + [pageURL.absoluteString])
     } else {
         NSWorkspace.shared.open(
             [pageURL],
@@ -581,6 +667,11 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
         )
     }
     var browser: NSRunningApplication?
+    defer {
+        if dedicatedBrowserProfile {
+            browser?.terminate()
+        }
+    }
     var browserWindows: [AXUIElement] = []
     let exposedTargetWindow = waitUntil(timeout: 10, poll: 0.5) {
         browser = NSRunningApplication.runningApplications(withBundleIdentifier: target.bundleID).first
@@ -607,7 +698,7 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
             : .skipped(name: "\(target.name) queued delivery", detail: detail)
     }
     let title = windowTitle(window)
-    activateWindow(window, app: browser)
+    focusBrowserTextArea(in: window, app: browser)
     if let result = requireFrontmost(bundleID: target.bundleID, stage: "\(target.name) enqueue") {
         return result
     }
@@ -617,13 +708,14 @@ func testBrowser(_ target: BrowserSmokeTarget) -> SmokeResult {
     }
 
     let pasted = waitUntil(timeout: 6) {
-        activateWindow(window, app: browser)
+        focusBrowserTextArea(in: window, app: browser)
         return textValues(in: window).contains(where: { $0.contains(queuedText) })
             || windowTitle(window).contains(pastedTitle)
     }
     let reusedProcess = existingProcessID == browser.processIdentifier
     let privateMode = target.privateBrowsingRequested ? "requested" : "notRequested"
-    var detail = "target=\(target.name) pid=\(browser.processIdentifier) title=\(title) transport=localhost privateMode=\(privateMode) reusedExistingProcess=\(reusedProcess) noTabClose=true noUserBrowserQuit=true"
+    let dedicatedProfile = dedicatedBrowserProfile ? "true" : "false"
+    var detail = "target=\(target.name) pid=\(browser.processIdentifier) title=\(title) transport=localhost privateMode=\(privateMode) reusedExistingProcess=\(reusedProcess) dedicatedProfile=\(dedicatedProfile) noTabClose=true noUserBrowserQuit=true"
     if !pasted {
         let observed = textValues(in: window)
             .map { $0.replacingOccurrences(of: "\n", with: "\\n") }
