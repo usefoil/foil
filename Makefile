@@ -9,9 +9,10 @@ DEV_BUNDLE_ID := com.neonwatty.Foil.Dev
 DEV_SCHEME := FoilDev
 CONFIG := Debug
 LOCAL_SIGN_IDENTITY := Foil Local Code Signing
+DEVELOPER_ID_SIGN_IDENTITY := Developer ID Application: Mean Weasel LLC (B3A6AN2HA4)
 LOCAL_SIGN_KEYCHAIN := $(HOME)/Library/Keychains/foil-codesign.keychain-db
 LOCAL_SIGN_KEYCHAIN_PASSWORD ?= foil-local-codesign
-DEFAULT_SIGN_IDENTITY := $(shell security find-identity -p codesigning "$(LOCAL_SIGN_KEYCHAIN)" 2>/dev/null | grep -q '"$(LOCAL_SIGN_IDENTITY)"' && echo "$(LOCAL_SIGN_IDENTITY)" || echo "-")
+DEFAULT_SIGN_IDENTITY := $(shell security find-identity -p codesigning 2>/dev/null | grep -q '"$(DEVELOPER_ID_SIGN_IDENTITY)"' && echo "$(DEVELOPER_ID_SIGN_IDENTITY)" || (security find-identity -p codesigning "$(LOCAL_SIGN_KEYCHAIN)" 2>/dev/null | grep -q '"$(LOCAL_SIGN_IDENTITY)"' && echo "$(LOCAL_SIGN_IDENTITY)" || echo "-"))
 SIGN_IDENTITY ?= $(DEFAULT_SIGN_IDENTITY)
 DEVELOPMENT_TEAM ?=
 
@@ -82,7 +83,7 @@ build-warnings-as-errors:
 	rm -f "$$tmp"; exit $$status
 
 run:
-	@identity=$$(security find-identity -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application: Mean Weasel LLC (B3A6AN2HA4)\)".*/\1/p' | head -1); \
+	@identity=$$(security find-identity -p codesigning 2>/dev/null | sed -n 's/.*"\($(DEVELOPER_ID_SIGN_IDENTITY)\)".*/\1/p' | head -1); \
 	if [ -z "$$identity" ]; then \
 		$(MAKE) setup-local-signing; \
 		identity="$(LOCAL_SIGN_IDENTITY)"; \
@@ -91,7 +92,7 @@ run:
 	open /Applications/$(APP_NAME).app
 
 run-dev:
-	@identity=$$(security find-identity -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application: Mean Weasel LLC (B3A6AN2HA4)\)".*/\1/p' | head -1); \
+	@identity=$$(security find-identity -p codesigning 2>/dev/null | sed -n 's/.*"\($(DEVELOPER_ID_SIGN_IDENTITY)\)".*/\1/p' | head -1); \
 	if [ -z "$$identity" ]; then \
 		$(MAKE) setup-local-signing; \
 		identity="$(LOCAL_SIGN_IDENTITY)"; \

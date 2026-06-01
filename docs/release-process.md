@@ -48,6 +48,26 @@ shows the new version.
 
 After the workflow completes, mount the DMG locally during release QA and confirm the Finder window uses the Foil-branded background, shows `Foil.app` on the left, and shows the Applications drop link on the right.
 
+## Notarized QA Builds
+
+Use the `Notarized QA Build` workflow when you need to test a merged commit or
+branch with the same Developer ID and notarization trust path as production,
+without creating a public GitHub Release or updating Homebrew.
+
+1. Open **Actions -> Notarized QA Build -> Run workflow**.
+2. Set `ref` to `main`, a branch name, a tag, or a commit SHA.
+3. Leave `version` and `build` blank to use the project values, or override them
+   for a specific QA artifact.
+4. Download the uploaded `Foil-...-notarized-qa` artifact, open the DMG, and
+   install `Foil.app` from it.
+
+The QA workflow uses the same Apple secrets as the release workflow:
+`DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_TEAM_ID`,
+`APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, and
+`APP_STORE_CONNECT_PRIVATE_KEY`. It signs the exported app, creates a DMG,
+submits the DMG to Apple notarization, staples the ticket, validates with
+`stapler` and `spctl`, and uploads only workflow artifacts.
+
 ## Required Production Setup QA
 
 Before announcing a release as Homebrew-ready, complete the production install
