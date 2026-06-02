@@ -55,7 +55,7 @@ jobs:
         run: .github/scripts/build-notarized-qa-dmg.sh
 
       - name: Upload notarized QA artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Foil-${{ steps.build.outputs.version }}-${{ steps.build.outputs.build }}-notarized-qa
           path: |
