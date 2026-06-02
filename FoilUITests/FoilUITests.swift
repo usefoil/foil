@@ -64,6 +64,16 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(app.checkBoxes["Mock Transcription"].exists)
     }
 
+    func testControlCenterShowsRecentSuccessfulTranscriptions() {
+        XCTAssertTrue(app.staticTexts["Recent Transcriptions"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Seeded transcript for UI testing."].exists, app.debugDescription)
+        XCTAssertFalse(app.staticTexts["Seeded network failure"].exists)
+        let copyButtons = app.buttons.matching(NSPredicate(format: "label == %@", "Copy"))
+        XCTAssertGreaterThanOrEqual(copyButtons.count, 2, app.debugDescription)
+        XCTAssertTrue(app.buttons["Paste Again"].exists, app.debugDescription)
+    }
+
     func testSetupCheckCanBeRunInline() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-setup-unknown"])
         postUITestCommand(runSetupCheckNotification)

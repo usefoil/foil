@@ -15,15 +15,19 @@ final class SoundPlayerTests: XCTestCase {
         defaults = nil
     }
 
-    func testStartSoundUsesAppOwnedRecordingStartCueWhenEnabledByDefault() {
-        var requestedNames: [String] = []
-        let player = SoundPlayer(defaults: defaults, playCueNamed: { name in
-            requestedNames.append(name)
-        })
+    func testStartSoundUsesSoftSystemTinkCueWhenEnabledByDefault() {
+        var appCueNames: [String] = []
+        var systemCueNames: [String] = []
+        let player = SoundPlayer(
+            defaults: defaults,
+            playCueNamed: { appCueNames.append($0) },
+            playSystemSoundNamed: { systemCueNames.append($0) }
+        )
 
         player.playStartSound()
 
-        XCTAssertEqual(requestedNames, ["recordingStart"])
+        XCTAssertTrue(appCueNames.isEmpty)
+        XCTAssertEqual(systemCueNames, ["Tink"])
     }
 
     func testStartSoundDoesNotPlayWhenSoundEffectsAreDisabled() {
@@ -91,8 +95,8 @@ final class SoundPlayerTests: XCTestCase {
         player.playStartSound()
         player.playStopSound()
 
-        XCTAssertEqual(appCueNames, ["recordingStart"])
-        XCTAssertTrue(systemCueNames.isEmpty)
+        XCTAssertTrue(appCueNames.isEmpty)
+        XCTAssertEqual(systemCueNames, ["Tink"])
     }
 
     func testStartAndStopCanUseSeparateSelectedCues() {

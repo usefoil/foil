@@ -34,10 +34,11 @@ enum AppBrand {
         let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
         let trimmedVersion = version?.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBuild = build?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayBuild = trimmedBuild.flatMap(shortBuildDisplay)
 
-        switch (trimmedVersion?.isEmpty == false ? trimmedVersion : nil, trimmedBuild?.isEmpty == false ? trimmedBuild : nil) {
+        switch (trimmedVersion?.isEmpty == false ? trimmedVersion : nil, displayBuild) {
         case let (.some(version), .some(build)):
-            return "\(name) \(version) (\(build))"
+            return "\(name) \(version) (build \(build))"
         case let (.some(version), nil):
             return "\(name) \(version)"
         case (nil, .some(let build)):
@@ -45,6 +46,13 @@ enum AppBrand {
         case (nil, nil):
             return "\(name) version unknown"
         }
+    }
+
+    static func shortBuildDisplay(_ build: String) -> String? {
+        let trimmed = build.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        guard trimmed.count > 7 else { return trimmed }
+        return String(trimmed.suffix(6))
     }
 }
 

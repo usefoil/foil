@@ -78,4 +78,23 @@ final class HistoryPopoverTests: XCTestCase {
         }
         XCTAssertEqual(filtered.count, 1)
     }
+
+    func testRecentSuccessfulRecordsReturnsNewestSuccessesOnly() {
+        let history = TranscriptionHistory(storageDirectory: testDir)
+        history.addSuccess(text: "oldest")
+        history.addFailure(error: "timeout", audioFileURL: nil)
+        history.addSuccess(text: "middle")
+        history.addSuccess(text: "newest")
+
+        let recent = history.recentSuccessfulRecords(limit: 2)
+
+        XCTAssertEqual(recent.compactMap(\.text), ["newest", "middle"])
+    }
+
+    func testRecentSuccessfulRecordsHandlesZeroLimit() {
+        let history = TranscriptionHistory(storageDirectory: testDir)
+        history.addSuccess(text: "one")
+
+        XCTAssertTrue(history.recentSuccessfulRecords(limit: 0).isEmpty)
+    }
 }

@@ -153,6 +153,11 @@ final class TranscriptionHistory {
         records.filter { !$0.isFailure }
     }
 
+    func recentSuccessfulRecords(limit: Int) -> [TranscriptionRecord] {
+        guard limit > 0 else { return [] }
+        return Array(successfulRecords.prefix(limit))
+    }
+
     func recentRecords(limit: Int) -> [TranscriptionRecord] {
         Array(records.prefix(limit))
     }
