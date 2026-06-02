@@ -1,7 +1,5 @@
 # Agent Instructions
 
-Follow `CLAUDE.md` for repo-level agent guidance.
-
 ## Burden Of Proof
 
 Before declaring work complete, try to disprove the change. Identify the
@@ -13,4 +11,7 @@ Treat `done`, `tests passed`, worker claims, passing happy-path tests, generated
 summaries, and optimistic UI as claims, not proof. Treat unverified assumptions
 as blockers or explicit follow-ups.
 
-Keep this section synchronized with `CLAUDE.md` whenever either file changes.
+Use `docs/acceptance-evidence.md` to choose proof that matches the change. For
+small docs or config edits, one strongest realistic failure mode may be enough.
+For user-facing, release, permissions, paste, provider, or automation changes,
+record the top realistic failure modes and the evidence that rules them out.
