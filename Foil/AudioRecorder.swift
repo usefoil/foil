@@ -98,10 +98,28 @@ final class AudioRecorder: @unchecked Sendable {
                     DiagnosticLog.write("AudioRecorder: failed to set input device \(deviceID): OSStatus \(status)")
                     throw RecordingError.deviceSelectionFailed
                 }
+                var readbackID = AudioDeviceID(0)
+                var readbackSize = UInt32(MemoryLayout<AudioDeviceID>.size)
+                let readbackStatus = AudioUnitGetProperty(
+                    audioUnit,
+                    kAudioOutputUnitProperty_CurrentDevice,
+                    kAudioUnitScope_Global,
+                    0,
+                    &readbackID,
+                    &readbackSize
+                )
+                DiagnosticLog.write(
+                    "AudioRecorder: audio unit input device set requested=\(deviceID) readback=\(readbackID) status=\(readbackStatus)"
+                )
+            } else {
+                DiagnosticLog.write("AudioRecorder: input audio unit unavailable while setting device \(deviceID)")
             }
         }
 
         let hwFormat = inputNode.outputFormat(forBus: 0)
+        DiagnosticLog.write(
+            "AudioRecorder: input format sampleRate=\(Int(hwFormat.sampleRate)) channels=\(hwFormat.channelCount) selectedDeviceID=\(deviceID.map(String.init) ?? "systemDefault")"
+        )
 
         guard let targetFormat = Self.pcmFormat else {
             throw RecordingError.audioFormatUnavailable
@@ -484,6 +502,41 @@ final class AudioRecorder: @unchecked Sendable {
         availableInputDevices().first { $0.uid == uid }?.id
     }
 
+    /// Prepares an explicit input selection for recording.
+    ///
+    /// Setting the AudioUnit's current device is enough to capture from a selected
+    /// mic, but Bluetooth headsets can still enter headset/SCO mode when macOS's
+    /// system default input remains on the headset. When the user explicitly
+    /// selects an input device, align the system default input just before
+    /// recording starts so AirPods can remain output-only with a built-in mic.
+    static func prepareInputDeviceForRecording(selectedUID uid: String?) -> AudioDeviceID? {
+        guard let uid else {
+            DiagnosticLog.write("AudioRecorder: using system default input device")
+            return nil
+        }
+
+        let devices = availableInputDevices()
+        guard let selectedDevice = devices.first(where: { $0.uid == uid }) else {
+            DiagnosticLog.write("AudioRecorder: selected input uid=\(uid) not found; falling back to system default")
+            return nil
+        }
+
+        let defaultBeforeID = defaultInputDeviceID()
+        let defaultBefore = defaultBeforeID.flatMap { id in devices.first { $0.id == id } }
+        DiagnosticLog.write(
+            "AudioRecorder: selected input uid=\(selectedDevice.uid) name=\(selectedDevice.name) id=\(selectedDevice.id) transport=\(selectedDevice.transport.displayName) defaultBefore=\(inputDeviceDescription(defaultBefore, id: defaultBeforeID))"
+        )
+
+        let setStatus = setDefaultInputDeviceID(selectedDevice.id)
+        let defaultAfterID = defaultInputDeviceID()
+        let defaultAfter = defaultAfterID.flatMap { id in availableInputDevices().first { $0.id == id } }
+        DiagnosticLog.write(
+            "AudioRecorder: set default input requested=\(selectedDevice.id) status=\(setStatus) defaultAfter=\(inputDeviceDescription(defaultAfter, id: defaultAfterID))"
+        )
+
+        return selectedDevice.id
+    }
+
     private static func defaultInputDeviceID() -> AudioDeviceID? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
@@ -502,6 +555,33 @@ final class AudioRecorder: @unchecked Sendable {
         )
         guard status == noErr, deviceID != 0 else { return nil }
         return deviceID
+    }
+
+    private static func setDefaultInputDeviceID(_ deviceID: AudioDeviceID) -> OSStatus {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var mutableDeviceID = deviceID
+        return AudioObjectSetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            UInt32(MemoryLayout<AudioDeviceID>.size),
+            &mutableDeviceID
+        )
+    }
+
+    private static func inputDeviceDescription(_ device: AudioDevice?, id: AudioDeviceID?) -> String {
+        if let device {
+            return "\(device.name)(id=\(device.id), transport=\(device.transport.displayName))"
+        }
+        if let id {
+            return "unknown(id=\(id))"
+        }
+        return "none"
     }
 
     private static func transportType(for deviceID: AudioDeviceID) -> AudioDeviceTransport {
