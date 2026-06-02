@@ -70,6 +70,7 @@
 		8A381141531C79C84B62887D /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2885F1C7852F237A3ABB7279 /* AppState.swift */; };
 		8A93D34AF94C2EEF846CA5E5 /* HistoryPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD87483A60981AE4B604B6D9 /* HistoryPopoverView.swift */; };
 		8F69B461ADD99BCB568F3C3C /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BFD5884EB4BB6D2FE2BEBA /* LaunchAtLoginManager.swift */; };
+		923D98B5A7534BBEA7B778EF /* BluetoothMicGuidance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B65C34070D4A68AFD60993 /* BluetoothMicGuidance.swift */; };
 		940F52AA1222D646682E9272 /* TranscriptionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B045B3E3B4ED899DAC113BA8 /* TranscriptionControllerTests.swift */; };
 		9864DAA0A922F633A1E2A239 /* PasteController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF688548E089D77A4AB6B34 /* PasteController.swift */; };
 		9B6A5E8BCADDA3926CC653FF /* BackgroundPaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63800E9B4C1E795C7F2D685B /* BackgroundPaste.swift */; };
@@ -99,6 +100,7 @@
 		CE0AD9D9BE6261D1E56C7CDC /* TextInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC0BDAD55705426A125BC56B /* TextInserter.swift */; };
 		CE5DFBD289E04F8FD0874B04 /* FoilApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CAE3A8BF36E49174BC28F2 /* FoilApp.swift */; };
 		CEB37A6E993CFBDFA1D23B79 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C02331A44FD06601D6F29F2F /* SparkleUpdater.swift */; };
+		CF15BBE401A74BA9AE18F6D2 /* BluetoothMicGuidance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B65C34070D4A68AFD60993 /* BluetoothMicGuidance.swift */; };
 		CF7183AE19914F23132D4B7B /* FoilUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2CF1AB395EEA93848C7E23 /* FoilUITests.swift */; };
 		D067B5E430A4CADCCB027370 /* SkyLightBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F549666C526DB70503ABC3 /* SkyLightBridge.swift */; };
 		D258D3CAEB7B5F369532B3D2 /* FoilApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5CAE3A8BF36E49174BC28F2 /* FoilApp.swift */; };
@@ -150,6 +152,7 @@
 		0ED457B52C02CBA8B68FD9FF /* RecordingStartCueSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingStartCueSchedulerTests.swift; sourceTree = "<group>"; };
 		0F644DBBB77DAB1C03598705 /* HotkeyMonitorCustomKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorCustomKeyTests.swift; sourceTree = "<group>"; };
 		14AA97DF6B90EC3374D3B78A /* HotkeyMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorTests.swift; sourceTree = "<group>"; };
+		15B65C34070D4A68AFD60993 /* BluetoothMicGuidance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothMicGuidance.swift; sourceTree = "<group>"; };
 		19D30288C69647D5771735F7 /* TranscriptionHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistory.swift; sourceTree = "<group>"; };
 		1E5EFD290B27002668218ED0 /* SingleInstanceGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingleInstanceGuardTests.swift; sourceTree = "<group>"; };
 		1F17F9E7C0614F3DEA2AA0E3 /* BrowserMediaControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserMediaControllerTests.swift; sourceTree = "<group>"; };
@@ -330,6 +333,7 @@
 				FBB41DD58AA1309C57DBB8BE /* AudioRecorder.swift */,
 				67A9BCDEA9A32B88B82ECBFB /* AudioRecording.swift */,
 				63800E9B4C1E795C7F2D685B /* BackgroundPaste.swift */,
+				15B65C34070D4A68AFD60993 /* BluetoothMicGuidance.swift */,
 				DCD24BC4DA47443BC721760E /* BrowserMediaController.swift */,
 				BA4E42A3A13141C49DB3F43E /* DiagnosticLog.swift */,
 				6BC80E15293E61B69A009FE5 /* e2e-test-audio.wav */,
@@ -536,6 +540,7 @@
 				4A3E782E92BFDAA86A35CB16 /* AudioRecorder.swift in Sources */,
 				8845ADE5233E2D1ACF6FCB5F /* AudioRecording.swift in Sources */,
 				D5831401E3E6E7776F90AF7A /* BackgroundPaste.swift in Sources */,
+				CF15BBE401A74BA9AE18F6D2 /* BluetoothMicGuidance.swift in Sources */,
 				3F0437C92AD041B843744D4A /* BrowserMediaController.swift in Sources */,
 				BE823D06D669BCA2449B6E91 /* DiagnosticLog.swift in Sources */,
 				516896CBD235F4B2137ADB13 /* E2EAudioStub.swift in Sources */,
@@ -638,6 +643,7 @@
 				603F4806C884C5B13B3DC3CD /* AudioRecorder.swift in Sources */,
 				2FC5CA864A6935F0624F7165 /* AudioRecording.swift in Sources */,
 				9B6A5E8BCADDA3926CC653FF /* BackgroundPaste.swift in Sources */,
+				923D98B5A7534BBEA7B778EF /* BluetoothMicGuidance.swift in Sources */,
 				CB0DE8591C6B5875964E04DA /* BrowserMediaController.swift in Sources */,
 				EEAFEF9A0391FB80B03E3279 /* DiagnosticLog.swift in Sources */,
 				CC9F3C6B5C00A2CC5D75A390 /* E2EAudioStub.swift in Sources */,

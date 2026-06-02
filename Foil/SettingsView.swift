@@ -56,6 +56,12 @@ struct SettingsView: View {
         static let backgroundPasteDescription = "Uses a lower-level paste route. Leave off unless normal paste fails."
     }
 
+    enum RecordingCopy {
+        static let builtInMicBluetoothGuidance = "AirPods stay connected for listening, but Foil records from your MacBook microphone to avoid Bluetooth audio quality drops."
+        static let builtInMicBluetoothNotificationTitle = "Using MacBook mic"
+        static let builtInMicBluetoothNotificationBody = "AirPods stay connected for listening while Foil records from your MacBook microphone."
+    }
+
     @Bindable var appState: AppState
     var history: TranscriptionHistory
     var onHotkeyChanged: (() -> Void)?
@@ -253,11 +259,22 @@ struct SettingsView: View {
 
             Picker("Input Device", selection: $appState.selectedInputDeviceUID) {
                 Text("System Default").tag(nil as String?)
-                ForEach(AudioRecorder.availableInputDevices()) { device in
+                ForEach(availableInputDevices) { device in
                     Text(device.name).tag(Optional(device.uid))
                 }
             }
             .accessibilityIdentifier("settings.inputDevicePicker")
+
+            if BluetoothMicGuidance.shouldShowSettingsGuidance(
+                selectedInputDevice: effectiveInputDevice,
+                availableInputDevices: availableInputDevices
+            ) {
+                Text(RecordingCopy.builtInMicBluetoothGuidance)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.builtInMicBluetoothGuidance")
+            }
 
             if let inputDevice = effectiveInputDevice, inputDevice.transport.isBluetooth {
                 Label {
@@ -310,7 +327,14 @@ struct SettingsView: View {
     }
 
     private var effectiveInputDevice: AudioRecorder.AudioDevice? {
-        AudioRecorder.effectiveInputDevice(forUID: appState.selectedInputDeviceUID)
+        if let uid = appState.selectedInputDeviceUID {
+            return availableInputDevices.first { $0.uid == uid }
+        }
+        return AudioRecorder.effectiveInputDevice(forUID: nil)
+    }
+
+    private var availableInputDevices: [AudioRecorder.AudioDevice] {
+        AudioRecorder.availableInputDevices()
     }
 
     private var transcriptionSettings: some View {

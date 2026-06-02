@@ -1233,6 +1233,7 @@ extension AppDelegate: RecordingControllerDelegate {
     func recordingControllerDidStart(_ controller: RecordingController) {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStart")
         appState.updateMicrophoneState(isReady: true)
+        postBuiltInMicBluetoothGuidanceIfNeeded()
         recordingStartCueScheduler.schedule()
         if let browserMediaSessionID = browserMediaController.recordingDidStart() {
             Task {
@@ -1274,6 +1275,28 @@ extension AppDelegate: RecordingControllerDelegate {
         pasteController.clearPendingTarget()
         appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
         appState.showError("Microphone unavailable")
+    }
+
+    private func postBuiltInMicBluetoothGuidanceIfNeeded() {
+        guard UserDefaults.standard.bool(forKey: "notificationsEnabled") else {
+            return
+        }
+        let availableInputDevices = AudioRecorder.availableInputDevices()
+        let selectedInputDevice = appState.selectedInputDeviceUID.flatMap { uid in
+            availableInputDevices.first { $0.uid == uid }
+        } ?? AudioRecorder.effectiveInputDevice(forUID: nil)
+        let hasShownNotice = UserDefaults.standard.bool(forKey: BluetoothMicGuidance.shownDefaultsKey)
+        guard BluetoothMicGuidance.shouldShowNotice(
+            selectedInputDevice: selectedInputDevice,
+            availableInputDevices: availableInputDevices,
+            hasShownNotice: hasShownNotice
+        ) else {
+            return
+        }
+
+        UserDefaults.standard.set(true, forKey: BluetoothMicGuidance.shownDefaultsKey)
+        DiagnosticLog.write("BluetoothMicGuidance: posting built-in mic Bluetooth guidance")
+        NotificationManager.shared.postBuiltInMicBluetoothGuidance()
     }
 }
 

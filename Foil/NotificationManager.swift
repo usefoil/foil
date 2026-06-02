@@ -76,6 +76,24 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    func postBuiltInMicBluetoothGuidance() {
+        let content = UNMutableNotificationContent()
+        content.title = SettingsView.RecordingCopy.builtInMicBluetoothNotificationTitle
+        content.body = SettingsView.RecordingCopy.builtInMicBluetoothNotificationBody
+        content.sound = nil
+
+        let request = UNNotificationRequest(
+            identifier: "built-in-mic-bluetooth-guidance",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error {
+                DiagnosticLog.write("Notification delivery failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
