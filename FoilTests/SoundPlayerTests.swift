@@ -15,25 +15,22 @@ final class SoundPlayerTests: XCTestCase {
         defaults = nil
     }
 
-    func testStartSoundUsesSoftSystemTinkCueWhenEnabledByDefault() {
-        var appCueNames: [String] = []
+    func testStartSoundUsesBottleCueWhenEnabledByDefault() {
         var systemCueNames: [String] = []
         let player = SoundPlayer(
             defaults: defaults,
-            playCueNamed: { appCueNames.append($0) },
             playSystemSoundNamed: { systemCueNames.append($0) }
         )
 
         player.playStartSound()
 
-        XCTAssertTrue(appCueNames.isEmpty)
-        XCTAssertEqual(systemCueNames, ["Tink"])
+        XCTAssertEqual(systemCueNames, ["Bottle"])
     }
 
     func testStartSoundDoesNotPlayWhenSoundEffectsAreDisabled() {
         defaults.set(false, forKey: "soundEffectsEnabled")
         var requestedNames: [String] = []
-        let player = SoundPlayer(defaults: defaults, playCueNamed: { name in
+        let player = SoundPlayer(defaults: defaults, playSystemSoundNamed: { name in
             requestedNames.append(name)
         })
 
@@ -67,67 +64,70 @@ final class SoundPlayerTests: XCTestCase {
 
     func testStartSoundCanBeDisabledIndependently() {
         defaults.set(RecordingSoundCue.none.rawValue, forKey: "recordingStartSoundCue")
-        var appCueNames: [String] = []
         var systemCueNames: [String] = []
         let player = SoundPlayer(
             defaults: defaults,
-            playCueNamed: { appCueNames.append($0) },
             playSystemSoundNamed: { systemCueNames.append($0) }
         )
 
         player.playStartSound()
         player.playStopSound()
 
-        XCTAssertTrue(appCueNames.isEmpty)
         XCTAssertEqual(systemCueNames, ["Pop"])
     }
 
     func testStopSoundCanBeDisabledIndependently() {
         defaults.set(RecordingSoundCue.none.rawValue, forKey: "recordingEndSoundCue")
-        var appCueNames: [String] = []
         var systemCueNames: [String] = []
         let player = SoundPlayer(
             defaults: defaults,
-            playCueNamed: { appCueNames.append($0) },
             playSystemSoundNamed: { systemCueNames.append($0) }
         )
 
         player.playStartSound()
         player.playStopSound()
 
-        XCTAssertTrue(appCueNames.isEmpty)
-        XCTAssertEqual(systemCueNames, ["Tink"])
+        XCTAssertEqual(systemCueNames, ["Bottle"])
     }
 
     func testStartAndStopCanUseSeparateSelectedCues() {
-        defaults.set(RecordingSoundCue.recordingStop.rawValue, forKey: "recordingStartSoundCue")
-        defaults.set(RecordingSoundCue.softChime.rawValue, forKey: "recordingEndSoundCue")
-        var appCueNames: [String] = []
+        defaults.set(RecordingSoundCue.ping.rawValue, forKey: "recordingStartSoundCue")
+        defaults.set(RecordingSoundCue.glass.rawValue, forKey: "recordingEndSoundCue")
         var systemCueNames: [String] = []
         let player = SoundPlayer(
             defaults: defaults,
-            playCueNamed: { appCueNames.append($0) },
             playSystemSoundNamed: { systemCueNames.append($0) }
         )
 
         player.playStartSound()
         player.playStopSound()
 
-        XCTAssertEqual(systemCueNames, ["Pop"])
-        XCTAssertEqual(appCueNames, ["softChime"])
+        XCTAssertEqual(systemCueNames, ["Ping", "Glass"])
+    }
+
+    func testAllBuiltInSystemSoundCuesMapToAvailableSystemSoundFiles() {
+        for cue in RecordingSoundCue.allCases where cue != .none {
+            let soundName = try! XCTUnwrap(cue.systemSoundName)
+            let soundURL = URL(fileURLWithPath: "/System/Library/Sounds")
+                .appendingPathComponent("\(soundName).aiff")
+            XCTAssertTrue(
+                FileManager.default.fileExists(atPath: soundURL.path),
+                "\(soundName) should be available as a built-in macOS system sound"
+            )
+        }
     }
 
     func testGlobalSoundEffectsToggleOverridesSelectedStartAndEndCues() {
         defaults.set(false, forKey: "soundEffectsEnabled")
-        defaults.set(RecordingSoundCue.softChime.rawValue, forKey: "recordingStartSoundCue")
-        defaults.set(RecordingSoundCue.recordingStart.rawValue, forKey: "recordingEndSoundCue")
-        var appCueNames: [String] = []
-        let player = SoundPlayer(defaults: defaults, playCueNamed: { appCueNames.append($0) })
+        defaults.set(RecordingSoundCue.glass.rawValue, forKey: "recordingStartSoundCue")
+        defaults.set(RecordingSoundCue.tink.rawValue, forKey: "recordingEndSoundCue")
+        var systemCueNames: [String] = []
+        let player = SoundPlayer(defaults: defaults, playSystemSoundNamed: { systemCueNames.append($0) })
 
         player.playStartSound()
         player.playStopSound()
-        player.preview(.softChime)
+        player.preview(.pop)
 
-        XCTAssertTrue(appCueNames.isEmpty)
+        XCTAssertTrue(systemCueNames.isEmpty)
     }
 }

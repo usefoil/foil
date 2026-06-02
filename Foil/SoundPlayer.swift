@@ -1,11 +1,21 @@
 import AppKit
-import AVFoundation
 
 enum RecordingSoundCue: String, CaseIterable, Identifiable {
     case none
-    case recordingStart
-    case recordingStop
-    case softChime
+    case basso
+    case blow
+    case bottle
+    case frog
+    case funk
+    case glass
+    case hero
+    case morse
+    case ping
+    case pop
+    case purr
+    case sosumi
+    case submarine
+    case tink
 
     var id: String { rawValue }
 
@@ -13,37 +23,60 @@ enum RecordingSoundCue: String, CaseIterable, Identifiable {
         switch self {
         case .none:
             return "None"
-        case .recordingStart:
-            return "Start cue"
-        case .recordingStop:
-            return "Stop cue"
-        case .softChime:
-            return "Soft chime"
+        case .basso:
+            return "Basso"
+        case .blow:
+            return "Blow"
+        case .bottle:
+            return "Bottle"
+        case .frog:
+            return "Frog"
+        case .funk:
+            return "Funk"
+        case .glass:
+            return "Glass"
+        case .hero:
+            return "Hero"
+        case .morse:
+            return "Morse"
+        case .ping:
+            return "Ping"
+        case .pop:
+            return "Pop"
+        case .purr:
+            return "Purr"
+        case .sosumi:
+            return "Sosumi"
+        case .submarine:
+            return "Submarine"
+        case .tink:
+            return "Tink"
         }
     }
+
+    var systemSoundName: String? {
+        switch self {
+        case .none:
+            return nil
+        default:
+            return displayName
+        }
+    }
+
+    static let defaultStart: RecordingSoundCue = .bottle
+    static let defaultEnd: RecordingSoundCue = .pop
 }
 
 final class SoundPlayer {
     private let defaults: UserDefaults
-    private let playCueNamed: (String) -> Void
     private let playSystemSoundNamed: (String) -> Void
-    private let hasInjectedCuePlayer: Bool
     private let hasInjectedSystemSoundPlayer: Bool
-    private var players: [AVAudioPlayer] = []
 
     init(
         defaults: UserDefaults = .standard,
-        playCueNamed: ((String) -> Void)? = nil,
         playSystemSoundNamed: ((String) -> Void)? = nil
     ) {
         self.defaults = defaults
-        if let playCueNamed {
-            self.playCueNamed = playCueNamed
-            self.hasInjectedCuePlayer = true
-        } else {
-            self.playCueNamed = { _ in }
-            self.hasInjectedCuePlayer = false
-        }
         if let playSystemSoundNamed {
             self.playSystemSoundNamed = playSystemSoundNamed
             self.hasInjectedSystemSoundPlayer = true
@@ -54,11 +87,11 @@ final class SoundPlayer {
     }
 
     func playStartSound() {
-        play(cue: selectedCue(forKey: Self.startCueKey, defaultCue: .recordingStart))
+        play(cue: selectedCue(forKey: Self.startCueKey, defaultCue: .defaultStart))
     }
 
     func playStopSound() {
-        play(cue: selectedCue(forKey: Self.endCueKey, defaultCue: .recordingStop))
+        play(cue: selectedCue(forKey: Self.endCueKey, defaultCue: .defaultEnd))
     }
 
     func preview(_ cue: RecordingSoundCue) {
@@ -67,16 +100,10 @@ final class SoundPlayer {
 
     private func play(cue: RecordingSoundCue) {
         guard soundEffectsEnabled else { return }
-        switch cue {
-        case .none:
+        guard let systemSoundName = cue.systemSoundName else {
             return
-        case .recordingStart:
-            playSystemSound(named: "Tink")
-        case .recordingStop:
-            playSystemSound(named: "Pop")
-        case .softChime:
-            playAppCue(named: cue.rawValue)
         }
+        playSystemSound(named: systemSoundName)
     }
 
     private var soundEffectsEnabled: Bool {
@@ -88,57 +115,6 @@ final class SoundPlayer {
 
     private func selectedCue(forKey key: String, defaultCue: RecordingSoundCue) -> RecordingSoundCue {
         RecordingSoundCue(rawValue: defaults.string(forKey: key) ?? "") ?? defaultCue
-    }
-
-    private func playAppCue(named name: String) {
-        if hasInjectedCuePlayer {
-            playCueNamed(name)
-            return
-        }
-        switch RecordingSoundCue(rawValue: name) {
-        case .some(.softChime):
-            playToneCue(
-                name: name,
-                frequencies: [660, 990],
-                duration: 0.22,
-                amplitude: 0.62
-            )
-        case .some(.recordingStart), .some(.none), .some(.recordingStop), nil:
-            playToneCue(
-                name: "recordingStart",
-                frequencies: [880, 1320],
-                duration: 0.18,
-                amplitude: 0.85
-            )
-        }
-    }
-
-    private func playToneCue(
-        name: String,
-        frequencies: [Double],
-        duration: Double,
-        amplitude: Double
-    ) {
-        do {
-            let data = Self.makeToneWavData(
-                frequencies: frequencies,
-                duration: duration,
-                sampleRate: 44_100,
-                amplitude: amplitude
-            )
-            let player = try AVAudioPlayer(data: data)
-            player.volume = 1.0
-            player.prepareToPlay()
-            players.append(player)
-            DiagnosticLog.write("SoundPlayer: playing \(name) app cue")
-            player.play()
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 600_000_000)
-                players.removeAll { !$0.isPlaying }
-            }
-        } catch {
-            DiagnosticLog.write("SoundPlayer: \(name) app cue failed \(error)")
-        }
     }
 
     private func playSystemSound(named name: String) {
@@ -153,53 +129,6 @@ final class SoundPlayer {
         sound.volume = 1.0
         DiagnosticLog.write("SoundPlayer: playing \(name) system cue")
         sound.play()
-    }
-
-    private static func makeToneWavData(
-        frequencies: [Double],
-        duration: Double,
-        sampleRate: Int,
-        amplitude: Double
-    ) -> Data {
-        let channelCount = 1
-        let bitsPerSample = 16
-        let byteRate = sampleRate * channelCount * bitsPerSample / 8
-        let blockAlign = channelCount * bitsPerSample / 8
-        let frameCount = Int(duration * Double(sampleRate))
-        let dataByteCount = frameCount * blockAlign
-
-        var data = Data()
-        data.append(contentsOf: "RIFF".utf8)
-        data.append(UInt32(36 + dataByteCount).littleEndianData)
-        data.append(contentsOf: "WAVEfmt ".utf8)
-        data.append(UInt32(16).littleEndianData)
-        data.append(UInt16(1).littleEndianData)
-        data.append(UInt16(channelCount).littleEndianData)
-        data.append(UInt32(sampleRate).littleEndianData)
-        data.append(UInt32(byteRate).littleEndianData)
-        data.append(UInt16(blockAlign).littleEndianData)
-        data.append(UInt16(bitsPerSample).littleEndianData)
-        data.append(contentsOf: "data".utf8)
-        data.append(UInt32(dataByteCount).littleEndianData)
-
-        let half = max(1, frameCount / max(1, frequencies.count))
-        for index in 0..<frameCount {
-            let frequency = frequencies[min(index / half, frequencies.count - 1)]
-            let t = Double(index) / Double(sampleRate)
-            let fadeIn = min(1, Double(index) / 600)
-            let fadeOut = min(1, Double(frameCount - index) / 1_200)
-            let envelope = fadeIn * fadeOut
-            let sample = sin(2 * .pi * frequency * t) * amplitude * envelope
-            data.append(Int16(sample * Double(Int16.max)).littleEndianData)
-        }
-        return data
-    }
-}
-
-private extension FixedWidthInteger {
-    var littleEndianData: Data {
-        var value = littleEndian
-        return Data(bytes: &value, count: MemoryLayout<Self>.size)
     }
 }
 

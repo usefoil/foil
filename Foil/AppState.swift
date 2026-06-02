@@ -131,11 +131,11 @@ final class AppState {
         didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
     }
 
-    var recordingStartSoundCue: RecordingSoundCue = .recordingStart {
+    var recordingStartSoundCue: RecordingSoundCue = .defaultStart {
         didSet { Self.defaults.set(recordingStartSoundCue.rawValue, forKey: "recordingStartSoundCue") }
     }
 
-    var recordingEndSoundCue: RecordingSoundCue = .recordingStop {
+    var recordingEndSoundCue: RecordingSoundCue = .defaultEnd {
         didSet { Self.defaults.set(recordingEndSoundCue.rawValue, forKey: "recordingEndSoundCue") }
     }
 
@@ -806,8 +806,8 @@ final class AppState {
 
         defaults.register(defaults: [
             "soundEffectsEnabled": true,
-            "recordingStartSoundCue": RecordingSoundCue.recordingStart.rawValue,
-            "recordingEndSoundCue": RecordingSoundCue.recordingStop.rawValue,
+            "recordingStartSoundCue": RecordingSoundCue.defaultStart.rawValue,
+            "recordingEndSoundCue": RecordingSoundCue.defaultEnd.rawValue,
             "transcriptionProvider": TranscriptionProviderID.groq.rawValue,
             "transcriptionProviderPreset": TranscriptionProviderPresetID.groq.rawValue,
             "whisperModel": "whisper-large-v3-turbo",
@@ -836,9 +836,9 @@ final class AppState {
         // didSet does NOT fire during init, so no redundant writes.
         soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
         recordingStartSoundCue = RecordingSoundCue(rawValue: defaults.string(forKey: "recordingStartSoundCue") ?? "")
-            ?? .recordingStart
+            ?? .defaultStart
         recordingEndSoundCue = RecordingSoundCue(rawValue: defaults.string(forKey: "recordingEndSoundCue") ?? "")
-            ?? .recordingStop
+            ?? .defaultEnd
         let persistedProviderID = TranscriptionProviderID(rawValue: defaults.string(forKey: "transcriptionProvider") ?? "") ?? .groq
         let persistedPresetID: TranscriptionProviderPresetID
         if let rawPreset = persistedPresetRawValue,
