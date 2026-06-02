@@ -1,28 +1,53 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${APPLE_TEAM_ID:?APPLE_TEAM_ID is required}"
-: "${APP_STORE_CONNECT_KEY_ID:?APP_STORE_CONNECT_KEY_ID is required}"
-: "${APP_STORE_CONNECT_ISSUER_ID:?APP_STORE_CONNECT_ISSUER_ID is required}"
-: "${APP_STORE_CONNECT_PRIVATE_KEY:?APP_STORE_CONNECT_PRIVATE_KEY is required}"
-
 REPO_ROOT="${GITHUB_WORKSPACE:-$(pwd)}"
 RUNNER_TEMP="${RUNNER_TEMP:-/tmp}"
 DMG_BACKGROUND="$REPO_ROOT/.github/assets/dmg-background.png"
 VERSION="${VERSION:-}"
 BUILD_NUMBER="${BUILD_NUMBER:-}"
 QA_SUFFIX="${QA_SUFFIX:-qa-${GITHUB_RUN_NUMBER:-local}}"
+PRINT_VERSION_DEFAULTS="no"
+
+if [ "${1:-}" = "--print-version-defaults" ]; then
+  PRINT_VERSION_DEFAULTS="yes"
+  shift
+fi
+
+if [ "$#" -gt 0 ]; then
+  echo "Usage: $(basename "$0") [--print-version-defaults]" >&2
+  exit 2
+fi
 
 if [ -z "$VERSION" ]; then
   VERSION="$(sed -n 's/.*MARKETING_VERSION = \([^;]*\);.*/\1/p' "$REPO_ROOT/Foil.xcodeproj/project.pbxproj" | head -1)"
 fi
 if [ -z "$BUILD_NUMBER" ]; then
-  BUILD_NUMBER="$(sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/\1/p' "$REPO_ROOT/Foil.xcodeproj/project.pbxproj" | head -1)"
+  if [ -n "${GITHUB_RUN_ID:-}" ]; then
+    BUILD_NUMBER="$GITHUB_RUN_ID"
+  else
+    BUILD_NUMBER="$(sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/\1/p' "$REPO_ROOT/Foil.xcodeproj/project.pbxproj" | head -1)"
+  fi
 fi
 if [ -z "$VERSION" ] || [ -z "$BUILD_NUMBER" ]; then
   echo "Could not infer VERSION or BUILD_NUMBER from Foil.xcodeproj." >&2
   exit 1
 fi
+if ! printf '%s' "$BUILD_NUMBER" | grep -Eq '^[0-9]+$'; then
+  echo "BUILD_NUMBER must be numeric, got '$BUILD_NUMBER'" >&2
+  exit 2
+fi
+
+if [ "$PRINT_VERSION_DEFAULTS" = "yes" ]; then
+  echo "version=$VERSION"
+  echo "build=$BUILD_NUMBER"
+  exit 0
+fi
+
+: "${APPLE_TEAM_ID:?APPLE_TEAM_ID is required}"
+: "${APP_STORE_CONNECT_KEY_ID:?APP_STORE_CONNECT_KEY_ID is required}"
+: "${APP_STORE_CONNECT_ISSUER_ID:?APP_STORE_CONNECT_ISSUER_ID is required}"
+: "${APP_STORE_CONNECT_PRIVATE_KEY:?APP_STORE_CONNECT_PRIVATE_KEY is required}"
 
 SAFE_SUFFIX="$(printf '%s' "$QA_SUFFIX" | tr -c 'A-Za-z0-9._-' '-')"
 ARCHIVE_PATH="$RUNNER_TEMP/Foil-QA.xcarchive"
