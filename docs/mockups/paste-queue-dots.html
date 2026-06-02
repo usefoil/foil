@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foil Paste Queue Dots Mockup</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f6f8;
+      --text: #17191d;
+      --muted: #68707b;
+      --quiet: #8a929d;
+      --panel: rgba(255, 255, 255, 0.82);
+      --panel-strong: rgba(255, 255, 255, 0.94);
+      --stroke: rgba(0, 0, 0, 0.11);
+      --shadow: rgba(20, 24, 30, 0.2);
+      --control: rgba(0, 0, 0, 0.055);
+      --blue: #216be7;
+      --green: #188a4b;
+      --orange: #bd6813;
+      --red: #d33d38;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #181a1f;
+        --text: #f2f4f7;
+        --muted: #a1a8b2;
+        --quiet: #858d98;
+        --panel: rgba(38, 41, 48, 0.82);
+        --panel-strong: rgba(47, 50, 58, 0.94);
+        --stroke: rgba(255, 255, 255, 0.14);
+        --shadow: rgba(0, 0, 0, 0.45);
+        --control: rgba(255, 255, 255, 0.08);
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      color: var(--text);
+      background:
+        linear-gradient(rgba(0, 0, 0, 0.03), rgba(0, 0, 0, 0.03)),
+        var(--bg);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .menubar {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 30;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 14px;
+      padding: 0 18px;
+      color: var(--muted);
+      font-size: 13px;
+      background: color-mix(in srgb, var(--panel-strong) 78%, transparent);
+      border-bottom: 1px solid var(--stroke);
+      backdrop-filter: blur(18px);
+    }
+
+    .menu-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 22px;
+      padding: 0 7px;
+      border: 0;
+      border-radius: 6px;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .menu-item.active,
+    .menu-item:hover {
+      color: var(--text);
+      background: var(--control);
+    }
+
+    .menu-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 14%, transparent);
+    }
+
+    .desktop {
+      position: relative;
+      min-height: 100vh;
+      padding: 56px 28px 28px;
+    }
+
+    .window {
+      width: min(780px, calc(100vw - 56px));
+      min-height: 470px;
+      overflow: hidden;
+      border: 1px solid var(--stroke);
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--panel) 74%, transparent);
+      box-shadow: 0 20px 60px var(--shadow);
+    }
+
+    .toolbar {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--stroke);
+      color: var(--muted);
+      background: color-mix(in srgb, var(--panel-strong) 60%, transparent);
+    }
+
+    .traffic {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: #d7dbe2;
+    }
+
+    .content {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 286px;
+      gap: 26px;
+      padding: 28px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 25px;
+      letter-spacing: 0;
+      line-height: 1.1;
+    }
+
+    p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 220px;
+      resize: none;
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      padding: 14px;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.34);
+      line-height: 1.45;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      textarea { background: rgba(0, 0, 0, 0.18); }
+    }
+
+    .controls {
+      align-self: start;
+      display: grid;
+      gap: 12px;
+      padding: 13px;
+      border: 1px solid var(--stroke);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel-strong) 72%, transparent);
+    }
+
+    .control-row {
+      display: grid;
+      gap: 7px;
+    }
+
+    .control-row label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    button,
+    select,
+    input[type="range"] {
+      min-height: 30px;
+    }
+
+    button,
+    select {
+      appearance: none;
+      border: 1px solid var(--stroke);
+      border-radius: 7px;
+      padding: 0 10px;
+      color: var(--text);
+      background: var(--control);
+      cursor: pointer;
+    }
+
+    button.primary {
+      color: white;
+      border-color: color-mix(in srgb, var(--blue) 72%, black);
+      background: var(--blue);
+    }
+
+    button:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+
+    .popover {
+      position: fixed;
+      top: 35px;
+      right: 16px;
+      z-index: 20;
+      width: 332px;
+      transform-origin: top right;
+      border: 1px solid var(--stroke);
+      border-radius: 10px;
+      background: var(--panel-strong);
+      box-shadow: 0 18px 48px var(--shadow);
+      backdrop-filter: blur(28px) saturate(1.18);
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.98) translateY(-4px);
+      transition: opacity 150ms ease, transform 150ms ease;
+    }
+
+    .popover.open {
+      opacity: 1;
+      pointer-events: auto;
+      transform: scale(1) translateY(0);
+    }
+
+    .popover header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 13px 10px;
+      border-bottom: 1px solid var(--stroke);
+    }
+
+    .popover h2 {
+      margin: 0;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    .status {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .badge {
+      flex: none;
+      padding: 4px 8px;
+      border-radius: 999px;
+      color: var(--state, var(--blue));
+      background: color-mix(in srgb, var(--state, var(--blue)) 14%, transparent);
+      font-size: 12px;
+    }
+
+    .queue-list {
+      display: grid;
+      gap: 7px;
+      padding: 11px 13px;
+    }
+
+    .queue-item {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .queue-item strong {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .mini-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--quiet);
+      opacity: 0.46;
+    }
+
+    .queue-item.done .mini-dot {
+      background: var(--green);
+      opacity: 1;
+    }
+
+    .queue-item.current .mini-dot {
+      background: var(--state, var(--blue));
+      opacity: 1;
+      box-shadow: 0 0 0 5px color-mix(in srgb, var(--state, var(--blue)) 15%, transparent);
+    }
+
+    .popover footer {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      padding: 0 13px 13px;
+    }
+
+    .dot-strip {
+      position: fixed;
+      left: 50%;
+      bottom: 34px;
+      z-index: 15;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-width: 94px;
+      min-height: 30px;
+      padding: 8px 11px;
+      border: 1px solid var(--stroke);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--panel-strong) 78%, transparent);
+      box-shadow: 0 12px 34px var(--shadow);
+      backdrop-filter: blur(26px) saturate(1.16);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(-50%) translateY(10px) scale(0.98);
+      transition: opacity 170ms ease, transform 170ms ease;
+    }
+
+    .dot-strip.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0) scale(1);
+    }
+
+    .queue-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--quiet);
+      opacity: 0.42;
+      transform: scale(1);
+      transition:
+        opacity 210ms ease,
+        transform 210ms ease,
+        background-color 210ms ease,
+        width 210ms ease,
+        margin 210ms ease;
+    }
+
+    .queue-dot.current {
+      opacity: 1;
+      background: var(--state, var(--blue));
+      animation: pulse 1.25s ease-in-out infinite;
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--state, var(--blue)) 14%, transparent);
+    }
+
+    .queue-dot.done {
+      width: 0;
+      margin-left: -5px;
+      margin-right: -5px;
+      opacity: 0;
+      transform: scale(0.3);
+      background: var(--green);
+    }
+
+    .dot-strip.exit-slide .queue-dot.done {
+      width: 9px;
+      margin-left: 0;
+      margin-right: 0;
+      opacity: 0;
+      transform: translateY(18px) scale(0.75);
+    }
+
+    .dot-strip.exit-pop .queue-dot.done {
+      width: 0;
+      margin-left: -5px;
+      margin-right: -5px;
+      opacity: 0;
+      transform: scale(1.75);
+      background: var(--green);
+      box-shadow: 0 0 0 12px color-mix(in srgb, var(--green) 0%, transparent);
+    }
+
+    .queue-dot.exiting {
+      opacity: 1;
+      background: var(--green);
+      animation: exitPreview 520ms ease-out 1;
+    }
+
+    .queue-dot.blocked {
+      background: var(--orange);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    .queue-dot.error {
+      background: var(--red);
+      animation: shake 460ms ease-in-out 1;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.32); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-2px); }
+      75% { transform: translateX(2px); }
+    }
+
+    @keyframes exitPreview {
+      0% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      55% {
+        opacity: 0.9;
+        transform: scale(1.55);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(0.28);
+      }
+    }
+
+    @media (max-width: 740px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+
+      .popover {
+        left: 12px;
+        right: 12px;
+        width: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav class="menubar" aria-label="macOS menu bar mockup">
+    <span>Wi-Fi</span>
+    <button id="menuToggle" class="menu-item active" type="button" aria-expanded="false">
+      <span class="menu-dot" aria-hidden="true"></span>
+      <span id="menuLabel">Paste Queue</span>
+    </button>
+    <span>9:41 AM</span>
+  </nav>
+
+  <main class="desktop">
+    <section class="window" aria-label="Mock target app">
+      <div class="toolbar">
+        <span class="traffic"></span>
+        <span class="traffic"></span>
+        <span class="traffic"></span>
+        <span style="margin-left: 8px;">Target text field</span>
+      </div>
+      <div class="content">
+        <div>
+          <h1>Paste Queue progress dots</h1>
+          <p>This mock lets us try the optional lower-screen queue visualization and the menu bar detail surface together. The text field is only scenery, but it gives the dots something real to sit above.</p>
+          <textarea spellcheck="false">Try Start Queue, then Advance. The completed dots shrink away; the current item pulses; blocked and error states stay visible until the queue can continue.</textarea>
+        </div>
+
+        <aside class="controls" aria-label="Mock controls">
+          <div class="control-row">
+            <label for="queueSize">Queue size <span id="queueSizeLabel">5</span></label>
+            <input id="queueSize" type="range" min="1" max="9" value="5">
+          </div>
+
+          <div class="control-row">
+            <label for="stateSelect">State</label>
+            <select id="stateSelect">
+              <option value="pasting">Pasting</option>
+              <option value="waiting">Waiting for target</option>
+              <option value="paused">Paused</option>
+              <option value="blocked">Blocked</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
+
+          <div class="control-row">
+            <label for="exitSelect">Exit animation</label>
+            <select id="exitSelect">
+              <option value="shrink">Shrink away</option>
+              <option value="slide">Drop away</option>
+              <option value="pop">Soft pop</option>
+            </select>
+          </div>
+
+          <div class="segmented">
+            <button id="startButton" class="primary" type="button">Start Queue</button>
+            <button id="advanceButton" type="button">Advance</button>
+          </div>
+
+          <div class="segmented">
+            <button id="playButton" type="button">Play exits</button>
+            <button id="stepBackButton" type="button">Step back</button>
+          </div>
+
+          <div class="segmented">
+            <button id="pauseButton" type="button">Pause</button>
+            <button id="resetButton" type="button">Reset</button>
+          </div>
+
+          <div class="control-row">
+            <label>
+              <input id="showDots" type="checkbox" checked>
+              Show progress dots
+            </label>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <section id="popover" class="popover open" aria-label="Paste Queue popover">
+    <header>
+      <div>
+        <h2>Paste Queue</h2>
+        <div id="statusText" class="status">Pasting item 1 of 5</div>
+      </div>
+      <span id="stateBadge" class="badge">Pasting</span>
+    </header>
+    <div id="queueList" class="queue-list"></div>
+    <footer>
+      <button id="footerPause" type="button">Pause</button>
+      <button id="footerSkip" type="button">Skip</button>
+      <button id="footerCancel" type="button">Cancel</button>
+    </footer>
+  </section>
+
+  <div id="dotStrip" class="dot-strip visible" aria-hidden="true"></div>
+
+  <script>
+    const queueSize = document.getElementById("queueSize");
+    const queueSizeLabel = document.getElementById("queueSizeLabel");
+    const stateSelect = document.getElementById("stateSelect");
+    const exitSelect = document.getElementById("exitSelect");
+    const startButton = document.getElementById("startButton");
+    const advanceButton = document.getElementById("advanceButton");
+    const playButton = document.getElementById("playButton");
+    const stepBackButton = document.getElementById("stepBackButton");
+    const pauseButton = document.getElementById("pauseButton");
+    const resetButton = document.getElementById("resetButton");
+    const showDots = document.getElementById("showDots");
+    const menuToggle = document.getElementById("menuToggle");
+    const menuLabel = document.getElementById("menuLabel");
+    const popover = document.getElementById("popover");
+    const dotStrip = document.getElementById("dotStrip");
+    const queueList = document.getElementById("queueList");
+    const statusText = document.getElementById("statusText");
+    const stateBadge = document.getElementById("stateBadge");
+    const footerPause = document.getElementById("footerPause");
+    const footerSkip = document.getElementById("footerSkip");
+    const footerCancel = document.getElementById("footerCancel");
+
+    const labels = {
+      pasting: "Pasting",
+      waiting: "Waiting",
+      paused: "Paused",
+      blocked: "Blocked",
+      error: "Needs attention",
+      done: "Done"
+    };
+
+    const colors = {
+      pasting: "var(--blue)",
+      waiting: "var(--blue)",
+      paused: "var(--quiet)",
+      blocked: "var(--orange)",
+      error: "var(--red)",
+      done: "var(--green)"
+    };
+
+    let size = Number(queueSize.value);
+    let current = 0;
+    let state = "pasting";
+    let active = true;
+    let exitMode = "shrink";
+    let exitingIndex = null;
+    let playTimer = null;
+
+    function stateDetail() {
+      if (!active) return "Queue hidden";
+      if (current >= size) return `Completed ${size} items`;
+      if (state === "waiting") return `Waiting for a text field · item ${current + 1} of ${size}`;
+      if (state === "paused") return `Paused · item ${current + 1} of ${size}`;
+      if (state === "blocked") return `Blocked · item ${current + 1} of ${size}`;
+      if (state === "error") return `Could not paste item ${current + 1}`;
+      return `Pasting item ${current + 1} of ${size}`;
+    }
+
+    function renderDots() {
+      dotStrip.innerHTML = "";
+      for (let index = 0; index < size; index += 1) {
+        const dot = document.createElement("span");
+        dot.className = "queue-dot";
+        if (index < current) dot.classList.add("done");
+        if (index === exitingIndex) dot.classList.add("exiting");
+        if (index === current && current < size) {
+          dot.classList.add("current");
+          if (state === "blocked") dot.classList.add("blocked");
+          if (state === "error") dot.classList.add("error");
+        }
+        dotStrip.append(dot);
+      }
+    }
+
+    function renderList() {
+      queueList.innerHTML = "";
+      for (let index = 0; index < size; index += 1) {
+        const row = document.createElement("div");
+        row.className = "queue-item";
+        if (index < current) row.classList.add("done");
+        if (index === current && current < size) row.classList.add("current");
+
+        const dot = document.createElement("span");
+        dot.className = "mini-dot";
+
+        const label = document.createElement(index === current ? "strong" : "span");
+        label.textContent = `Item ${index + 1}`;
+
+        const meta = document.createElement("span");
+        if (index < current) meta.textContent = "Sent";
+        else if (index === current && current < size) meta.textContent = labels[state];
+        else meta.textContent = "Waiting";
+
+        row.append(dot, label, meta);
+        queueList.append(row);
+      }
+    }
+
+    function render() {
+      queueSizeLabel.textContent = size;
+      statusText.textContent = stateDetail();
+      stateBadge.textContent = current >= size ? labels.done : labels[state];
+      stateBadge.style.setProperty("--state", current >= size ? colors.done : colors[state]);
+      dotStrip.style.setProperty("--state", current >= size ? colors.done : colors[state]);
+      dotStrip.classList.toggle("exit-slide", exitMode === "slide");
+      dotStrip.classList.toggle("exit-pop", exitMode === "pop");
+      menuLabel.textContent = active && current < size ? `Paste Queue ${size - current}` : "Paste Queue";
+      menuToggle.classList.toggle("active", active && current < size);
+      dotStrip.classList.toggle("visible", showDots.checked && active && current < size);
+      advanceButton.disabled = !active || current >= size;
+      playButton.disabled = !active || current >= size;
+      stepBackButton.disabled = !active || current <= 0;
+      pauseButton.textContent = state === "paused" ? "Resume" : "Pause";
+      footerPause.textContent = pauseButton.textContent;
+      renderDots();
+      renderList();
+    }
+
+    queueSize.addEventListener("input", () => {
+      size = Number(queueSize.value);
+      current = Math.min(current, size - 1);
+      active = true;
+      render();
+    });
+
+    stateSelect.addEventListener("change", () => {
+      state = stateSelect.value;
+      active = true;
+      render();
+    });
+
+    exitSelect.addEventListener("change", () => {
+      exitMode = exitSelect.value;
+      render();
+    });
+
+    startButton.addEventListener("click", () => {
+      current = 0;
+      active = true;
+      state = stateSelect.value;
+      render();
+    });
+
+    advanceButton.addEventListener("click", () => {
+      if (!active || current >= size) return;
+      exitingIndex = current;
+      current += 1;
+      window.setTimeout(() => {
+        exitingIndex = null;
+        render();
+      }, 540);
+      if (current >= size) {
+        state = "done";
+        window.setTimeout(render, 650);
+      }
+      render();
+    });
+
+    playButton.addEventListener("click", () => {
+      if (!active || current >= size) return;
+      if (playTimer) {
+        window.clearInterval(playTimer);
+        playTimer = null;
+        playButton.textContent = "Play exits";
+        return;
+      }
+      playButton.textContent = "Stop";
+      playTimer = window.setInterval(() => {
+        if (!active || current >= size) {
+          window.clearInterval(playTimer);
+          playTimer = null;
+          playButton.textContent = "Play exits";
+          render();
+          return;
+        }
+        advanceButton.click();
+      }, 760);
+    });
+
+    stepBackButton.addEventListener("click", () => {
+      if (!active || current <= 0) return;
+      current -= 1;
+      state = "pasting";
+      stateSelect.value = state;
+      render();
+    });
+
+    pauseButton.addEventListener("click", () => {
+      state = state === "paused" ? "pasting" : "paused";
+      stateSelect.value = state === "paused" ? "paused" : "pasting";
+      active = true;
+      render();
+    });
+
+    resetButton.addEventListener("click", () => {
+      current = 0;
+      state = "pasting";
+      stateSelect.value = state;
+      active = false;
+      if (playTimer) window.clearInterval(playTimer);
+      playTimer = null;
+      playButton.textContent = "Play exits";
+      render();
+    });
+
+    showDots.addEventListener("change", render);
+
+    menuToggle.addEventListener("click", () => {
+      const open = !popover.classList.contains("open");
+      popover.classList.toggle("open", open);
+      menuToggle.setAttribute("aria-expanded", String(open));
+    });
+
+    footerPause.addEventListener("click", () => pauseButton.click());
+    footerSkip.addEventListener("click", () => advanceButton.click());
+    footerCancel.addEventListener("click", () => {
+      active = false;
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
