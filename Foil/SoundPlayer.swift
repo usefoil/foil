@@ -71,7 +71,7 @@ final class SoundPlayer {
         case .none:
             return
         case .recordingStart:
-            playAppCue(named: cue.rawValue)
+            playSystemSound(named: "Tink")
         case .recordingStop:
             playSystemSound(named: "Pop")
         case .softChime:
@@ -151,6 +151,7 @@ final class SoundPlayer {
             return
         }
         sound.volume = 1.0
+        DiagnosticLog.write("SoundPlayer: playing \(name) system cue")
         sound.play()
     }
 

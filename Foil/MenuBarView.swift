@@ -30,6 +30,10 @@ struct MenuBarView: View {
         history.records.first { !$0.isFailure }
     }
 
+    private var recentSuccesses: [TranscriptionRecord] {
+        history.recentSuccessfulRecords(limit: 3)
+    }
+
     private var session: AppState.SessionPresentation {
         appState.sessionPresentation(
             hotkeyLabel: hotkeyLabel,
@@ -80,7 +84,7 @@ struct MenuBarView: View {
                 queuedPasteSection
             }
             recordingControlsSection
-            lastResultSection
+            recentTranscriptionsSection
             Divider()
                 .opacity(0.55)
             AppVersionFooter(accessibilityIdentifier: "menu.appVersionFooter")
@@ -491,10 +495,10 @@ struct MenuBarView: View {
         .accessibilityIdentifier("menu.queuedPaste.item")
     }
 
-    private var lastResultSection: some View {
+    private var recentTranscriptionsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Last Result")
+                Text("Recent Transcriptions")
                     .font(.subheadline.weight(.semibold))
                 Spacer()
                 Button {
@@ -507,39 +511,16 @@ struct MenuBarView: View {
                 .help("Open History")
             }
 
-            if let record = lastSuccess, let text = record.text {
-                Text(text)
-                    .font(.body)
-                    .lineLimit(3)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityIdentifier("menu.lastResult.text")
-
-                HStack {
-                    Button {
-                        copy(text)
-                    } label: {
-                        Label("Copy", systemImage: "doc.on.doc")
-                    }
-                    .accessibilityIdentifier("menu.lastResult.copyButton")
-                    Button {
-                        onPasteLast?()
-                    } label: {
-                        Label("Paste Again", systemImage: "arrow.turn.down.left")
-                    }
-                    .accessibilityIdentifier("menu.lastResult.pasteAgainButton")
-                    Spacer()
-                    Text(record.relativeTimestamp)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.borderless)
-            } else {
+            if recentSuccesses.isEmpty {
                 Text("No successful transcriptions yet.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("menu.lastResult.empty")
+            } else {
+                ForEach(Array(recentSuccesses.enumerated()), id: \.element.id) { index, record in
+                    recentTranscriptionRow(record, isLatest: index == 0)
+                }
             }
 
             if let summary = appState.lastPasteSummary {
@@ -551,6 +532,52 @@ struct MenuBarView: View {
         }
         .padding(10)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func recentTranscriptionRow(_ record: TranscriptionRecord, isLatest: Bool) -> some View {
+        VStack(alignment: .leading, spacing: isLatest ? 6 : 4) {
+            if let text = record.text {
+                Text(text)
+                    .font(isLatest ? .body : .caption)
+                    .lineLimit(isLatest ? 3 : 2)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier(isLatest ? "menu.lastResult.text" : "menu.recentResult.text")
+
+                HStack(spacing: 8) {
+                    Button {
+                        copy(text)
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
+                    }
+                    .accessibilityIdentifier(isLatest ? "menu.lastResult.copyButton" : "menu.recentResult.copyButton")
+
+                    if isLatest {
+                        Button {
+                            onPasteLast?()
+                        } label: {
+                            Label("Paste Again", systemImage: "arrow.turn.down.left")
+                        }
+                        .accessibilityIdentifier("menu.lastResult.pasteAgainButton")
+                    }
+
+                    Spacer()
+                    Text(record.relativeTimestamp)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .labelStyle(.titleAndIcon)
+            }
+        }
+        .padding(isLatest ? 0 : 7)
+        .background {
+            if !isLatest {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(.background.opacity(0.45))
+            }
+        }
+        .accessibilityIdentifier(isLatest ? "menu.lastResult.row" : "menu.recentResult.row")
     }
 
     private var recordingControlsSection: some View {
