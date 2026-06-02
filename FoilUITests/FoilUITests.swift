@@ -19,6 +19,12 @@ final class FoilUITests: XCTestCase {
     private let openedURLPath =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("foil-ui-tests-opened-url-\(ProcessInfo.processInfo.processIdentifier).txt")
 
+    private struct UITestRecordingEvent: Decodable, Equatable {
+        let name: String
+        let detail: String?
+        let uptimeNanoseconds: UInt64
+    }
+
     private struct UITestStateSnapshot: Decodable {
         let statusText: String
         let sessionTitle: String
@@ -30,6 +36,7 @@ final class FoilUITests: XCTestCase {
         let apiKeyText: String
         let apiKeyActionTitle: String?
         let canStartRecording: Bool
+        let recordingEvents: [UITestRecordingEvent]
     }
 
     override func setUpWithError() throws {

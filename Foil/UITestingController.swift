@@ -114,6 +114,7 @@ final class UITestingController {
     private var uiTestSettingsWindow: NSWindow?
     private var uiTestCommandFileTimer: Timer?
     private var lastUITestCommandFileID: String?
+    private var recordingEvents: [RecordingEventSnapshot] = []
 
     private struct StateSnapshot: Encodable {
         let statusText: String
@@ -126,6 +127,13 @@ final class UITestingController {
         let apiKeyText: String
         let apiKeyActionTitle: String?
         let canStartRecording: Bool
+        let recordingEvents: [RecordingEventSnapshot]
+    }
+
+    private struct RecordingEventSnapshot: Encodable {
+        let name: String
+        let detail: String?
+        let uptimeNanoseconds: UInt64
     }
 
     // MARK: - Init
@@ -852,7 +860,8 @@ final class UITestingController {
             microphoneActionTitle: actionTitle(for: appState.microphoneState, readyTitle: nil, unknownTitle: "Check", needsActionTitle: "Open Settings"),
             apiKeyText: permissionText(for: appState.apiKeyState),
             apiKeyActionTitle: actionTitle(for: appState.apiKeyState, readyTitle: nil, unknownTitle: "Add Key", needsActionTitle: "Add Key"),
-            canStartRecording: appState.canStartRecordingControl
+            canStartRecording: appState.canStartRecordingControl,
+            recordingEvents: recordingEvents
         )
 
         do {
@@ -861,6 +870,22 @@ final class UITestingController {
         } catch {
             DiagnosticLog.write("UITesting: failed to write state snapshot: \(error)")
         }
+    }
+
+    private func appendRecordingEvent(_ name: String, detail: String? = nil) {
+        recordingEvents.append(
+            RecordingEventSnapshot(
+                name: name,
+                detail: detail,
+                uptimeNanoseconds: DispatchTime.now().uptimeNanoseconds
+            )
+        )
+        writeStateSnapshot()
+    }
+
+    private func clearRecordingEvents() {
+        recordingEvents.removeAll()
+        writeStateSnapshot()
     }
 
     private var hotkeyLabel: String {
