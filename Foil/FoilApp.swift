@@ -161,11 +161,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var browserMediaController = BrowserMediaController(
         isEnabled: { [weak self] in self?.appState.pauseBrowserMediaWhileRecording == true }
     )
-    private lazy var recordingStartCueScheduler = RecordingStartCueScheduler(
-        isRecording: { [weak self] in self?.appState.status == .recording },
-        playStartSound: { [weak self] in self?.soundPlayer.playStartSound() }
-    )
-
     private var retryingRecordID: UUID?
 
     private var sparkleUpdater: SparkleUpdater!
@@ -269,7 +264,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         _ = SparkleUpdater.shared
         DiagnosticLog.write("applicationDidFinishLaunching: updater ready")
-        recordingController = RecordingController(audioRecorder: audioRecorder, appState: appState)
+        recordingController = RecordingController(
+            audioRecorder: audioRecorder,
+            appState: appState,
+            playStartCueBeforeRecording: { [weak self] in
+                self?.soundPlayer.playStartSound()
+            }
+        )
         recordingController.delegate = self
         transcriptionController = TranscriptionController(transcriptionService: transcriptionService, appState: appState)
         transcriptionController.delegate = self
@@ -1240,7 +1241,6 @@ extension AppDelegate: RecordingControllerDelegate {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStart")
         appState.updateMicrophoneState(isReady: true)
         postBuiltInMicBluetoothGuidanceIfNeeded()
-        recordingStartCueScheduler.schedule()
         if let browserMediaSessionID = browserMediaController.recordingDidStart() {
             Task {
                 await browserMediaController.pausePlayingMedia(for: browserMediaSessionID)

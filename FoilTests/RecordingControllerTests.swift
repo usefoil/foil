@@ -209,6 +209,27 @@ final class RecordingControllerMockTests: XCTestCase {
         XCTAssertTrue(controller.isRecording)
     }
 
+    func testStartCuePlaysBeforeAudioRecorderStarts() {
+        var events: [String] = []
+        mock.onStartRecording = {
+            events.append("audioRecorderStart")
+        }
+        controller = RecordingController(
+            audioRecorder: mock,
+            appState: appState,
+            playStartCueBeforeRecording: {
+                events.append("startCue")
+            }
+        )
+        controller.delegate = spy
+
+        controller.startRecording()
+
+        XCTAssertEqual(events, ["startCue", "audioRecorderStart"])
+        XCTAssertEqual(mock.startRecordingCallCount, 1)
+        XCTAssertTrue(controller.isRecording)
+    }
+
     // MARK: - testStartRecordingFailureSetsError
 
     /// When the mock throws, the controller must catch it, leave isRecording false, and fire didFail.

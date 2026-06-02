@@ -8,8 +8,10 @@ final class MockAudioRecorder: AudioRecording {
     var startRecordingCallCount = 0
     var startRecordingDeviceID: AudioDeviceID?
     var startRecordingShouldThrow: Error?
+    var onStartRecording: (() -> Void)?
 
     func startRecording(deviceID: AudioDeviceID?) throws {
+        onStartRecording?()
         startRecordingCallCount += 1
         startRecordingDeviceID = deviceID
         if let error = startRecordingShouldThrow {
