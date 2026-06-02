@@ -695,6 +695,21 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(recorder.label.contains("Custom keyboard shortcut") || recorder.label == "Record shortcut", app.debugDescription)
     }
 
+    func testRecordingSoundPickersShowBuiltInDefaults() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-recording"])
+        openSettingsPanel()
+
+        let startPicker = app.popUpButtons["settings.recordingStartSoundPicker"]
+        let endPicker = app.popUpButtons["settings.recordingEndSoundPicker"]
+
+        XCTAssertTrue(startPicker.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(endPicker.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(startPicker.value as? String, "Bottle")
+        XCTAssertEqual(endPicker.value as? String, "Pop")
+        XCTAssertTrue(app.buttons["settings.recordingStartSoundPreviewButton"].exists)
+        XCTAssertTrue(app.buttons["settings.recordingEndSoundPreviewButton"].exists)
+    }
+
     func testHelpButtonTargetsCanonicalTroubleshootingURL() throws {
         removeOpenedURLRecord()
         postUITestCommand(openHelpNotification)
