@@ -220,6 +220,30 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(getStartedButton.isEnabled)
     }
 
+    func testOnboardingCanCompleteWhenPermissionsReadyAndApiKeyMissing() {
+        launchApp(arguments: [
+            "--ui-testing",
+            "--reset-defaults",
+            "--show-onboarding",
+            "--seed-permissions-ready-api-missing"
+        ], requireControlCenter: false)
+
+        let onboardingWindow = app.windows["Welcome to Foil"]
+        XCTAssertTrue(onboardingWindow.waitForExistence(timeout: 5), app.debugDescription)
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToMicrophone"])
+
+        XCTAssertTrue(onboardingWindow.staticTexts["Microphone Access"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(onboardingWindow.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
+
+        let getStartedButton = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        XCTAssertTrue(getStartedButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(getStartedButton.isEnabled)
+
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "complete"])
+        XCTAssertFalse(onboardingWindow.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+    }
+
     func testOnboardingCompletionKeepsMenuBarAppRunning() {
         launchApp(arguments: [
             "--ui-testing",

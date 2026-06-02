@@ -252,6 +252,17 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.isSetupReady)
     }
 
+    func testSystemPermissionsReadyDoesNotRequireApiKey() {
+        let state = AppState()
+
+        state.applySetupHealth(accessibilityTrusted: true, microphoneAuthorizationStatus: .authorized)
+        state.apiKeyState = .needsAction("Add Groq API key")
+
+        XCTAssertTrue(state.areSystemPermissionsReady)
+        XCTAssertFalse(state.isSetupReady)
+        XCTAssertFalse(state.canStartRecordingControl)
+    }
+
     func testApplyingSetupHealthMapsMicrophoneAuthorizationStatuses() {
         let cases: [(AVAuthorizationStatus, AppState.PermissionState, Bool)] = [
             (.authorized, .ready, true),

@@ -424,9 +424,13 @@ final class AppState {
     }
 
     var isSetupReady: Bool {
+        areSystemPermissionsReady
+            && apiKeyState == .ready
+    }
+
+    var areSystemPermissionsReady: Bool {
         accessibilityState == .ready
             && microphoneState == .ready
-            && apiKeyState == .ready
     }
 
     var needsSetupAttention: Bool {

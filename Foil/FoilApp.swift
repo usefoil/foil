@@ -818,6 +818,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState.apiKeyState = .ready
                 return
             }
+            if ProcessInfo.processInfo.arguments.contains("--seed-permissions-ready-api-missing") {
+                appState.updateAccessibilityState(isTrusted: true)
+                appState.updateMicrophoneState(isReady: true)
+                appState.apiKeyState = .needsAction("Add Groq API key")
+                return
+            }
             appState.updateAccessibilityState(isTrusted: true)
             appState.updateMicrophoneState(isReady: true)
             appState.apiKeyState = .ready
@@ -874,7 +880,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if accessibilityTrusted() {
                     retryHotkeyMonitorAfterPermissionChange()
                 }
-                if appState.isSetupReady {
+                if appState.areSystemPermissionsReady {
                     return
                 }
                 do {
