@@ -76,7 +76,7 @@ struct OnboardingView: View {
                         onComplete()
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!appState.isSetupReady)
+                    .disabled(!appState.areSystemPermissionsReady)
                     .accessibilityIdentifier("onboarding.getStartedButton")
                 }
             }
