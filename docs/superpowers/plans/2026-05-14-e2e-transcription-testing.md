@@ -549,3 +549,9 @@ Expected: Both the existing integration tests and the new E2E UI test pass.
 | **2** | Tasks 4-5 | PR to `feat/initial-implementation` | E2E transcription flow triggered by `--e2e-transcribe` |
 | **3** | Tasks 6-8 | PR to `feat/initial-implementation` | UI test + CI workflow |
 | **Ship** | Task 9 | PR to `main` | E2E test runs in CI, triggers release |
+
+## Recording Cue Automation Boundary
+
+The normal CI suite verifies that a saved start cue is used by the recording control path and that the recorder opens only after the start-cue pre-roll. This is hardware-free and runs on GitHub-hosted macOS runners.
+
+Normal CI does not prove that a human can hear the cue through a specific Bluetooth output device. That requires a live Mac with known audio routing or a virtual audio capture setup. Keep that as optional release QA rather than a PR gate.
