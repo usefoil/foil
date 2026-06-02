@@ -219,7 +219,9 @@ final class RecordingControllerMockTests: XCTestCase {
             appState: appState,
             playStartCueBeforeRecording: {
                 events.append("startCue")
-            }
+                return true
+            },
+            startCuePreRollNanoseconds: 0
         )
         controller.delegate = spy
 
@@ -228,6 +230,62 @@ final class RecordingControllerMockTests: XCTestCase {
         XCTAssertEqual(events, ["startCue", "audioRecorderStart"])
         XCTAssertEqual(mock.startRecordingCallCount, 1)
         XCTAssertTrue(controller.isRecording)
+    }
+
+    func testStartCuePreRollDelaysAudioRecorderStart() async throws {
+        var events: [String] = []
+        mock.onStartRecording = {
+            events.append("audioRecorderStart")
+        }
+        controller = RecordingController(
+            audioRecorder: mock,
+            appState: appState,
+            playStartCueBeforeRecording: {
+                events.append("startCue")
+                return true
+            },
+            startCuePreRollNanoseconds: 20_000_000
+        )
+        controller.delegate = spy
+
+        controller.startRecording()
+
+        XCTAssertEqual(events, ["startCue"])
+        XCTAssertEqual(mock.startRecordingCallCount, 0)
+        XCTAssertFalse(controller.isRecording)
+
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(events, ["startCue", "audioRecorderStart"])
+        XCTAssertEqual(mock.startRecordingCallCount, 1)
+        XCTAssertTrue(controller.isRecording)
+    }
+
+    func testStopDuringStartCuePreRollCancelsAudioRecorderStart() async throws {
+        var events: [String] = []
+        mock.onStartRecording = {
+            events.append("audioRecorderStart")
+        }
+        controller = RecordingController(
+            audioRecorder: mock,
+            appState: appState,
+            playStartCueBeforeRecording: {
+                events.append("startCue")
+                return true
+            },
+            startCuePreRollNanoseconds: 50_000_000
+        )
+        controller.delegate = spy
+
+        controller.startRecording()
+        controller.stopRecording()
+        try await Task.sleep(nanoseconds: 80_000_000)
+
+        XCTAssertEqual(events, ["startCue"])
+        XCTAssertEqual(mock.startRecordingCallCount, 0)
+        XCTAssertFalse(controller.isRecording)
+        XCTAssertEqual(spy.didStartCount, 0)
+        XCTAssertEqual(spy.didCancelCount, 1)
     }
 
     // MARK: - testStartRecordingFailureSetsError

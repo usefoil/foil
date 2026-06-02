@@ -19,6 +19,12 @@ final class FoilUITests: XCTestCase {
     private let openedURLPath =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("foil-ui-tests-opened-url-\(ProcessInfo.processInfo.processIdentifier).txt")
 
+    private struct UITestRecordingEvent: Decodable, Equatable {
+        let name: String
+        let detail: String?
+        let uptimeNanoseconds: UInt64
+    }
+
     private struct UITestStateSnapshot: Decodable {
         let statusText: String
         let sessionTitle: String
@@ -30,6 +36,7 @@ final class FoilUITests: XCTestCase {
         let apiKeyText: String
         let apiKeyActionTitle: String?
         let canStartRecording: Bool
+        let recordingEvents: [UITestRecordingEvent]
     }
 
     override func setUpWithError() throws {
@@ -710,6 +717,35 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.buttons["settings.recordingEndSoundPreviewButton"].exists)
     }
 
+    func testSelectedStartCueIsUsedBeforeRecorderStarts() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-recording"])
+
+        postUITestCommand(appCommandNotification, userInfo: ["command": "prepareRecordingCueAcceptance"])
+        postUITestCommand(appCommandNotification, userInfo: ["command": "startRecording"])
+
+        let state = waitForUITestStateSnapshot { snapshot in
+            snapshot.recordingEvents.contains { $0.name == "audioRecorderStart" }
+        }
+
+        guard let events = state?.recordingEvents else {
+            XCTFail("Expected recording events in UI-test state snapshot")
+            return
+        }
+
+        let soundEvent = requireRecordingEvent(named: "startCue", in: events)
+        let preRollEvent = requireRecordingEvent(named: "preRollScheduled", in: events)
+        let recorderEvent = requireRecordingEvent(named: "audioRecorderStart", in: events)
+
+        XCTAssertEqual(soundEvent.detail, "Submarine")
+        XCTAssertLessThan(soundEvent.uptimeNanoseconds, preRollEvent.uptimeNanoseconds)
+        XCTAssertLessThan(preRollEvent.uptimeNanoseconds, recorderEvent.uptimeNanoseconds)
+        XCTAssertGreaterThanOrEqual(
+            recorderEvent.uptimeNanoseconds - soundEvent.uptimeNanoseconds,
+            250_000_000,
+            "Recorder should not open until the selected start cue has time to play"
+        )
+    }
+
     func testHelpButtonTargetsCanonicalTroubleshootingURL() throws {
         removeOpenedURLRecord()
         postUITestCommand(openHelpNotification)
@@ -1072,6 +1108,19 @@ final class FoilUITests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         } while Date() < deadline
         return readUITestStateSnapshot()
+    }
+
+    private func requireRecordingEvent(
+        named name: String,
+        in events: [UITestRecordingEvent],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> UITestRecordingEvent {
+        guard let event = events.first(where: { $0.name == name }) else {
+            XCTFail("Missing recording event \(name). Events: \(events)", file: file, line: line)
+            return UITestRecordingEvent(name: name, detail: nil, uptimeNanoseconds: 0)
+        }
+        return event
     }
 
     private var historyPanel: XCUIElement {

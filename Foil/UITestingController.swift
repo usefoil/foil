@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import CoreAudio
 import SwiftUI
 
 extension Notification.Name {
@@ -114,6 +115,7 @@ final class UITestingController {
     private var uiTestSettingsWindow: NSWindow?
     private var uiTestCommandFileTimer: Timer?
     private var lastUITestCommandFileID: String?
+    private var recordingEvents: [RecordingEventSnapshot] = []
 
     private struct StateSnapshot: Encodable {
         let statusText: String
@@ -126,6 +128,13 @@ final class UITestingController {
         let apiKeyText: String
         let apiKeyActionTitle: String?
         let canStartRecording: Bool
+        let recordingEvents: [RecordingEventSnapshot]
+    }
+
+    private struct RecordingEventSnapshot: Encodable {
+        let name: String
+        let detail: String?
+        let uptimeNanoseconds: UInt64
     }
 
     // MARK: - Init
@@ -386,6 +395,65 @@ final class UITestingController {
             appState.refreshApiKeyState()
         }
         DiagnosticLog.write("E2E: provider=groq model=\(appState.selectedModel)")
+    }
+
+    #if DEBUG
+    private final class RecordingCueAcceptanceAudioStub: AudioRecording {
+        private let onStartRecording: () -> Void
+
+        init(onStartRecording: @escaping () -> Void) {
+            self.onStartRecording = onStartRecording
+        }
+
+        func startRecording(deviceID: AudioDeviceID?) throws {
+            onStartRecording()
+        }
+
+        func stopRecordingAsync(format: AudioFormat) async throws -> URL? {
+            nil
+        }
+
+        func cancelRecording() {
+        }
+    }
+    #endif
+
+    private func prepareRecordingCueAcceptance() {
+        #if DEBUG
+        clearRecordingEvents()
+        appState.soundEffectsEnabled = true
+        appState.recordingStartSoundCue = .submarine
+        appState.recordingEndSoundCue = .pop
+        appState.updateAccessibilityState(isTrusted: true)
+        appState.updateMicrophoneState(isReady: true)
+        appState.apiKeyState = .ready
+        appState.setStatus(.idle)
+
+        let defaults = UserDefaults(suiteName: "com.neonwatty.Foil.UITests") ?? .standard
+        let soundPlayer = SoundPlayer(defaults: defaults) { [weak self] systemSoundName in
+            self?.appendRecordingEvent("startCue", detail: systemSoundName)
+        }
+        let audioStub = RecordingCueAcceptanceAudioStub { [weak self] in
+            self?.appendRecordingEvent("audioRecorderStart")
+        }
+        let controller = RecordingController(
+            audioRecorder: audioStub,
+            appState: appState,
+            playStartCueBeforeRecording: { [weak self] in
+                let played = soundPlayer.playStartSound()
+                if played {
+                    self?.appendRecordingEvent("preRollScheduled")
+                }
+                return played
+            },
+            startCuePreRollNanoseconds: 300_000_000
+        )
+        onReplaceRecordingController(controller)
+        writeStateSnapshot()
+        DiagnosticLog.write("UITesting: recording cue acceptance prepared")
+        #else
+        DiagnosticLog.write("UITesting: recording cue acceptance skipped outside DEBUG")
+        #endif
     }
 
     // MARK: - Live microphone smoke
@@ -831,6 +899,14 @@ final class UITestingController {
             }
         case "cancelTranscription":
             onCancelTranscription()
+        case "clearRecordingEvents":
+            clearRecordingEvents()
+        case "prepareRecordingCueAcceptance":
+            prepareRecordingCueAcceptance()
+        case "startRecording":
+            onStartRecording()
+        case "stopRecording":
+            onStopRecording()
         default:
             break
         }
@@ -852,7 +928,8 @@ final class UITestingController {
             microphoneActionTitle: actionTitle(for: appState.microphoneState, readyTitle: nil, unknownTitle: "Check", needsActionTitle: "Open Settings"),
             apiKeyText: permissionText(for: appState.apiKeyState),
             apiKeyActionTitle: actionTitle(for: appState.apiKeyState, readyTitle: nil, unknownTitle: "Add Key", needsActionTitle: "Add Key"),
-            canStartRecording: appState.canStartRecordingControl
+            canStartRecording: appState.canStartRecordingControl,
+            recordingEvents: recordingEvents
         )
 
         do {
@@ -861,6 +938,22 @@ final class UITestingController {
         } catch {
             DiagnosticLog.write("UITesting: failed to write state snapshot: \(error)")
         }
+    }
+
+    private func appendRecordingEvent(_ name: String, detail: String? = nil) {
+        recordingEvents.append(
+            RecordingEventSnapshot(
+                name: name,
+                detail: detail,
+                uptimeNanoseconds: DispatchTime.now().uptimeNanoseconds
+            )
+        )
+        writeStateSnapshot()
+    }
+
+    private func clearRecordingEvents() {
+        recordingEvents.removeAll()
+        writeStateSnapshot()
     }
 
     private var hotkeyLabel: String {
