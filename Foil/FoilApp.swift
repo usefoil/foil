@@ -268,7 +268,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             audioRecorder: audioRecorder,
             appState: appState,
             playStartCueBeforeRecording: { [weak self] in
-                self?.soundPlayer.playStartSound()
+                self?.soundPlayer.playStartSound() ?? false
             }
         )
         recordingController.delegate = self

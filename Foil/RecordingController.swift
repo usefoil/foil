@@ -47,8 +47,10 @@ final class RecordingController {
     private let audioRecorder: any AudioRecording
     private let appState: AppState
     private let prepareInputDeviceForRecording: (String?) -> AudioDeviceID?
-    private let playStartCueBeforeRecording: () -> Void
+    private let playStartCueBeforeRecording: () -> Bool
+    private let startCuePreRollNanoseconds: UInt64
     private var recordingTimer: Timer?
+    private var pendingStartTask: Task<Void, Never>?
 
     // MARK: Init
 
@@ -56,12 +58,14 @@ final class RecordingController {
         audioRecorder: any AudioRecording,
         appState: AppState,
         prepareInputDeviceForRecording: @escaping (String?) -> AudioDeviceID? = AudioRecorder.prepareInputDeviceForRecording,
-        playStartCueBeforeRecording: @escaping () -> Void = {}
+        playStartCueBeforeRecording: @escaping () -> Bool = { false },
+        startCuePreRollNanoseconds: UInt64 = 300_000_000
     ) {
         self.audioRecorder = audioRecorder
         self.appState = appState
         self.prepareInputDeviceForRecording = prepareInputDeviceForRecording
         self.playStartCueBeforeRecording = playStartCueBeforeRecording
+        self.startCuePreRollNanoseconds = startCuePreRollNanoseconds
     }
 
     // MARK: - Public API
@@ -77,9 +81,30 @@ final class RecordingController {
             DiagnosticLog.write("RecordingController.startRecording: SKIPPED — already recording")
             return
         }
+        guard pendingStartTask == nil else {
+            DiagnosticLog.write("RecordingController.startRecording: SKIPPED — start already pending")
+            return
+        }
 
+        let playedStartCue = playStartCueBeforeRecording()
+        if playedStartCue, startCuePreRollNanoseconds > 0 {
+            DiagnosticLog.write(
+                "RecordingController.startRecording: waiting for start cue pre-roll ns=\(startCuePreRollNanoseconds)"
+            )
+            pendingStartTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: startCuePreRollNanoseconds)
+                guard !Task.isCancelled else { return }
+                pendingStartTask = nil
+                beginRecording()
+            }
+            return
+        }
+
+        beginRecording()
+    }
+
+    private func beginRecording() {
         do {
-            playStartCueBeforeRecording()
             let deviceID = prepareInputDeviceForRecording(appState.selectedInputDeviceUID)
             try audioRecorder.startRecording(deviceID: deviceID)
             isRecording = true
@@ -96,6 +121,14 @@ final class RecordingController {
 
     /// Stop the current recording session and deliver the encoded audio to the delegate.
     func stopRecording() {
+        if let pendingStartTask {
+            DiagnosticLog.write("RecordingController.stopRecording: cancelling pending start cue pre-roll")
+            pendingStartTask.cancel()
+            self.pendingStartTask = nil
+            isRecording = false
+            delegate?.recordingControllerDidCancel(self)
+            return
+        }
         guard appState.status == .recording else {
             DiagnosticLog.write("RecordingController.stopRecording: SKIPPED — not recording (status=\(appState.status))")
             return
@@ -126,6 +159,8 @@ final class RecordingController {
     /// Cancel the current recording, discarding any captured audio.
     func cancelRecording() {
         DiagnosticLog.write("RecordingController.cancelRecording")
+        pendingStartTask?.cancel()
+        pendingStartTask = nil
         stopRecordingTimer()
         audioRecorder.cancelRecording()
         isRecording = false
@@ -134,6 +169,8 @@ final class RecordingController {
 
     /// Invalidate all timers (call on app termination or teardown).
     func invalidateTimers() {
+        pendingStartTask?.cancel()
+        pendingStartTask = nil
         recordingTimer?.invalidate()
         recordingTimer = nil
     }

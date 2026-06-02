@@ -86,24 +86,26 @@ final class SoundPlayer {
         }
     }
 
-    func playStartSound() {
+    @discardableResult
+    func playStartSound() -> Bool {
         play(cue: selectedCue(forKey: Self.startCueKey, defaultCue: .defaultStart))
     }
 
-    func playStopSound() {
+    @discardableResult
+    func playStopSound() -> Bool {
         play(cue: selectedCue(forKey: Self.endCueKey, defaultCue: .defaultEnd))
     }
 
     func preview(_ cue: RecordingSoundCue) {
-        play(cue: cue)
+        _ = play(cue: cue)
     }
 
-    private func play(cue: RecordingSoundCue) {
-        guard soundEffectsEnabled else { return }
+    private func play(cue: RecordingSoundCue) -> Bool {
+        guard soundEffectsEnabled else { return false }
         guard let systemSoundName = cue.systemSoundName else {
-            return
+            return false
         }
-        playSystemSound(named: systemSoundName)
+        return playSystemSound(named: systemSoundName)
     }
 
     private var soundEffectsEnabled: Bool {
@@ -117,18 +119,19 @@ final class SoundPlayer {
         RecordingSoundCue(rawValue: defaults.string(forKey: key) ?? "") ?? defaultCue
     }
 
-    private func playSystemSound(named name: String) {
+    private func playSystemSound(named name: String) -> Bool {
         if hasInjectedSystemSoundPlayer {
             playSystemSoundNamed(name)
-            return
+            return true
         }
         guard let sound = NSSound(named: name) else {
             DiagnosticLog.write("SoundPlayer: missing system sound \(name)")
-            return
+            return false
         }
         sound.volume = 1.0
         DiagnosticLog.write("SoundPlayer: playing \(name) system cue")
         sound.play()
+        return true
     }
 }
 
