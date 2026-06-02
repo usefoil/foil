@@ -429,7 +429,8 @@ final class UITestingController {
         appState.apiKeyState = .ready
         appState.setStatus(.idle)
 
-        let soundPlayer = SoundPlayer(defaults: .standard) { [weak self] systemSoundName in
+        let defaults = UserDefaults(suiteName: "com.neonwatty.Foil.UITests") ?? .standard
+        let soundPlayer = SoundPlayer(defaults: defaults) { [weak self] systemSoundName in
             self?.appendRecordingEvent("startCue", detail: systemSoundName)
         }
         let audioStub = RecordingCueAcceptanceAudioStub { [weak self] in
