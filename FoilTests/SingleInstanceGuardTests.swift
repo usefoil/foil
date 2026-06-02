@@ -218,4 +218,81 @@ final class SingleInstanceGuardTests: XCTestCase {
         XCTAssertEqual(SettingsView.ExperimentalCopy.backgroundPasteTitle, "Try background paste")
         XCTAssertEqual(SettingsView.ExperimentalCopy.backgroundPasteDescription, "Uses a lower-level paste route. Leave off unless normal paste fails.")
     }
+
+    func testRecordingSettingCopyExplainsBuiltInMicWithAirPods() {
+        XCTAssertEqual(
+            SettingsView.RecordingCopy.builtInMicBluetoothGuidance,
+            "AirPods stay connected for listening, but Foil records from your MacBook microphone to avoid Bluetooth audio quality drops."
+        )
+        XCTAssertEqual(
+            SettingsView.RecordingCopy.builtInMicBluetoothNotificationTitle,
+            "Using MacBook mic"
+        )
+        XCTAssertEqual(
+            SettingsView.RecordingCopy.builtInMicBluetoothNotificationBody,
+            "AirPods stay connected for listening while Foil records from your MacBook microphone."
+        )
+    }
+
+    func testBuiltInMicGuidanceShowsNoticeForBuiltInSelectionWhenBluetoothInputIsAvailable() {
+        let selectedDevice = AudioRecorder.AudioDevice(
+            id: 1,
+            uid: "built-in",
+            name: "MacBook Pro Microphone",
+            isInput: true,
+            transport: .builtIn
+        )
+        let airPods = AudioRecorder.AudioDevice(
+            id: 2,
+            uid: "airpods",
+            name: "AirPods",
+            isInput: true,
+            transport: .bluetooth
+        )
+
+        XCTAssertTrue(BluetoothMicGuidance.shouldShowNotice(
+            selectedInputDevice: selectedDevice,
+            availableInputDevices: [selectedDevice, airPods],
+            hasShownNotice: false
+        ))
+    }
+
+    func testBuiltInMicGuidanceDoesNotShowNoticeAgainAfterItWasShown() {
+        let selectedDevice = AudioRecorder.AudioDevice(
+            id: 1,
+            uid: "built-in",
+            name: "MacBook Pro Microphone",
+            isInput: true,
+            transport: .builtIn
+        )
+        let airPods = AudioRecorder.AudioDevice(
+            id: 2,
+            uid: "airpods",
+            name: "AirPods",
+            isInput: true,
+            transport: .bluetooth
+        )
+
+        XCTAssertFalse(BluetoothMicGuidance.shouldShowNotice(
+            selectedInputDevice: selectedDevice,
+            availableInputDevices: [selectedDevice, airPods],
+            hasShownNotice: true
+        ))
+    }
+
+    func testBuiltInMicGuidanceDoesNotShowNoticeWhenSelectedInputIsBluetooth() {
+        let airPods = AudioRecorder.AudioDevice(
+            id: 2,
+            uid: "airpods",
+            name: "AirPods",
+            isInput: true,
+            transport: .bluetooth
+        )
+
+        XCTAssertFalse(BluetoothMicGuidance.shouldShowNotice(
+            selectedInputDevice: airPods,
+            availableInputDevices: [airPods],
+            hasShownNotice: false
+        ))
+    }
 }
