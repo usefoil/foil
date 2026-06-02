@@ -1,3 +1,4 @@
+import CoreAudio
 import XCTest
 @testable import Foil
 
@@ -155,6 +156,7 @@ final class RecordingControllerMockTests: XCTestCase {
     private var spy: RecordingControllerDelegateSpy!
 
     override func setUpWithError() throws {
+        UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         appState = AppState()
         mock = MockAudioRecorder()
         controller = RecordingController(audioRecorder: mock, appState: appState)
@@ -163,6 +165,7 @@ final class RecordingControllerMockTests: XCTestCase {
     }
 
     override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         controller.invalidateTimers()
         controller = nil
         mock = nil
@@ -181,6 +184,29 @@ final class RecordingControllerMockTests: XCTestCase {
         XCTAssertEqual(appState.status, .recording)
         XCTAssertEqual(spy.didStartCount, 1)
         XCTAssertTrue(spy.didFailErrors.isEmpty)
+    }
+
+    func testStartRecordingPreparesSelectedInputDevice() {
+        let selectedUID = "selected-input-\(UUID().uuidString)"
+        let preparedDeviceID: AudioDeviceID = 123
+        var preparedUIDs: [String?] = []
+        appState.selectedInputDeviceUID = selectedUID
+        controller = RecordingController(
+            audioRecorder: mock,
+            appState: appState,
+            prepareInputDeviceForRecording: { uid in
+                preparedUIDs.append(uid)
+                return preparedDeviceID
+            }
+        )
+        controller.delegate = spy
+
+        controller.startRecording()
+
+        XCTAssertEqual(preparedUIDs, [selectedUID])
+        XCTAssertEqual(mock.startRecordingDeviceID, preparedDeviceID)
+        XCTAssertEqual(mock.startRecordingCallCount, 1)
+        XCTAssertTrue(controller.isRecording)
     }
 
     // MARK: - testStartRecordingFailureSetsError

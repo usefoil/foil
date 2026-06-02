@@ -46,13 +46,19 @@ final class RecordingController {
 
     private let audioRecorder: any AudioRecording
     private let appState: AppState
+    private let prepareInputDeviceForRecording: (String?) -> AudioDeviceID?
     private var recordingTimer: Timer?
 
     // MARK: Init
 
-    init(audioRecorder: any AudioRecording, appState: AppState) {
+    init(
+        audioRecorder: any AudioRecording,
+        appState: AppState,
+        prepareInputDeviceForRecording: @escaping (String?) -> AudioDeviceID? = AudioRecorder.prepareInputDeviceForRecording
+    ) {
         self.audioRecorder = audioRecorder
         self.appState = appState
+        self.prepareInputDeviceForRecording = prepareInputDeviceForRecording
     }
 
     // MARK: - Public API
@@ -70,7 +76,7 @@ final class RecordingController {
         }
 
         do {
-            let deviceID = appState.selectedInputDeviceUID.flatMap { AudioRecorder.deviceID(forUID: $0) }
+            let deviceID = prepareInputDeviceForRecording(appState.selectedInputDeviceUID)
             try audioRecorder.startRecording(deviceID: deviceID)
             isRecording = true
             appState.setStatus(.recording)
