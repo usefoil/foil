@@ -55,7 +55,6 @@
 		71A87747EAF65AAA90597F35 /* RecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FF044A9D0CE6F2D31590EE /* RecordingController.swift */; };
 		71EC49010F5A173AD53D2801 /* RecordingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19A789B66746E17613A8CE0 /* RecordingFlowTests.swift */; };
 		73FDB731D5A5A0380A9B7775 /* TextInserterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D061EA95B4BF62DCC4985610 /* TextInserterTests.swift */; };
-		7520581DCD60DFEDD3D01BB8 /* RecordingStartCueSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ED457B52C02CBA8B68FD9FF /* RecordingStartCueSchedulerTests.swift */; };
 		75CA470A59822D5E262AD086 /* DiagnosticLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 247D187523C813DF31F5D304 /* DiagnosticLogTests.swift */; };
 		7693C29B2106FECE776E6316 /* UITestingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 759115F0BDA7323B04672F10 /* UITestingController.swift */; };
 		776833DCC10AC8B3CFFB405E /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27739EBB5DD5F75EE13FD4AD /* MenuBarView.swift */; };
@@ -75,7 +74,6 @@
 		9864DAA0A922F633A1E2A239 /* PasteController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF688548E089D77A4AB6B34 /* PasteController.swift */; };
 		9B6A5E8BCADDA3926CC653FF /* BackgroundPaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63800E9B4C1E795C7F2D685B /* BackgroundPaste.swift */; };
 		9C3D323F79A052130557ACC5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D904A4D7FBC8A395289FD4D /* SettingsView.swift */; };
-		9E22ECAB5F4A0056B945B409 /* RecordingStartCueScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E168B15923980F73738A2014 /* RecordingStartCueScheduler.swift */; };
 		A68B7F1749B5EF9BE449C5D7 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2885F1C7852F237A3ABB7279 /* AppState.swift */; };
 		A7E838C401BF31358D130982 /* AppBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97FF72B3615116DE220AE63E /* AppBrand.swift */; };
 		A8F8EFF34B0931D55AF5D356 /* ApiKeySetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A9C58EE9C1DC967B1D4A4B /* ApiKeySetupView.swift */; };
@@ -87,7 +85,6 @@
 		B8D7579ACE777842C06A05C4 /* RecordingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FF044A9D0CE6F2D31590EE /* RecordingController.swift */; };
 		BB16CEA2564E8085D975CEE6 /* SingleInstanceGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E5EFD290B27002668218ED0 /* SingleInstanceGuardTests.swift */; };
 		BE823D06D669BCA2449B6E91 /* DiagnosticLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA4E42A3A13141C49DB3F43E /* DiagnosticLog.swift */; };
-		C34731BDAF7D4FA5C8C8BD07 /* RecordingStartCueScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E168B15923980F73738A2014 /* RecordingStartCueScheduler.swift */; };
 		C47613979CF524B00B0CCA77 /* SparkleUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = C02331A44FD06601D6F29F2F /* SparkleUpdater.swift */; };
 		C5B9851BF2E4346B398CB506 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D6496BC0C8BD3B667D8AA3D /* main.swift */; };
 		C64FB5CA697C6F37774A01D5 /* AppBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97FF72B3615116DE220AE63E /* AppBrand.swift */; };
@@ -149,7 +146,6 @@
 		060256614A30FE900FF0B56C /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
 		0662D2B02AF9975FC2DBE4C3 /* QueuedPaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedPaste.swift; sourceTree = "<group>"; };
 		0B52597228CF4C951BABAF82 /* TranscriptionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionServiceTests.swift; sourceTree = "<group>"; };
-		0ED457B52C02CBA8B68FD9FF /* RecordingStartCueSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingStartCueSchedulerTests.swift; sourceTree = "<group>"; };
 		0F644DBBB77DAB1C03598705 /* HotkeyMonitorCustomKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorCustomKeyTests.swift; sourceTree = "<group>"; };
 		14AA97DF6B90EC3374D3B78A /* HotkeyMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorTests.swift; sourceTree = "<group>"; };
 		15B65C34070D4A68AFD60993 /* BluetoothMicGuidance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothMicGuidance.swift; sourceTree = "<group>"; };
@@ -211,7 +207,6 @@
 		D9BB66A4B3E8AD515CC8EC6E /* FoilE2E */ = {isa = PBXFileReference; includeInIndex = 0; path = FoilE2E; sourceTree = BUILT_PRODUCTS_DIR; };
 		D9F549666C526DB70503ABC3 /* SkyLightBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyLightBridge.swift; sourceTree = "<group>"; };
 		DCD24BC4DA47443BC721760E /* BrowserMediaController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserMediaController.swift; sourceTree = "<group>"; };
-		E168B15923980F73738A2014 /* RecordingStartCueScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingStartCueScheduler.swift; sourceTree = "<group>"; };
 		E5A9C58EE9C1DC967B1D4A4B /* ApiKeySetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiKeySetupView.swift; sourceTree = "<group>"; };
 		E803837FB3EA2A22B2B8B39B /* TranscriptProcessingMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptProcessingMode.swift; sourceTree = "<group>"; };
 		EC0BDAD55705426A125BC56B /* TextInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInserter.swift; sourceTree = "<group>"; };
@@ -270,7 +265,6 @@
 				AE7BE63282F7FF5CBC7D3CB7 /* QueuedPasteTests.swift */,
 				710C8E6E5101787B41092605 /* RecordingControllerTests.swift */,
 				D19A789B66746E17613A8CE0 /* RecordingFlowTests.swift */,
-				0ED457B52C02CBA8B68FD9FF /* RecordingStartCueSchedulerTests.swift */,
 				1E5EFD290B27002668218ED0 /* SingleInstanceGuardTests.swift */,
 				97B66DA84CC88798DC6D35C2 /* SkyLightBridgeTests.swift */,
 				ED61CBC7DBA1CAC18EAB2E1B /* SoundPlayerTests.swift */,
@@ -356,7 +350,6 @@
 				2C9A0B9D7199D81E3EDD2D94 /* PasteTarget.swift */,
 				0662D2B02AF9975FC2DBE4C3 /* QueuedPaste.swift */,
 				63FF044A9D0CE6F2D31590EE /* RecordingController.swift */,
-				E168B15923980F73738A2014 /* RecordingStartCueScheduler.swift */,
 				5D904A4D7FBC8A395289FD4D /* SettingsView.swift */,
 				6A427A267FEC1552AF780F77 /* SingleInstanceGuard.swift */,
 				D9F549666C526DB70503ABC3 /* SkyLightBridge.swift */,
@@ -560,7 +553,6 @@
 				2FD5A6D72A2ED7911D732BAB /* PasteTarget.swift in Sources */,
 				70A84AF338A09D22CCA99462 /* QueuedPaste.swift in Sources */,
 				B8D7579ACE777842C06A05C4 /* RecordingController.swift in Sources */,
-				C34731BDAF7D4FA5C8C8BD07 /* RecordingStartCueScheduler.swift in Sources */,
 				D3430213DB2C6BB19CBFB9AE /* SettingsView.swift in Sources */,
 				2D9054D3894DD2578C5568D3 /* SingleInstanceGuard.swift in Sources */,
 				D067B5E430A4CADCCB027370 /* SkyLightBridge.swift in Sources */,
@@ -621,7 +613,6 @@
 				F4AE4905E4BD73EE290149E1 /* QueuedPasteTests.swift in Sources */,
 				E7EACF73F60DD83D02D3402A /* RecordingControllerTests.swift in Sources */,
 				71EC49010F5A173AD53D2801 /* RecordingFlowTests.swift in Sources */,
-				7520581DCD60DFEDD3D01BB8 /* RecordingStartCueSchedulerTests.swift in Sources */,
 				BB16CEA2564E8085D975CEE6 /* SingleInstanceGuardTests.swift in Sources */,
 				F8DC1FE1A420CFC6B3BB5A22 /* SkyLightBridgeTests.swift in Sources */,
 				36D84C1EC03B75D46F44CC3D /* SoundPlayerTests.swift in Sources */,
@@ -663,7 +654,6 @@
 				E2473C93C909734E0A3FB53C /* PasteTarget.swift in Sources */,
 				32CC4E3E4AE3C3C87E81BEE6 /* QueuedPaste.swift in Sources */,
 				71A87747EAF65AAA90597F35 /* RecordingController.swift in Sources */,
-				9E22ECAB5F4A0056B945B409 /* RecordingStartCueScheduler.swift in Sources */,
 				9C3D323F79A052130557ACC5 /* SettingsView.swift in Sources */,
 				E706E6A6FD6EC6B40FA0E59B /* SingleInstanceGuard.swift in Sources */,
 				5FB3FD6E5C9097384B00C580 /* SkyLightBridge.swift in Sources */,
