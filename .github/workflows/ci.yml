@@ -271,6 +271,7 @@ jobs:
             -only-testing:FoilUITests/FoilUITests/testFloatingStatusIsDisabledByDefault \
             -only-testing:FoilUITests/FoilUITests/testMovedPreferencesLiveInSettingsPanes \
             -only-testing:FoilUITests/FoilUITests/testCustomHotkeyRecorderIsAccessibleButton \
+            -only-testing:FoilUITests/FoilUITests/testSelectedStartCueIsUsedBeforeRecorderStarts \
             -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL \
             -resultBundlePath UITestResults.xcresult \
             | xcpretty --color && exit ${PIPESTATUS[0]}
