@@ -98,8 +98,9 @@ button {
 
 a:focus-visible,
 button:focus-visible {
-  outline: 3px solid rgb(215 154 61 / 70%);
-  outline-offset: 4px;
+  outline: 2px solid white;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 5px var(--teal-deep);
 }
 
 .hero {
@@ -542,6 +543,10 @@ kbd {
   background: #edf0e8;
   color: var(--teal);
   box-shadow: inset 0 0 0 1px rgb(15 91 82 / 8%);
+}
+
+.feature-icon.keycap {
+  font: 760 1.08rem ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .feature-icon svg {
