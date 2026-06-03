@@ -341,6 +341,7 @@ struct SettingsView: View {
         Form {
             Picker("Provider", selection: $appState.selectedTranscriptionProviderPresetID) {
                 Text("Groq").tag(TranscriptionProviderPresetID.groq)
+                Text("OpenAI Whisper").tag(TranscriptionProviderPresetID.openAIWhisper)
                 Text("Local whisper.cpp").tag(TranscriptionProviderPresetID.localWhisperCPP)
                 Text("Custom OpenAI-compatible").tag(TranscriptionProviderPresetID.customOpenAICompatible)
             }
@@ -393,6 +394,14 @@ struct SettingsView: View {
                         Text("Large V3 Turbo").tag("whisper-large-v3-turbo")
                         Text("Large V3").tag("whisper-large-v3")
                     }
+                } else if appState.selectedTranscriptionProviderPresetID == .openAIWhisper {
+                    LabeledContent("Base URL", value: "https://api.openai.com/v1")
+                    LabeledContent("Model", value: "whisper-1")
+                    Text("Audio is sent to OpenAI's cloud transcription endpoint using your OpenAI API key.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.openAIProviderHelp")
                 } else if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
                     LabeledContent("Base URL", value: "http://127.0.0.1:8080/v1")
                     LabeledContent("Model", value: "whisper-1")
@@ -470,7 +479,7 @@ struct SettingsView: View {
         switch appState.selectedTranscriptionProviderPresetID {
         case .groq:
             [.groq, .none, .customOpenAICompatibleChat]
-        case .localWhisperCPP, .customOpenAICompatible:
+        case .openAIWhisper, .localWhisperCPP, .customOpenAICompatible:
             [.none, .customOpenAICompatibleChat]
         }
     }
@@ -535,6 +544,8 @@ struct SettingsView: View {
         switch appState.selectedTranscriptionProviderPresetID {
         case .groq:
             "Audio is sent to Groq for transcription. Optional cleanup uses Groq chat models when enabled."
+        case .openAIWhisper:
+            "Audio is sent to OpenAI for Whisper transcription. Cleanup is off unless you choose a separate custom chat endpoint."
         case .localWhisperCPP:
             "Audio stays on this Mac when whisper.cpp is running at the local 127.0.0.1 endpoint shown below."
         case .customOpenAICompatible:
@@ -708,6 +719,8 @@ struct SettingsView: View {
         switch appState.selectedTranscriptionProviderPresetID {
         case .localWhisperCPP:
             "Start the local whisper-server first. If the test cannot reach it, copy the Start server command below and run it in Terminal."
+        case .openAIWhisper:
+            "Use Add API Key to save and test your OpenAI key before recording."
         case .customOpenAICompatible:
             "Use Test connection after changing the base URL or model. The server must expose /v1/audio/transcriptions."
         case .groq:

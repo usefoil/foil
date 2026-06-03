@@ -419,6 +419,21 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
     }
 
+    func testProviderQAOpenAIWhisperPresetShowsCloudSettings() {
+        launchForProviderQA(extraArguments: ["--seed-openai-provider"])
+        openTranscriptionSettingsPanel()
+
+        assertProviderPickerExists()
+        XCTAssertTrue((providerPicker.value as? String) == "OpenAI Whisper" || app.staticTexts["OpenAI Whisper"].exists, app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Audio is sent to OpenAI for Whisper transcription").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("OpenAI Whisper API key").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["https://api.openai.com/v1"].exists || staticTextContaining("api.openai.com/v1").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["whisper-1"].exists || staticTextContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Audio is sent to OpenAI's cloud transcription endpoint").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(customBaseURLField.exists)
+        XCTAssertFalse(providerConnectionButton().exists)
+    }
+
     func testProviderQALocalWhisperPresetShowsExpectedSettings() {
         launchForProviderQA(extraArguments: ["--seed-local-provider"])
         openTranscriptionSettingsPanel()
@@ -798,13 +813,14 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(result.contains("bytes=0"), "Live microphone smoke captured no audio:\n\(result)")
     }
 
-    // MARK: - E2E Transcription (requires GROQ_API_KEY)
+    // MARK: - E2E Transcription (requires provider API key)
 
     func testE2ETranscription() throws {
         let env = ProcessInfo.processInfo.environment
+        let isOpenAIE2E = env["E2E_TRANSCRIPTION_PROVIDER"] == "openai"
         let isOpenAICompatibleE2E = env["E2E_TRANSCRIPTION_PROVIDER"] == "openai-compatible"
         let apiKey: String
-        if isOpenAICompatibleE2E {
+        if isOpenAIE2E || isOpenAICompatibleE2E {
             apiKey = env["E2E_API_KEY"] ?? "local"
         } else if let envKey = env["GROQ_API_KEY"], !envKey.isEmpty {
             apiKey = envKey
@@ -820,7 +836,10 @@ final class FoilUITests: XCTestCase {
         try? FileManager.default.removeItem(atPath: resultPath)
 
         var environment = ["E2E_API_KEY": apiKey]
-        if isOpenAICompatibleE2E {
+        if isOpenAIE2E {
+            environment["E2E_TRANSCRIPTION_PROVIDER"] = "openai"
+            environment["E2E_TRANSCRIPTION_MODEL"] = env["E2E_TRANSCRIPTION_MODEL"] ?? "whisper-1"
+        } else if isOpenAICompatibleE2E {
             environment["E2E_TRANSCRIPTION_PROVIDER"] = "openai-compatible"
             environment["E2E_TRANSCRIPTION_BASE_URL"] = env["E2E_TRANSCRIPTION_BASE_URL"] ?? "http://127.0.0.1:8080/v1"
             environment["E2E_TRANSCRIPTION_MODEL"] = env["E2E_TRANSCRIPTION_MODEL"] ?? "whisper-1"

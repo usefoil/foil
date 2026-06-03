@@ -252,6 +252,10 @@ final class UITestingController {
             appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         }
 
+        if args.contains("--seed-openai-provider") {
+            appState.selectedTranscriptionProviderPresetID = .openAIWhisper
+        }
+
         if args.contains("--seed-invalid-custom-provider") {
             appState.selectedTranscriptionProviderPresetID = .customOpenAICompatible
             appState.customTranscriptionBaseURL = "file:///tmp/whisper"
@@ -374,6 +378,13 @@ final class UITestingController {
 
     private func configureE2EProviderOverrides() {
         let env = ProcessInfo.processInfo.environment
+        if env["E2E_TRANSCRIPTION_PROVIDER"] == TranscriptionProviderID.openAI.rawValue {
+            appState.selectedTranscriptionProviderID = .openAI
+            appState.apiKeyState = .ready
+            DiagnosticLog.write("E2E: provider=openai model=\(appState.selectedTranscriptionModel)")
+            return
+        }
+
         if env["E2E_TRANSCRIPTION_PROVIDER"] == TranscriptionProviderID.openAICompatible.rawValue {
             appState.selectedTranscriptionProviderID = .openAICompatible
             appState.customTranscriptionBaseURL = env["E2E_TRANSCRIPTION_BASE_URL"] ?? appState.customTranscriptionBaseURL
@@ -891,6 +902,8 @@ final class UITestingController {
         let command = notification.userInfo?["command"] as? String ?? "<missing>"
         DiagnosticLog.write("UITesting: received app command=\(command)")
         switch command {
+        case "selectOpenAIProvider":
+            appState.selectedTranscriptionProviderPresetID = .openAIWhisper
         case "selectLocalProvider":
             appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         case "testProviderConnection":

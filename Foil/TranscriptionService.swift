@@ -8,6 +8,7 @@ extension URLSession: TranscriptionTransport {}
 
 enum TranscriptionProviderID: String, CaseIterable, Identifiable {
     case groq
+    case openAI = "openai"
     case openAICompatible = "openai-compatible"
 
     var id: String { rawValue }
@@ -16,6 +17,8 @@ enum TranscriptionProviderID: String, CaseIterable, Identifiable {
         switch self {
         case .groq:
             "Groq"
+        case .openAI:
+            "OpenAI"
         case .openAICompatible:
             "OpenAI-compatible"
         }
@@ -24,6 +27,7 @@ enum TranscriptionProviderID: String, CaseIterable, Identifiable {
 
 enum TranscriptionProviderPresetID: String, CaseIterable, Identifiable {
     case groq
+    case openAIWhisper = "openai-whisper"
     case localWhisperCPP = "local-whisper-cpp"
     case customOpenAICompatible = "custom-openai-compatible"
 
@@ -62,6 +66,17 @@ struct TranscriptionProviderPreset: Equatable, Identifiable {
         isEditable: false
     )
 
+    static let openAIWhisper = TranscriptionProviderPreset(
+        id: .openAIWhisper,
+        displayName: "OpenAI Whisper",
+        providerID: .openAI,
+        baseURL: URL(string: "https://api.openai.com/v1")!,
+        model: "whisper-1",
+        requiresAPIKey: true,
+        supportsTranscriptProcessing: false,
+        isEditable: false
+    )
+
     static func customOpenAICompatible(baseURL: URL?, model: String) -> TranscriptionProviderPreset {
         TranscriptionProviderPreset(
             id: .customOpenAICompatible,
@@ -79,6 +94,8 @@ struct TranscriptionProviderPreset: Equatable, Identifiable {
         switch id {
         case .groq:
             groq
+        case .openAIWhisper:
+            openAIWhisper
         case .localWhisperCPP:
             localWhisperCPP
         case .customOpenAICompatible:
@@ -104,6 +121,16 @@ struct TranscriptionProvider: Equatable {
         requiresAPIKey: true,
         supportsModelValidation: true,
         supportsTranscriptProcessing: true
+    )
+
+    static let openAIWhisper = TranscriptionProvider(
+        id: .openAI,
+        displayName: "OpenAI Whisper",
+        baseURL: URL(string: "https://api.openai.com/v1")!,
+        transcriptionModel: "whisper-1",
+        requiresAPIKey: true,
+        supportsModelValidation: true,
+        supportsTranscriptProcessing: false
     )
 
     static func openAICompatible(

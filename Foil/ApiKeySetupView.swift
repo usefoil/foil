@@ -26,7 +26,7 @@ struct ApiKeySetupView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            SecureField(provider.id == .groq ? "gsk_..." : "API key", text: $apiKey)
+            SecureField(apiKeyPlaceholder, text: $apiKey)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 320)
                 .accessibilityLabel("\(provider.displayName) API Key")
@@ -57,8 +57,8 @@ struct ApiKeySetupView: View {
             }
 
             HStack {
-                if provider.id == .groq, let groqKeysURL = URL(string: "https://console.groq.com/keys") {
-                    Link("Get API Key", destination: groqKeysURL)
+                if let apiKeyURL {
+                    Link("Get API Key", destination: apiKeyURL)
                         .font(.caption)
                         .accessibilityIdentifier("apiKeySetup.getKeyLink")
                 }
@@ -154,6 +154,28 @@ struct ApiKeySetupView: View {
             "\(provider.displayName) validation timed out. You can save anyway and test later."
         default:
             "Could not validate key: \(error.localizedDescription)"
+        }
+    }
+
+    private var apiKeyPlaceholder: String {
+        switch provider.id {
+        case .groq:
+            "gsk_..."
+        case .openAI:
+            "sk-..."
+        case .openAICompatible:
+            "API key"
+        }
+    }
+
+    private var apiKeyURL: URL? {
+        switch provider.id {
+        case .groq:
+            URL(string: "https://console.groq.com/keys")
+        case .openAI:
+            URL(string: "https://platform.openai.com/api-keys")
+        case .openAICompatible:
+            nil
         }
     }
 }

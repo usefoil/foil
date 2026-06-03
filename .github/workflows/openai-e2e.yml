@@ -1,0 +1,50 @@
+name: E2E OpenAI API Tests
+
+on:
+  merge_group:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '30 6 * * 1'  # Weekly on Monday at 6:30am UTC
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-tests:
+    name: Live OpenAI API Tests
+    runs-on: macos-15
+    timeout-minutes: 15
+    # Don't run on forks (no access to secrets)
+    if: github.repository == 'mean-weasel/foil'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
+
+      - name: Run live OpenAI CLI E2E
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          E2E_TRANSCRIPTION_TIMEOUT_SECONDS: "90"
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::warning::OPENAI_API_KEY secret not set — skipping OpenAI E2E tests"
+            exit 0
+          fi
+
+          make test-live-openai
+
+      - name: Run live OpenAI app E2E
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          E2E_TRANSCRIPTION_TIMEOUT_SECONDS: "90"
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::warning::OPENAI_API_KEY secret not set — skipping OpenAI app E2E test"
+            exit 0
+          fi
+
+          make test-live-openai-provider-qa

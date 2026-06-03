@@ -127,6 +127,7 @@ struct OnboardingView: View {
 
             Picker("Provider", selection: $appState.selectedTranscriptionProviderPresetID) {
                 Text("Groq").tag(TranscriptionProviderPresetID.groq)
+                Text("OpenAI Whisper").tag(TranscriptionProviderPresetID.openAIWhisper)
                 Text("Local whisper.cpp").tag(TranscriptionProviderPresetID.localWhisperCPP)
                 Text("Custom OpenAI-compatible").tag(TranscriptionProviderPresetID.customOpenAICompatible)
             }
@@ -166,8 +167,8 @@ struct OnboardingView: View {
                 .buttonStyle(.borderedProminent)
                 .accessibilityIdentifier("onboarding.addApiKeyButton")
 
-                if let url = URL(string: "https://console.groq.com/keys") {
-                    Link("Get a free API key at console.groq.com", destination: url)
+                if let url = apiKeyURL {
+                    Link(apiKeyLinkText, destination: url)
                         .font(.caption)
                 }
             } else {
@@ -273,6 +274,8 @@ struct OnboardingView: View {
         switch appState.selectedTranscriptionProviderPresetID {
         case .groq:
             "Audio is sent to Groq for Whisper transcription. Cleanup can use Groq chat models when enabled."
+        case .openAIWhisper:
+            "Audio is sent to OpenAI for Whisper transcription. Cleanup stays off unless you choose a separate cleanup endpoint later."
         case .localWhisperCPP:
             "Audio stays on this Mac when your whisper.cpp server is running at 127.0.0.1."
         case .customOpenAICompatible:
@@ -294,6 +297,8 @@ struct OnboardingView: View {
         switch appState.selectedTranscriptionProviderPresetID {
         case .localWhisperCPP:
             return "Local whisper.cpp does not need a Groq key. Start the local server, then use Settings to test the connection."
+        case .openAIWhisper:
+            return "OpenAI Whisper needs an OpenAI API key. Save and test your key, then Foil can send recordings to OpenAI for transcription."
         case .customOpenAICompatible:
             return "Custom OpenAI-compatible servers can run without a key when the server allows it. Configure the endpoint in Settings."
         case .groq:
@@ -305,6 +310,28 @@ struct OnboardingView: View {
         appState.selectedTranscriptionProvider.requiresAPIKey
             ? "API key saved"
             : "No API key required"
+    }
+
+    private var apiKeyURL: URL? {
+        switch appState.selectedTranscriptionProviderID {
+        case .groq:
+            URL(string: "https://console.groq.com/keys")
+        case .openAI:
+            URL(string: "https://platform.openai.com/api-keys")
+        case .openAICompatible:
+            nil
+        }
+    }
+
+    private var apiKeyLinkText: String {
+        switch appState.selectedTranscriptionProviderID {
+        case .groq:
+            "Get a free API key at console.groq.com"
+        case .openAI:
+            "Create an OpenAI API key"
+        case .openAICompatible:
+            "API key"
+        }
     }
 
     @ViewBuilder

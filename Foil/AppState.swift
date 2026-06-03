@@ -151,9 +151,7 @@ final class AppState {
             Self.defaults.set(selectedTranscriptionProviderID.rawValue, forKey: "transcriptionProvider")
             guard !isSynchronizingProviderSelection else { return }
             isSynchronizingProviderSelection = true
-            selectedTranscriptionProviderPresetID = selectedTranscriptionProviderID == .groq
-                ? .groq
-                : .customOpenAICompatible
+            selectedTranscriptionProviderPresetID = Self.defaultPresetID(for: selectedTranscriptionProviderID)
             isSynchronizingProviderSelection = false
             syncCleanupProviderWithTranscriptionPreset()
             resetProviderConnectionTest()
@@ -322,6 +320,8 @@ final class AppState {
         switch selectedTranscriptionProviderPresetID {
         case .groq:
             return .groq
+        case .openAIWhisper:
+            return .openAIWhisper
         case .localWhisperCPP:
             return .localWhisperCPP
         case .customOpenAICompatible:
@@ -346,6 +346,8 @@ final class AppState {
                 supportsTranscriptProcessing: provider.supportsTranscriptProcessing
             )
             return provider
+        case .openAIWhisper:
+            return .openAIWhisper
         case .localWhisperCPP:
             let preset = TranscriptionProviderPreset.localWhisperCPP
             return .openAICompatible(
@@ -845,7 +847,7 @@ final class AppState {
            let preset = TranscriptionProviderPresetID(rawValue: rawPreset) {
             persistedPresetID = preset
         } else {
-            persistedPresetID = persistedProviderID == .groq ? .groq : .customOpenAICompatible
+            persistedPresetID = Self.defaultPresetID(for: persistedProviderID)
         }
         isSynchronizingProviderSelection = true
         selectedTranscriptionProviderID = persistedProviderID
@@ -884,6 +886,17 @@ final class AppState {
         selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
         isSynchronizingProviderSelection = false
         syncCleanupProviderWithTranscriptionPreset()
+    }
+
+    private static func defaultPresetID(for providerID: TranscriptionProviderID) -> TranscriptionProviderPresetID {
+        switch providerID {
+        case .groq:
+            .groq
+        case .openAI:
+            .openAIWhisper
+        case .openAICompatible:
+            .customOpenAICompatible
+        }
     }
 
     private func syncCleanupProviderWithTranscriptionPreset() {
@@ -1071,6 +1084,8 @@ final class AppState {
         switch selectedTranscriptionProviderPresetID {
         case .localWhisperCPP:
             "Could not reach Local whisper.cpp. Start whisper-server on 127.0.0.1:8080 and try again."
+        case .openAIWhisper:
+            "Could not reach OpenAI. Check your network connection."
         case .customOpenAICompatible:
             "Could not reach Custom OpenAI-compatible. Check the base URL, server status, and network access."
         case .groq:
