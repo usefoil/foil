@@ -81,6 +81,16 @@ make_shims() {
 
   cat >"$shim_dir/codesign" <<'SH'
 #!/bin/bash
+if printf '%s\n' "$*" | grep -Fq -- "--verify"; then
+  app_path="${@: -1}"
+  if [ "${CODESIGN_VERIFY_RESULT:-pass}" = "fail" ]; then
+    echo "$app_path: invalid signature (code or signature have been modified)" >&2
+    exit 1
+  fi
+  echo "$app_path: valid on disk" >&2
+  echo "$app_path: satisfies its Designated Requirement" >&2
+  exit 0
+fi
 identifier="${SIGNED_IDENTIFIER:-com.neonwatty.Foil}"
 echo "Identifier=$identifier" >&2
 if [ "${INCLUDE_AUTHORITY:-yes}" = "yes" ]; then
@@ -173,6 +183,7 @@ expect_success() {
   assert_contains "$output" "bundle version is 1.12.0"
   assert_contains "$output" "bundle build is 42"
   assert_contains "$output" "codesign identifier matches bundle id: com.neonwatty.Foil"
+  assert_contains "$output" "deep strict codesign verification passed"
   assert_contains "$output" "NSMicrophoneUsageDescription is present"
   assert_contains "$output" "macOS does not allow scripts to silently grant"
   assert_not_contains "$output" "forbidden command called"
@@ -191,6 +202,24 @@ expect_identifier_mismatch_failure() {
     fail "identifier mismatch check unexpectedly succeeded"
   fi
   assert_contains "$output" "signed identifier 'com.example.Other' does not match bundle id 'com.neonwatty.Foil'"
+  assert_contains "$output" "Result: failed"
+}
+
+expect_invalid_signature_failure() {
+  local name="invalid-signature"
+  local app_path="$TMP_ROOT/$name/Foil.app"
+  local shim_dir="$TMP_ROOT/$name/shims"
+  local output="$TMP_ROOT/$name/output.txt"
+  mkdir -p "$TMP_ROOT/$name"
+  make_fixture_app "$app_path"
+  make_shims "$shim_dir" 1
+
+  if run_check "$app_path" "$shim_dir" "$output" CODESIGN_VERIFY_RESULT="fail"; then
+    fail "invalid signature check unexpectedly succeeded"
+  fi
+  assert_contains "$output" "invalid signature (code or signature have been modified)"
+  assert_contains "$output" "deep strict codesign verification failed"
+  assert_contains "$output" "reinstall or rebuild Foil before changing privacy toggles"
   assert_contains "$output" "Result: failed"
 }
 
@@ -240,8 +269,8 @@ expect_running_warning() {
   assert_contains "$output" "Result: passed with 1 warning(s)."
 }
 
-expect_running_wrong_app_warning() {
-  local name="running-wrong-app-warning"
+expect_running_wrong_app_failure() {
+  local name="running-wrong-app-failure"
   local app_path="$TMP_ROOT/$name/Foil.app"
   local shim_dir="$TMP_ROOT/$name/shims"
   local output="$TMP_ROOT/$name/output.txt"
@@ -249,9 +278,12 @@ expect_running_wrong_app_warning() {
   make_fixture_app "$app_path"
   make_shims "$shim_dir" 0
 
-  run_check "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="/tmp/DerivedData/Foil.app/Contents/MacOS/Foil"
-  assert_contains "$output" "warning: Foil is running from a different path than the installed app"
-  assert_contains "$output" "Result: passed with 1 warning(s)."
+  if run_check "$app_path" "$shim_dir" "$output" RUNNING_APP_ARGS="/tmp/DerivedData/Foil.app/Contents/MacOS/Foil"; then
+    fail "wrong running app check unexpectedly succeeded"
+  fi
+  assert_contains "$output" "Foil is running from a different path than the installed app"
+  assert_contains "$output" "quit it before permission QA"
+  assert_contains "$output" "Result: failed"
 }
 
 expect_guide_installed_opens_panes_and_launches() {
@@ -318,10 +350,11 @@ SH
 
 expect_success "success"
 expect_identifier_mismatch_failure
+expect_invalid_signature_failure
 expect_missing_microphone_failure
 expect_missing_executable_failure
 expect_running_warning
-expect_running_wrong_app_warning
+expect_running_wrong_app_failure
 expect_guide_installed_opens_panes_and_launches
 expect_guide_installed_rejects_wrong_running_app
 
