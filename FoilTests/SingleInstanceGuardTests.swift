@@ -112,6 +112,42 @@ final class SingleInstanceGuardTests: XCTestCase {
         )
     }
 
+    func testReleaseE2ETranscriptionSmokeRequiresExplicitGate() {
+        #if DEBUG
+        XCTAssertTrue(
+            AppDelegate.isE2ETranscriptionSmokeProcess(
+                arguments: ["/Applications/Foil.app/Contents/MacOS/Foil", "--e2e-transcribe"],
+                environment: [:]
+            ),
+            "Debug E2E launches keep the existing test behavior"
+        )
+        #else
+        XCTAssertFalse(
+            AppDelegate.isE2ETranscriptionSmokeProcess(
+                arguments: ["/Applications/Foil.app/Contents/MacOS/Foil", "--e2e-transcribe"],
+                environment: [:]
+            ),
+            "Release E2E smoke should require an explicit environment gate"
+        )
+        XCTAssertTrue(
+            AppDelegate.isE2ETranscriptionSmokeProcess(
+                arguments: ["/Applications/Foil.app/Contents/MacOS/Foil", "--e2e-transcribe"],
+                environment: ["E2E_ALLOW_RELEASE_APP_SMOKE": "1"]
+            )
+        )
+        #endif
+    }
+
+    func testE2ETranscriptionSmokeBypassesSingleInstanceGuardWhenGateAllows() {
+        XCTAssertFalse(
+            AppDelegate.shouldRunSingleInstanceGuard(
+                arguments: ["/Applications/Foil.app/Contents/MacOS/Foil", "--e2e-transcribe"],
+                environment: ["E2E_ALLOW_RELEASE_APP_SMOKE": "1"]
+            ),
+            "installed-app E2E smoke launches must not be diverted into an already-running app"
+        )
+    }
+
     func testUITestingStillBypassesSingleInstanceGuard() {
         XCTAssertFalse(
             AppDelegate.shouldRunSingleInstanceGuard(

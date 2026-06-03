@@ -33,7 +33,7 @@ APP_BUILD_VERSION := $(shell sed -n 's/.*CURRENT_PROJECT_VERSION = \([^;]*\);.*/
 LIVE_GROQ_TEST_CLASS := FoilTests/LiveGroqIntegrationTests
 DEFAULT_UNIT_TEST_FILTERS := -only-testing:FoilTests -skip-testing:$(LIVE_GROQ_TEST_CLASS)
 
-.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-dev build-warnings-as-errors unlock-local-signing-keychain run run-dev start start-dev stop stop-dev restart restart-dev install install-dev uninstall uninstall-dev clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-openai test-live-openai-provider-qa test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real test-paste-real-installed test-queued-paste-compatibility test-production-queued-paste-compatibility qa-paste prepare-local-permissions-qa prepare-local-permissions-dev-qa prepare-local-permissions-qa-check prepare-local-permissions-dev-qa-check check-production-permissions-cask guide-production-permissions-qa production-permissions-evidence-template guide-installed-permissions-qa guide-installed-dev-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
+.PHONY: setup-local-signing setup-release-secrets prepare-release enable-xctest-developer-mode build build-dev build-warnings-as-errors unlock-local-signing-keychain run run-dev start start-dev stop stop-dev restart restart-dev install install-dev uninstall uninstall-dev clean test test-ui test-ui-diagnostics test-provider-qa test-provider-qa-live test-live-groq test-live-openai test-live-openai-installed test-live-openai-provider-qa test-live-transcription-e2e-cli test-local-transcription-e2e test-microphone-live test-cross-app test-app-smoke test-paste-real test-paste-real-installed test-queued-paste-compatibility test-production-queued-paste-compatibility qa-paste prepare-local-permissions-qa prepare-local-permissions-dev-qa prepare-local-permissions-qa-check prepare-local-permissions-dev-qa-check check-production-permissions-cask guide-production-permissions-qa production-permissions-evidence-template guide-installed-permissions-qa guide-installed-dev-permissions-qa test-local-permissions-qa-script test-cleanup-quality qa qa-ci qa-local
 
 setup-local-signing:
 	LOCAL_SIGN_KEYCHAIN_PASSWORD="$(LOCAL_SIGN_KEYCHAIN_PASSWORD)" scripts/setup-local-signing.sh
@@ -212,6 +212,9 @@ test-live-openai:
 	E2E_TRANSCRIPTION_MODEL=whisper-1 \
 	E2E_API_KEY="$${OPENAI_API_KEY}" \
 	CONFIG="$(CONFIG)" scripts/run-live-transcription-e2e-cli.sh
+
+test-live-openai-installed:
+	scripts/run-installed-openai-transcription-smoke.sh
 
 test-live-openai-provider-qa:
 	SCHEME="$(SCHEME)" CONFIG="$(CONFIG)" scripts/run-live-openai-provider-qa-xcuitest.sh

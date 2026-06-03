@@ -47,6 +47,7 @@
 		516896CBD235F4B2137ADB13 /* E2EAudioStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = C37D2018A3060BAA54FEAD5F /* E2EAudioStub.swift */; };
 		57829234426F8D50B2FEDB96 /* DiagnosticLogStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62595565EB935349AA70F47C /* DiagnosticLogStub.swift */; };
 		5FB3FD6E5C9097384B00C580 /* SkyLightBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F549666C526DB70503ABC3 /* SkyLightBridge.swift */; };
+		3A83A77BBE718491D64FE453 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6637C11AAC071D6F27D7BF7E /* ReleaseNotes.swift */; };
 		603F4806C884C5B13B3DC3CD /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB41DD58AA1309C57DBB8BE /* AudioRecorder.swift */; };
 		6E188014C7882845ECD1BE40 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CB837E3BE88277ED2418E47 /* AppStateTests.swift */; };
 		6E1C6943977DA247E65EC991 /* TranscriptionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF4CFADF300FD952BFC5CD88 /* TranscriptionController.swift */; };
@@ -107,6 +108,7 @@
 		D8A78606C66A2F1F500D126B /* SoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C99484E73592AE472A500E /* SoundPlayer.swift */; };
 		E2473C93C909734E0A3FB53C /* PasteTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C9A0B9D7199D81E3EDD2D94 /* PasteTarget.swift */; };
 		E2CD278A59C28CE3844EEF03 /* KeychainHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7358519F3E2A6769C352793 /* KeychainHelperTests.swift */; };
+		E5B97E05D4728AB441B282F9 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6637C11AAC071D6F27D7BF7E /* ReleaseNotes.swift */; };
 		E531CB6EA49B3A38453B638B /* PasteControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49DB8D4D6B7735FCE2DF633D /* PasteControllerTests.swift */; };
 		E706E6A6FD6EC6B40FA0E59B /* SingleInstanceGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A427A267FEC1552AF780F77 /* SingleInstanceGuard.swift */; };
 		E7EACF73F60DD83D02D3402A /* RecordingControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 710C8E6E5101787B41092605 /* RecordingControllerTests.swift */; };
@@ -165,6 +167,7 @@
 		4EB32DEAE315506B29398AC5 /* HotkeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitor.swift; sourceTree = "<group>"; };
 		5D6496BC0C8BD3B667D8AA3D /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		5D904A4D7FBC8A395289FD4D /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		6637C11AAC071D6F27D7BF7E /* ReleaseNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseNotes.swift; sourceTree = "<group>"; };
 		62595565EB935349AA70F47C /* DiagnosticLogStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogStub.swift; sourceTree = "<group>"; };
 		63800E9B4C1E795C7F2D685B /* BackgroundPaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundPaste.swift; sourceTree = "<group>"; };
 		63FF044A9D0CE6F2D31590EE /* RecordingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingController.swift; sourceTree = "<group>"; };
@@ -349,6 +352,7 @@
 				D11974CC7B6FB91A6995E96E /* PasteQueue.swift */,
 				2C9A0B9D7199D81E3EDD2D94 /* PasteTarget.swift */,
 				0662D2B02AF9975FC2DBE4C3 /* QueuedPaste.swift */,
+				6637C11AAC071D6F27D7BF7E /* ReleaseNotes.swift */,
 				63FF044A9D0CE6F2D31590EE /* RecordingController.swift */,
 				5D904A4D7FBC8A395289FD4D /* SettingsView.swift */,
 				6A427A267FEC1552AF780F77 /* SingleInstanceGuard.swift */,
@@ -552,6 +556,7 @@
 				7893CE31BB38390F51CC7264 /* PasteQueue.swift in Sources */,
 				2FD5A6D72A2ED7911D732BAB /* PasteTarget.swift in Sources */,
 				70A84AF338A09D22CCA99462 /* QueuedPaste.swift in Sources */,
+				3A83A77BBE718491D64FE453 /* ReleaseNotes.swift in Sources */,
 				B8D7579ACE777842C06A05C4 /* RecordingController.swift in Sources */,
 				D3430213DB2C6BB19CBFB9AE /* SettingsView.swift in Sources */,
 				2D9054D3894DD2578C5568D3 /* SingleInstanceGuard.swift in Sources */,
@@ -653,6 +658,7 @@
 				EF4BC90A0BADB8E6253D41F8 /* PasteQueue.swift in Sources */,
 				E2473C93C909734E0A3FB53C /* PasteTarget.swift in Sources */,
 				32CC4E3E4AE3C3C87E81BEE6 /* QueuedPaste.swift in Sources */,
+				E5B97E05D4728AB441B282F9 /* ReleaseNotes.swift in Sources */,
 				71A87747EAF65AAA90597F35 /* RecordingController.swift in Sources */,
 				9C3D323F79A052130557ACC5 /* SettingsView.swift in Sources */,
 				E706E6A6FD6EC6B40FA0E59B /* SingleInstanceGuard.swift in Sources */,
