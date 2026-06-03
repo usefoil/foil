@@ -13,7 +13,7 @@
     <meta property="og:description" content="Hold a key, speak naturally, and paste transcripts into the app you are using.">
     <meta property="og:type" content="website">
     <link rel="icon" href="assets/foil-mark.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css?v=20260603">
+    <link rel="stylesheet" href="styles.css?v=20260603-details">
   </head>
   <body>
     <header class="site-header">
@@ -23,6 +23,7 @@
       </a>
       <nav class="nav" aria-label="Primary">
         <a href="#workflow">Workflow</a>
+        <a href="#details">Details</a>
         <a href="#screenshots">Screenshots</a>
         <a href="#features">Features</a>
         <a href="#providers">Providers</a>
@@ -151,6 +152,55 @@
               </div>
             </li>
           </ol>
+        </div>
+      </section>
+
+      <section class="feature-detail section-band" id="details" aria-labelledby="details-title">
+        <div class="section-heading">
+          <h2 id="details-title">Feature details for daily dictation</h2>
+          <p>Foil exposes the parts that affect speed, privacy, and recovery so you can choose the setup that fits your Mac workflow.</p>
+        </div>
+        <div class="detail-grid">
+          <article>
+            <p class="detail-kicker">Local-first transcription</p>
+            <h3>Start on localhost</h3>
+            <p>Use a local whisper.cpp server before reaching for hosted transcription, or point Foil at another OpenAI-compatible server you already run.</p>
+            <ul>
+              <li>Local whisper.cpp does not require a Groq or OpenAI key.</li>
+              <li>Settings includes setup commands plus a connection test.</li>
+              <li>Custom endpoints can use your own base URL, model, and optional API key.</li>
+            </ul>
+          </article>
+          <article>
+            <p class="detail-kicker">Capture controls</p>
+            <h3>Record only when you mean it</h3>
+            <p>Foil is microphone-first and hotkey-driven, with controls that suit both quick notes and longer thoughts.</p>
+            <ul>
+              <li>Hold-to-record and toggle recording modes.</li>
+              <li>Right Command, Right Option, Globe/Fn, and custom key choices.</li>
+              <li>M4A, WAV, and FLAC recording formats, with language hints for Whisper.</li>
+            </ul>
+          </article>
+          <article>
+            <p class="detail-kicker">Cleanup routing</p>
+            <h3>Polish text without hiding the raw transcript</h3>
+            <p>Cleanup is optional and explicit. If Whisper succeeds but cleanup fails, Foil keeps using the raw transcript instead of losing the result.</p>
+            <ul>
+              <li>Raw transcription is the default for local, OpenAI Whisper, and custom transcription routes.</li>
+              <li>Cleanup can use Groq chat models or a custom OpenAI-compatible chat endpoint.</li>
+              <li>Transcript text only goes to the cleanup provider you select.</li>
+            </ul>
+          </article>
+          <article>
+            <p class="detail-kicker">Paste recovery</p>
+            <h3>Keep the result reachable</h3>
+            <p>macOS paste automation depends on Accessibility permission and target-app behavior, so Foil keeps fallback paths close.</p>
+            <ul>
+              <li>Auto-paste sends text to the active app by default.</li>
+              <li>Clipboard restoration is the default, with an option to keep final text on the clipboard.</li>
+              <li>History lets you search, copy, paste, edit, export, delete, and retry past transcriptions.</li>
+            </ul>
+          </article>
         </div>
       </section>
 
@@ -390,6 +440,7 @@
       </div>
       <nav aria-label="Footer">
         <a href="#workflow">Workflow</a>
+        <a href="#details">Details</a>
         <a href="#screenshots">Screenshots</a>
         <a href="#features">Features</a>
         <a href="#providers">Providers</a>
