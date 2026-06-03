@@ -108,6 +108,10 @@ codesign_details() {
   "$CODESIGN" -dv --verbose=4 "$APP_PATH" 2>&1 || true
 }
 
+verify_codesign() {
+  "$CODESIGN" --verify --deep --strict --verbose=2 "$APP_PATH" 2>&1
+}
+
 running_app_paths() {
   local pids
   pids="$("$PGREP" -x "$APP_NAME" 2>/dev/null || true)"
@@ -248,6 +252,16 @@ diagnose_installed_app() {
     fi
   fi
 
+  section "Deep codesign verification"
+  local codesign_verify_output
+  if codesign_verify_output="$(verify_codesign)"; then
+    [ -z "$codesign_verify_output" ] || printf '%s\n' "$codesign_verify_output"
+    pass "deep strict codesign verification passed"
+  else
+    printf '%s\n' "$codesign_verify_output"
+    fail "deep strict codesign verification failed; reinstall or rebuild $APP_NAME before changing privacy toggles"
+  fi
+
   local running_paths
   running_paths="$(running_app_paths)"
   if [ -n "$running_paths" ]; then
@@ -262,11 +276,7 @@ diagnose_installed_app() {
     done <<<"$running_paths"
 
     if [ -n "$unexpected_paths" ]; then
-      if [ "$MODE" = "guide-installed" ]; then
-        fail "$APP_NAME is running from a different path; quit it before release permission QA. Expected: $expected_executable. Running: $(printf '%s' "$unexpected_paths" | paste -sd ';' -)"
-      else
-        warn "$APP_NAME is running from a different path than the installed app: $(printf '%s' "$unexpected_paths" | paste -sd ';' -)"
-      fi
+      fail "$APP_NAME is running from a different path than the installed app; quit it before permission QA. Expected: $expected_executable. Running: $(printf '%s' "$unexpected_paths" | paste -sd ';' -)"
     fi
   elif "$PGREP" -x "$APP_NAME" >/dev/null 2>&1; then
     warn "$APP_NAME is currently running, but its executable path could not be inspected; quit and reopen after changing privacy toggles"
