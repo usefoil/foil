@@ -130,6 +130,7 @@ Explain:
 Explain:
 
 - Groq Whisper.
+- OpenAI Whisper.
 - Local whisper.cpp.
 - Custom OpenAI-compatible transcription endpoints.
 
@@ -159,6 +160,7 @@ Keep the existing provider section but update it to include all current
 transcription provider paths:
 
 - Groq Whisper
+- OpenAI Whisper
 - Local whisper.cpp
 - Custom OpenAI-compatible
 
