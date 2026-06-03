@@ -456,6 +456,82 @@ kbd {
   font-size: 1.1rem;
 }
 
+.workflow {
+  background: var(--paper);
+}
+
+.workflow .section-heading {
+  max-width: var(--max);
+  text-align: left;
+}
+
+.workflow-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.34fr) minmax(0, 0.66fr);
+  gap: clamp(28px, 6vw, 86px);
+  align-items: start;
+  max-width: var(--max);
+  margin: 0 auto;
+}
+
+.workflow-copy {
+  position: sticky;
+  top: 110px;
+  display: grid;
+  gap: 20px;
+}
+
+.workflow-copy p {
+  margin: 0;
+  color: #263437;
+  font-size: 1.18rem;
+  line-height: 1.52;
+}
+
+.workflow-steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.workflow-steps li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: clamp(18px, 4vw, 34px);
+  padding: 28px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.workflow-steps li > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgb(15 91 82 / 18%);
+  border-radius: 8px;
+  background: #edf0e8;
+  color: var(--teal-deep);
+  font: 760 0.92rem ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.workflow-steps h3 {
+  margin: 0 0 8px;
+  font-size: clamp(1.3rem, 2vw, 1.72rem);
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.workflow-steps p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1.02rem;
+}
+
 .feature-grid,
 .privacy-grid,
 .screenshot-feature,
@@ -800,6 +876,7 @@ kbd {
   }
 
   .proof-strip-inner,
+  .workflow-layout,
   .feature-grid,
   .privacy-grid,
   .screenshot-feature,
@@ -811,6 +888,10 @@ kbd {
   .terminal-card {
     padding-right: 0;
     border-right: 0;
+  }
+
+  .workflow-copy {
+    position: static;
   }
 
 }
@@ -926,6 +1007,7 @@ kbd {
   }
 
   .proof-strip-inner,
+  .workflow-layout,
   .feature-grid,
   .privacy-grid,
   .screenshot-feature,
@@ -941,6 +1023,29 @@ kbd {
 
   .proof-strip p {
     min-height: 0;
+  }
+
+  .workflow .section-heading {
+    text-align: center;
+  }
+
+  .workflow-copy {
+    gap: 14px;
+  }
+
+  .workflow-copy p {
+    font-size: 1.02rem;
+  }
+
+  .workflow-steps li {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 16px;
+    padding: 22px 0;
+  }
+
+  .workflow-steps li > span {
+    width: 44px;
+    height: 44px;
   }
 
   .screenshot-primary {

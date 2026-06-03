@@ -22,6 +22,7 @@
         <span>Foil</span>
       </a>
       <nav class="nav" aria-label="Primary">
+        <a href="#workflow">Workflow</a>
         <a href="#screenshots">Screenshots</a>
         <a href="#features">Features</a>
         <a href="#providers">Providers</a>
@@ -107,6 +108,49 @@
           <p><strong>Release-to-paste</strong><span>Transcribe, then deliver text back to the cursor.</span></p>
           <p><strong>Cloud or local</strong><span>Choose Groq, OpenAI, local whisper.cpp, or custom endpoints.</span></p>
           <p><strong>History recovery</strong><span>Copy, paste, retry, edit, or export past transcripts.</span></p>
+        </div>
+      </section>
+
+      <section class="workflow section-band" id="workflow" aria-labelledby="workflow-title">
+        <div class="section-heading">
+          <h2 id="workflow-title">How Foil works</h2>
+          <p>Foil keeps dictation close to the app you are already using, then leaves recovery paths nearby when macOS automation needs help.</p>
+        </div>
+        <div class="workflow-layout">
+          <div class="workflow-copy">
+            <p>Use the hotkey as the boundary: press to start, release when the thought is finished, and let Foil handle transcription and delivery with less context switching.</p>
+            <a class="text-link" href="#features">Explore the feature set</a>
+          </div>
+          <ol class="workflow-steps" aria-label="Foil workflow steps">
+            <li>
+              <span>01</span>
+              <div>
+                <h3>Hold a key</h3>
+                <p>Start capture from the app in front of you, with hold-to-record or toggle recording modes.</p>
+              </div>
+            </li>
+            <li>
+              <span>02</span>
+              <div>
+                <h3>Choose the transcription route</h3>
+                <p>Send audio to Groq or OpenAI, use a local whisper.cpp server, or point Foil at a custom OpenAI-compatible endpoint.</p>
+              </div>
+            </li>
+            <li>
+              <span>03</span>
+              <div>
+                <h3>Clean up when useful</h3>
+                <p>Optional cleanup modes can rewrite the transcript, while the raw text remains available if cleanup fails.</p>
+              </div>
+            </li>
+            <li>
+              <span>04</span>
+              <div>
+                <h3>Paste or recover</h3>
+                <p>Foil delivers text back to the active workflow and keeps History plus clipboard fallback available when a target app blocks automation.</p>
+              </div>
+            </li>
+          </ol>
         </div>
       </section>
 
@@ -345,6 +389,7 @@
         <p>Dictate into your Mac apps.</p>
       </div>
       <nav aria-label="Footer">
+        <a href="#workflow">Workflow</a>
         <a href="#screenshots">Screenshots</a>
         <a href="#features">Features</a>
         <a href="#providers">Providers</a>
