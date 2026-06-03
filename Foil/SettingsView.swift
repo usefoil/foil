@@ -8,6 +8,7 @@ struct SettingsView: View {
         case transcription
         case paste
         case privacy
+        case whatsNew
         case experimental
 
         var title: String {
@@ -17,6 +18,7 @@ struct SettingsView: View {
             case .transcription: "Transcription"
             case .paste: "Paste"
             case .privacy: "Storage"
+            case .whatsNew: "What's New"
             case .experimental: "Experimental"
             }
         }
@@ -28,6 +30,7 @@ struct SettingsView: View {
             case .transcription: "waveform"
             case .paste: "text.cursor"
             case .privacy: "lock"
+            case .whatsNew: "sparkles"
             case .experimental: "testtube.2"
             }
         }
@@ -39,6 +42,7 @@ struct SettingsView: View {
             case .transcription: "settings.tab.transcription"
             case .paste: "settings.tab.paste"
             case .privacy: "settings.tab.privacy"
+            case .whatsNew: "settings.tab.whatsNew"
             case .experimental: "settings.tab.experimental"
             }
         }
@@ -161,6 +165,8 @@ struct SettingsView: View {
             pasteSettings
         case .privacy:
             privacySettings
+        case .whatsNew:
+            whatsNewSettings
         case .experimental:
             experimentalSettings
         }
@@ -791,6 +797,48 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var whatsNewSettings: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(ReleaseNotes.recent) { note in
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(note.title)
+                                    .font(.headline)
+                                Text(note.date)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                            }
+
+                            VStack(alignment: .leading, spacing: 5) {
+                                ForEach(note.highlights, id: \.self) { highlight in
+                                    Label(highlight, systemImage: "checkmark.circle")
+                                        .font(.callout)
+                                        .foregroundStyle(.primary)
+                                        .labelStyle(.titleAndIcon)
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("settings.whatsNew.release.\(note.id)")
+
+                        if note.id != ReleaseNotes.recent.last?.id {
+                            Divider()
+                        }
+                    }
+                }
+                .accessibilityIdentifier("settings.whatsNew.list")
+            } header: {
+                Text("What's New")
+            } footer: {
+                Text("Release notes are bundled with Foil and updated during release prep.")
+            }
+        }
+        .formStyle(.grouped)
+        .accessibilityIdentifier("settings.whatsNew")
     }
 
     private var experimentalSettings: some View {

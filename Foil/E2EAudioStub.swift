@@ -1,9 +1,8 @@
 import CoreAudio
 import Foundation
 
-#if DEBUG
 /// AudioRecording stub that returns a pre-generated audio file instead of recording from the mic.
-/// Used by UITestingController for E2E transcription tests.
+/// Used by the opt-in E2E transcription smoke path.
 final class E2EAudioStub: AudioRecording {
     private let fileURL: URL
 
@@ -23,4 +22,3 @@ final class E2EAudioStub: AudioRecording {
         // No-op
     }
 }
-#endif

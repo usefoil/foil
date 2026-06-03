@@ -434,6 +434,17 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(providerConnectionButton().exists)
     }
 
+    func testSettingsWhatsNewShowsOpenAIReleaseNote() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-whats-new"])
+        openSettingsPanel()
+
+        XCTAssertTrue(app.buttons["What's New"].exists, app.debugDescription)
+        XCTAssertEqual(app.buttons["What's New"].value as? String, "Selected")
+        XCTAssertTrue(staticTextLabelOrValueContaining("This Build").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("OpenAI Whisper is available as a cloud transcription provider").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Release notes are bundled with Foil").waitForExistence(timeout: 2), app.debugDescription)
+    }
+
     func testProviderQALocalWhisperPresetShowsExpectedSettings() {
         launchForProviderQA(extraArguments: ["--seed-local-provider"])
         openTranscriptionSettingsPanel()

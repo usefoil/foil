@@ -191,13 +191,12 @@ final class TranscriptionController {
     }
 
     private func resolveApiKey() -> String? {
-        #if DEBUG
         if let envKey = ProcessInfo.processInfo.environment["E2E_API_KEY"],
-           !envKey.isEmpty {
+           !envKey.isEmpty,
+           AppDelegate.isE2ETranscriptionSmokeProcess() {
             DiagnosticLog.write("TranscriptionController: using E2E_API_KEY from environment")
             return envKey
         }
-        #endif
         return KeychainHelper.readApiKey(for: appState.selectedTranscriptionProviderID)
     }
 

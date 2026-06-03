@@ -250,6 +250,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // unit/integration tests (the test runner hosts the app process, so the
         // real app may also be running alongside).
         let isTesting = Self.isTestingProcess()
+        let isE2ESmoke = Self.isE2ETranscriptionSmokeProcess()
         if Self.shouldRunSingleInstanceGuard(), singleInstanceGuard.activateExistingInstanceIfRunning() {
             // terminate is deferred to the next run loop tick because calling it
             // during applicationDidFinishLaunching can cause AppKit issues.
@@ -259,7 +260,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         DiagnosticLog.write("applicationDidFinishLaunching")
-        if isTesting {
+        if isTesting || isE2ESmoke {
             NSApp.setActivationPolicy(.regular)
         }
         _ = SparkleUpdater.shared
@@ -310,7 +311,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DiagnosticLog.write("applicationDidFinishLaunching: hotkey configured")
         startFloatingStatusSync()
         let shouldDisplayOnboarding = shouldShowOnboarding(isTesting: isTesting)
-        if isTesting || shouldDisplayOnboarding {
+        if isTesting || isE2ESmoke || shouldDisplayOnboarding {
             DiagnosticLog.write("applicationDidFinishLaunching: setup-first mode, skipping initial hotkey monitor")
             if !ProcessInfo.processInfo.arguments.contains("--seed-transcribing") {
                 appState.setStatus(.idle)
@@ -393,12 +394,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         arguments.contains("--automation-smoke")
     }
 
+    static func isE2ETranscriptionSmokeProcess(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        guard arguments.contains("--e2e-transcribe") else { return false }
+        #if DEBUG
+        return true
+        #else
+        return environment["E2E_ALLOW_RELEASE_APP_SMOKE"] == "1"
+        #endif
+    }
+
     static func shouldRunSingleInstanceGuard(
         arguments: [String] = ProcessInfo.processInfo.arguments,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Bool {
         !isTestingProcess(arguments: arguments, environment: environment)
             && !isAutomationSmokeProcess(arguments: arguments)
+            && !isE2ETranscriptionSmokeProcess(arguments: arguments, environment: environment)
     }
 
     private static func diagnosticsFilenameTimestamp() -> String {
@@ -412,6 +426,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return ProcessInfo.processInfo.arguments.contains("--show-onboarding")
         }
         if Self.isAutomationSmokeProcess() {
+            return false
+        }
+        if Self.isE2ETranscriptionSmokeProcess() {
             return false
         }
         return !hasCompletedOnboarding
@@ -1144,11 +1161,10 @@ extension AppDelegate: TranscriptionControllerDelegate {
     ) {
         DiagnosticLog.write("AppDelegate: transcriptionController didTranscribe textLength=\(text.count) cleanupFailed=\(cleanupFailed)")
         transcriptionTask = nil
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--e2e-transcribe") {
-            try? text.write(toFile: "/tmp/foil-e2e-result.txt", atomically: true, encoding: .utf8)
+        if Self.isE2ETranscriptionSmokeProcess() {
+            let resultPath = ProcessInfo.processInfo.environment["E2E_RESULT_PATH"] ?? "/tmp/foil-e2e-result.txt"
+            try? text.write(toFile: resultPath, atomically: true, encoding: .utf8)
         }
-        #endif
         stopTranscribingAnimation()
         appState.feedbackMessage = "Transcription ready"
 

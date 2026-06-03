@@ -342,8 +342,11 @@ final class UITestingController {
     // MARK: - E2E transcription
 
     func configureE2ETranscribeIfNeeded() {
-        #if DEBUG
         guard ProcessInfo.processInfo.arguments.contains("--e2e-transcribe") else { return }
+        guard AppDelegate.isE2ETranscriptionSmokeProcess() else {
+            DiagnosticLog.write("E2E: release app smoke gate not enabled")
+            return
+        }
         configureE2EProviderOverrides()
 
         let wavURL: URL
@@ -373,7 +376,6 @@ final class UITestingController {
             DiagnosticLog.write("E2E: stopping simulated recording")
             onStopRecording()
         }
-        #endif
     }
 
     private func configureE2EProviderOverrides() {
@@ -1011,6 +1013,7 @@ final class UITestingController {
         if args.contains("--settings-tab-recording") { return .recording }
         if args.contains("--settings-tab-paste") { return .paste }
         if args.contains("--settings-tab-privacy") { return .privacy }
+        if args.contains("--settings-tab-whats-new") { return .whatsNew }
         if args.contains("--settings-tab-experimental") || args.contains("--settings-tab-advanced") {
             return .experimental
         }
