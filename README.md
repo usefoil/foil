@@ -48,10 +48,11 @@ published, open it, and drag Foil into Applications.
 1. Launch Foil — it lives in your menu bar
 2. Choose a transcription provider in first-run setup
 3. For Groq, get a free API key from [console.groq.com](https://console.groq.com/), then click **Add API Key** and save/test your key
-4. For Local whisper.cpp or a custom OpenAI-compatible server, open Transcription Settings, configure the endpoint, and use **Test connection**
-5. Open Accessibility settings from Foil and enable the current app
-6. Open Microphone settings from Foil and allow microphone access
-7. Use the setup test to confirm the app is ready
+4. For OpenAI Whisper, create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys), then click **Add API Key** and save/test your key
+5. For Local whisper.cpp or a custom OpenAI-compatible server, open Transcription Settings, configure the endpoint, and use **Test connection**
+6. Open Accessibility settings from Foil and enable the current app
+7. Open Microphone settings from Foil and allow microphone access
+8. Use the setup test to confirm the app is ready
 
 Foil is a menu bar app (`LSUIElement`), so it does not keep a normal Dock
 window open. The built app includes macOS AppIcon assets for Finder,
@@ -60,10 +61,13 @@ bar itself uses SF Symbol state icons.
 
 ## Providers
 
-Foil supports three transcription provider paths:
+Foil supports four transcription provider paths:
 
 - **Groq** is the default and requires a Groq API key. Audio is sent to Groq for
   transcription, and optional cleanup can use Groq chat models.
+- **OpenAI Whisper** requires an OpenAI API key. Audio is sent to
+  `https://api.openai.com/v1/audio/transcriptions` with the `whisper-1`
+  transcription model.
 - **Local whisper.cpp** uses a local OpenAI-compatible `whisper-server` at
   `http://127.0.0.1:8080/v1`. It does not need a Groq key. Settings includes
   copyable install, build, model download, and start commands.
@@ -72,10 +76,10 @@ Foil supports three transcription provider paths:
   requests.
 
 Cleanup modes can use Groq chat models or a Custom OpenAI-compatible chat
-endpoint. Local whisper.cpp and custom transcription remain raw by default;
-Foil will not send local/custom transcripts to Groq for cleanup unless you
-explicitly select Groq as the cleanup provider. If you choose a custom cleanup
-endpoint, transcript text is sent to that endpoint.
+endpoint. OpenAI Whisper, Local whisper.cpp, and custom transcription remain raw
+by default; Foil will not send non-Groq transcripts to Groq for cleanup unless
+you explicitly select Groq as the cleanup provider. If you choose a custom
+cleanup endpoint, transcript text is sent to that endpoint.
 
 For local setup details and the opt-in local E2E check, see
 [`docs/local-openai-compatible-transcription-e2e.md`](docs/local-openai-compatible-transcription-e2e.md).
@@ -96,10 +100,11 @@ make start
 make test
 ```
 
-`make test` is deterministic and skips live Groq API XTests even if your shell
-contains stale Groq test environment variables. To intentionally verify the real
-Groq API path, run `RUN_LIVE_GROQ_TESTS=1 GROQ_API_KEY=... make test-live-groq`.
-Use a current key and do not paste the key into logs or issue comments.
+`make test` is deterministic and skips live provider XTests even if your shell
+contains stale provider test environment variables. To intentionally verify live
+cloud paths, run `RUN_LIVE_GROQ_TESTS=1 GROQ_API_KEY=... make test-live-groq`
+for Groq and `OPENAI_API_KEY=... make test-live-openai` for OpenAI Whisper.
+Use current keys and do not paste keys into logs or issue comments.
 
 By default, local builds use the `Foil Local Code Signing` identity when it
 exists, falling back to ad-hoc signing otherwise. Stable local signing keeps the
@@ -227,8 +232,12 @@ the default reliability path.
 
 **Invalid API key:** Use **Add Key** or Settings → Transcription →
 **Change API Key**. Foil validates the key before saving when the network is
-available. If validation fails because Groq cannot be reached, you can save the
-key anyway and run the setup check later.
+available. If validation fails because the selected provider cannot be reached,
+you can save the key anyway and run the setup check later.
+
+**OpenAI Whisper unavailable:** Confirm the OpenAI API key is current, billing
+and project limits allow transcription, and the network can reach
+`https://api.openai.com/v1`.
 
 **Local whisper.cpp not reachable:** Start `whisper-server` with the command
 shown in Settings → Transcription, then click **Test connection**. The local

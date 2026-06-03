@@ -1112,6 +1112,24 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(provider.audioTranscriptionsEndpoint.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
     }
 
+    func testOpenAIWhisperPresetBuildsExpectedCloudProviderAndPersists() {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .openAIWhisper
+
+        let reloaded = AppState()
+        let provider = reloaded.selectedTranscriptionProvider
+
+        XCTAssertEqual(reloaded.selectedTranscriptionProviderPresetID, .openAIWhisper)
+        XCTAssertEqual(reloaded.selectedTranscriptionProviderID, .openAI)
+        XCTAssertEqual(provider.id, .openAI)
+        XCTAssertEqual(provider.displayName, "OpenAI Whisper")
+        XCTAssertEqual(provider.transcriptionModel, "whisper-1")
+        XCTAssertEqual(provider.audioTranscriptionsEndpoint.absoluteString, "https://api.openai.com/v1/audio/transcriptions")
+        XCTAssertTrue(provider.requiresAPIKey)
+        XCTAssertFalse(provider.supportsTranscriptProcessing)
+        XCTAssertEqual(reloaded.effectiveTranscriptProcessingMode, .raw)
+    }
+
     func testLocalWhisperPresetBuildsExpectedProvider() {
         let state = AppState()
         state.selectedTranscriptionProviderPresetID = .localWhisperCPP
@@ -1196,9 +1214,11 @@ final class AppStateTests: XCTestCase {
 
     func testGroqAndOpenAICompatibleAPIKeysAreIndependent() throws {
         try KeychainHelper.save(apiKey: "groq-key", for: .groq)
+        try KeychainHelper.save(apiKey: "openai-key", for: .openAI)
         try KeychainHelper.save(apiKey: "local-key", for: .openAICompatible)
 
         XCTAssertEqual(KeychainHelper.readApiKey(for: .groq), "groq-key")
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .openAI), "openai-key")
         XCTAssertEqual(KeychainHelper.readApiKey(for: .openAICompatible), "local-key")
     }
 

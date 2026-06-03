@@ -18,6 +18,11 @@ node_modules/
 # Local browser automation caches
 .playwright-cli/
 
+# Local secrets
+.env
+.env.*
+!.env.example
+
 # Local logo exploration scratch files
 logos/_*.html
 logos/preview.html

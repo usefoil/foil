@@ -18,6 +18,7 @@ final class KeychainHelperTests: XCTestCase {
 
     override func tearDown() {
         KeychainHelper.delete()
+        KeychainHelper.delete(for: .openAI)
         KeychainHelper.delete(for: .openAICompatible)
         KeychainHelper.deleteCleanupApiKey(for: .customOpenAICompatibleChat)
         KeychainHelper.storageDirectoryOverride = nil
@@ -94,20 +95,24 @@ final class KeychainHelperTests: XCTestCase {
 
     func testProviderScopedKeysDoNotOverwriteEachOther() throws {
         try KeychainHelper.save(apiKey: "groq-key", for: .groq)
+        try KeychainHelper.save(apiKey: "openai-key", for: .openAI)
         try KeychainHelper.save(apiKey: "local-key", for: .openAICompatible)
 
         XCTAssertEqual(KeychainHelper.readApiKey(for: .groq), "groq-key")
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .openAI), "openai-key")
         XCTAssertEqual(KeychainHelper.readApiKey(for: .openAICompatible), "local-key")
         XCTAssertEqual(KeychainHelper.readApiKey(), "groq-key")
     }
 
     func testDeletingCustomProviderKeyDoesNotDeleteGroqKey() throws {
         try KeychainHelper.save(apiKey: "groq-key", for: .groq)
+        try KeychainHelper.save(apiKey: "openai-key", for: .openAI)
         try KeychainHelper.save(apiKey: "local-key", for: .openAICompatible)
 
         KeychainHelper.delete(for: .openAICompatible)
 
         XCTAssertEqual(KeychainHelper.readApiKey(for: .groq), "groq-key")
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .openAI), "openai-key")
         XCTAssertNil(KeychainHelper.readApiKey(for: .openAICompatible))
     }
 
@@ -124,6 +129,7 @@ final class KeychainHelperTests: XCTestCase {
     func testLegacyPlaintextMigrationOnlyAppliesToGroqProvider() throws {
         try Data("legacy-key\n".utf8).write(to: legacyPlaintextURL)
 
+        XCTAssertNil(KeychainHelper.readApiKey(for: .openAI))
         XCTAssertNil(KeychainHelper.readApiKey(for: .openAICompatible))
         XCTAssertTrue(FileManager.default.fileExists(atPath: legacyPlaintextURL.path))
         XCTAssertEqual(KeychainHelper.readApiKey(for: .groq), "legacy-key")

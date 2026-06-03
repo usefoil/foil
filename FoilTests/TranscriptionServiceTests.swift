@@ -122,6 +122,34 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(preset.isEditable)
     }
 
+    func testOpenAIWhisperProviderIDsExistForDedicatedCloudPreset() {
+        XCTAssertNotNil(TranscriptionProviderID(rawValue: "openai"))
+        XCTAssertNotNil(TranscriptionProviderPresetID(rawValue: "openai-whisper"))
+    }
+
+    func testOpenAIWhisperPresetDefinesCloudEndpointAndRequiresKey() {
+        let preset = TranscriptionProviderPreset.openAIWhisper
+        let provider = TranscriptionProvider.openAIWhisper
+
+        XCTAssertEqual(preset.id, .openAIWhisper)
+        XCTAssertEqual(preset.displayName, "OpenAI Whisper")
+        XCTAssertEqual(preset.providerID, .openAI)
+        XCTAssertEqual(preset.baseURL?.absoluteString, "https://api.openai.com/v1")
+        XCTAssertEqual(preset.model, "whisper-1")
+        XCTAssertTrue(preset.requiresAPIKey)
+        XCTAssertFalse(preset.supportsTranscriptProcessing)
+        XCTAssertFalse(preset.isEditable)
+
+        XCTAssertEqual(provider.id, .openAI)
+        XCTAssertEqual(provider.displayName, "OpenAI Whisper")
+        XCTAssertEqual(provider.audioTranscriptionsEndpoint.absoluteString, "https://api.openai.com/v1/audio/transcriptions")
+        XCTAssertEqual(provider.modelsEndpoint.absoluteString, "https://api.openai.com/v1/models")
+        XCTAssertEqual(provider.transcriptionModel, "whisper-1")
+        XCTAssertTrue(provider.requiresAPIKey)
+        XCTAssertTrue(provider.supportsModelValidation)
+        XCTAssertFalse(provider.supportsTranscriptProcessing)
+    }
+
     func testLocalWhisperSetupModelsCoverApprovedSourceVerifiedOptions() {
         let options = LocalWhisperSetupModel.all
 

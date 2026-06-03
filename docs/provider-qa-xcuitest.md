@@ -14,6 +14,8 @@ This covers:
 
 - Groq default provider UI
 - Provider-specific privacy and endpoint copy
+- OpenAI Whisper preset copy, cloud endpoint/model display, required API key state,
+  and cleanup-unavailable state
 - Local whisper.cpp preset copy and cleanup-unavailable state
 - Local whisper.cpp connection-test recovery copy
 - Local whisper.cpp selection from default Settings state
@@ -72,6 +74,33 @@ The live target gives Groq up to 90 seconds by default. Override with:
 ```bash
 E2E_TRANSCRIPTION_TIMEOUT_SECONDS=120 make test-provider-qa-live
 ```
+
+## Live OpenAI Provider QA
+
+For CLI-level live OpenAI Whisper coverage, run:
+
+```bash
+OPENAI_API_KEY=... make test-live-openai
+```
+
+This builds the `FoilE2E` helper and verifies the real OpenAI
+`/v1/audio/transcriptions` path can transcribe `Foil/e2e-test-audio.wav` with
+the `whisper-1` model. Keep the key out of logs and replace `...` with a valid
+current OpenAI API key in your shell.
+
+For app-level live OpenAI Whisper provider QA, run:
+
+```bash
+OPENAI_API_KEY=... make test-live-openai-provider-qa
+```
+
+This preflights `https://api.openai.com/v1/models`, builds for testing, patches
+the generated `.xctestrun` so `FoilUITests/FoilUITests/testE2ETranscription`
+receives `E2E_TRANSCRIPTION_PROVIDER=openai`, `E2E_TRANSCRIPTION_MODEL=whisper-1`,
+and `E2E_API_KEY`, then runs the real app-level transcription XCUITest.
+
+The OpenAI live targets are also available in the `E2E OpenAI API Tests`
+workflow when the repository has an `OPENAI_API_KEY` secret.
 
 ## Local Transcription E2E
 

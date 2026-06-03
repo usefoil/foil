@@ -108,7 +108,9 @@ enum FoilE2E {
         }
 
         let provider: TranscriptionProvider
-        if config.provider == "openai-compatible" {
+        if config.provider == "openai" {
+            provider = .openAIWhisper
+        } else if config.provider == "openai-compatible" {
             guard let baseURL = URL(string: config.baseURL) else {
                 throw FoilE2EError.invalidBaseURL(config.baseURL)
             }

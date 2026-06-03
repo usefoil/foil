@@ -28,6 +28,8 @@ enum KeychainHelper {
         switch providerID {
         case .groq:
             return base
+        case .openAI:
+            return "\(base).\(providerID.rawValue)"
         case .openAICompatible:
             return "\(base).\(providerID.rawValue)"
         }

@@ -261,6 +261,7 @@ jobs:
             -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction \
             -only-testing:FoilUITests/FoilUITests/testSettingsButtonOpensSettingsWindow \
             -only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset \
+            -only-testing:FoilUITests/FoilUITests/testProviderQAOpenAIWhisperPresetShowsCloudSettings \
             -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
             -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
             -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff \
