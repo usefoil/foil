@@ -833,6 +833,12 @@ kbd {
   .hero {
     gap: 16px;
     padding-block: 22px 0;
+    overflow: visible;
+  }
+
+  .hero-copy,
+  .hero-visual {
+    max-width: 100%;
   }
 
   .hero h1 {
@@ -845,6 +851,7 @@ kbd {
   }
 
   .hero-body {
+    max-width: 100%;
     font-size: 0.98rem;
   }
 
@@ -852,12 +859,14 @@ kbd {
     align-items: stretch;
     flex-direction: column;
     gap: 10px;
+    max-width: 100%;
     margin-top: 20px;
   }
 
   .button {
     min-height: 48px;
     width: 100%;
+    max-width: 100%;
     white-space: normal;
     text-align: center;
   }
@@ -878,6 +887,7 @@ kbd {
 
   .menu-preview {
     width: 100%;
+    max-width: 100%;
   }
 
   .menu-bar {
@@ -953,5 +963,21 @@ kbd {
 
   .site-footer nav {
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 500px) {
+  .site-header,
+  .hero,
+  .proof-strip {
+    width: min(100%, 390px);
+    margin-inline: 0 auto;
+    padding-inline: 20px;
+  }
+
+  .hero-visual::before {
+    right: auto;
+    left: 0;
+    width: 100%;
   }
 }
