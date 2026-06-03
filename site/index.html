@@ -13,7 +13,7 @@
     <meta property="og:description" content="Hold a key, speak naturally, and paste transcripts into the app you are using.">
     <meta property="og:type" content="website">
     <link rel="icon" href="assets/foil-mark.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="styles.css?v=20260603-details">
+    <link rel="stylesheet" href="styles.css?v=20260603-faq">
   </head>
   <body>
     <header class="site-header">
@@ -28,6 +28,7 @@
         <a href="#features">Features</a>
         <a href="#providers">Providers</a>
         <a href="#privacy">Privacy</a>
+        <a href="#faq">FAQ</a>
         <a href="#install">Install</a>
         <a href="https://github.com/mean-weasel/foil">GitHub</a>
       </nav>
@@ -399,6 +400,35 @@
         </div>
       </section>
 
+      <section class="faq section-band" id="faq" aria-labelledby="faq-title">
+        <div class="section-heading">
+          <h2 id="faq-title">Questions before installing</h2>
+          <p>Short answers to the setup, provider, and reliability questions that usually matter before trying Foil.</p>
+        </div>
+        <div class="faq-list">
+          <details open>
+            <summary>Can Foil run transcription locally?</summary>
+            <p>Yes. Start with a local whisper.cpp server on localhost, then select Local whisper.cpp in Transcription settings. Foil also supports custom OpenAI-compatible transcription endpoints.</p>
+          </details>
+          <details>
+            <summary>Do I need a Groq or OpenAI key?</summary>
+            <p>Not for the local whisper.cpp route. Groq Whisper and OpenAI Whisper require their own API keys, and custom endpoints only need a key when your server requires one.</p>
+          </details>
+          <details>
+            <summary>Where does cleanup text go?</summary>
+            <p>Cleanup is optional. It can use Groq chat models or a custom OpenAI-compatible chat endpoint, and transcript text goes only to the cleanup provider you select.</p>
+          </details>
+          <details>
+            <summary>What happens to history and audio?</summary>
+            <p>Transcription history stays on this Mac and can be limited or turned off. Successful audio files are deleted after transcription; failed audio may be retained locally only for retryable failures.</p>
+          </details>
+          <details>
+            <summary>What if paste does not land in the target app?</summary>
+            <p>Paste automation depends on Accessibility permission and target-app behavior. Foil keeps History and clipboard fallback paths available so you can recover the transcript.</p>
+          </details>
+        </div>
+      </section>
+
       <section class="install section-band" id="install" aria-labelledby="install-title">
         <div class="section-heading">
           <h2 id="install-title">Install Foil</h2>
@@ -445,6 +475,7 @@
         <a href="#features">Features</a>
         <a href="#providers">Providers</a>
         <a href="#privacy">Privacy</a>
+        <a href="#faq">FAQ</a>
         <a href="#install">Install</a>
         <a href="https://github.com/mean-weasel/foil">GitHub</a>
       </nav>
