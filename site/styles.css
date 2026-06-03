@@ -96,6 +96,12 @@ button {
   color: var(--teal);
 }
 
+a:focus-visible,
+button:focus-visible {
+  outline: 3px solid rgb(215 154 61 / 70%);
+  outline-offset: 4px;
+}
+
 .hero {
   position: relative;
   display: grid;
@@ -198,6 +204,44 @@ button {
   font-size: 0.95rem;
 }
 
+.proof-strip {
+  padding: 0 clamp(20px, 5vw, 72px) clamp(34px, 5vw, 58px);
+}
+
+.proof-strip-inner {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  max-width: var(--max);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--line);
+  box-shadow: 0 14px 34px rgb(7 18 21 / 5%);
+}
+
+.proof-strip p {
+  display: grid;
+  gap: 6px;
+  min-height: 118px;
+  margin: 0;
+  padding: 22px;
+  background: white;
+}
+
+.proof-strip strong {
+  color: var(--teal-deep);
+  font-size: 1.02rem;
+  line-height: 1.2;
+}
+
+.proof-strip span {
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.42;
+}
+
 .hero-visual {
   position: relative;
   min-height: 650px;
@@ -291,8 +335,7 @@ button {
 }
 
 .mic-badge,
-.provider-icon,
-.step-icon {
+.provider-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -406,7 +449,8 @@ kbd {
   font-size: 1.1rem;
 }
 
-.workflow-steps,
+.feature-grid,
+.privacy-grid,
 .screenshot-feature,
 .provider-grid,
 .install-grid {
@@ -468,52 +512,46 @@ kbd {
   object-fit: contain;
 }
 
-.workflow-steps {
+.feature-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: clamp(18px, 3vw, 44px);
+  gap: 18px;
 }
 
-.workflow-steps article {
-  position: relative;
-  text-align: center;
+.feature-grid article,
+.privacy-grid article {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 14px 34px rgb(7 18 21 / 5%);
 }
 
-.workflow-steps article:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  top: 44px;
-  right: calc(clamp(18px, 3vw, 44px) * -0.65);
-  width: 38px;
-  height: 1px;
-  background: var(--teal);
-  opacity: 0.55;
+.feature-grid article {
+  padding: 28px;
 }
 
-.step-icon {
-  width: 96px;
-  height: 96px;
-  margin: 0 auto 20px;
+.feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 22px;
   border-radius: 50%;
   background: #edf0e8;
   color: var(--teal);
   box-shadow: inset 0 0 0 1px rgb(15 91 82 / 8%);
 }
 
-.keycap {
-  font: 760 0.96rem ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.waveform::before {
-  content: "";
-  width: 44px;
-  height: 32px;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--teal) 0 3px,
-    transparent 3px 8px
-  );
-  clip-path: polygon(0 40%, 9% 40%, 9% 23%, 18% 23%, 18% 70%, 27% 70%, 27% 14%, 36% 14%, 36% 84%, 45% 84%, 45% 32%, 54% 32%, 54% 76%, 63% 76%, 63% 10%, 72% 10%, 72% 68%, 81% 68%, 81% 30%, 90% 30%, 90% 56%, 100% 56%, 100% 100%, 0 100%);
+.feature-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .paste svg,
@@ -521,7 +559,8 @@ kbd {
   color: currentColor;
 }
 
-.workflow-steps h3,
+.feature-grid h3,
+.privacy-grid h3,
 .provider-grid h3,
 .install-grid h3 {
   margin: 0 0 8px;
@@ -529,11 +568,62 @@ kbd {
   letter-spacing: 0;
 }
 
-.workflow-steps p,
+.feature-grid p,
+.privacy-grid p,
 .provider-grid p,
 .install-grid p {
   margin: 0;
   color: var(--muted);
+}
+
+.feature-grid ul,
+.provider-grid ul {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-grid li,
+.provider-grid li {
+  position: relative;
+  padding-left: 24px;
+  color: #263437;
+}
+
+.feature-grid li::before,
+.provider-grid li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.58em;
+  width: 10px;
+  height: 6px;
+  border-left: 2px solid var(--teal);
+  border-bottom: 2px solid var(--teal);
+  transform: rotate(-45deg);
+}
+
+.reliability-note {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.28fr) minmax(260px, 0.72fr);
+  gap: 18px;
+  max-width: var(--max);
+  margin: 24px auto 0;
+  padding: 24px 28px;
+  border: 1px solid rgb(15 91 82 / 22%);
+  border-radius: 8px;
+  background: rgb(15 91 82 / 7%);
+  color: #203033;
+}
+
+.reliability-note strong {
+  color: var(--teal-deep);
+}
+
+.reliability-note span {
+  color: #344043;
 }
 
 .providers {
@@ -542,8 +632,8 @@ kbd {
 
 .provider-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 28px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
 }
 
 .provider-grid article {
@@ -565,30 +655,18 @@ kbd {
   box-shadow: inset 0 -16px 24px rgb(7 18 21 / 16%);
 }
 
-.provider-grid ul {
+.privacy {
+  background: #f7f8f4;
+}
+
+.privacy-grid {
   display: grid;
-  gap: 11px;
-  margin: 24px 0 0;
-  padding: 0;
-  list-style: none;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
 }
 
-.provider-grid li {
-  position: relative;
-  padding-left: 24px;
-  color: #263437;
-}
-
-.provider-grid li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.58em;
-  width: 10px;
-  height: 6px;
-  border-left: 2px solid var(--teal);
-  border-bottom: 2px solid var(--teal);
-  transform: rotate(-45deg);
+.privacy-grid article {
+  padding: 26px;
 }
 
 .install-grid {
@@ -709,15 +787,13 @@ kbd {
     bottom: 0;
   }
 
-  .workflow-steps,
+  .proof-strip-inner,
+  .feature-grid,
+  .privacy-grid,
   .screenshot-feature,
   .provider-grid,
   .install-grid {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .workflow-steps article:not(:last-child)::after {
-    display: none;
   }
 
   .terminal-card {
@@ -779,12 +855,22 @@ kbd {
     padding-inline: 18px;
   }
 
-  .workflow-steps,
+  .proof-strip-inner,
+  .feature-grid,
+  .privacy-grid,
   .screenshot-feature,
   .provider-grid,
   .install-grid,
   .site-footer {
     grid-template-columns: 1fr;
+  }
+
+  .proof-strip {
+    padding-bottom: 28px;
+  }
+
+  .proof-strip p {
+    min-height: 0;
   }
 
   .screenshot-primary {
@@ -795,8 +881,15 @@ kbd {
     grid-template-columns: 1fr;
   }
 
+  .reliability-note {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-grid article,
+  .privacy-grid article,
   .provider-grid article {
     min-height: 0;
+    padding: 24px;
   }
 
   .site-footer nav {
