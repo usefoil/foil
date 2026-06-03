@@ -6,7 +6,7 @@
     <title>Foil — Dictate into your Mac apps</title>
     <meta
       name="description"
-      content="Foil is a native macOS menu bar app for hold-to-talk dictation. Speak naturally, release, and paste transcripts into the app you were already using with cloud, local, or OpenAI-compatible providers."
+      content="Foil is a native macOS menu bar app for hold-to-talk dictation. Speak naturally, release, and paste transcripts into the app you were already using with local, cloud, or OpenAI-compatible providers."
     >
     <meta name="theme-color" content="#0f4046">
     <meta property="og:title" content="Foil">
@@ -39,8 +39,8 @@
           <p class="hero-lede">Dictate into your Mac apps.</p>
           <p class="hero-body">
             Hold a key, speak naturally, release, and Foil pastes the transcript
-            where your cursor already is. Use fast hosted transcription, OpenAI
-            Whisper, a local whisper.cpp server, or your own OpenAI-compatible endpoint.
+            where your cursor already is. Use a local whisper.cpp server, Groq
+            or OpenAI hosted transcription, or your own OpenAI-compatible endpoint.
           </p>
           <div class="hero-actions" aria-label="Install actions">
             <a class="button primary" href="#install">
@@ -91,7 +91,7 @@
               </div>
               <div class="preview-row">
                 <span>Provider</span>
-                <strong>Groq Whisper</strong>
+                <strong>Local whisper.cpp</strong>
               </div>
               <div class="preview-row muted">
                 <span>Open Foil Settings...</span>
@@ -106,7 +106,7 @@
         <div class="proof-strip-inner">
           <p><strong>Hold-to-talk</strong><span>Capture thoughts without leaving your current app.</span></p>
           <p><strong>Release-to-paste</strong><span>Transcribe, then deliver text back to the cursor.</span></p>
-          <p><strong>Cloud or local</strong><span>Choose Groq, OpenAI, local whisper.cpp, or custom endpoints.</span></p>
+          <p><strong>Local or cloud</strong><span>Choose localhost, Groq, OpenAI, or custom endpoints.</span></p>
           <p><strong>History recovery</strong><span>Copy, paste, retry, edit, or export past transcripts.</span></p>
         </div>
       </section>
@@ -133,7 +133,7 @@
               <span>02</span>
               <div>
                 <h3>Choose the transcription route</h3>
-                <p>Send audio to Groq or OpenAI, use a local whisper.cpp server, or point Foil at a custom OpenAI-compatible endpoint.</p>
+                <p>Start with a local whisper.cpp server on localhost, use Groq or OpenAI, or point Foil at a custom OpenAI-compatible endpoint.</p>
               </div>
             </li>
             <li>
@@ -177,7 +177,7 @@
                 width="628"
                 height="520"
               >
-              <figcaption>Transcription settings make cloud, local, and custom endpoint choices explicit.</figcaption>
+              <figcaption>Transcription settings make local, cloud, and custom endpoint choices explicit.</figcaption>
             </figure>
             <figure>
               <img
@@ -225,9 +225,9 @@
             <h3>Transcribe</h3>
             <p>Pick the transcription route that fits your speed, privacy, and infrastructure needs.</p>
             <ul>
+              <li>Local whisper.cpp through a localhost OpenAI-compatible server</li>
               <li>Groq Whisper for fast hosted transcription</li>
               <li>OpenAI Whisper with your OpenAI API key</li>
-              <li>Local whisper.cpp through an OpenAI-compatible server</li>
               <li>Custom OpenAI-compatible transcription endpoints</li>
             </ul>
           </article>
@@ -270,9 +270,21 @@
       <section class="providers" id="providers" aria-labelledby="providers-title">
         <div class="section-heading">
           <h2 id="providers-title">Choose your provider</h2>
-          <p>Use the transcription path that fits your workflow.</p>
+          <p>Start local, or choose the hosted path that fits your workflow.</p>
         </div>
         <div class="provider-grid">
+          <article>
+            <span class="provider-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H4zM8 20h8M10 16v4M14 16v4"/></svg>
+            </span>
+            <h3>Local whisper.cpp</h3>
+            <p>Run an OpenAI-compatible local server on localhost.</p>
+            <ul>
+              <li>No hosted transcription required</li>
+              <li>Uses localhost by default</li>
+              <li>Copyable setup commands</li>
+            </ul>
+          </article>
           <article>
             <span class="provider-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 12h6l-1 8 9-13h-6l0-7Z"/></svg>
@@ -295,18 +307,6 @@
               <li>Uses the whisper-1 transcription model</li>
               <li>Separate OpenAI key setup</li>
               <li>Raw transcript by default</li>
-            </ul>
-          </article>
-          <article>
-            <span class="provider-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H4zM8 20h8M10 16v4M14 16v4"/></svg>
-            </span>
-            <h3>Local whisper.cpp</h3>
-            <p>Run an OpenAI-compatible local server on your Mac.</p>
-            <ul>
-              <li>No hosted transcription required</li>
-              <li>Works with local resources</li>
-              <li>Copyable setup commands</li>
             </ul>
           </article>
           <article>
