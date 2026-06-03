@@ -48,7 +48,7 @@ Evidence:
 `set -a; source .env.local; set +a; make test-live-openai` passed with OpenAI response status 200 and transcript `The quick brown fox jumps over the lazy dog.`
 
 PR path:
-Open a normal PR from `codex/openai-release-whats-new` to `main`. Do not tag or publish a public release from this branch. After merge, cut a fresh Notarized QA Build from the merged commit and install/smoke that notarized artifact before considering the goal complete.
+Opened ready-for-review PR [#212](https://github.com/mean-weasel/foil/pull/212) from `codex/openai-release-whats-new` to `main`. Do not tag or publish a public release from this branch. After merge, cut a fresh Notarized QA Build from the merged commit and install/smoke that notarized artifact before considering the goal complete.
 
 Residual risk / follow-up:
 The local Release smoke proves the hook in a Release app product, but not in a notarized DMG containing these changes. Final release proof still requires merge, fresh notarized QA artifact, install from that artifact, Gatekeeper/codesign/stapler/version checks, and `make test-live-openai-installed` pointed at the installed notarized app.
