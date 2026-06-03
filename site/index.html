@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Foil — Push-to-talk speech to text for macOS</title>
+    <title>Foil — Dictate into any Mac app</title>
     <meta
       name="description"
-      content="Foil is a native macOS menu bar app for push-to-talk speech to text with Groq, local whisper.cpp, and OpenAI-compatible transcription providers."
+      content="Foil is a native macOS menu bar app for hold-to-talk dictation. Speak naturally, release, and paste transcripts into the app you were already using with cloud, local, or OpenAI-compatible providers."
     >
     <meta name="theme-color" content="#0f4046">
     <meta property="og:title" content="Foil">
-    <meta property="og:description" content="Push-to-talk speech to text for macOS.">
+    <meta property="og:description" content="Hold a key, speak naturally, and paste transcripts into any Mac app.">
     <meta property="og:type" content="website">
     <link rel="icon" href="assets/foil-mark.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
@@ -22,9 +22,10 @@
         <span>Foil</span>
       </a>
       <nav class="nav" aria-label="Primary">
-        <a href="#workflow">Workflow</a>
         <a href="#screenshots">Screenshots</a>
+        <a href="#features">Features</a>
         <a href="#providers">Providers</a>
+        <a href="#privacy">Privacy</a>
         <a href="#install">Install</a>
         <a href="https://github.com/mean-weasel/foil">GitHub</a>
       </nav>
@@ -34,11 +35,11 @@
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
           <h1 id="hero-title">Foil</h1>
-          <p class="hero-lede">Push-to-talk speech to text for macOS.</p>
+          <p class="hero-lede">Dictate into any Mac app.</p>
           <p class="hero-body">
-            Hold a key, speak, release. Foil transcribes instantly and pastes
-            text wherever your cursor is, using Groq, local whisper.cpp, or any
-            OpenAI-compatible endpoint.
+            Hold a key, speak naturally, release, and Foil pastes the transcript
+            where your cursor already is. Use fast hosted transcription, OpenAI
+            Whisper, a local whisper.cpp server, or your own OpenAI-compatible endpoint.
           </p>
           <div class="hero-actions" aria-label="Install actions">
             <a class="button primary" href="#install">
@@ -54,7 +55,7 @@
               View on GitHub
             </a>
           </div>
-          <p class="compatibility">macOS 14+ · Apple Silicon and Intel</p>
+          <p class="compatibility">Beta for macOS 14+ · Apple Silicon and Intel</p>
         </div>
 
         <div class="hero-visual" aria-label="Foil app preview">
@@ -100,10 +101,19 @@
         </div>
       </section>
 
+      <section class="proof-strip" aria-label="Foil highlights">
+        <div class="proof-strip-inner">
+          <p><strong>Hold-to-talk</strong><span>Capture thoughts without leaving your current app.</span></p>
+          <p><strong>Release-to-paste</strong><span>Transcribe, then deliver text back to the cursor.</span></p>
+          <p><strong>Cloud or local</strong><span>Choose Groq, OpenAI, local whisper.cpp, or custom endpoints.</span></p>
+          <p><strong>History recovery</strong><span>Copy, paste, retry, edit, or export past transcripts.</span></p>
+        </div>
+      </section>
+
       <section class="screenshots section-band" id="screenshots" aria-labelledby="screenshots-title">
         <div class="section-heading">
-          <h2 id="screenshots-title">A real menu bar workflow</h2>
-          <p>Captured from Foil's app windows with seeded, non-private test states.</p>
+          <h2 id="screenshots-title">The menu bar workflow, shown for real</h2>
+          <p>Verified Foil app states captured from deterministic UI tests, not invented marketing UI.</p>
         </div>
         <div class="screenshot-feature">
           <figure class="screenshot-primary">
@@ -113,7 +123,7 @@
               width="528"
               height="720"
             >
-            <figcaption>Ready to record, paste, and recover recent transcription results.</figcaption>
+            <figcaption>Ready state with recording controls, setup status, and last-result recovery.</figcaption>
           </figure>
           <div class="screenshot-stack" aria-label="Additional Foil screenshots">
             <figure>
@@ -123,7 +133,7 @@
                 width="628"
                 height="520"
               >
-              <figcaption>Provider settings keep cloud, local, and custom endpoints explicit.</figcaption>
+              <figcaption>Transcription settings make cloud, local, and custom endpoint choices explicit.</figcaption>
             </figure>
             <figure>
               <img
@@ -141,43 +151,76 @@
                 width="572"
                 height="764"
               >
-              <figcaption>Setup checks surface actionable recovery before recording.</figcaption>
+              <figcaption>Setup checks surface recovery actions before recording starts.</figcaption>
             </figure>
           </div>
         </div>
       </section>
 
-      <section class="workflow section-band" id="workflow" aria-labelledby="workflow-title">
+      <section class="features section-band" id="features" aria-labelledby="features-title">
         <div class="section-heading">
-          <h2 id="workflow-title">How it works</h2>
+          <h2 id="features-title">Built for the app already in front of you</h2>
+          <p>Foil keeps the loop short: capture speech, transcribe it, optionally clean it up, and recover the result when macOS or a target app gets picky.</p>
         </div>
-        <div class="workflow-steps">
+        <div class="feature-grid">
           <article>
-            <span class="step-icon keycap">⌘ Space</span>
-            <h3>Hold</h3>
-            <p>Press and hold your chosen hotkey.</p>
+            <span class="feature-icon keycap">⌘</span>
+            <h3>Capture</h3>
+            <p>Hold your chosen key while speaking, or switch to toggle mode when a longer thought needs room.</p>
+            <ul>
+              <li>Hold-to-record and toggle recording modes</li>
+              <li>Right Command, Right Option, Globe/Fn, and custom key choices</li>
+              <li>M4A, WAV, and FLAC recording formats</li>
+              <li>Language hints for better Whisper accuracy</li>
+            </ul>
           </article>
           <article>
-            <span class="step-icon waveform" aria-hidden="true"></span>
-            <h3>Speak</h3>
-            <p>Talk naturally while Foil listens.</p>
+            <span class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 12h6l-1 8 9-13h-6l0-7Z"/></svg>
+            </span>
+            <h3>Transcribe</h3>
+            <p>Pick the transcription route that fits your speed, privacy, and infrastructure needs.</p>
+            <ul>
+              <li>Groq Whisper for fast hosted transcription</li>
+              <li>OpenAI Whisper with your OpenAI API key</li>
+              <li>Local whisper.cpp through an OpenAI-compatible server</li>
+              <li>Custom OpenAI-compatible transcription endpoints</li>
+            </ul>
           </article>
           <article>
-            <span class="step-icon keycap">Space</span>
-            <h3>Release</h3>
-            <p>Let go and Foil transcribes.</p>
+            <span class="feature-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14M7.5 7.5l9 9M16.5 7.5l-9 9"/></svg>
+            </span>
+            <h3>Polish</h3>
+            <p>Let Foil clean up dictated text when you want a little help, while preserving the raw transcript if cleanup fails.</p>
+            <ul>
+              <li>Optional cleanup and rewrite modes</li>
+              <li>Groq or custom OpenAI-compatible cleanup providers</li>
+              <li>Raw transcript fallback after cleanup failures</li>
+              <li>Provider choices kept explicit in settings</li>
+            </ul>
           </article>
           <article>
-            <span class="step-icon paste" aria-hidden="true">
+            <span class="feature-icon paste" aria-hidden="true">
               <svg viewBox="0 0 24 24">
                 <path d="M8 4h8l1 2h3v14H4V6h3l1-2Z"/>
                 <path d="M9 11h6M9 15h4"/>
               </svg>
             </span>
-            <h3>Paste</h3>
-            <p>Text appears wherever your cursor is.</p>
+            <h3>Paste and recover</h3>
+            <p>Foil posts the transcript back to your Mac workflow and keeps recovery paths nearby when the target app blocks automation.</p>
+            <ul>
+              <li>Auto-paste into the active app by default</li>
+              <li>Clipboard restoration or final-text clipboard mode</li>
+              <li>Searchable transcription history</li>
+              <li>Copy, paste, edit, export, delete, and retry past results</li>
+            </ul>
           </article>
         </div>
+        <aside class="reliability-note" aria-label="Paste reliability note">
+          <strong>Honest about macOS paste automation.</strong>
+          <span>Accessibility permission and target-app behavior matter. When a target blocks synthetic paste, Foil keeps History and clipboard fallback paths available so the transcript is not lost.</span>
+        </aside>
       </section>
 
       <section class="providers" id="providers" aria-labelledby="providers-title">
@@ -200,6 +243,18 @@
           </article>
           <article>
             <span class="provider-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 1 8.5 12M12 3a9 9 0 0 0-8.5 12M12 3v18M4 15h16M7 21h10"/></svg>
+            </span>
+            <h3>OpenAI Whisper</h3>
+            <p>Use OpenAI's Whisper endpoint with your OpenAI API key.</p>
+            <ul>
+              <li>Uses the whisper-1 transcription model</li>
+              <li>Separate OpenAI key setup</li>
+              <li>Raw transcript by default</li>
+            </ul>
+          </article>
+          <article>
+            <span class="provider-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H4zM8 20h8M10 16v4M14 16v4"/></svg>
             </span>
             <h3>Local whisper.cpp</h3>
@@ -214,7 +269,7 @@
             <span class="provider-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3.6 9h16.8M3.6 15h16.8M12 3c2.4 2.4 3.4 5.4 3.4 9s-1 6.6-3.4 9M12 3C9.6 5.4 8.6 8.4 8.6 12s1 6.6 3.4 9"/></svg>
             </span>
-            <h3>OpenAI-compatible</h3>
+            <h3>Custom OpenAI-compatible</h3>
             <p>Point Foil at the endpoint and model you already trust.</p>
             <ul>
               <li>Bring your own endpoint</li>
@@ -225,10 +280,35 @@
         </div>
       </section>
 
+      <section class="privacy section-band" id="privacy" aria-labelledby="privacy-title">
+        <div class="section-heading">
+          <h2 id="privacy-title">Trust details stay visible</h2>
+          <p>Foil is explicit about where text goes, what stays local, and where macOS automation can vary by app.</p>
+        </div>
+        <div class="privacy-grid">
+          <article>
+            <h3>Keys and history</h3>
+            <p>API keys are stored in macOS Keychain. Transcription history stays on this Mac, and retention can be limited or turned off.</p>
+          </article>
+          <article>
+            <h3>Audio lifecycle</h3>
+            <p>Successful audio files are deleted after transcription. Failed audio may be retained locally only for retryable failures.</p>
+          </article>
+          <article>
+            <h3>Redacted diagnostics</h3>
+            <p>Local diagnostics are redacted before writing and should not include API keys, transcript text, raw audio, or clipboard contents.</p>
+          </article>
+          <article>
+            <h3>Paste reality</h3>
+            <p>Accessibility permission and target-app behavior affect paste automation. History and clipboard fallback keep transcripts recoverable.</p>
+          </article>
+        </div>
+      </section>
+
       <section class="install section-band" id="install" aria-labelledby="install-title">
         <div class="section-heading">
           <h2 id="install-title">Install Foil</h2>
-          <p>Homebrew is the primary path. The cask installs the signed, notarized beta release.</p>
+          <p>Homebrew is the primary path for the public beta. The cask installs the signed, notarized macOS release.</p>
         </div>
         <div class="install-grid">
           <article class="terminal-card">
@@ -262,12 +342,13 @@
           <img src="assets/foil-mark.svg" alt="" width="32" height="32">
           <span>Foil</span>
         </a>
-        <p>Push-to-talk speech to text for macOS.</p>
+        <p>Dictate into any Mac app.</p>
       </div>
       <nav aria-label="Footer">
-        <a href="#workflow">Workflow</a>
         <a href="#screenshots">Screenshots</a>
+        <a href="#features">Features</a>
         <a href="#providers">Providers</a>
+        <a href="#privacy">Privacy</a>
         <a href="#install">Install</a>
         <a href="https://github.com/mean-weasel/foil">GitHub</a>
       </nav>
