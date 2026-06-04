@@ -39,8 +39,45 @@ struct FoilKeyboardSnapshot: Codable, Equatable {
     }
 }
 
+struct FoilKeyboardStoragePathResult: Codable, Equatable {
+    var path: String
+    var succeeded: Bool
+    var error: String?
+}
+
+struct FoilKeyboardStorageReport: Codable, Equatable {
+    var operation: String
+    var phase: FoilKeyboardPhase
+    var hasTranscript: Bool
+    var canonicalPath: String?
+    var canonicalWriteSucceeded: Bool
+    var canonicalWriteError: String?
+    var canonicalVerificationPhase: FoilKeyboardPhase?
+    var canonicalVerificationHasTranscript: Bool?
+    var defaultsWriteAttempted: Bool
+    var fallbackRemovalResults: [FoilKeyboardStoragePathResult]
+    var updatedAt: Date
+
+    static var initial: FoilKeyboardStorageReport {
+        FoilKeyboardStorageReport(
+            operation: "none",
+            phase: .idle,
+            hasTranscript: false,
+            canonicalPath: nil,
+            canonicalWriteSucceeded: false,
+            canonicalWriteError: nil,
+            canonicalVerificationPhase: nil,
+            canonicalVerificationHasTranscript: nil,
+            defaultsWriteAttempted: false,
+            fallbackRemovalResults: [],
+            updatedAt: Date()
+        )
+    }
+}
+
 struct FoilKeyboardBridge {
     private let defaultsKey = "foil.keyboard.snapshot.v1"
+    private let reportDefaultsKey = "foil.keyboard.storageReport.v1"
     private let snapshotFileName = "foil-keyboard-snapshot.json"
 
     private var defaults: UserDefaults {
@@ -90,12 +127,30 @@ struct FoilKeyboardBridge {
     }
 
     func save(_ snapshot: FoilKeyboardSnapshot) {
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        if let snapshotFileURL {
-            try? data.write(to: snapshotFileURL, options: [.atomic])
+        persist(snapshot, operation: "save")
+    }
+
+    func storageReport() -> FoilKeyboardStorageReport {
+        guard let data = defaults.data(forKey: reportDefaultsKey),
+              let report = try? JSONDecoder().decode(FoilKeyboardStorageReport.self, from: data) else {
+            return .initial
         }
+        return report
+    }
+
+    private func persist(_ snapshot: FoilKeyboardSnapshot, operation: String) {
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        let removalResults = removeSnapshotFiles(Array(readableSnapshotFileURLs.dropFirst()))
+        let writeResult = writeSnapshotFile(data)
         defaults.set(data, forKey: defaultsKey)
         defaults.synchronize()
+        saveStorageReport(
+            snapshot: snapshot,
+            operation: operation,
+            writeResult: writeResult,
+            defaultsWriteAttempted: true,
+            removalResults: removalResults
+        )
     }
 
     func requestHandoff() {
@@ -136,9 +191,79 @@ struct FoilKeyboardBridge {
     }
 
     func reset() {
-        for url in readableSnapshotFileURLs.dropFirst() {
-            try? FileManager.default.removeItem(at: url)
+        persist(.initial, operation: "reset")
+    }
+
+    private func writeSnapshotFile(_ data: Data) -> FoilKeyboardStoragePathResult {
+        guard let snapshotFileURL else {
+            return FoilKeyboardStoragePathResult(path: "missing app group container", succeeded: false, error: "Missing app group container")
         }
-        save(.initial)
+
+        let path = snapshotFileURL.path
+        do {
+            try FileManager.default.createDirectory(
+                at: snapshotFileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+        } catch {
+            return FoilKeyboardStoragePathResult(path: path, succeeded: false, error: error.localizedDescription)
+        }
+
+        do {
+            try data.write(to: snapshotFileURL, options: [])
+            return FoilKeyboardStoragePathResult(path: path, succeeded: true, error: nil)
+        } catch {
+            guard FileManager.default.fileExists(atPath: snapshotFileURL.path),
+                  let handle = try? FileHandle(forWritingTo: snapshotFileURL) else {
+                return FoilKeyboardStoragePathResult(path: path, succeeded: false, error: error.localizedDescription)
+            }
+            handle.truncateFile(atOffset: 0)
+            handle.write(data)
+            handle.closeFile()
+            return FoilKeyboardStoragePathResult(path: path, succeeded: true, error: nil)
+        }
+    }
+
+    private func removeSnapshotFiles(_ urls: [URL]) -> [FoilKeyboardStoragePathResult] {
+        urls.map { url in
+            do {
+                try FileManager.default.removeItem(at: url)
+                return FoilKeyboardStoragePathResult(path: url.path, succeeded: true, error: nil)
+            } catch {
+                if !FileManager.default.fileExists(atPath: url.path) {
+                    return FoilKeyboardStoragePathResult(path: url.path, succeeded: true, error: "Already absent")
+                }
+                return FoilKeyboardStoragePathResult(path: url.path, succeeded: false, error: error.localizedDescription)
+            }
+        }
+    }
+
+    private func saveStorageReport(
+        snapshot: FoilKeyboardSnapshot,
+        operation: String,
+        writeResult: FoilKeyboardStoragePathResult,
+        defaultsWriteAttempted: Bool,
+        removalResults: [FoilKeyboardStoragePathResult]
+    ) {
+        let verifiedSnapshot: FoilKeyboardSnapshot? = snapshotFileURL.flatMap { url in
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return try? JSONDecoder().decode(FoilKeyboardSnapshot.self, from: data)
+        }
+        let report = FoilKeyboardStorageReport(
+            operation: operation,
+            phase: snapshot.phase,
+            hasTranscript: snapshot.transcript?.isEmpty == false,
+            canonicalPath: snapshotFileURL?.path,
+            canonicalWriteSucceeded: writeResult.succeeded,
+            canonicalWriteError: writeResult.error,
+            canonicalVerificationPhase: verifiedSnapshot?.phase,
+            canonicalVerificationHasTranscript: verifiedSnapshot?.transcript?.isEmpty == false,
+            defaultsWriteAttempted: defaultsWriteAttempted,
+            fallbackRemovalResults: removalResults,
+            updatedAt: Date()
+        )
+        guard let data = try? JSONEncoder().encode(report) else { return }
+        defaults.set(data, forKey: reportDefaultsKey)
+        defaults.synchronize()
     }
 }

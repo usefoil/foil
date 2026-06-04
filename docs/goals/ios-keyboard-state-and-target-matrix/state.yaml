@@ -1,0 +1,439 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS Keyboard State And Target Matrix"
+  slug: "ios-keyboard-state-and-target-matrix"
+  kind: specific
+  tranche: "Fix keyboard reset persistence, prove state agreement on iPhone-preview, and expand the privacy-safe host-app insertion/rejection matrix."
+  status: active
+  oracle:
+    signal: "After one physical-device insertion through Foil Keyboard, host text changes exactly once and keyboard UI, UserDefaults-derived app state, and canonical App Group file all show idle/no transcript; then target-app matrix rows are recorded without private content."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Merged PR into codex/ios-keyboard-prototype plus receipts with WDA source snippets, devicectl App Group file copies, screenshots, build/install commands, secret scan, issue update, and final audit."
+  intake:
+    original_request: "Make a detailed plan using GoalBuddy prep for the next iOS build work."
+    interpreted_outcome: "Prepare a GoalBuddy board to fix the iOS keyboard state divergence and continue physical target-app testing."
+    input_shape: specific
+    audience: "Foil owner/developer"
+    authority: approved
+    proof_type: demo
+    completion_proof: "The iOS prototype branch has a verified reset-persistence fix and a privacy-safe physical-device insertion/rejection matrix."
+    likely_misfire: "Visible keyboard reset is treated as done while a stale canonical App Group file can still resurrect a consumed transcript."
+    blind_spots_considered:
+      - "Keyboard extension file writes can differ from containing-app writes."
+      - "UserDefaults and file-backed App Group snapshots can diverge."
+      - "Running extension processes may cache old code/state until killed."
+      - "Safari, Reminders, Messages, and Settings can expose private accessibility content."
+      - "Secure fields rejecting custom keyboards are expected platform behavior."
+      - "Large Dynamic Type can hide controls or make screenshots misleading."
+      - "API keys and transcript content must not leak."
+      - "Previous iOS smoke evidence should be reused as baseline rather than rerun from scratch."
+    existing_plan_facts:
+      - "Continue from codex/ios-keyboard-prototype."
+      - "Start with App Group state cleanup."
+      - "Then run Notes, Safari blank search/address, Reminders blank item, and secure-field rejection rows."
+      - "Use the preview iPhone when available and unlocked."
+      - "Use the local Groq/Grok key only if live transcription is needed; do not print or commit it."
+      - "Create PRs into codex/ios-keyboard-prototype, not main."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://127.0.0.1:41737/ios-keyboard-state-and-target-matrix/"
+    command: "npx goalbuddy board docs/goals/ios-keyboard-state-and-target-matrix"
+
+active_task: T007
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: high
+    objective: "Map the current iOS keyboard state-store reality and physical-device control surface before any implementation."
+    inputs:
+      - "docs/goals/ios-preview-device-smoke/notes/T010-usability-matrix-and-reset.md"
+      - "docs/acceptance-evidence.md"
+      - "FoiliOS/Shared/FoilKeyboardBridge.swift"
+      - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+      - "FoiliOS/FoilIOSApp/ContentView.swift"
+      - "xcrun devicectl list devices"
+      - "WDA/tunnel status if currently available"
+      - "Current git branch/status"
+    constraints:
+      - "Read-only."
+      - "Do not print or copy API key values."
+      - "Do not preserve raw accessibility trees from private apps."
+      - "Prefer exact file paths, storage paths, commands, and observed device IDs."
+    expected_output:
+      - "Current branch/head and dirty-state summary."
+      - "Current bridge load/save/reset behavior as implemented."
+      - "Known canonical App Group path and fallback paths."
+      - "Device/WDA/tunnel availability."
+      - "The strongest stale-state reproduction command sequence."
+      - "Recommended first Worker slice with allowed_files, verify commands, and stop_if."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped the current iOS keyboard state-store behavior and physical-device control surface. The known stale-state failure is present on the device before any new implementation: the canonical App Group file still contains the consumed transcript from the previous run, while fallback file locations are absent. Device build/install targets are available, the user-started tunnel is live, and WDA is currently stopped and must be restarted before UI proof."
+      branch:
+        name: "codex/ios-keyboard-prototype"
+        head: "ca80a29"
+        status: "Only pre-existing untracked Xcode xcuserdata dirs, the new GoalBuddy board, and an unrelated docs/superpowers plan are untracked."
+      current_behavior:
+        load: "FoilKeyboardBridge.load() reads canonical Library/foil-keyboard-snapshot.json, Library/Caches/foil-keyboard-snapshot.json, root foil-keyboard-snapshot.json, then UserDefaults, and returns the newest updatedAt snapshot."
+        save: "FoilKeyboardBridge.save() best-effort encodes JSON, writes only canonical Library/foil-keyboard-snapshot.json with .atomic, then writes UserDefaults and synchronizes."
+        reset: "FoilKeyboardBridge.reset() removes fallback file paths only, then save(.initial). It does not remove canonical first or expose file write failures."
+      app_group_paths:
+        canonical: "Library/foil-keyboard-snapshot.json"
+        fallback_cache: "Library/Caches/foil-keyboard-snapshot.json"
+        fallback_root: "foil-keyboard-snapshot.json"
+      device:
+        core_device_id: "5320F5AD-2A71-50AC-94FE-207B544B6247"
+        hardware_udid: "00008030-001A0C980A33C02E"
+        devicectl_state: "connected"
+        xctrace_state: "online, iOS 26.4.2"
+        xcodebuild_destination: "platform iOS arch arm64 id 00008030-001A0C980A33C02E name iPhone-preview"
+        tunnel: "127.0.0.1:49151 reports fd5f:7ded:e5f3::1 port 64418"
+        wda: "http://192.168.1.40:8100/status failed to connect; WDA is stopped."
+      evidence:
+        - "devicectl copy from canonical App Group file returned phase complete, message Groq transcript ready, transcript Whatcha doing here? Foil preview test June 4th., updatedAt 802287798.319."
+        - "devicectl copy from Library/Caches/foil-keyboard-snapshot.json failed with file-node-not-found."
+        - "devicectl copy from root foil-keyboard-snapshot.json failed with file-node-not-found."
+        - "xcrun devicectl list devices showed iPhone-preview connected."
+        - "xcodebuild -showdestinations listed iPhone-preview as an iOS arm64 destination."
+        - "Process list showed Foil iOS and MobileNotes still running, but no Foil Keyboard extension process."
+      strongest_reproduction:
+        - "Seed canonical App Group file with a fresh complete transcript."
+        - "Kill any running Foil Keyboard extension process."
+        - "Restart WDA, launch Notes, focus a safe test note, and select Foil Keyboard."
+        - "Tap foil-keyboard-insert-latest once."
+        - "Assert WDA source shows host field appended once and keyboard Ready/no transcript."
+        - "Copy Library/foil-keyboard-snapshot.json back with devicectl; stale complete transcript proves the bug if present."
+      recommended_first_worker:
+        objective: "Make FoilKeyboardBridge writes explicit and robust: ensure parent directories exist, overwrite canonical without silent atomic-only failure, clear all file locations on reset including canonical, keep UserDefaults in sync, and add debug-readable state helpers only if needed."
+        allowed_files:
+          - "FoiliOS/Shared/**"
+          - "FoiliOS/FoilKeyboard/**"
+          - "FoiliOS/FoilIOSApp/**"
+          - "FoiliOS/project.yml"
+          - "FoiliOS/FoilIOS.xcodeproj/**"
+          - "docs/goals/ios-keyboard-state-and-target-matrix/**"
+        verify:
+          - "cd FoiliOS && xcodegen generate --spec project.yml"
+          - "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-state-derived -allowProvisioningUpdates build"
+          - "Install app on device with devicectl."
+          - "Restart WDA, seed canonical file, insert once in Notes, and copy canonical file back."
+          - "Canonical file must show idle/no transcript or be absent by explicit design after insertion."
+        stop_if:
+          - "Keyboard extension cannot mutate canonical App Group files after non-atomic overwrite/remove attempts; return to Judge with exact proof."
+          - "Device/WDA cannot be restored."
+          - "Need files outside the allowed scope."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Review T001 and select the smallest Worker slice that can make UI, UserDefaults, and canonical App Group file agree after insertion."
+    inputs:
+      - "T001 receipt"
+      - "Current diff/status"
+      - "Known stale canonical file failure mode"
+    constraints:
+      - "Do not implement."
+      - "Reject UI-only fixes that do not verify the canonical App Group file."
+      - "Keep scope inside FoiliOS and this goal unless necessary."
+    expected_output:
+      - "Decision: approved, blocked, or needs narrower scout."
+      - "Worker objective."
+      - "Allowed files."
+      - "Verify commands."
+      - "Stop conditions."
+      - "Whether a debug state inspector is required now or can wait."
+    receipt:
+      result: done
+      task_id: T002
+      decision: approved
+      full_outcome_complete: false
+      rationale: "Approve a focused reset-persistence Worker before any target-matrix expansion. T001 proves the strongest failure mode is not the visible keyboard UI; it is that the canonical App Group file can still contain a consumed complete transcript. A valid fix must make file persistence explicit enough to prove, then rerun the physical Notes insertion with WDA plus devicectl copy-back."
+      selected_worker: T003
+      required_approach:
+        - "Keep scope in FoiliOS shared/app/keyboard code and this goal."
+        - "Prefer a single shared bridge abstraction over one-off app/keyboard fixes."
+        - "Make reset clear or overwrite the canonical file, not just fallback paths."
+        - "Stop swallowing all storage failures if a minimal diagnostic surface is needed for proof."
+        - "Do not run Reminders/Safari/Messages matrix until reset persistence is verified."
+      allowed_files:
+        - "FoiliOS/Shared/**"
+        - "FoiliOS/FoilKeyboard/**"
+        - "FoiliOS/FoilIOSApp/**"
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/**"
+        - "docs/goals/ios-keyboard-state-and-target-matrix/**"
+      verify:
+        - "cd FoiliOS && xcodegen generate --spec project.yml"
+        - "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-state-derived -allowProvisioningUpdates build"
+        - "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-state-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+        - "Restart WDA if needed, seed canonical App Group file, kill running Foil Keyboard extension, insert once in Notes, and copy canonical App Group file back."
+        - "WDA source must show the host field appended the unique transcript once and keyboard Ready/Insert latest disabled."
+        - "Copied canonical file must show idle/no transcript or be absent by explicit design."
+        - "git diff --check -- FoiliOS docs/goals/ios-keyboard-state-and-target-matrix"
+        - "Secret scan over FoiliOS and this goal."
+      stop_if:
+        - "Keyboard extension cannot mutate canonical App Group files even after explicit remove/overwrite attempts."
+        - "WDA/device cannot be restored."
+        - "Need files outside allowed scope."
+        - "A secret value would need to be printed or committed."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Implement the reset persistence fix selected by Judge so the keyboard clears/overwrites canonical file and UserDefaults state consistently."
+    allowed_files:
+      - "FoiliOS/Shared/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-keyboard-state-and-target-matrix/**"
+    verify:
+      - "cd FoiliOS && xcodegen generate --spec project.yml"
+      - "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-state-derived -allowProvisioningUpdates build"
+      - "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-state-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+      - "Seed canonical App Group file with a unique transcript and fresh updatedAt."
+      - "Kill any running Foil Keyboard extension process before the proof run."
+      - "Insert once in Notes through Foil Keyboard."
+      - "WDA source shows host value appended once, keyboard Ready, and Insert latest disabled."
+      - "devicectl copy from Library/foil-keyboard-snapshot.json shows idle/no transcript or file absence by explicit design."
+      - "git diff --check -- FoiliOS docs/goals/ios-keyboard-state-and-target-matrix"
+      - "Secret scan over FoiliOS and this goal."
+    stop_if:
+      - "Physical device disappears or locks."
+      - "WDA/tunnel cannot be restored after documented attempts."
+      - "Canonical file cannot be written from the keyboard extension due platform restrictions; record exact proof and return to Judge."
+      - "Need changes outside allowed files."
+      - "A secret value would need to be printed or committed."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Implemented robust canonical snapshot overwrite/reset plus a no-transcript storage report, then proved on iPhone-preview that Full Access is the required permission gate. With Allow Full Access off, the keyboard saw a stale Transcript Ready snapshot but could not update the shared store, so Insert latest is now disabled and the keyboard says Allow Full Access required. After enabling Allow Full Access in Settings, the same app-created transcript inserted once in Notes and reset persisted across the visible keyboard, canonical App Group JSON, App Group defaults, and containing app state."
+      implementation:
+        - "FoilKeyboardBridge.save/reset now route through one persist path."
+        - "Canonical Library/foil-keyboard-snapshot.json parent directory is created before writes."
+        - "Canonical snapshot is overwritten directly, with FileHandle truncate/write fallback."
+        - "Fallback snapshot paths are removed on every persist."
+        - "A transcript-free FoilKeyboardStorageReport records operation, canonical file write result, verification phase, transcript presence boolean, and defaults write attempt."
+        - "The containing app shows a safe storage summary for physical-device proof."
+        - "Foil Keyboard checks hasFullAccess and disables Insert latest when Allow Full Access is off."
+      evidence:
+        - "Build/install passed: cd FoiliOS && xcodegen generate --spec project.yml; xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-state-derived -allowProvisioningUpdates build; devicectl install app succeeded to /private/var/containers/Bundle/Application/3916391B-69C6-4E0A-9869-977B3A052D10/Foil iOS.app/."
+        - "Full Access off proof: Settings showed Allow Full Access value 0; Notes/Foil keyboard source showed keyboard_status=Transcript Ready, keyboard_message=Allow Full Access required, insert_label=Insert latest (full access off), insert_enabled=false."
+        - "Full Access enabled through Settings; Settings source showed Allow Full Access switch value 1 after the iOS Allow confirmation."
+        - "Final setup canonical copy before insert was phase complete, message Fake transcript ready, transcript Foil keyboard shell, updatedAt 802290054.444778."
+        - "Final Notes/Foil source before insert showed keyboard_status=Transcript Ready, keyboard_message=Fake transcript ready, insert_label=Insert latest, insert_enabled=true."
+        - "Final Notes/Foil source after insert showed host note suffix ending in a single additional Foil keyboard shell, keyboard_status=Ready, keyboard_message=Ready, insert_label=Insert latest (no transcript), insert_enabled=false."
+        - "Final canonical App Group copy from Library/foil-keyboard-snapshot.json showed message Ready, phase idle, updatedAt 802290086.409129, and no transcript key."
+        - "Final App Group preferences copy contained foil.keyboard.snapshot.v1 and foil.keyboard.storageReport.v1 data after reset."
+        - "Containing app WDA source showed Ready and Storage reset: file ok, defaults written, verified Ready no transcript."
+        - "WDA screenshot captured at /tmp/foil-device-screens/state-reset-fullaccess-proof.png and visually inspected."
+      strongest_realistic_failure_mode: "The keyboard could look reset while stale canonical App Group state remains complete and can resurrect a consumed transcript."
+      disproof: "The post-insert canonical JSON copied from the physical device is idle/no transcript, the App Group defaults file contains reset keys, the containing app shows Ready, and the keyboard source shows Insert latest disabled."
+      residual_risk:
+        - "The proof used the fake transcript button, not a fresh live Groq recording/transcription."
+        - "Full Access is mandatory for this keyboard architecture and must be part of onboarding/hardening."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Add a minimal prototype state inspector only if T002/T003 determines file/UserDefaults state is otherwise too opaque to prove safely."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/Shared/**"
+      - "docs/goals/ios-keyboard-state-and-target-matrix/**"
+    verify:
+      - "Inspector shows app-visible file snapshot, defaults snapshot, and resolved snapshot without showing API keys."
+      - "Physical screenshot or WDA source proves inspector reflects post-reset idle state."
+      - "Build/install on iPhone-preview."
+      - "git diff --check -- FoiliOS docs/goals/ios-keyboard-state-and-target-matrix"
+    stop_if:
+      - "T003 proves state fully without an inspector."
+      - "Inspector risks leaking private transcript content beyond safe test strings."
+    receipt:
+      result: done
+      task_id: T004
+      summary: "The minimal prototype state inspector was needed and was folded into T003 rather than run as a separate Worker. It exposes only transcript-free storage facts in the containing app: operation, file ok/failed, defaults write attempt, verified phase, and whether a transcript is present."
+      evidence:
+        - "WDA source and screenshot after the final proof showed Storage reset: file ok, defaults written, verified Ready no transcript."
+      residual_risk: "Inspector is prototype diagnostic UI and should either become a debug-only panel or be removed before a polished user-facing build."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run the privacy-safe physical host-app insertion/rejection matrix after reset persistence is proven."
+    allowed_files:
+      - "docs/goals/ios-keyboard-state-and-target-matrix/**"
+      - "FoiliOS/**"
+    verify:
+      - "Notes repeat row: safe test note receives transcript once and reset persists."
+      - "Safari row: blank address/search field receives transcript; no private browsing tree or screenshot committed."
+      - "Reminders row: blank new reminder or explicitly safe test list receives transcript, or blocker recorded."
+      - "Secure-field row: custom keyboard rejection or replacement by Apple keyboard is recorded as expected platform behavior."
+      - "Messages row only if operator opens safe self/test thread."
+      - "Each row records app, field, setup, result, evidence, residual risk."
+      - "git diff --check -- FoiliOS docs/goals/ios-keyboard-state-and-target-matrix"
+    stop_if:
+      - "A target app exposes private content that cannot be sanitized."
+      - "The device locks or becomes unavailable."
+      - "A row requires destructive changes to user data."
+      - "Messages cannot be tested in a safe blank context."
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Ran the privacy-safe physical host-app matrix on iPhone-preview after reset persistence and Full Access were proven. Notes, Safari address/search, and Reminders new-title insertion passed with unique safe transcript strings and post-insert canonical App Group reset. Secure-field rejection passed using a Foil iOS local harness: iOS showed the Apple keyboard and withheld Foil Keyboard. Messages was skipped because no safe self/test thread was provided."
+      evidence_note: "docs/goals/ios-keyboard-state-and-target-matrix/notes/T005-host-app-matrix.md"
+      rows:
+        - app: "Notes"
+          result: pass
+          evidence: "Safe transcript Foil matrix notes 2026-06-04T18:23:58Z appeared exactly once in the Notes text view; keyboard reset UI and canonical JSON were idle/no transcript."
+        - app: "Safari"
+          result: pass
+          evidence: "Address text-field value was the safe transcript Foil matrix safari 2026-06-04T18:26:11Z; keyboard reset UI and canonical JSON were idle/no transcript."
+        - app: "Reminders"
+          result: pass
+          evidence: "A new reminder Title text field contained the safe transcript Foil matrix reminder 2026-06-04T18:28:20Z exactly once; keyboard reset UI and canonical JSON were idle/no transcript."
+        - app: "Secure field"
+          result: "pass_expected_rejection"
+          evidence: "Foil iOS secure-rejection-field showed secure_field_present=true, foil_keyboard_present=false, apple_keyboard_present=true, visible Apple key sample q,w,e,r,t,y,u,i."
+        - app: "Messages"
+          result: skipped
+          evidence: "No operator-provided safe self/test thread was available."
+      checks:
+        - "git diff --check -- FoiliOS docs/goals/ios-keyboard-state-and-target-matrix: pass"
+        - "Secret scan over FoiliOS and goal: no secret values; only env var names and Authorization header template matched."
+        - "Build/install of final matrix harness: pass"
+      residual_risk:
+        - "Reminders row added one safe test item to the user's active reminders list."
+        - "Safari raw source mirrors address text in multiple accessibility attributes; the row uses the actual Address field value."
+        - "Messages still needs a safe test thread."
+
+  - id: T006
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Review the reset proof and matrix evidence, then decide the next product interaction to prototype."
+    inputs:
+      - "T003/T004/T005 receipts"
+      - "Screenshots and WDA snippets"
+      - "Issue #216 context"
+    constraints:
+      - "Do not implement."
+      - "Distinguish platform constraints from product bugs."
+      - "Name whether the Whisperflow-style manual keyboard cycle is acceptable for the next prototype."
+    expected_output:
+      - "Decision: continue current interaction, change architecture, or block pending user input."
+      - "Recommended next product slice."
+      - "Risks for App Store/TestFlight hardening."
+    receipt:
+      result: done
+      task_id: T006
+      decision: "continue_current_interaction_with_full_access_onboarding"
+      full_outcome_complete: false
+      rationale: "The physical-device evidence supports the Whisperflow-style custom-keyboard architecture for the next prototype. The key platform constraint is not insertion itself; Notes, Safari, and Reminders accepted insertion after Full Access was enabled. The critical product requirement is to treat Allow Full Access as mandatory because without it the keyboard can display stale shared state but cannot reliably clear the shared store. Secure text fields correctly reject the custom keyboard and should be documented as expected platform behavior."
+      recommended_next_product_slice: "Add first-run keyboard onboarding and a recovery/debug surface: show how to enable Foil Keyboard and Allow Full Access, detect hasFullAccess in the keyboard, block stale inserts when it is off, and offer an app-side state reset/health check."
+      risks:
+        - "Full Access warning copy is scary and unavoidable; onboarding must explain why it is required in plain language."
+        - "Secure fields cannot be supported by a custom keyboard and need an explicit fallback story."
+        - "Messages remains untested until a safe test thread is available."
+        - "The storage inspector and secure-field harness are prototype diagnostics; decide whether to keep behind debug UI or remove before a polished build."
+
+  - id: T007
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Prepare issue and PR handoff artifacts for the verified implementation and matrix."
+    allowed_files:
+      - "docs/goals/ios-keyboard-state-and-target-matrix/**"
+      - "FoiliOS/**"
+    verify:
+      - "Issue #216 updated with sanitized state/matrix results and open questions."
+      - "PR targets codex/ios-keyboard-prototype, not main."
+      - "PR body includes acceptance-evidence claim/failure/evidence/residual-risk."
+      - "PR merged only if mergeable and verification passed, or left open with exact blocker."
+    stop_if:
+      - "GitHub auth unavailable."
+      - "Verification did not pass and no narrow blocker was recorded."
+    receipt: null
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Final audit against the goal oracle."
+    inputs:
+      - "All task receipts"
+      - "Build/install proof"
+      - "State reset proof"
+      - "Target matrix proof"
+      - "Issue/PR links"
+      - "Current git status"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if canonical App Group file was not checked after insertion."
+      - "Reject completion if private content was committed."
+      - "Reject completion if PR targets main."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode and evidence."
+      - "Residual risks."
+      - "Next board/task if not complete."
+    receipt: null
+
+checks:
+  dirty_fingerprint: "At prep time, branch codex/ios-keyboard-prototype had only pre-existing untracked Xcode xcuserdata dirs and docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md."
+  last_verification:
+    result: prep_only
+    task: null
+    commands:
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-update.mjs --json"
+        status: pass
+      - cmd: "git status --short --branch"
+        status: pass
