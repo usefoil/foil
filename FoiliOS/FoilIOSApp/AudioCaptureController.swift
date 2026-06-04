@@ -23,18 +23,22 @@ final class AudioCaptureController: NSObject, ObservableObject {
 
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .spokenAudio, options: [])
+            try session.setCategory(.record, mode: .measurement, options: [])
             try session.setActive(true)
 
             let url = try makeRecordingURL()
             let recorder = try AVAudioRecorder(url: url, settings: recordingSettings)
             recorder.prepareToRecord()
-            recorder.record()
+            guard recorder.record() else {
+                throw AudioCaptureError.recordingDidNotStart
+            }
             self.recorder = recorder
             lastRecordingURL = url
             status = "Recording"
             bridge.markListening()
         } catch {
+            recorder = nil
+            lastRecordingURL = nil
             status = "Recording failed: \(error.localizedDescription)"
         }
     }
@@ -93,5 +97,16 @@ final class AudioCaptureController: NSObject, ObservableObject {
         let filename = "foil-ios-\(formatter.string(from: Date())).m4a"
             .replacingOccurrences(of: ":", with: "-")
         return directory.appendingPathComponent(filename)
+    }
+}
+
+private enum AudioCaptureError: LocalizedError {
+    case recordingDidNotStart
+
+    var errorDescription: String? {
+        switch self {
+        case .recordingDidNotStart:
+            return "Recorder did not start"
+        }
     }
 }

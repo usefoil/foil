@@ -1,0 +1,662 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS Preview Device Smoke"
+  slug: "ios-preview-device-smoke"
+  kind: existing_plan
+  tranche: "Prove or narrowly block the physical iPhone-preview install, keyboard enablement, recording/transcription, and host-app insertion path for the existing iOS prototype."
+  status: complete
+  oracle:
+    signal: "A physical-device smoke transcript proves or blocks install/signing, keyboard enablement, containing-app recording/transcription, and text insertion through the custom keyboard on iPhone-preview."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Receipts with device identifiers, build/install commands, screenshots or logs, redacted transcription proof, insertion-matrix results, issue/PR links if created, and a final audit verdict."
+  intake:
+    original_request: "Make a detailed GoalBuddy prep plan, maybe a conveyor of boards, and start the iOS preview-iPhone work."
+    interpreted_outcome: "Resume the Foil iOS prototype and prove the basic custom-keyboard dictation loop on the unlocked preview iPhone."
+    input_shape: existing_plan
+    audience: "Foil owner/developer"
+    authority: approved
+    proof_type: demo
+    completion_proof: "iPhone-preview has the app installed and receipts prove keyboard enablement, record/transcribe, and host-app insertion, or record exact physical-device blockers."
+    likely_misfire: "Mistaking simulator proof or an installed containing app for a working iPhone custom-keyboard dictation loop."
+    blind_spots_considered:
+      - "Real-device signing and App Group provisioning can fail even when simulator builds pass."
+      - "Custom keyboard extensions cannot be relied on for direct microphone capture."
+      - "Open Access and App Group behavior may differ on device."
+      - "The keyboard may need the same reset/cycle behavior seen in Whisperflow before it appears."
+      - "Secure fields and some apps reject custom keyboards."
+      - "URL handoff from keyboard to containing app may not preserve enough lifecycle/background time."
+      - "The local Groq/Grok key must be used without printing or committing the secret."
+      - "Private texts, contacts, recordings, and screenshots must stay out of committed artifacts."
+    existing_plan_facts:
+      - "Continue from codex/ios-keyboard-prototype."
+      - "Use iPhone-preview, which is online/open/unlocked according to the user."
+      - "Use local Groq/Grok key only for testing."
+      - "Use GoalBuddy receipts and acceptance evidence."
+      - "Create a branch for this tranche."
+      - "Create/fix/merge PRs into the prototype branch when code changes are ready."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://127.0.0.1:41737/ios-preview-device-smoke/"
+    command: "npx goalbuddy board docs/goals/ios-preview-device-smoke"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: medium
+    objective: "Map current branch state, iOS project health, available simulator/device targets, signing/App Group readiness, test-key availability, and the shortest physical-device smoke path."
+    inputs:
+      - "docs/goals/ios-keyboard-prototype/goal.md"
+      - "docs/goals/ios-keyboard-prototype/state.yaml"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj"
+      - "FoiliOS/FoilIOSApp"
+      - "FoiliOS/FoilKeyboard"
+      - "FoiliOS/Shared"
+      - "docs/acceptance-evidence.md"
+      - "xcrun devicectl list devices"
+      - "xcrun xctrace list devices"
+      - "xcodebuild project and signing output"
+      - "Local secret locations by name only; never print secret values."
+    constraints:
+      - "Read-only."
+      - "Do not edit implementation files."
+      - "Do not print, persist, or commit API key values."
+      - "Prefer concrete command output, file paths, and device IDs over generic iOS advice."
+      - "Record whether iPhone-preview is available through both CoreDevice/devicectl and Xcode build destinations."
+    expected_output:
+      - "Current branch/head and dirty-state summary."
+      - "Buildable project/scheme status."
+      - "Preview-iPhone availability and exact destination identifier."
+      - "Signing/App Group readiness or likely blocker."
+      - "Secret-safe test-key availability."
+      - "Recommended first Worker slice with allowed_files, verify commands, and stop_if."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Scout mapped the second-tranche branch, existing iOS prototype, device visibility, signing state, entitlements, and test-key availability. The preview iPhone is visible to xcodebuild as a real iOS destination, but the first physical-device build fails narrowly because both the app and keyboard extension lack a DEVELOPMENT_TEAM setting."
+      evidence:
+        - "Branch: codex/ios-preview-device-smoke at 6eb1cf100bd4d5252791bc37a0e7ca055a167e73, rooted from codex/ios-keyboard-prototype."
+        - "FoiliOS/FoilIOS.xcodeproj lists targets FoilIOS and FoilKeyboard, schemes FoilIOS and FoilKeyboard."
+        - "xcrun devicectl list devices shows iPhone-preview available paired with CoreDevice id 5320F5AD-2A71-50AC-94FE-207B544B6247."
+        - "xcrun xctrace list devices still lists hardware UDID 00008030-001A0C980A33C02E as iPhone-preview offline, which conflicts with devicectl."
+        - "xcodebuild -showdestinations for FoilIOS lists iPhone-preview as platform iOS arch arm64 id 00008030-001A0C980A33C02E."
+        - "Plain device build to id=00008030-001A0C980A33C02E fails with Signing for FoilKeyboard/FoilIOS requires a development team."
+        - "Local code signing identities include Apple Development: Jeremy Watt (3CDYUL285D)."
+        - "FoilIOS and FoilKeyboard entitlements both request group.com.neonwatty.FoilIOS."
+        - "FoilKeyboard Info.plist has RequestsOpenAccess=false."
+        - "Keychain item com.neonwatty.Foil/groq-api-key exists; GROQ_API_KEY and GROK_API_KEY are not set in environment."
+        - "Issue #216 is open and already contains the simulator insertion update."
+      commands:
+        - cmd: "git status --short --branch && git rev-parse HEAD && git log --oneline --decorate -n 8"
+          status: pass
+        - cmd: "xcrun devicectl list devices"
+          status: pass
+        - cmd: "xcrun xctrace list devices"
+          status: pass_with_conflict
+        - cmd: "xcodebuild -list -project FoiliOS/FoilIOS.xcodeproj"
+          status: pass
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -showdestinations"
+          status: pass
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -showBuildSettings -destination 'generic/platform=iOS' | rg signing/settings"
+          status: pass
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' build"
+          status: failed_expected
+        - cmd: "security find-generic-password -a groq-api-key -s com.neonwatty.Foil"
+          status: pass_redacted
+        - cmd: "plutil -p FoiliOS/FoilIOSApp/Generated/FoilIOS.entitlements; plutil -p FoiliOS/FoilKeyboard/Generated/FoilKeyboard.entitlements"
+          status: pass
+      recommended_first_worker:
+        objective: "Add the minimal XcodeGen signing settings for local physical-device builds, regenerate the project, and retry build/install on iPhone-preview."
+        allowed_files:
+          - "FoiliOS/project.yml"
+          - "FoiliOS/FoilIOS.xcodeproj/**"
+          - "docs/goals/ios-preview-device-smoke/state.yaml"
+        verify:
+          - "cd FoiliOS && xcodegen generate --spec project.yml"
+          - "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' build"
+          - "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 <built .app path>"
+          - "Launch app on iPhone-preview with devicectl or Xcode if available."
+          - "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+        stop_if:
+          - "Apple Developer portal provisioning or App Group registration is required and cannot be done locally."
+          - "The device disappears or locks."
+          - "Need files outside the allowed project/signing scope."
+      residual_risk:
+        - "Adding DEVELOPMENT_TEAM may expose a second blocker: App Group group.com.neonwatty.FoilIOS may not exist in the team's provisioning profile."
+        - "xctrace offline state may still break screenshot/log capture even if xcodebuild can build for the device."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Review T001 and choose the largest safe first Worker slice for physical-device build/sign/install."
+    inputs:
+      - "T001 receipt"
+      - "Current git status"
+      - "Current xcodebuild or devicectl blockers"
+    constraints:
+      - "Do not implement."
+      - "Reject broad UI polish; this tranche is about physical-device proof."
+      - "Choose a Worker slice that can become a PR into codex/ios-keyboard-prototype if code changes are needed."
+      - "If signing/provisioning is the blocker, decide whether to spawn ios-device-signing-provisioning as a child board."
+    expected_output:
+      - "Decision: approved, blocked, or needs narrower scout."
+      - "Exact Worker objective."
+      - "PR branch/base recommendation if code changes are needed."
+      - "allowed_files."
+      - "verify commands."
+      - "stop_if conditions."
+      - "Child-board recommendation if needed."
+    receipt:
+      result: done
+      task_id: T002
+      decision: approved
+      full_outcome_complete: false
+      rationale: "Approve the largest safe first Worker slice: add a local physical-device development team setting through XcodeGen, regenerate the iOS project, and retry build/install on iPhone-preview. The current failure is narrow and evidenced by xcodebuild: both FoilIOS and FoilKeyboard require a development team. Keep this in the iOS prototype project only; do not touch macOS project or app code unless the build exposes a new blocker."
+      selected_worker: T003
+      allowed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/**"
+        - "docs/goals/ios-preview-device-smoke/state.yaml"
+      verify:
+        - "cd FoiliOS && xcodegen generate --spec project.yml"
+        - "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' build"
+        - "Resolve built app path from DerivedData and install with xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 <app>"
+        - "Launch com.neonwatty.FoilIOS on iPhone-preview with devicectl if the install succeeds."
+        - "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+      stop_if:
+        - "Apple Developer portal provisioning or App Group registration is required and cannot be done locally."
+        - "The device disappears or locks."
+        - "Need files outside FoiliOS project-generation/signing files or the GoalBuddy board."
+        - "A secret value would need to be printed, committed, or stored in source."
+      child_board_decision: "Do not spawn ios-device-signing-provisioning yet; the first failure is a single missing DEVELOPMENT_TEAM setting."
+      evidence:
+        - "T001 receipt shows xcodebuild destination id 00008030-001A0C980A33C02E for iPhone-preview."
+        - "T001 receipt shows local Apple Development identity Jeremy Watt (3CDYUL285D)."
+        - "T001 receipt shows the failing build emits only missing development-team signing errors before compile."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: blocked
+    reasoning_hint: high
+    objective: "Build, sign, install, and launch the current Foil iOS prototype on iPhone-preview, making only the smallest project/signing fixes selected by Judge."
+    allowed_files:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-preview-device-smoke/state.yaml"
+    verify:
+      - "cd FoiliOS && xcodegen generate --spec project.yml"
+      - "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' build"
+      - "Resolve built app path from DerivedData and install with xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 <app>"
+      - "Launch com.neonwatty.FoilIOS on iPhone-preview with devicectl if install succeeds."
+      - "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+    stop_if:
+      - "Need files outside allowed_files."
+      - "Signing requires Apple Developer portal changes that cannot be made locally."
+      - "iPhone-preview disappears, locks, or requires interactive action that cannot be completed."
+      - "Verification fails twice with the same root cause."
+      - "A secret value would need to be printed, committed, or stored in source."
+    subgoal_candidate:
+      slug: "ios-device-signing-provisioning"
+      create_if: "Real-device App Group signing/provisioning needs a multi-step plan beyond this single Worker slice."
+    receipt:
+      result: blocked
+      task_id: T003
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      summary: "Added minimal automatic development signing settings for local physical-device builds through XcodeGen and regenerated the project. This resolved the missing DEVELOPMENT_TEAM error, but the device build remains blocked because Xcode has no account/provisioning profiles available for com.neonwatty.FoilIOS or com.neonwatty.FoilIOS.Keyboard."
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' build"
+          status: failed_progressed
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -allowProvisioningUpdates build"
+          status: failed_blocked
+        - cmd: "find ~/Library/MobileDevice/Provisioning Profiles -name '*.mobileprovision'"
+          status: pass_no_profiles_dir
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+          status: pass
+        - cmd: "rg secret/token-shaped patterns over FoiliOS and docs/goals/ios-preview-device-smoke"
+          status: pass
+      evidence:
+        - "First post-team build error: no profiles for com.neonwatty.FoilIOS and com.neonwatty.FoilIOS.Keyboard; pass -allowProvisioningUpdates."
+        - "allowProvisioningUpdates build error: No Accounts: Add a new account in Accounts settings."
+        - "allowProvisioningUpdates build error: no iOS App Development provisioning profiles matching the app or keyboard bundle IDs."
+        - "No local provisioning profile directory exists at ~/Library/MobileDevice/Provisioning Profiles."
+      blocker:
+        - "Xcode needs an Apple ID/team account signed in and able to create/download development profiles for com.neonwatty.FoilIOS, com.neonwatty.FoilIOS.Keyboard, and App Group group.com.neonwatty.FoilIOS."
+      residual_risk:
+        - "After account/profile setup, App Group capability registration may still fail and require Developer portal changes."
+        - "xctrace still lists iPhone-preview offline even though xcodebuild lists it as a destination; screenshots/log capture may need devicectl or manual device recording."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Enable Foil Keyboard on iPhone-preview and prove the keyboard can be selected in a privacy-safe host text field."
+    allowed_files:
+      - "docs/goals/ios-preview-device-smoke/state.yaml"
+      - "docs/goals/ios-preview-device-smoke/notes/**"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+    verify:
+      - "Device screenshot or direct observation of Settings showing Foil Keyboard installed/enabled."
+      - "Device screenshot or direct observation of a host text field with Foil Keyboard selected."
+      - "Record reset/cycle steps required to make the keyboard appear."
+      - "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+    stop_if:
+      - "Keyboard does not appear after reinstall and documented reset/cycle attempts."
+      - "Testing would expose private user content."
+      - "Need project/signing files beyond the allowed files; return to Judge."
+    subgoal_candidate:
+      slug: "ios-keyboard-enable-reset-matrix"
+      create_if: "Keyboard reset/cycle behavior needs repeated matrix runs or dedicated documentation."
+    receipt:
+      result: done
+      task_id: T004
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "FoiliOS/Shared/FoilKeyboardBridge.swift"
+        - "FoiliOS/FoilKeyboard/Generated/Info.plist"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-preview-device-smoke/state.yaml"
+      summary: "Physical keyboard enablement and insertion smoke succeeded in Notes after making the keyboard UI obvious, requesting Open Access, and switching the shared bridge to a file-backed App Group snapshot. The operator reported that Insert latest worked in Notes."
+      commands:
+        - cmd: "xcrun devicectl device info processes --device 5320F5AD-2A71-50AC-94FE-207B544B6247 | rg 'MobileNotes|Foil Keyboard'"
+          status: pass
+        - cmd: "plutil -p FoiliOS/FoilKeyboard/Generated/Info.plist | rg RequestsOpenAccess"
+          status: pass
+        - cmd: "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '<DerivedData>/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "xcrun devicectl device copy to --domain-type appGroupDataContainer --domain-identifier group.com.neonwatty.FoilIOS --source /tmp/foil-ios-seed-dir/Caches --destination Library --remove-existing-content true"
+          status: pass
+        - cmd: "xcrun devicectl device copy from --domain-type appGroupDataContainer --domain-identifier group.com.neonwatty.FoilIOS --source Library/foil-keyboard-snapshot.json"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+          status: pass
+        - cmd: "rg secret/token-shaped patterns over FoiliOS and docs/goals/ios-preview-device-smoke"
+          status: pass
+      evidence:
+        - "Device process list showed MobileNotes and /Foil iOS.app/PlugIns/Foil Keyboard.appex/Foil Keyboard active."
+        - "Operator report: physical Notes insertion worked from the visible Insert latest button."
+        - "App Group file Library/foil-keyboard-snapshot.json existed with transcript Foil keyboard shell before/after insertion."
+      residual_risk:
+        - "I could not directly screenshot/tap the physical phone with available tools; visual proof is operator-attested plus process/file evidence."
+        - "Keyboard reset did not clear the file-backed snapshot after insertion; repeat insertion may remain possible until fixed."
+        - "The containing app's foilios://complete path did not create shared state on device; direct App Group seeding was used for this proof."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Prove or block containing-app microphone recording and Groq/Grok-compatible transcription on iPhone-preview without leaking secrets."
+    allowed_files:
+      - "docs/goals/ios-preview-device-smoke/state.yaml"
+      - "docs/goals/ios-preview-device-smoke/notes/**"
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/Shared/**"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+    verify:
+      - "Microphone permission prompt/permission state observed on iPhone-preview."
+      - "Recording start/stop produces a real audio artifact or app-visible saved recording state."
+      - "Secret-safe key injection path documented without printing the key."
+      - "Transcription returns app-visible text or exact provider/network/device blocker."
+      - "Secret scan over touched FoiliOS and goal files."
+      - "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+    stop_if:
+      - "Microphone permission cannot be granted interactively."
+      - "The only available recording content would be private/sensitive."
+      - "No test key can be used safely."
+      - "Network transcription fails twice with the same root cause."
+      - "Need background modes or architecture changes beyond the selected Worker scope; return to Judge."
+    subgoal_candidate:
+      slug: "ios-voice-handoff-device"
+      create_if: "Device microphone/background handoff requires architecture work beyond the smoke implementation."
+    receipt:
+      result: done
+      task_id: T005
+      changed_files:
+        - "FoiliOS/FoilIOSApp/AudioCaptureController.swift"
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-preview-device-smoke/state.yaml"
+      summary: "Containing-app microphone recording and Groq-compatible transcription are proven on iPhone-preview. The first real-device recording attempt exposed OSStatus -50 with .record/.spokenAudio; the fix switched AVAudioSession to .record/.measurement, guarded AVAudioRecorder.record(), made the content scrollable for the preview phone's large text setting, rebuilt/installed on the physical device, recorded a real .m4a, and completed a Groq transcription round trip using a key injected from Keychain without printing it."
+      commands:
+        - cmd: "pymobiledevice3 developer wda list-items --rsd fd5f:7ded:e5f3::1 64418 --port 8100 --with-rect"
+          status: pass_initial_failure_captured
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "DEVICECTL_CHILD_FOIL_IOS_GROQ_API_KEY='<redacted from Keychain>' xcrun devicectl device process launch --device 5320F5AD-2A71-50AC-94FE-207B544B6247 --terminate-existing --activate com.neonwatty.FoilIOS --timeout 20"
+          status: pass_redacted
+        - cmd: "pymobiledevice3 developer wda tap --using 'accessibility id' 'start-recording-button'"
+          status: pass
+        - cmd: "pymobiledevice3 developer wda tap --using 'accessibility id' 'stop-recording-button'"
+          status: pass
+        - cmd: "pymobiledevice3 developer wda tap --using 'accessibility id' 'transcribe-latest-button'"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+          status: pass
+        - cmd: "rg secret/token-shaped patterns over FoiliOS and docs/goals/ios-preview-device-smoke"
+          status: pass_code_refs_only
+      evidence:
+        - "Microphone permission prompt was observed on iPhone-preview and allowed via WDA during the first T005 attempt."
+        - "Pre-fix WDA tree showed exact failure label: Recording failed: The operation couldn't be completed. (OSStatus error -50.)."
+        - "Post-fix WDA tree after tapping Record showed Recording, disabled Record, enabled Stop, and app-visible file foil-ios-2026-06-04T16-56-10.665Z.m4a."
+        - "Screenshot captured at /tmp/foil-device-screens/foil-recording-fixed.png."
+        - "Post-stop WDA tree showed Recording saved, Recording saved for transcription, the same .m4a filename, and enabled Transcribe."
+        - "Post-transcribe WDA tree showed Groq transcript ready, Transcription complete, app-visible transcript '.', and the same .m4a filename."
+        - "Screenshot captured at /tmp/foil-device-screens/foil-transcription-complete.png."
+        - "Installed app and keyboard entitlements both include group.com.neonwatty.FoilIOS."
+        - "Secret-safe launch used local Keychain item com.neonwatty.Foil/groq-api-key and printed only devicectl launch success."
+      residual_risk:
+        - "The recorded test audio was mostly silence and Groq returned '.', so this proves provider/device plumbing rather than useful dictation quality."
+        - "The preview phone's large text setting makes the smoke UI cramped; ScrollView makes controls reachable, but a production iPhone UI needs a tighter layout."
+        - "Next slice should verify that Foil Keyboard inserts the newly produced Groq transcript, not only the earlier fake transcript."
+
+  - id: T006
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run a physical-device insertion matrix using Foil Keyboard's Insert latest path in privacy-safe host apps."
+    allowed_files:
+      - "docs/goals/ios-preview-device-smoke/state.yaml"
+      - "docs/goals/ios-preview-device-smoke/notes/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+    verify:
+      - "At least one Apple host app text field receives inserted text through Foil Keyboard."
+      - "Attempt Notes or Reminders first, then Safari search/address and Messages only if privacy-safe."
+      - "Record pass/fail/blocker for secure fields or apps that reject custom keyboards."
+      - "Screenshot/video/log evidence avoids private content."
+      - "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+    stop_if:
+      - "Keyboard selection fails after T004 succeeded; return to Judge."
+      - "A target app would expose private content."
+      - "Need implementation files beyond allowed_files."
+    subgoal_candidate:
+      slug: "ios-insertion-target-matrix"
+      create_if: "The insertion matrix expands beyond the first smoke row and needs dedicated repeated testing."
+    previous_receipt:
+      result: blocked
+      task_id: T006
+      summary: "Physical-device host-app insertion matrix is blocked until Foil Keyboard can be installed and enabled on iPhone-preview."
+      blocker:
+        - "Xcode account/provisioning profiles are missing for the app and keyboard extension bundle IDs."
+      depends_on:
+        - T003
+    receipt:
+      result: done
+      task_id: T006
+      summary: "Physical-device insertion matrix first row passed in Notes using the Groq transcript produced by T005. WDA focused the safe test note, Foil Keyboard appeared as the active custom keyboard, Insert latest was tapped by accessibility id, and the Notes text view value changed by appending the latest transcript '.'."
+      matrix:
+        - app: "Apple Notes"
+          field: "Existing privacy-safe test note"
+          result: pass
+          before_value: "Foil keyboard shellFoil keyboard shell"
+          after_value: "Foil keyboard shellFoil keyboard shell."
+          keyboard_state: "Transcript Ready / Groq transcript ready"
+      commands:
+        - cmd: "xcrun devicectl device process launch --device 5320F5AD-2A71-50AC-94FE-207B544B6247 --terminate-existing --activate com.apple.mobilenotes --timeout 10"
+          status: pass
+        - cmd: "pymobiledevice3 developer wda tap --using name 'Note'"
+          status: pass
+        - cmd: "pymobiledevice3 developer wda tap --using 'accessibility id' 'foil-keyboard-insert-latest'"
+          status: pass
+        - cmd: "pymobiledevice3 developer wda list-items --rsd fd5f:7ded:e5f3::1 64418 --port 8100 --with-rect"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+          status: pass
+        - cmd: "rg secret/token-shaped patterns over FoiliOS and docs/goals/ios-preview-device-smoke"
+          status: pass_code_refs_only
+      evidence:
+        - "Before screenshot: /tmp/foil-device-screens/notes-before-groq-insert.png."
+        - "After screenshot: /tmp/foil-device-screens/notes-after-groq-insert.png."
+        - "WDA tree before tap exposed Foil Keyboard controls including foil-keyboard-insert-latest and keyboard message Groq transcript ready."
+        - "WDA tree after tap showed the exact Notes text view value recorded in after_value, including the appended period."
+      residual_risk:
+        - "Only Notes was exercised in this matrix row; Safari, Reminders, Messages, and secure-field rejection behavior remain follow-up rows."
+        - "The latest transcript was a single '.' because the T005 recording was mostly silence."
+
+  - id: T007
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Prepare the repo handoff: update issue #216 and create or prepare a PR into codex/ios-keyboard-prototype when code changes have been verified."
+    allowed_files:
+      - "docs/goals/ios-preview-device-smoke/state.yaml"
+      - "docs/goals/ios-preview-device-smoke/notes/**"
+      - "docs/goals/ios-keyboard-prototype/state.yaml"
+      - "FoiliOS/**"
+    verify:
+      - "Issue #216 comment includes concise physical-device evidence and open blockers."
+      - "PR targets codex/ios-keyboard-prototype if code changes exist."
+      - "PR/body or local handoff references GoalBuddy receipts."
+      - "git status --short --branch"
+      - "git diff --check"
+    stop_if:
+      - "No verified code changes exist; only update the issue/board."
+      - "GitHub auth is unavailable."
+      - "PR would target main."
+    receipt:
+      result: done
+      task_id: T007
+      changed_files:
+        - "docs/goals/ios-preview-device-smoke/state.yaml"
+      summary: "Updated issue #216 with the preview-device smoke status, the exact signing/profile blocker, and the manual Xcode account/profile prerequisite needed before resuming physical-device build/install."
+      issue_update: "https://github.com/mean-weasel/foil/issues/216#issuecomment-4623104953"
+      commands:
+        - cmd: "gh issue comment 216 --repo mean-weasel/foil"
+          status: pass
+      residual_risk:
+        - "No PR was opened yet because the local signing change has not produced a successful physical-device build."
+
+  - id: T008
+    type: pm
+    assignee: PM
+    status: done
+    reasoning_hint: medium
+    objective: "Resume after Xcode account/profile setup, then reactivate T003 or replace it with the next smallest physical-device signing task."
+    inputs:
+      - "T003 blocker receipt"
+      - "Issue #216 blocker comment"
+      - "Operator confirmation that Xcode Settings > Accounts has the needed Apple Developer team signed in."
+    constraints:
+      - "Do not do more implementation until Xcode account/profile access exists."
+      - "When resumed, verify profiles for com.neonwatty.FoilIOS, com.neonwatty.FoilIOS.Keyboard, and group.com.neonwatty.FoilIOS."
+      - "Keep the current local signing edit unless a better bundle/team strategy is selected."
+    expected_output:
+      - "Reactivate a Worker with updated verify commands, or record a narrower blocker."
+    receipt:
+      result: done
+      task_id: T008
+      summary: "Operator completed Xcode target signing/capability setup. Inspection shows Xcode wrote DEVELOPMENT_TEAM=B3A6AN2HA4 into FoilIOS and FoilKeyboard build settings, and xcodebuild build settings now report FoilIOS using automatic signing with B3A6AN2HA4."
+      evidence:
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj now has DEVELOPMENT_TEAM=B3A6AN2HA4 on FoilIOS and FoilKeyboard target build configurations."
+        - "xcodebuild -showBuildSettings reports PRODUCT_BUNDLE_IDENTIFIER=com.neonwatty.FoilIOS, CODE_SIGN_STYLE=Automatic, DEVELOPMENT_TEAM=B3A6AN2HA4."
+        - "xcrun devicectl list devices still shows iPhone-preview available paired."
+      next_task: T009
+
+  - id: T009
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Retry physical-device build, provisioning, install, and launch on iPhone-preview using the Xcode-updated project settings."
+    allowed_files:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-preview-device-smoke/state.yaml"
+      - "docs/goals/ios-preview-device-smoke/notes/**"
+    verify:
+      - "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -allowProvisioningUpdates build"
+      - "Resolve built app path from DerivedData."
+      - "Install with xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 <app>."
+      - "Launch com.neonwatty.FoilIOS on iPhone-preview with devicectl if install succeeds."
+      - "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+      - "Secret scan over touched FoiliOS and goal files."
+    stop_if:
+      - "Provisioning requires Developer portal changes that cannot be completed locally."
+      - "The device disappears or locks."
+      - "Need files outside allowed_files."
+      - "A secret value would need to be printed, committed, or stored in source."
+    receipt:
+      result: done
+      task_id: T009
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-preview-device-smoke/state.yaml"
+      summary: "Retried the physical-device build after Xcode account/profile setup. The build succeeded, generated/used development profiles for the app and keyboard extension, installed Foil iOS onto iPhone-preview, and launched com.neonwatty.FoilIOS."
+      commands:
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "codesign -d --entitlements :- '<DerivedData>/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '<DerivedData>/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "xcrun devicectl device process launch --device 5320F5AD-2A71-50AC-94FE-207B544B6247 com.neonwatty.FoilIOS"
+          status: pass
+      evidence:
+        - "Build output: ** BUILD SUCCEEDED **"
+        - "FoilKeyboard signed with Apple Development: Jeremy Watt (3CDYUL285D), profile iOS Team Provisioning Profile: com.neonwatty.FoilIOS.Keyboard."
+        - "FoilIOS signed with Apple Development: Jeremy Watt (3CDYUL285D), profile iOS Team Provisioning Profile: com.neonwatty.FoilIOS."
+        - "Installed app bundleID: com.neonwatty.FoilIOS, installationURL on iPhone-preview."
+        - "Launched application with com.neonwatty.FoilIOS bundle identifier."
+        - "Installed app entitlements include B3A6AN2HA4.com.neonwatty.FoilIOS and group.com.neonwatty.FoilIOS."
+      residual_risk:
+        - "Keyboard extension enablement and host-app insertion are not proven yet."
+        - "Xcode project was edited by Xcode and XcodeGen source was aligned to team B3A6AN2HA4, but generated project should be reviewed before PR."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit whether the preview-device smoke tranche proves the iPhone path or records a narrow physical-device blocker."
+    inputs:
+      - "All task receipts"
+      - "Device build/install evidence"
+      - "Keyboard enablement evidence"
+      - "Recording/transcription evidence"
+      - "Insertion matrix"
+      - "Current dirty diff"
+      - "Issue/PR links"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if simulator-only evidence is used as physical-device proof."
+      - "Reject completion if any required Worker task remains queued, active, or lacks a blocking receipt."
+      - "Name the strongest realistic failure mode and the evidence that rules it out or leaves it open."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "proof summary"
+      - "missing evidence"
+      - "strongest remaining failure mode"
+      - "next task if not complete"
+    receipt:
+      result: done
+      task_id: T999
+      verdict: complete_with_followups
+      claim: "The preview-device smoke tranche proves the basic iPhone path: physical install/signing, keyboard enablement, containing-app recording/transcription, and custom-keyboard insertion into a privacy-safe Notes field."
+      strongest_realistic_failure_modes:
+        - failure_mode: "The app built or launched, but physical-device recording still failed after permission."
+          evidence:
+            - "Pre-fix WDA tree captured Recording failed: OSStatus error -50, so the failure was real and not hand-waved."
+            - "Post-fix WDA tree after tapping Record showed Recording, disabled Record, enabled Stop, and app-visible .m4a filename foil-ios-2026-06-04T16-56-10.665Z.m4a."
+            - "Post-stop WDA tree showed Recording saved and enabled Transcribe."
+            - "Screenshot: /tmp/foil-device-screens/foil-recording-fixed.png."
+        - failure_mode: "The transcription path was only local UI optimism, not a provider-backed result, or it leaked the API key."
+          evidence:
+            - "App was launched with DEVICECTL_CHILD_FOIL_IOS_GROQ_API_KEY populated from Keychain and the command output printed only launch success."
+            - "Post-transcribe WDA tree showed Groq transcript ready, Transcription complete, and transcript '.'."
+            - "Secret scan over FoiliOS and docs/goals/ios-preview-device-smoke found only code references to FOIL_IOS_GROQ_API_KEY, Authorization, and Missing FOIL_IOS_GROQ_API_KEY."
+            - "Screenshot: /tmp/foil-device-screens/foil-transcription-complete.png."
+        - failure_mode: "The custom keyboard displayed stale state or did not actually insert into another app."
+          evidence:
+            - "Notes WDA tree before insertion showed text view value Foil keyboard shellFoil keyboard shell."
+            - "Foil Keyboard WDA tree showed Transcript Ready / Groq transcript ready and hittable foil-keyboard-insert-latest."
+            - "After tapping foil-keyboard-insert-latest, Notes WDA tree showed after_value Foil keyboard shellFoil keyboard shell."
+            - "Screenshot: /tmp/foil-device-screens/notes-after-groq-insert.png."
+        - failure_mode: "The installed app/keyboard did not carry the App Group or device signing needed for real sharing."
+          evidence:
+            - "xcodebuild physical-device build succeeded for id=00008030-001A0C980A33C02E with -allowProvisioningUpdates."
+            - "devicectl installed bundleID com.neonwatty.FoilIOS on iPhone-preview."
+            - "codesign entitlement inspection showed both app and keyboard extension include group.com.neonwatty.FoilIOS."
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-preview-device-smoke"
+          status: pass
+        - cmd: "ruby -e 'require \"yaml\"; YAML.load_file(\"docs/goals/ios-preview-device-smoke/state.yaml\")'"
+          status: pass
+        - cmd: "rg secret/token-shaped patterns over FoiliOS and docs/goals/ios-preview-device-smoke"
+          status: pass_code_refs_only
+      issue_update: "https://github.com/mean-weasel/foil/issues/216#issuecomment-4624381411"
+      residual_risk:
+        - "The useful dictation-quality path is not proven because the privacy-safe recording was mostly silence and Groq returned '.'."
+        - "Only Notes passed the insertion matrix; Safari/Reminders/Messages and secure-field rejection behavior are still follow-up rows."
+        - "The physical preview device uses very large text, so the smoke UI is scrollable but visually cramped."
+
+checks:
+  dirty_fingerprint: "Branch created from codex/ios-keyboard-prototype; pre-existing unrelated untracked docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md may still exist and must remain untouched."
+  last_verification:
+    result: unknown
+    task: null
+    commands: []
