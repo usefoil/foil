@@ -8,7 +8,7 @@ goal:
   slug: "ios-keyboard-onboarding-full-access-ux"
   kind: specific
   tranche: "Make the custom keyboard prototype understandable, configurable, recoverable, and proven with a real transcript loop on iPhone-preview."
-  status: active
+  status: done
   oracle:
     signal: "Physical iPhone-preview walkthrough starts from unconfigured or unhealthy keyboard state, guides/blocks appropriately around Full Access, completes a real transcript insertion, and copied App Group state is idle/no transcript afterward."
     cadence: "after each Worker package and at final audit"
@@ -70,7 +70,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-keyboard-onboarding-full-access-ux/"
     command: "npx goalbuddy board docs/goals/ios-keyboard-onboarding-full-access-ux"
 
-active_task: T009
+active_task: null
 
 tasks:
   - id: T001
@@ -685,7 +685,7 @@ tasks:
   - id: T009
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Prepare issue and PR handoff artifacts for the verified onboarding/recovery implementation."
     allowed_files:
@@ -699,12 +699,43 @@ tasks:
     stop_if:
       - "GitHub auth unavailable."
       - "Verification did not pass and no narrow blocker was recorded."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T009
+      summary: "Updated issue #216 with sanitized physical evidence, opened PR #227 from codex/ios-onboarding-full-access-ux into codex/ios-keyboard-prototype, marked it ready after GitHub reported CLEAN/MERGEABLE with no status checks, and merged it into codex/ios-keyboard-prototype."
+      changed_files:
+        - "docs/goals/ios-keyboard-onboarding-full-access-ux/state.yaml"
+      commands:
+        - cmd: "gh issue view 216 --repo mean-weasel/foil --json number,title,state,body,url,labels"
+          status: pass
+        - cmd: "gh issue comment 216 --repo mean-weasel/foil --body-file /tmp/foil-issue-216-ios-onboarding-comment.md"
+          status: pass
+        - cmd: "git add explicit iOS source files and docs/goals/ios-keyboard-onboarding-full-access-ux/{goal.md,state.yaml}"
+          status: pass
+        - cmd: "git commit -m 'Add iOS keyboard onboarding recovery proof'"
+          status: pass
+        - cmd: "git push -u origin codex/ios-onboarding-full-access-ux"
+          status: pass
+        - cmd: "gh pr create --repo mean-weasel/foil --base codex/ios-keyboard-prototype --head codex/ios-onboarding-full-access-ux --title '[codex] Add iOS keyboard onboarding recovery proof' --body-file /tmp/foil-ios-onboarding-pr-body.md --draft"
+          status: pass
+        - cmd: "gh pr view 227 --repo mean-weasel/foil --json number,url,isDraft,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,baseRefName,headRefName"
+          status: pass
+        - cmd: "gh pr ready 227 --repo mean-weasel/foil && gh pr merge 227 --repo mean-weasel/foil --merge"
+          status: pass
+        - cmd: "gh pr view 227 --repo mean-weasel/foil --json number,state,mergedAt,mergeCommit,url,isDraft,baseRefName,headRefName"
+          status: pass
+      evidence:
+        - "Issue #216 comment posted: https://github.com/mean-weasel/foil/issues/216#issuecomment-4626406793"
+        - "PR #227 created: https://github.com/mean-weasel/foil/pull/227"
+        - "PR #227 status before merge: CLEAN, MERGEABLE, no status checks, base codex/ios-keyboard-prototype, head codex/ios-onboarding-full-access-ux."
+        - "PR #227 merged at 2026-06-04T22:00:08Z with merge commit 7325ecb0c4c51c00e397f5056cddc10183f67763."
+      residual_risk:
+        - "This T009 receipt and final audit were recorded after PR #227 merged, so they require a small follow-up receipts PR into codex/ios-keyboard-prototype if durable board state is required on the target branch."
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Final audit against the goal oracle."
     inputs:
@@ -729,7 +760,55 @@ tasks:
       - "Strongest realistic failure mode and evidence."
       - "Residual risks."
       - "Next board/task if not complete."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "Final audit accepts the goal oracle. The physical iPhone-preview walkthrough proved onboarding/health/recovery, Full Access off blocking, real Groq transcription, Notes insertion, Safari and Reminders insertion, secure-field rejection, post-insert App Group reset, issue/PR handoff, and merge into codex/ios-keyboard-prototype. Private content and key values were not committed."
+      strongest_realistic_failure_modes:
+        - failure: "The UX explains setup but does not actually detect, block, or recover Full Access/stale transcript state."
+          evidence:
+            - "T003/T004 implemented and proved app-visible setup/health rows, keyboard-written health reports, Reset shared state, and keyboard-side Full Access off messaging."
+            - "T005 physical proof showed Full Access off keyboard state with Insert latest disabled and label Insert latest (full access off), then restored Full Access on and reset state."
+        - failure: "The real loop was actually fake/seeded transcription or did not insert into the target app."
+          evidence:
+            - "T006 recorded a new physical iPhone m4a, transcribed through Groq to Transcript Ready/Groq transcript ready, inserted through Foil Keyboard in Notes, and changed the Notes source hash while containing the safe transcript."
+            - "Before live insert, sanitized App Group snapshot was complete/Groq transcript ready/hasTranscript true; after insert it was idle/Ready/hasTranscript false."
+        - failure: "Host-app behavior regressed or secure fields allowed unsafe insertion."
+          evidence:
+            - "T007 proved Safari address/search and Reminders new-row title insertion with safe seeded transcript, source hash changes, and post-insert idle/no transcript snapshots."
+            - "T007 proved secure-rejection-field focused with Foil Keyboard absent, Insert latest absent, and pending transcript still complete/hasTranscript true until reset."
+        - failure: "The PR targeted main or did not merge into the intended iOS prototype branch."
+          evidence:
+            - "PR #227 targeted base codex/ios-keyboard-prototype and head codex/ios-onboarding-full-access-ux."
+            - "GitHub reported PR #227 merged at 2026-06-04T22:00:08Z with merge commit 7325ecb0c4c51c00e397f5056cddc10183f67763."
+        - failure: "A Groq key, raw recording, transcript body, or private target-app content was committed."
+          evidence:
+            - "The valid Groq key was used from a chmod-600 temp file, injected into device debug prefs, then removed from device prefs and temp files."
+            - "Committed-content scan on origin/codex/ios-keyboard-prototype found no Groq-shaped key values and no searched private Reminders strings; key-name hits were environment variable names and receipt text only."
+            - "Raw Reminders WDA source dumps were deleted after sanitized hash/boolean extraction."
+      issue_and_pr:
+        issue_comment: "https://github.com/mean-weasel/foil/issues/216#issuecomment-4626406793"
+        merged_pr: "https://github.com/mean-weasel/foil/pull/227"
+        merge_commit: "7325ecb0c4c51c00e397f5056cddc10183f67763"
+      commands:
+        - cmd: "gh pr view 227 --repo mean-weasel/foil --json number,state,mergedAt,mergeCommit,url,isDraft,baseRefName,headRefName,mergeStateStatus"
+          status: pass
+        - cmd: "git fetch origin codex/ios-keyboard-prototype"
+          status: pass
+        - cmd: "git show --stat --oneline --no-renames origin/codex/ios-keyboard-prototype"
+          status: pass
+        - cmd: "git grep -n -E 'gsk_[A-Za-z0-9_-]+|Upgrade internet|teeth brushing|Fence holes|Debba|talkiatry|Find box bag' origin/codex/ios-keyboard-prototype -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+          status: pass
+        - cmd: "git grep -n -E 'FOIL_IOS_GROQ_API_KEY|GROQ_API_KEY|Authorization: Bearer' origin/codex/ios-keyboard-prototype -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+          status: pass
+      residual_risk:
+        - "Messages remains untested until a safe self/test thread is available."
+        - "The physical proof covered one preview iPhone on iOS 26.4.2; TestFlight should add broader device/OS coverage."
+        - "The next product slice should replace prototype diagnostics with TestFlight-grade onboarding, recovery, privacy copy, and production-safe provider auth."
 
 checks:
   dirty_fingerprint: "At prep time, branch codex/ios-keyboard-prototype had only pre-existing untracked Xcode xcuserdata dirs and docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md."
