@@ -1,0 +1,60 @@
+name: FoilIOS
+options:
+  bundleIdPrefix: com.neonwatty
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+    SWIFT_VERSION: 5.0
+    TARGETED_DEVICE_FAMILY: 1
+targets:
+  FoilIOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: FoilIOSApp
+      - path: Shared
+    dependencies:
+      - target: FoilKeyboard
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.neonwatty.FoilIOS
+        PRODUCT_NAME: Foil iOS
+    info:
+      path: FoilIOSApp/Generated/Info.plist
+      properties:
+        CFBundleDisplayName: Foil iOS
+        LSRequiresIPhoneOS: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIRequiredDeviceCapabilities:
+          - arm64
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSMicrophoneUsageDescription: Foil uses the microphone to capture dictation before sending text back to the keyboard.
+  FoilKeyboard:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: FoilKeyboard
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.neonwatty.FoilIOS.Keyboard
+        PRODUCT_NAME: Foil Keyboard
+        SKIP_INSTALL: YES
+    info:
+      path: FoilKeyboard/Generated/Info.plist
+      properties:
+        CFBundleDisplayName: Foil Keyboard
+        NSExtension:
+          NSExtensionAttributes:
+            IsASCIICapable: true
+            PrefersRightToLeft: false
+            PrimaryLanguage: en-US
+            RequestsOpenAccess: false
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
