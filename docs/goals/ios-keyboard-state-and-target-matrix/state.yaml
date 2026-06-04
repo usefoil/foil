@@ -8,7 +8,7 @@ goal:
   slug: "ios-keyboard-state-and-target-matrix"
   kind: specific
   tranche: "Fix keyboard reset persistence, prove state agreement on iPhone-preview, and expand the privacy-safe host-app insertion/rejection matrix."
-  status: active
+  status: complete
   oracle:
     signal: "After one physical-device insertion through Foil Keyboard, host text changes exactly once and keyboard UI, UserDefaults-derived app state, and canonical App Group file all show idle/no transcript; then target-app matrix rows are recorded without private content."
     cadence: "after each Worker package and at final audit"
@@ -70,7 +70,7 @@ visual_board:
     url: "http://127.0.0.1:41737/ios-keyboard-state-and-target-matrix/"
     command: "npx goalbuddy board docs/goals/ios-keyboard-state-and-target-matrix"
 
-active_task: T007
+active_task: null
 
 tasks:
   - id: T001
@@ -385,7 +385,7 @@ tasks:
   - id: T007
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Prepare issue and PR handoff artifacts for the verified implementation and matrix."
     allowed_files:
@@ -399,12 +399,28 @@ tasks:
     stop_if:
       - "GitHub auth unavailable."
       - "Verification did not pass and no narrow blocker was recorded."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T007
+      summary: "Updated issue #216 with sanitized physical-device evidence, created PR #226 from codex/ios-keyboard-state-store into codex/ios-keyboard-prototype, marked it ready after checking mergeability, merged it, and fast-forwarded local codex/ios-keyboard-prototype to the merged remote branch."
+      issue_update: "https://github.com/mean-weasel/foil/issues/216#issuecomment-4625044640"
+      pr:
+        number: 226
+        url: "https://github.com/mean-weasel/foil/pull/226"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-keyboard-state-store"
+        state: merged
+        merged_at: "2026-06-04T18:35:40Z"
+      evidence:
+        - "gh pr view 226 showed CLEAN/MERGEABLE before merge with no status checks."
+        - "gh pr view 226 after merge showed state MERGED and mergedAt 2026-06-04T18:35:40Z."
+        - "Local codex/ios-keyboard-prototype fast-forwarded from ca80a29 to 9fd4602 and contains the six merged files."
+      residual_risk: "T007 closeout receipt itself was recorded after PR #226 merged and must be pushed as an integration-branch bookkeeping commit."
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Final audit against the goal oracle."
     inputs:
@@ -425,7 +441,25 @@ tasks:
       - "Strongest realistic failure mode and evidence."
       - "Residual risks."
       - "Next board/task if not complete."
-    receipt: null
+    receipt:
+      result: complete
+      task_id: T999
+      full_outcome_complete: true
+      summary: "Final audit accepts the goal oracle. The known stale canonical App Group failure was reproduced before the fix/permission diagnosis, then disproved after enabling Allow Full Access and applying the reset persistence changes. The target matrix has privacy-safe rows for Notes, Safari, Reminders, and secure-field rejection; Messages remains an explicitly scoped follow-up requiring a safe test thread."
+      strongest_realistic_failure_mode: "A consumed transcript appears cleared in Foil Keyboard UI, but canonical App Group JSON or app-visible state still contains a complete transcript that can be inserted again later."
+      evidence:
+        - "Before the fix/Full Access diagnosis, post-insert canonical JSON still showed phase complete and transcript Foil state reset test two 2026-06-04T18:06:55.717Z."
+        - "With Allow Full Access off, WDA showed Foil Keyboard message Allow Full Access required and Insert latest disabled."
+        - "After enabling Allow Full Access, final physical Notes proof showed keyboard Ready/no transcript, canonical JSON phase idle/message Ready/no transcript, App Group defaults keys present, and containing app Storage reset: file ok, defaults written, verified Ready no transcript."
+        - "WDA screenshot /tmp/foil-device-screens/state-reset-fullaccess-proof.png was visually inspected and showed the containing app in Ready state with verified no transcript."
+        - "T005 matrix note records Notes, Safari, Reminders, secure-field rejection, and Messages skip with sanitized evidence."
+        - "git diff --check passed, staged diff check passed before PR, build/install passed, and secret scan found no key values."
+        - "Issue #216 was updated and PR #226 merged into codex/ios-keyboard-prototype."
+      residual_risk:
+        - "Full Access onboarding remains a product requirement."
+        - "Secure fields require a fallback story because iOS rejects custom keyboards there."
+        - "Messages needs a safe self/test thread."
+        - "Prototype diagnostic UI should be kept behind debug affordances or removed before polish."
 
 checks:
   dirty_fingerprint: "At prep time, branch codex/ios-keyboard-prototype had only pre-existing untracked Xcode xcuserdata dirs and docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md."
