@@ -8,6 +8,7 @@ final class KeyboardViewController: UIInputViewController {
     private let startButton = UIButton(type: .system)
     private let insertButton = UIButton(type: .system)
     private let nextKeyboardButton = UIButton(type: .system)
+    private var heightConstraint: NSLayoutConstraint?
     private var refreshTimer: Timer?
     private var latestSnapshot = FoilKeyboardSnapshot.initial
 
@@ -33,25 +34,31 @@ final class KeyboardViewController: UIInputViewController {
 
     private func configureView() {
         view.backgroundColor = .systemBackground
+        view.accessibilityIdentifier = "foil-keyboard-root"
 
         statusLabel.text = "Foil keyboard"
         statusLabel.font = .preferredFont(forTextStyle: .headline)
         statusLabel.textAlignment = .center
+        statusLabel.accessibilityIdentifier = "foil-keyboard-status"
 
         messageLabel.text = "Ready"
         messageLabel.font = .preferredFont(forTextStyle: .caption1)
         messageLabel.textAlignment = .center
         messageLabel.textColor = .secondaryLabel
         messageLabel.numberOfLines = 2
+        messageLabel.accessibilityIdentifier = "foil-keyboard-message"
 
         startButton.setTitle("Start", for: .normal)
         startButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+        startButton.accessibilityIdentifier = "foil-keyboard-start"
 
         insertButton.setTitle("Insert latest", for: .normal)
         insertButton.titleLabel?.font = .preferredFont(forTextStyle: .body)
+        insertButton.accessibilityIdentifier = "foil-keyboard-insert-latest"
 
         nextKeyboardButton.setTitle("Next Keyboard", for: .normal)
         nextKeyboardButton.titleLabel?.font = .preferredFont(forTextStyle: .caption1)
+        nextKeyboardButton.accessibilityIdentifier = "foil-keyboard-next"
 
         stack.axis = .vertical
         stack.alignment = .fill
@@ -64,12 +71,16 @@ final class KeyboardViewController: UIInputViewController {
         stack.addArrangedSubview(nextKeyboardButton)
 
         view.addSubview(stack)
+        let heightConstraint = view.heightAnchor.constraint(equalToConstant: 220)
+        heightConstraint.priority = .defaultHigh
+        self.heightConstraint = heightConstraint
+
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: view.layoutMarginsGuide.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: view.layoutMarginsGuide.trailingAnchor),
             stack.topAnchor.constraint(equalTo: view.layoutMarginsGuide.topAnchor, constant: 8),
             stack.bottomAnchor.constraint(lessThanOrEqualTo: view.layoutMarginsGuide.bottomAnchor, constant: -8),
-            view.heightAnchor.constraint(greaterThanOrEqualToConstant: 180)
+            heightConstraint
         ])
     }
 

@@ -67,7 +67,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-keyboard-prototype/"
     command: "npx goalbuddy board docs/goals/ios-keyboard-prototype"
 
-active_task: T007
+active_task: T008
 
 tasks:
   - id: T001
@@ -452,7 +452,7 @@ tasks:
   - id: T007
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Implement PR 5: cross-app insertion matrix harness, evidence capture, and issue #216 update."
     allowed_files:
@@ -474,12 +474,50 @@ tasks:
       - "Target apps are unavailable and no equivalent built-in app matrix can be tested."
       - "Evidence would expose private messages or sensitive recordings."
       - "Need files outside allowed_files."
-    receipt: null
+    receipt:
+      result: done
+      changed_files:
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "docs/goals/ios-keyboard-prototype/state.yaml"
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "XcodeBuildMCP build_sim for FoilIOS on iPhone 17 simulator"
+          status: pass
+        - cmd: "Settings > General > Keyboard > Keyboards > Add New Keyboard; touch Foil iOS row"
+          status: pass
+        - cmd: "Apple Reminders focused title field; Simulator keyboard menu enabled software keyboard; cycle input modes to Foil Keyboard"
+          status: pass
+        - cmd: "Tap Foil Keyboard Insert latest"
+          status: pass
+        - cmd: "XcodeBuildMCP snapshot Reminders title after insertion"
+          status: pass
+        - cmd: "gh issue comment 216 --repo mean-weasel/foil"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-keyboard-prototype/state.yaml"
+          status: pass
+        - cmd: "rg secret/token-shaped patterns over FoiliOS and docs/goals/ios-keyboard-prototype"
+          status: pass
+      summary: "PR 5 made the custom keyboard request a concrete host height, added accessibility identifiers, enabled Foil Keyboard in simulator Settings, activated it inside Apple Reminders, and proved Insert latest writes shared App Group transcript text into a Reminders title. Issue #216 was updated with the insertion evidence."
+      pull_request: "https://github.com/mean-weasel/foil/pull/222"
+      issue_update: "https://github.com/mean-weasel/foil/issues/216#issuecomment-4622391759"
+      evidence:
+        - "/tmp/foil-ios-keyboard-prototype/pr5-keyboard-enabled.jpg"
+        - "/tmp/foil-ios-keyboard-prototype/pr5-reminders-foil-active-blank.jpg"
+        - "/tmp/foil-ios-keyboard-prototype/pr5-reminders-inserted.jpg"
+        - "Settings showed Foil Keyboard — Foil iOS added to the installed keyboard list."
+        - "Reminders host app showed the Foil keyboard UI with Transcript Ready, Fake transcript ready, Start, Insert latest, and Next Keyboard."
+        - "After tapping Insert latest, XcodeBuildMCP snapshot value changed from Hwould we to Hwould weFoil keyboard shell."
+        - "Simulator logs showed com.neonwatty.FoilIOS.Keyboard viewservice launched, Foil_Keyboard.KeyboardViewController created, App Group container lookup succeeded, and viewControllerAppearance appeared."
+      residual_risk:
+        - "This proves insertion in Apple Reminders only; Messages, Safari, secure fields, and third-party apps still need a broader matrix."
+        - "Simulator insertion required the same reset/cycle behavior observed in Whisperflow: software keyboard visible, input-mode cycle to Foil, then insert."
+        - "Physical preview-iPhone proof remains blocked because xctrace lists iPhone-preview and iPhone-prod offline."
 
   - id: T008
     type: judge
     assignee: Judge
-    status: queued
+    status: active
     reasoning_hint: high
     objective: "Audit the overnight prototype branch, merged PRs, simulator/device evidence, issue update, and remaining blockers."
     inputs:
@@ -507,15 +545,13 @@ checks:
   dirty_fingerprint: "initial branch includes pre-existing unrelated untracked docs/goals/youtube-volume-ptt-fix/ and docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md"
   last_verification:
     result: pass
-    task: T006
+    task: T007
     commands:
       - "cd FoiliOS && xcodegen generate --spec project.yml"
       - "XcodeBuildMCP build_sim for FoilIOS on iPhone 17 simulator"
-      - "xcrun simctl openurl 8C27AB74-4C3D-4E95-8D5F-837BC8FE4CEF foilios://start"
-      - "xcrun simctl openurl 8C27AB74-4C3D-4E95-8D5F-837BC8FE4CEF foilios://stop"
-      - "xcrun simctl openurl 8C27AB74-4C3D-4E95-8D5F-837BC8FE4CEF foilios://transcribe"
-      - "XcodeBuildMCP wait_for_ui textContains Transcription complete"
-      - "find simulator app Documents -name 'foil-ios-2026-06-04T12-40-33.889Z.m4a'"
+      - "Simulator Settings enabled Foil Keyboard — Foil iOS"
+      - "Apple Reminders insertion changed title to Hwould weFoil keyboard shell"
+      - "gh issue comment 216 --repo mean-weasel/foil"
       - "xcrun xctrace list devices"
       - "git diff --check -- FoiliOS"
       - "rg secret/token-shaped patterns over FoiliOS and docs/goals/ios-keyboard-prototype"
