@@ -120,6 +120,9 @@ final class AudioRecorder: @unchecked Sendable {
         DiagnosticLog.write(
             "AudioRecorder: input format sampleRate=\(Int(hwFormat.sampleRate)) channels=\(hwFormat.channelCount) selectedDeviceID=\(deviceID.map(String.init) ?? "systemDefault")"
         )
+        DiagnosticLog.write(
+            "AudioRecorder: recording route \(Self.audioRouteDescription(input: Self.audioRouteDevice(for: deviceID ?? Self.defaultInputDeviceID()), output: Self.audioRouteDevice(for: Self.defaultOutputDeviceID())))"
+        )
 
         guard let targetFormat = Self.pcmFormat else {
             throw RecordingError.audioFormatUnavailable
@@ -395,6 +398,29 @@ final class AudioRecorder: @unchecked Sendable {
         let transport: AudioDeviceTransport
     }
 
+    struct AudioRouteDevice: Equatable {
+        let id: AudioDeviceID
+        let name: String
+        let transport: AudioDeviceTransport
+        let sampleRate: Double?
+    }
+
+    enum InputPreparationReason: String, Equatable {
+        case systemDefault
+        case explicitSelection
+        case explicitSelectionMissing
+        case avoidBluetoothDefault
+        case bluetoothDefaultWithoutFallback
+    }
+
+    struct InputPreparationDecision: Equatable {
+        let device: AudioDevice?
+        let shouldSetDefaultInput: Bool
+        let reason: InputPreparationReason
+        let defaultDevice: AudioDevice?
+        let defaultDeviceID: AudioDeviceID?
+    }
+
     static func availableInputDevices() -> [AudioDevice] {
         var propertyAddress = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,
@@ -509,22 +535,27 @@ final class AudioRecorder: @unchecked Sendable {
     /// system default input remains on the headset. When the user explicitly
     /// selects an input device, align the system default input just before
     /// recording starts so AirPods can remain output-only with a built-in mic.
+    /// When System Default points at a Bluetooth microphone, prefer a non-Bluetooth
+    /// mic for recording so playback can stay on the high-quality output route.
     static func prepareInputDeviceForRecording(selectedUID uid: String?) -> AudioDeviceID? {
-        guard let uid else {
-            DiagnosticLog.write("AudioRecorder: using system default input device")
-            return nil
-        }
-
         let devices = availableInputDevices()
-        guard let selectedDevice = devices.first(where: { $0.uid == uid }) else {
-            DiagnosticLog.write("AudioRecorder: selected input uid=\(uid) not found; falling back to system default")
+        let defaultBeforeID = defaultInputDeviceID()
+        let decision = inputPreparationDecision(
+            selectedUID: uid,
+            devices: devices,
+            defaultInputDeviceID: defaultBeforeID
+        )
+        DiagnosticLog.write("AudioRecorder: input policy \(inputPolicyDescription(decision))")
+
+        guard let selectedDevice = decision.device else {
             return nil
         }
+        guard decision.shouldSetDefaultInput else {
+            return selectedDevice.id
+        }
 
-        let defaultBeforeID = defaultInputDeviceID()
-        let defaultBefore = defaultBeforeID.flatMap { id in devices.first { $0.id == id } }
         DiagnosticLog.write(
-            "AudioRecorder: selected input uid=\(selectedDevice.uid) name=\(selectedDevice.name) id=\(selectedDevice.id) transport=\(selectedDevice.transport.displayName) defaultBefore=\(inputDeviceDescription(defaultBefore, id: defaultBeforeID))"
+            "AudioRecorder: selected input uid=\(selectedDevice.uid) name=\(selectedDevice.name) id=\(selectedDevice.id) transport=\(selectedDevice.transport.displayName) defaultBefore=\(inputDeviceDescription(decision.defaultDevice, id: decision.defaultDeviceID))"
         )
 
         let setStatus = setDefaultInputDeviceID(selectedDevice.id)
@@ -537,9 +568,88 @@ final class AudioRecorder: @unchecked Sendable {
         return selectedDevice.id
     }
 
+    static func inputPreparationDecision(
+        selectedUID uid: String?,
+        devices: [AudioDevice],
+        defaultInputDeviceID: AudioDeviceID?
+    ) -> InputPreparationDecision {
+        let defaultDevice = defaultInputDeviceID.flatMap { id in devices.first { $0.id == id } }
+
+        if let uid {
+            guard let selectedDevice = devices.first(where: { $0.uid == uid }) else {
+                return InputPreparationDecision(
+                    device: nil,
+                    shouldSetDefaultInput: false,
+                    reason: .explicitSelectionMissing,
+                    defaultDevice: defaultDevice,
+                    defaultDeviceID: defaultInputDeviceID
+                )
+            }
+            return InputPreparationDecision(
+                device: selectedDevice,
+                shouldSetDefaultInput: true,
+                reason: .explicitSelection,
+                defaultDevice: defaultDevice,
+                defaultDeviceID: defaultInputDeviceID
+            )
+        }
+
+        guard let defaultDevice, defaultDevice.transport.isBluetooth else {
+            return InputPreparationDecision(
+                device: nil,
+                shouldSetDefaultInput: false,
+                reason: .systemDefault,
+                defaultDevice: defaultDevice,
+                defaultDeviceID: defaultInputDeviceID
+            )
+        }
+
+        guard let fallbackDevice = preferredNonBluetoothInputDevice(from: devices) else {
+            return InputPreparationDecision(
+                device: nil,
+                shouldSetDefaultInput: false,
+                reason: .bluetoothDefaultWithoutFallback,
+                defaultDevice: defaultDevice,
+                defaultDeviceID: defaultInputDeviceID
+            )
+        }
+
+        return InputPreparationDecision(
+            device: fallbackDevice,
+            shouldSetDefaultInput: true,
+            reason: .avoidBluetoothDefault,
+            defaultDevice: defaultDevice,
+            defaultDeviceID: defaultInputDeviceID
+        )
+    }
+
+    static func audioRouteDescription(input: AudioRouteDevice?, output: AudioRouteDevice?) -> String {
+        "input=\(audioRouteDeviceDescription(input)) output=\(audioRouteDeviceDescription(output))"
+    }
+
     private static func defaultInputDeviceID() -> AudioDeviceID? {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var deviceID = AudioDeviceID(0)
+        var dataSize = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address,
+            0,
+            nil,
+            &dataSize,
+            &deviceID
+        )
+        guard status == noErr, deviceID != 0 else { return nil }
+        return deviceID
+    }
+
+    private static func defaultOutputDeviceID() -> AudioDeviceID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
@@ -574,6 +684,32 @@ final class AudioRecorder: @unchecked Sendable {
         )
     }
 
+    private static func preferredNonBluetoothInputDevice(from devices: [AudioDevice]) -> AudioDevice? {
+        devices.first { $0.transport == .builtIn }
+            ?? devices.first { $0.transport != .unknown && !$0.transport.isBluetooth }
+    }
+
+    private static func inputPolicyDescription(_ decision: InputPreparationDecision) -> String {
+        let selectedDescription = inputDeviceDescription(decision.device, id: decision.device?.id)
+        let defaultDescription = inputDeviceDescription(decision.defaultDevice, id: decision.defaultDeviceID)
+        return "reason=\(decision.reason.rawValue) selected=\(selectedDescription) shouldSetDefaultInput=\(decision.shouldSetDefaultInput) defaultBefore=\(defaultDescription)"
+    }
+
+    private static func audioRouteDevice(for id: AudioDeviceID?) -> AudioRouteDevice? {
+        guard let id else { return nil }
+        return AudioRouteDevice(
+            id: id,
+            name: audioDeviceName(for: id),
+            transport: transportType(for: id),
+            sampleRate: nominalSampleRate(for: id)
+        )
+    }
+
+    private static func audioRouteDeviceDescription(_ device: AudioRouteDevice?) -> String {
+        guard let device else { return "none" }
+        return "\(device.name)(id=\(device.id), transport=\(device.transport.displayName), sampleRate=\(sampleRateDescription(device.sampleRate)))"
+    }
+
     private static func inputDeviceDescription(_ device: AudioDevice?, id: AudioDeviceID?) -> String {
         if let device {
             return "\(device.name)(id=\(device.id), transport=\(device.transport.displayName))"
@@ -582,6 +718,40 @@ final class AudioRecorder: @unchecked Sendable {
             return "unknown(id=\(id))"
         }
         return "none"
+    }
+
+    private static func audioDeviceName(for deviceID: AudioDeviceID) -> String {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyDeviceNameCFString,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var nameRef: Unmanaged<CFString>?
+        var dataSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &nameRef)
+        return status == noErr ? (nameRef?.takeRetainedValue() as String? ?? "Unknown Device") : "Unknown Device"
+    }
+
+    private static func nominalSampleRate(for deviceID: AudioDeviceID) -> Double? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var sampleRate = Float64(0)
+        var dataSize = UInt32(MemoryLayout<Float64>.size)
+        let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &sampleRate)
+        guard status == noErr, sampleRate > 0 else { return nil }
+        return sampleRate
+    }
+
+    private static func sampleRateDescription(_ sampleRate: Double?) -> String {
+        guard let sampleRate else { return "unknown" }
+        let rounded = sampleRate.rounded()
+        if abs(sampleRate - rounded) < 0.01 {
+            return "\(Int(rounded))"
+        }
+        return String(format: "%.2f", sampleRate)
     }
 
     private static func transportType(for deviceID: AudioDeviceID) -> AudioDeviceTransport {

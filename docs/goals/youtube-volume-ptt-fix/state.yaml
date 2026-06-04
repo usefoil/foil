@@ -1,0 +1,594 @@
+version: 2
+
+goal:
+  title: "Fix YouTube Volume Jump During Push-To-Talk"
+  slug: "youtube-volume-ptt-fix"
+  kind: specific
+  tranche: "Discover the precise audio-route failure boundary, implement the largest safe mitigation, and verify that the default or recommended Foil recording path no longer changes YouTube/system output volume during PTT."
+  status: active
+  oracle:
+    signal: "With YouTube playing in Chrome and AirPods connected, a Foil push-to-talk recording on the default/recommended configuration keeps macOS output volume stable in repeated before/during/after samples, correlated with Foil diagnostics."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "A final live smoke receipt records before/during/after output-volume samples, active input/output device state, Foil diagnostic lines, and focused automated test results; completion requires no 38-to-50 style jump on the fixed/recommended path."
+  intake:
+    original_request: "Make a detailed plan using GoalBuddy Prep to fix the YouTube volume increase while holding Foil push-to-talk."
+    interpreted_outcome: "Foil should no longer cause YouTube playback to get louder while push-to-talk recording is held, or should safely steer users away from the macOS/Bluetooth configuration that causes it."
+    input_shape: specific
+    audience: "Foil users who listen to YouTube or other playback while dictating, especially with AirPods or Bluetooth headsets."
+    authority: requested
+    proof_type: test
+    completion_proof: "Focused tests plus a live local YouTube/AirPods smoke show stable macOS output volume during Foil PTT on the default/recommended path."
+    likely_misfire: "Only adding a warning, disabling browser media control, or asserting Foil does not set volume while leaving the AirPods default-input path able to change output volume during recording."
+    blind_spots_considered:
+      - "macOS may maintain separate output volume levels per AirPods Bluetooth profile or route."
+      - "Foil may not be able to prevent a Bluetooth profile switch if the Bluetooth microphone is selected."
+      - "Automatically changing the system default input may be intrusive and must be bounded, explicit, and restorable where possible."
+      - "Live proof depends on hardware state and must record exact input/output devices and sample rates."
+      - "Chrome's YouTube video element volume could not be inspected because JavaScript from Apple Events is disabled; system volume polling is the stronger local signal."
+      - "Cue sound loudness is separate from YouTube volume and should not be mistaken for the root issue."
+    existing_plan_facts:
+      - "Installed app log at 23:52:01 showed Foil recording started, otherAudio policy none, and browser media skipped."
+      - "System volume polling showed output volume 38 before recording, 50 while recording, and 38 after stop."
+      - "AirPods were default input and default output during the verified symptom."
+      - "Source search found no system output-volume setter in Foil."
+      - "AudioRecorder can enumerate input devices and transport metadata, including Bluetooth and built-in."
+      - "Settings already contains Bluetooth input warning treatment, but it did not prevent this verified default-input scenario."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/youtube-volume-ptt-fix/"
+    command: "npx goalbuddy board docs/goals/youtube-volume-ptt-fix"
+    note: "The output-volume sampler now works locally; the remaining required proof is the live YouTube/headphones PTT smoke with operator-held PTT."
+
+active_task: T008
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: medium
+    objective: "Map the verified volume-jump failure boundary and identify the smallest public-API-safe mitigation candidates."
+    inputs:
+      - "Verified symptom: system output volume 38 -> 50 at Foil recording start, then 50 -> 38 at stop while YouTube played."
+      - "docs/acceptance-evidence.md"
+      - "Foil/AudioRecorder.swift"
+      - "Foil/AppState.swift"
+      - "Foil/SettingsView.swift"
+      - "Foil/BluetoothMicGuidance.swift"
+      - "Foil/DiagnosticLog.swift"
+      - "Foil/RecordingController.swift"
+      - "Foil/FoilApp.swift"
+      - "Relevant tests under FoilTests and FoilUITests"
+      - "Existing notes under docs/goals/other-audio-recording-policy/"
+    constraints:
+      - "Read-only."
+      - "Do not implement."
+      - "Prefer direct code paths, diagnostics, and local command evidence over speculation."
+      - "Separate system output-volume changes, YouTube player volume, Foil cue volume, browser media control, and Bluetooth input-mode effects."
+      - "Do not require private APIs or third-party app volume control."
+    expected_output:
+      - "Failure boundary: which component likely changes volume and why."
+      - "Evidence gaps that must be closed before implementation."
+      - "Ranked mitigation candidates with public API feasibility."
+      - "Recommended first Worker package with allowed_files, verify commands, and stop conditions."
+    receipt:
+      result: done
+      summary: "Mapped the failure boundary: installed Foil does not intentionally control browser media or system output volume, but using System Default input when macOS default input/output are AirPods opens a Bluetooth mic path that coincided exactly with the 38 -> 50 -> 38 macOS output-volume jump during PTT."
+      evidence:
+        - "Foil/AudioRecorder.swift: startRecording uses AVAudioEngine input capture; prepareInputDeviceForRecording only sets default input when selectedInputDeviceUID is explicit."
+        - "Foil/SoundPlayer.swift: only direct volume setter is Foil cue NSSound.volume = 1.0, separate from YouTube playback."
+        - "Foil/BrowserMediaController.swift: disabled path logs otherAudio unaffected and browserMediaControl skipped."
+        - "Foil/SettingsView.swift and Foil/BluetoothMicGuidance.swift: current Bluetooth treatment warns but does not prevent the risky System Default input path."
+        - "docs/goals/other-audio-recording-policy/notes/T004-bluetooth-input-scout.md: prior Scout identified AirPods default input/output as risky and recommended warning only."
+        - "Verified investigation facts in this goal: output volume changed 38 -> 50 at Foil start and 50 -> 38 at Foil stop while diagnostics showed policy=none and browser media skipped."
+      failure_boundary: "The likely boundary is macOS Bluetooth/per-route output volume when Foil opens the active default input, not Foil's browser media control or a direct output-volume API."
+      mitigation_candidates:
+        - "Highest confidence: introduce a safe recording input policy that prefers a built-in/non-Bluetooth mic when System Default resolves to Bluetooth and Bluetooth output is active, while preserving explicit Bluetooth selection."
+        - "Also needed: richer diagnostics that log effective input identity/transport and output identity/transport at recording start/stop so live proof can distinguish default-input, selected-input, and route-volume behavior."
+        - "UI follow-through: make Settings guidance actionable for System Default + Bluetooth input, not only for explicit Bluetooth selection."
+        - "Verification support: add a reusable installed-app smoke/runbook that samples output volume before/during/after PTT and captures Foil diagnostics."
+      evidence_gaps:
+        - "Need a post-change live YouTube/AirPods smoke to prove the fixed/recommended path keeps output volume stable."
+        - "Need deterministic unit tests around any new input-policy chooser; current tests only cover transport mapping/warnings."
+        - "Need to decide whether automatic non-Bluetooth preference is default behavior or a guided setting."
+      recommended_first_worker:
+        objective: "Add a deterministic input-policy layer that, when selectedInputDeviceUID is nil and the effective system default input is Bluetooth, prefers a built-in/non-Bluetooth input for recording if available; preserve explicit user selection and log the policy decision."
+        allowed_files:
+          - "Foil/AudioRecorder.swift"
+          - "Foil/AppState.swift"
+          - "Foil/DiagnosticLog.swift"
+          - "FoilTests/AudioRecorderTests.swift"
+          - "FoilTests/AppStateTests.swift"
+          - "FoilTests/DiagnosticLogTests.swift"
+        verify:
+          - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AudioRecorderTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests"
+          - "git diff --check"
+        stop_if:
+          - "The policy would silently override an explicit user-selected Bluetooth input."
+          - "No non-Bluetooth input exists and the code cannot fall back cleanly."
+          - "The change requires private APIs or direct output-volume manipulation."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose the largest safe first implementation slice that can plausibly stop the volume jump on the recommended/default path."
+    inputs:
+      - "T001 receipt"
+      - "Goal oracle"
+      - "Non-negotiable constraints"
+    constraints:
+      - "Do not implement."
+      - "Reject mitigations that only document the issue without preventing the verified default/recommended bad path."
+      - "Reject private API, UI scripting, or direct manipulation of Chrome/YouTube/system output volume."
+      - "Prefer a reversible local product behavior change with deterministic tests plus a live smoke plan."
+    expected_output:
+      - "Decision: approved | blocked | needs_more_scouting"
+      - "Exact Worker objective"
+      - "allowed_files"
+      - "verify"
+      - "stop_if"
+      - "Deferred follow-up tasks, if any"
+    receipt:
+      result: done
+      decision: approved
+      full_outcome_complete: false
+      rationale: "T001 evidence shows the existing warning-only treatment did not prevent the verified System Default/AirPods path. The largest safe first slice is to make the default recording path avoid Bluetooth headset microphones when a non-Bluetooth input is available, while preserving explicit user selection and avoiding output-volume APIs."
+      worker_objective: "Implement automatic Bluetooth-default input avoidance for recording: when selectedInputDeviceUID is nil and the effective system default input transport is Bluetooth/Bluetooth LE, choose a built-in/non-Bluetooth input for the recording if available, align the input device as needed, and log the policy decision."
+      allowed_files:
+        - "Foil/AudioRecorder.swift"
+        - "Foil/AppState.swift"
+        - "Foil/DiagnosticLog.swift"
+        - "FoilTests/AudioRecorderTests.swift"
+        - "FoilTests/AppStateTests.swift"
+        - "FoilTests/DiagnosticLogTests.swift"
+        - "docs/goals/youtube-volume-ptt-fix/state.yaml"
+      verify:
+        - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AudioRecorderTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests"
+        - "git diff --check"
+      stop_if:
+        - "The implementation would override an explicit user-selected Bluetooth input."
+        - "No non-Bluetooth input exists and the fallback cannot remain on system default cleanly."
+        - "The fix requires private APIs, UI scripting, or direct output-volume manipulation."
+        - "The implementation needs files outside the approved allowed_files."
+      deferred_tasks:
+        - "Settings/onboarding copy should explain the automatic/recommended input path after the policy exists."
+        - "Reusable installed-app live smoke remains required before final completion."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Implement automatic Bluetooth-default input avoidance for recording: when selectedInputDeviceUID is nil and the effective system default input transport is Bluetooth/Bluetooth LE, choose a built-in/non-Bluetooth input for the recording if available, align the input device as needed, and log the policy decision."
+    allowed_files:
+      - "Foil/AudioRecorder.swift"
+      - "Foil/AppState.swift"
+      - "Foil/DiagnosticLog.swift"
+      - "FoilTests/AudioRecorderTests.swift"
+      - "FoilTests/AppStateTests.swift"
+      - "FoilTests/DiagnosticLogTests.swift"
+      - "docs/goals/youtube-volume-ptt-fix/state.yaml"
+    verify:
+      - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AudioRecorderTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests"
+      - "git diff --check"
+    stop_if:
+      - "Need files outside allowed_files."
+      - "The implementation would override an explicit user-selected Bluetooth input."
+      - "No non-Bluetooth input exists and the fallback cannot remain on system default cleanly."
+      - "The fix requires private APIs, UI scripting, or direct output-volume manipulation."
+      - "Focused verification fails twice."
+    receipt:
+      result: done
+      summary: "Implemented a deterministic recording input policy in AudioRecorder. When selectedInputDeviceUID is nil and the system default input resolves to Bluetooth/Bluetooth LE, Foil now chooses a built-in mic first, or another known non-Bluetooth input, aligns the default input before recording, and logs the input policy decision. Explicit user-selected Bluetooth inputs are preserved."
+      changed_files:
+        - "Foil/AudioRecorder.swift"
+        - "FoilTests/AudioRecorderTests.swift"
+      commands:
+        - command: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AudioRecorderTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests"
+          status: pass
+        - command: "git diff --check"
+          status: pass
+      evidence:
+        - "Foil/AudioRecorder.swift: inputPreparationDecision returns avoidBluetoothDefault only for nil selectedUID with a Bluetooth default input and a known non-Bluetooth fallback."
+        - "Foil/AudioRecorder.swift: explicit selected UID returns explicitSelection and is not overridden by the automatic fallback."
+        - "Foil/AudioRecorder.swift: Unknown transport devices are not treated as safe fallback microphones."
+        - "FoilTests/AudioRecorderTests.swift: added synthetic-device tests for built-in fallback, USB fallback, explicit Bluetooth preservation, non-Bluetooth system default, Bluetooth-only fallback, unknown-transport rejection, and missing explicit selection."
+        - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AudioRecorderTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests passed: 176 tests, 0 failures."
+        - "git diff --check passed."
+      disproved_failure_modes:
+        - "Explicit Bluetooth selection is not silently overridden."
+        - "A Bluetooth default input with no known non-Bluetooth fallback remains on system default instead of forcing an unsafe or unknown device."
+        - "Unknown transport metadata is not treated as proof of a non-Bluetooth safe path."
+      remaining_gaps:
+        - "Need richer recording diagnostics for active input/output route metadata."
+        - "Need settings/onboarding copy to explain the fixed/recommended path."
+        - "Need final installed-app YouTube/AirPods smoke proof that output volume stays stable during PTT."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Add or update diagnostics so every recording logs active input/output device names, transports, sample rates, selected input policy, and other-audio policy."
+    allowed_files:
+      - "Foil/AudioRecorder.swift"
+      - "Foil/DiagnosticLog.swift"
+      - "Foil/AppState.swift"
+      - "FoilTests/AudioRecorderTests.swift"
+      - "FoilTests/DiagnosticLogTests.swift"
+    verify:
+      - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AudioRecorderTests -only-testing:FoilTests/DiagnosticLogTests"
+      - "git diff --check"
+    stop_if:
+      - "Need to log sensitive data."
+      - "Need files outside allowed_files."
+      - "Device metadata cannot be gathered through public Core Audio APIs."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/AudioRecorder.swift"
+        - "FoilTests/AudioRecorderTests.swift"
+      commands:
+        - command: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/AudioRecorderTests -only-testing:FoilTests/DiagnosticLogTests"
+          status: pass
+        - command: "git diff --check"
+          status: pass
+      summary: "Added a recording-start route diagnostic line in AudioRecorder that reports resolved input route and default output route names, Core Audio transports, and nominal sample rates. This complements the existing input policy log and existing other-audio policy/browser-media logs emitted for each recording."
+      evidence:
+        - "Foil/AudioRecorder.swift logs AudioRecorder: recording route input=... output=... immediately after the input hardware format line."
+        - "Foil/AudioRecorder.swift gathers device names, transports, and nominal sample rates through public Core Audio properties only."
+        - "FoilTests/AudioRecorderTests.swift verifies route formatting for input/output devices, transports, integer sample rates, missing devices, and unknown sample rate."
+        - "Focused T004 verification passed: 55 tests, 0 failures."
+        - "git diff --check passed."
+      disproved_failure_modes:
+        - "The diagnostic route line does not require private APIs, output-volume writes, UI scripting, or sensitive data."
+        - "Missing route devices and unavailable sample rates render as none/unknown instead of crashing or fabricating values."
+      remaining_gaps:
+        - "Need UI/settings copy to make the fixed/recommended path understandable."
+        - "Need reusable installed-app smoke and final live YouTube/AirPods proof."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Update settings/onboarding treatment so Bluetooth headset mic risk is actionable, not merely informational, and points users to the fixed/recommended input path."
+    allowed_files:
+      - "Foil/SettingsView.swift"
+      - "Foil/BluetoothMicGuidance.swift"
+      - "Foil/AppState.swift"
+      - "FoilTests/SingleInstanceGuardTests.swift"
+      - "FoilTests/AppStateTests.swift"
+      - "FoilUITests/FoilUITests.swift"
+    verify:
+      - "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/SingleInstanceGuardTests -only-testing:FoilTests/AppStateTests"
+      - "git diff --check"
+    stop_if:
+      - "The UI change would claim Foil prevents all Bluetooth behavior."
+      - "Need files outside allowed_files."
+      - "Accessibility identifiers or UI tests become ambiguous."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/SettingsView.swift"
+        - "Foil/BluetoothMicGuidance.swift"
+        - "FoilTests/SingleInstanceGuardTests.swift"
+      commands:
+        - command: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -only-testing:FoilTests/SingleInstanceGuardTests -only-testing:FoilTests/AppStateTests"
+          status: pass
+        - command: "git diff --check"
+          status: pass
+      summary: "Updated Recording settings guidance to distinguish the fixed/recommended System Default path from explicit Bluetooth mic selection. If System Default resolves to a Bluetooth mic but Foil can fall back to a built-in or known non-Bluetooth mic, Settings now shows a positive fallback note. If the user explicitly selects Bluetooth, or no fallback exists, Settings keeps the bounded orange warning."
+      evidence:
+        - "BluetoothMicGuidance.automaticFallbackDevice uses the same AudioRecorder inputPreparationDecision as recording start, so Settings mirrors the implemented policy."
+        - "SettingsView.RecordingCopy.systemDefaultBluetoothFallback says Foil records from the fallback mic when possible, without claiming total macOS Bluetooth control."
+        - "SettingsView.RecordingCopy.bluetoothInputWarning tells users to choose System Default, Mac microphone, or another known non-Bluetooth input."
+        - "SingleInstanceGuardTests cover automatic fallback, explicit Bluetooth warning, no-fallback warning, and copy boundaries."
+        - "Focused T005 verification passed: 149 tests, 0 failures."
+        - "git diff --check passed."
+      disproved_failure_modes:
+        - "The UI no longer warns users away from System Default when the automatic fallback policy can protect the recording path."
+        - "The UI still warns when Bluetooth is explicitly selected or no known non-Bluetooth fallback exists."
+        - "The copy does not claim Foil prevents all Bluetooth/macOS route behavior."
+      remaining_gaps:
+        - "Need reusable installed-app smoke/runbook."
+        - "Need final live YouTube/AirPods proof."
+
+  - id: T006
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Create a reusable local smoke script or runbook that samples output volume and Foil diagnostics before, during, and after installed-app PTT recording."
+    allowed_files:
+      - "scripts/run-youtube-volume-ptt-smoke.sh"
+      - "scripts/"
+      - "docs/"
+      - "Makefile"
+      - "tests/"
+    verify:
+      - "bash -n scripts/*.sh"
+      - "git diff --check"
+      - "Run the new smoke or dry-run path if it is non-destructive."
+    stop_if:
+      - "The script would require destructive TCC resets or hidden UI automation."
+      - "The script cannot avoid interfering with the user's active browser session."
+      - "Need files outside allowed_files."
+    receipt:
+      result: done
+      changed_files:
+        - "scripts/run-youtube-volume-ptt-smoke.sh"
+      commands:
+        - command: "bash -n scripts/*.sh"
+          status: pass
+        - command: "scripts/run-youtube-volume-ptt-smoke.sh --dry-run"
+          status: pass
+        - command: "git diff --check"
+          status: pass
+      summary: "Added a guided local smoke script for the YouTube/headphones PTT volume issue. The script prompts the operator through setup, before/during/after sampling, and release; records macOS output-volume samples; captures relevant Foil diagnostic tail lines; and writes artifacts under /tmp."
+      evidence:
+        - "scripts/run-youtube-volume-ptt-smoke.sh documents that it does not press keys, control Chrome, quit apps, change volume, change devices, or reset permissions."
+        - "Dry run printed planned artifact paths, diagnostic log path, sample_count=5, sample_interval=1, and actions=none."
+        - "bash -n scripts/*.sh passed."
+        - "git diff --check passed."
+      disproved_failure_modes:
+        - "The smoke helper does not automate or interfere with the user's active browser session."
+        - "The smoke helper does not perform destructive permission resets or hidden UI automation."
+        - "The smoke helper records before/during/after output-volume evidence needed to disprove the original 38 -> 50 jump."
+      remaining_gaps:
+        - "Need to run the guided smoke against the fixed locally running/installed app with YouTube and AirPods/headphones."
+
+  - id: T007
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Review implemented mitigation and decide whether live hardware proof is strong enough or another Worker slice is required."
+    inputs:
+      - "T001-T006 receipts as available"
+      - "Current diff"
+      - "Last focused test results"
+      - "Last live smoke result"
+    constraints:
+      - "Do not implement."
+      - "Do not approve completion if the only proof is source inspection or a warning."
+      - "Require evidence that attempts to disprove the fix under AirPods + YouTube conditions."
+    expected_output:
+      - "Decision: continue | ready_for_final_audit | blocked"
+      - "Missing evidence"
+      - "Next Worker package if needed"
+    receipt:
+      result: done
+      decision: continue
+      full_outcome_complete: false
+      summary: "Implementation evidence is strong enough to attempt final proof, but not strong enough to complete the goal. The verified original failure was live YouTube playback with headphones/AirPods while holding PTT, and no post-fix live run has yet shown before/during/after output volume stability."
+      evidence_ready:
+        - "T003 implemented and tested automatic Bluetooth-default input avoidance for System Default recording."
+        - "T004 added route diagnostics for input/output names, transports, and nominal sample rates."
+        - "T005 updated Settings guidance so System Default points to the fixed/recommended fallback path and explicit Bluetooth still warns."
+        - "T006 added a safe guided smoke script for before/during/after output-volume evidence."
+      missing_evidence:
+        - "Run scripts/run-youtube-volume-ptt-smoke.sh against the fixed app while YouTube plays through the reported headphones/AirPods setup."
+        - "Record artifact path and summarize before/during/after output-volume samples."
+        - "Confirm Foil diagnostics for that run include input policy, recording route, otherAudio policy, and no browser-media intervention unless explicitly enabled."
+      next_task: T008
+
+  - id: T008
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Execute the guided YouTube/headphones PTT smoke against the fixed local app path, record the artifact path, summarize output-volume samples, and decide whether T999 can audit completion."
+    allowed_files:
+      - "docs/goals/youtube-volume-ptt-fix/state.yaml"
+    verify:
+      - "scripts/run-youtube-volume-ptt-smoke.sh"
+      - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/youtube-volume-ptt-fix/state.yaml"
+      - "git diff --check"
+    stop_if:
+      - "The operator is unavailable to hold push-to-talk during sampling."
+      - "The fixed app is not running or cannot be launched without disturbing user state."
+      - "YouTube/headphones setup is unavailable."
+    progress:
+      changed_files:
+        - "docs/goals/youtube-volume-ptt-fix/state.yaml"
+      commands:
+        - command: "scripts/run-youtube-volume-ptt-smoke.sh --check-sampler; rc=$?; echo sampler_status=$rc; exit 0"
+          status: pass
+        - command: "xcodebuild build -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -derivedDataPath /private/tmp/foil-youtube-volume-ptt-dd"
+          status: pass
+        - command: "codesign --verify --deep --strict /private/tmp/foil-youtube-volume-ptt-dd/Build/Products/Debug/Foil.app; rc=$?; echo rc=$rc; exit 0"
+          status: pass
+        - command: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -derivedDataPath /private/tmp/foil-youtube-volume-ptt-test-dd -only-testing:FoilTests/AudioRecorderTests -only-testing:FoilTests/DiagnosticLogTests -only-testing:FoilTests/SingleInstanceGuardTests -only-testing:FoilTests/AppStateTests"
+          status: pass
+        - command: "TMPDIR=/private/tmp CLANG_MODULE_CACHE_PATH=/private/tmp/clang-module-cache swift -e '<NSWorkspace running Foil app query>'; rc=$?; echo rc=$rc; exit 0"
+          status: inconclusive
+        - command: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/youtube-volume-ptt-fix/state.yaml"
+          status: pass
+        - command: "git diff --check"
+          status: pass
+      summary: "Resumed T008, produced a fresh fixed Debug app bundle for the desktop smoke at /private/tmp/foil-youtube-volume-ptt-dd/Build/Products/Debug/Foil.app, refreshed the focused macOS test evidence, and rechecked the smoke sampler after desktop audio access became available. The sampler now works locally; the remaining live proof is the operator-held YouTube/headphones PTT window."
+      evidence:
+        - "Sampler preflight now passes: scripts/run-youtube-volume-ptt-smoke.sh --check-sampler printed output volume 25 with sampler_status=0."
+        - "Direct AppleScript now passes: osascript -e 'output volume of (get volume settings)' printed 25."
+        - "system_profiler SPAudioDataType now reports AirPods as default input/output over Bluetooth, with MacBook Pro Microphone available as a built-in input fallback."
+        - "xcodebuild build succeeded into /private/tmp/foil-youtube-volume-ptt-dd; the resulting app and executable both have timestamp 2026-06-04 05:39:14."
+        - "codesign --verify --deep --strict passed for the fresh Debug app; Info.plist reports com.neonwatty.Foil version 1.13.4 build 39 with microphone usage text present."
+        - "Focused current-state test refresh passed: Selected tests executed 204 tests with 0 failures; xcresult at /private/tmp/foil-youtube-volume-ptt-test-dd/Logs/Test/Test-Foil-2026.06.04_05-42-45--0700.xcresult."
+        - "The diagnostics log at ~/Library/Application Support/Foil/Diagnostics/foil.log is live and had recent hotkey flag entries through 2026-06-04T12:41:34Z, but no post-fix recording route/output-volume smoke artifact has been captured."
+        - "A read-only NSWorkspace running-app query returned rc=0 but no Foil bundle path, so this sandbox still cannot prove the fixed app is the local running instance."
+        - "The active oracle requires before/during/after output-volume samples correlated with Foil diagnostics; fabricating samples or accepting unit tests alone would miss the original AirPods/YouTube failure mode."
+        - "GoalBuddy state validation passed and git diff --check passed after refreshing the sampler evidence."
+      blocker:
+        - "Launch /private/tmp/foil-youtube-volume-ptt-dd/Build/Products/Debug/Foil.app or another app bundle built from this worktree, then run scripts/run-youtube-volume-ptt-smoke.sh."
+        - "Keep YouTube playing through the reported headphones, use the fixed default/recommended input path, and have the operator hold PTT during the during-sample phase so diagnostics include input policy and recording route lines."
+      remaining_gaps:
+        - "T999 final audit remains queued until the live smoke artifact path, samples, and diagnostic tail are recorded."
+        - "The live YouTube/headphones PTT oracle still requires a real PTT hold/release window; sampler preflight alone is not completion proof."
+    receipt: null
+
+  - id: T009
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Harden the YouTube volume smoke sampler so it has an explicit sampler preflight and records a clear blocker when this sandbox cannot access macOS output-volume APIs."
+    allowed_files:
+      - "scripts/run-youtube-volume-ptt-smoke.sh"
+      - "docs/goals/youtube-volume-ptt-fix/state.yaml"
+    verify:
+      - "bash -n scripts/run-youtube-volume-ptt-smoke.sh"
+      - "scripts/run-youtube-volume-ptt-smoke.sh --dry-run"
+      - "scripts/run-youtube-volume-ptt-smoke.sh --check-sampler || true"
+      - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/youtube-volume-ptt-fix/state.yaml"
+      - "git diff --check"
+    stop_if:
+      - "The script would need private APIs or direct output-volume manipulation."
+      - "The sampler cannot be checked without disturbing user audio state."
+    receipt:
+      result: done
+      changed_files:
+        - "scripts/run-youtube-volume-ptt-smoke.sh"
+      commands:
+        - command: "bash -n scripts/run-youtube-volume-ptt-smoke.sh"
+          status: pass
+        - command: "scripts/run-youtube-volume-ptt-smoke.sh --dry-run"
+          status: pass
+        - command: "scripts/run-youtube-volume-ptt-smoke.sh --check-sampler; rc=$?; echo sampler_status=$rc; exit 0"
+          status: pass
+        - command: "git diff --check"
+          status: pass
+      summary: "Added an explicit --check-sampler mode and clear sampler failure message to the YouTube volume PTT smoke script. In this sandbox, macOS Standard Additions cannot parse/get output volume, so the script now fails fast with instructions to run from a desktop Terminal session or provide an alternate sampler before treating smoke output as proof."
+      evidence:
+        - "Dry run still prints artifact paths and actions=none."
+        - "Sampler check returned sampler_status=1 with the explicit output-volume access error instead of producing fake samples."
+        - "bash -n and git diff --check passed."
+      disproved_failure_modes:
+        - "The smoke script no longer asks the operator to perform PTT sampling when output-volume collection is unavailable."
+        - "The script still does not use private APIs, direct output-volume manipulation, destructive permission resets, or hidden browser automation."
+      remaining_gaps:
+        - "Need to run the guided smoke from a desktop context that can read output volume and where the operator can hold PTT."
+
+  - id: T010
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Add an explicit output-volume sampler command override to the guided smoke so T008 can run from a desktop Terminal even if the default Standard Additions sampler is unavailable in Codex."
+    allowed_files:
+      - "scripts/run-youtube-volume-ptt-smoke.sh"
+      - "docs/goals/youtube-volume-ptt-fix/state.yaml"
+    verify:
+      - "bash -n scripts/run-youtube-volume-ptt-smoke.sh"
+      - "scripts/run-youtube-volume-ptt-smoke.sh --dry-run"
+      - "VOLUME_SAMPLER_CMD='printf 42' scripts/run-youtube-volume-ptt-smoke.sh --check-sampler"
+      - "scripts/run-youtube-volume-ptt-smoke.sh --check-sampler; rc=$?; echo sampler_status=$rc; exit 0"
+      - "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/youtube-volume-ptt-fix/state.yaml"
+      - "git diff --check"
+    stop_if:
+      - "The override would mutate volume, devices, browser state, or permissions."
+      - "The override would hide which sampler produced the evidence."
+    receipt:
+      result: done
+      changed_files:
+        - "scripts/run-youtube-volume-ptt-smoke.sh"
+      commands:
+        - command: "bash -n scripts/run-youtube-volume-ptt-smoke.sh"
+          status: pass
+        - command: "scripts/run-youtube-volume-ptt-smoke.sh --dry-run"
+          status: pass
+        - command: "VOLUME_SAMPLER_CMD='printf 42' scripts/run-youtube-volume-ptt-smoke.sh --check-sampler"
+          status: pass
+        - command: "scripts/run-youtube-volume-ptt-smoke.sh --check-sampler; rc=$?; echo sampler_status=$rc; exit 0"
+          status: pass
+        - command: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/youtube-volume-ptt-fix/state.yaml"
+          status: pass
+        - command: "git diff --check"
+          status: pass
+      summary: "Added VOLUME_SAMPLER_CMD support to the guided smoke. The default sampler remains the Goal oracle's Standard Additions output-volume command, while desktop Terminal runs can now provide an explicit non-mutating sampler command when Codex cannot access macOS audio state. The summary records which sampler was used."
+      evidence:
+        - "Override preflight with VOLUME_SAMPLER_CMD='printf 42' printed 42."
+        - "Default sampler preflight still records sampler_status=1 in Codex with the Standard Additions parse error, so the script does not silently fabricate samples."
+        - "Dry run, bash syntax check, GoalBuddy checker, and git diff --check passed."
+      disproved_failure_modes:
+        - "The override does not mutate volume, devices, browser state, or permissions; it only runs an explicit caller-provided read command."
+        - "The summary captures the sampler command so live evidence can be audited."
+      remaining_gaps:
+        - "Need to run T008 live smoke from a desktop context that can sample output volume while the operator holds PTT."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Audit whether Foil now satisfies the original outcome: YouTube volume no longer increases during PTT on the default/recommended path."
+    inputs:
+      - "All done task receipts"
+      - "Last verification"
+      - "Current dirty diff"
+      - "Live YouTube/AirPods smoke evidence"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if required Worker work is still queued or active."
+      - "Reject completion if the live smoke does not include before/during/after output-volume samples."
+      - "Reject completion if the product only warns but leaves the verified default/recommended path broken."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Evidence that ruled out the strongest realistic failure mode"
+      - "Residual risk / follow-up"
+      - "Next task if not complete"
+    receipt: null
+
+checks:
+  dirty_fingerprint: unknown
+  last_verification:
+    result: partial_live_pending
+    task: T008
+    commands:
+      - command: "xcodebuild build -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -derivedDataPath /private/tmp/foil-youtube-volume-ptt-dd"
+        status: pass
+      - command: "codesign --verify --deep --strict /private/tmp/foil-youtube-volume-ptt-dd/Build/Products/Debug/Foil.app; rc=$?; echo rc=$rc; exit 0"
+        status: pass
+      - command: "scripts/run-youtube-volume-ptt-smoke.sh --check-sampler; rc=$?; echo sampler_status=$rc; exit 0"
+        status: pass
+      - command: "xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macOS' -derivedDataPath /private/tmp/foil-youtube-volume-ptt-test-dd -only-testing:FoilTests/AudioRecorderTests -only-testing:FoilTests/DiagnosticLogTests -only-testing:FoilTests/SingleInstanceGuardTests -only-testing:FoilTests/AppStateTests"
+        status: pass
+      - command: "scripts/run-youtube-volume-ptt-smoke.sh --dry-run"
+        status: pass
+      - command: "stat -f '%Sm %N' -t '%Y-%m-%d %H:%M:%S' /private/tmp/foil-youtube-volume-ptt-dd/Build/Products/Debug/Foil.app /private/tmp/foil-youtube-volume-ptt-dd/Build/Products/Debug/Foil.app/Contents/MacOS/Foil /private/tmp/foil-youtube-volume-ptt-test-dd/Logs/Test/Test-Foil-2026.06.04_05-42-45--0700.xcresult 2>/dev/null"
+        status: pass
+      - command: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/youtube-volume-ptt-fix/state.yaml"
+        status: pass
+      - command: "git diff --check"
+        status: pass

@@ -1157,6 +1157,18 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(reloaded.selectedTranscriptionProvider.transcriptionModel, "whisper-1")
     }
 
+    func testGroqPresetPersistsAfterSwitchingAwayFromLocalWhisper() {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.selectedTranscriptionProviderPresetID = .groq
+
+        let reloaded = AppState()
+
+        XCTAssertEqual(reloaded.selectedTranscriptionProviderPresetID, .groq)
+        XCTAssertEqual(reloaded.selectedTranscriptionProviderID, .groq)
+        XCTAssertEqual(reloaded.selectedTranscriptionProvider.displayName, "Groq")
+    }
+
     func testLegacyOpenAICompatibleProviderMigratesToCustomPreset() {
         UserDefaults.standard.set(TranscriptionProviderID.openAICompatible.rawValue, forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
@@ -1185,6 +1197,26 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.selectedTranscriptionModel, "whisper-1")
         XCTAssertFalse(state.supportsSelectedTranscriptProcessing)
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+    }
+
+    func testPresetSwitchingClearsStaleProviderFailurePresentation() throws {
+        let state = AppState()
+        markSetupReady(state)
+        try KeychainHelper.save(apiKey: "groq-key")
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.showError("Cannot reach Local whisper.cpp")
+
+        state.selectedTranscriptionProviderPresetID = .groq
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: true,
+            hasLastSuccess: false
+        )
+        XCTAssertEqual(state.status, .idle)
+        XCTAssertNil(state.feedbackMessage)
+        XCTAssertEqual(presentation.title, "Ready")
+        XCTAssertEqual(presentation.detail, "Right Command · Paste target is the current app")
     }
 
     func testGroqPresetRestoresGroqCleanupWhenProcessingEnabled() {

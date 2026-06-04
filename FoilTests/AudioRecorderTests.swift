@@ -46,6 +46,21 @@ final class AudioRecorderTests: XCTestCase {
         return url
     }
 
+    private func makeDevice(
+        id: AudioDeviceID,
+        uid: String,
+        name: String,
+        transport: AudioRecorder.AudioDeviceTransport
+    ) -> AudioRecorder.AudioDevice {
+        AudioRecorder.AudioDevice(
+            id: id,
+            uid: uid,
+            name: name,
+            isInput: true,
+            transport: transport
+        )
+    }
+
     // MARK: - WAV format tests
 
     func testWriteWAVProducesFile() throws {
@@ -316,6 +331,147 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertEqual(AudioRecorder.AudioDeviceTransport.bluetooth.displayName, "Bluetooth")
         XCTAssertEqual(AudioRecorder.AudioDeviceTransport.bluetoothLE.displayName, "Bluetooth LE")
         XCTAssertEqual(AudioRecorder.AudioDeviceTransport.builtIn.displayName, "Built-in")
+    }
+
+    func testInputPreparationAvoidsBluetoothSystemDefaultWhenBuiltInMicExists() {
+        let airPods = makeDevice(id: 10, uid: "airpods", name: "AirPods", transport: .bluetooth)
+        let builtIn = makeDevice(id: 20, uid: "built-in", name: "MacBook Microphone", transport: .builtIn)
+
+        let decision = AudioRecorder.inputPreparationDecision(
+            selectedUID: nil,
+            devices: [airPods, builtIn],
+            defaultInputDeviceID: airPods.id
+        )
+
+        XCTAssertEqual(decision.reason, .avoidBluetoothDefault)
+        XCTAssertEqual(decision.device, builtIn)
+        XCTAssertTrue(decision.shouldSetDefaultInput)
+    }
+
+    func testInputPreparationAvoidsBluetoothSystemDefaultWithUsbFallback() {
+        let airPods = makeDevice(id: 10, uid: "airpods", name: "AirPods", transport: .bluetoothLE)
+        let usb = makeDevice(id: 30, uid: "usb", name: "USB Microphone", transport: .usb)
+
+        let decision = AudioRecorder.inputPreparationDecision(
+            selectedUID: nil,
+            devices: [airPods, usb],
+            defaultInputDeviceID: airPods.id
+        )
+
+        XCTAssertEqual(decision.reason, .avoidBluetoothDefault)
+        XCTAssertEqual(decision.device, usb)
+        XCTAssertTrue(decision.shouldSetDefaultInput)
+    }
+
+    func testInputPreparationPreservesExplicitBluetoothSelection() {
+        let airPods = makeDevice(id: 10, uid: "airpods", name: "AirPods", transport: .bluetooth)
+        let builtIn = makeDevice(id: 20, uid: "built-in", name: "MacBook Microphone", transport: .builtIn)
+
+        let decision = AudioRecorder.inputPreparationDecision(
+            selectedUID: airPods.uid,
+            devices: [airPods, builtIn],
+            defaultInputDeviceID: airPods.id
+        )
+
+        XCTAssertEqual(decision.reason, .explicitSelection)
+        XCTAssertEqual(decision.device, airPods)
+        XCTAssertTrue(decision.shouldSetDefaultInput)
+    }
+
+    func testInputPreparationKeepsNonBluetoothSystemDefault() {
+        let builtIn = makeDevice(id: 20, uid: "built-in", name: "MacBook Microphone", transport: .builtIn)
+        let usb = makeDevice(id: 30, uid: "usb", name: "USB Microphone", transport: .usb)
+
+        let decision = AudioRecorder.inputPreparationDecision(
+            selectedUID: nil,
+            devices: [builtIn, usb],
+            defaultInputDeviceID: builtIn.id
+        )
+
+        XCTAssertEqual(decision.reason, .systemDefault)
+        XCTAssertNil(decision.device)
+        XCTAssertFalse(decision.shouldSetDefaultInput)
+    }
+
+    func testInputPreparationFallsBackCleanlyWhenOnlyBluetoothInputExists() {
+        let airPods = makeDevice(id: 10, uid: "airpods", name: "AirPods", transport: .bluetooth)
+
+        let decision = AudioRecorder.inputPreparationDecision(
+            selectedUID: nil,
+            devices: [airPods],
+            defaultInputDeviceID: airPods.id
+        )
+
+        XCTAssertEqual(decision.reason, .bluetoothDefaultWithoutFallback)
+        XCTAssertNil(decision.device)
+        XCTAssertFalse(decision.shouldSetDefaultInput)
+    }
+
+    func testInputPreparationDoesNotTreatUnknownTransportAsSafeFallback() {
+        let airPods = makeDevice(id: 10, uid: "airpods", name: "AirPods", transport: .bluetooth)
+        let unknown = makeDevice(id: 40, uid: "unknown", name: "Mystery Microphone", transport: .unknown)
+
+        let decision = AudioRecorder.inputPreparationDecision(
+            selectedUID: nil,
+            devices: [airPods, unknown],
+            defaultInputDeviceID: airPods.id
+        )
+
+        XCTAssertEqual(decision.reason, .bluetoothDefaultWithoutFallback)
+        XCTAssertNil(decision.device)
+        XCTAssertFalse(decision.shouldSetDefaultInput)
+    }
+
+    func testInputPreparationFallsBackCleanlyWhenExplicitSelectionIsMissing() {
+        let builtIn = makeDevice(id: 20, uid: "built-in", name: "MacBook Microphone", transport: .builtIn)
+
+        let decision = AudioRecorder.inputPreparationDecision(
+            selectedUID: "missing",
+            devices: [builtIn],
+            defaultInputDeviceID: builtIn.id
+        )
+
+        XCTAssertEqual(decision.reason, .explicitSelectionMissing)
+        XCTAssertNil(decision.device)
+        XCTAssertFalse(decision.shouldSetDefaultInput)
+    }
+
+    func testAudioRouteDescriptionIncludesInputOutputTransportsAndSampleRates() {
+        let input = AudioRecorder.AudioRouteDevice(
+            id: 20,
+            name: "MacBook Microphone",
+            transport: .builtIn,
+            sampleRate: 48_000
+        )
+        let output = AudioRecorder.AudioRouteDevice(
+            id: 50,
+            name: "AirPods",
+            transport: .bluetooth,
+            sampleRate: 44_100
+        )
+
+        let description = AudioRecorder.audioRouteDescription(input: input, output: output)
+
+        XCTAssertEqual(
+            description,
+            "input=MacBook Microphone(id=20, transport=Built-in, sampleRate=48000) output=AirPods(id=50, transport=Bluetooth, sampleRate=44100)"
+        )
+    }
+
+    func testAudioRouteDescriptionHandlesMissingDevicesAndUnknownSampleRate() {
+        let output = AudioRecorder.AudioRouteDevice(
+            id: 50,
+            name: "External Output",
+            transport: .usb,
+            sampleRate: nil
+        )
+
+        let description = AudioRecorder.audioRouteDescription(input: nil, output: output)
+
+        XCTAssertEqual(
+            description,
+            "input=none output=External Output(id=50, transport=USB, sampleRate=unknown)"
+        )
     }
 
     func testDeviceIDForUIDReturnsNilForUnknownUID() {
