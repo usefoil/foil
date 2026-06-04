@@ -288,6 +288,17 @@ final class SingleInstanceGuardTests: XCTestCase {
             SettingsView.RecordingCopy.builtInMicBluetoothNotificationBody,
             "AirPods stay connected for listening while Foil records from your MacBook microphone."
         )
+        XCTAssertEqual(
+            SettingsView.RecordingCopy.systemDefaultBluetoothFallback(
+                defaultInputName: "AirPods",
+                fallbackInputName: "MacBook Pro Microphone"
+            ),
+            "System Default currently points to AirPods. Foil will record from MacBook Pro Microphone when possible so your headphones can stay on the listening route."
+        )
+        XCTAssertEqual(
+            SettingsView.RecordingCopy.bluetoothInputWarning(deviceName: "AirPods"),
+            "Using AirPods as the microphone can reduce other audio quality or volume while recording. Choose System Default, the Mac microphone, or another known non-Bluetooth input to keep playback unchanged."
+        )
     }
 
     func testBuiltInMicGuidanceShowsNoticeForBuiltInSelectionWhenBluetoothInputIsAvailable() {
@@ -349,6 +360,85 @@ final class SingleInstanceGuardTests: XCTestCase {
             selectedInputDevice: airPods,
             availableInputDevices: [airPods],
             hasShownNotice: false
+        ))
+    }
+
+    func testSystemDefaultBluetoothGuidanceUsesAutomaticFallbackWhenAvailable() {
+        let airPods = AudioRecorder.AudioDevice(
+            id: 2,
+            uid: "airpods",
+            name: "AirPods",
+            isInput: true,
+            transport: .bluetooth
+        )
+        let builtIn = AudioRecorder.AudioDevice(
+            id: 1,
+            uid: "built-in",
+            name: "MacBook Pro Microphone",
+            isInput: true,
+            transport: .builtIn
+        )
+
+        let fallback = BluetoothMicGuidance.automaticFallbackDevice(
+            selectedInputDeviceUID: nil,
+            effectiveInputDevice: airPods,
+            availableInputDevices: [airPods, builtIn]
+        )
+
+        XCTAssertEqual(fallback, builtIn)
+        XCTAssertFalse(BluetoothMicGuidance.shouldWarnAboutBluetoothInput(
+            selectedInputDeviceUID: nil,
+            effectiveInputDevice: airPods,
+            availableInputDevices: [airPods, builtIn]
+        ))
+    }
+
+    func testBluetoothInputGuidanceWarnsForExplicitBluetoothSelection() {
+        let airPods = AudioRecorder.AudioDevice(
+            id: 2,
+            uid: "airpods",
+            name: "AirPods",
+            isInput: true,
+            transport: .bluetooth
+        )
+        let builtIn = AudioRecorder.AudioDevice(
+            id: 1,
+            uid: "built-in",
+            name: "MacBook Pro Microphone",
+            isInput: true,
+            transport: .builtIn
+        )
+
+        XCTAssertNil(BluetoothMicGuidance.automaticFallbackDevice(
+            selectedInputDeviceUID: airPods.uid,
+            effectiveInputDevice: airPods,
+            availableInputDevices: [airPods, builtIn]
+        ))
+        XCTAssertTrue(BluetoothMicGuidance.shouldWarnAboutBluetoothInput(
+            selectedInputDeviceUID: airPods.uid,
+            effectiveInputDevice: airPods,
+            availableInputDevices: [airPods, builtIn]
+        ))
+    }
+
+    func testBluetoothInputGuidanceWarnsWhenSystemDefaultBluetoothHasNoFallback() {
+        let airPods = AudioRecorder.AudioDevice(
+            id: 2,
+            uid: "airpods",
+            name: "AirPods",
+            isInput: true,
+            transport: .bluetooth
+        )
+
+        XCTAssertNil(BluetoothMicGuidance.automaticFallbackDevice(
+            selectedInputDeviceUID: nil,
+            effectiveInputDevice: airPods,
+            availableInputDevices: [airPods]
+        ))
+        XCTAssertTrue(BluetoothMicGuidance.shouldWarnAboutBluetoothInput(
+            selectedInputDeviceUID: nil,
+            effectiveInputDevice: airPods,
+            availableInputDevices: [airPods]
         ))
     }
 }

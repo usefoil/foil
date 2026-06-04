@@ -64,6 +64,14 @@ struct SettingsView: View {
         static let builtInMicBluetoothGuidance = "AirPods stay connected for listening, but Foil records from your MacBook microphone to avoid Bluetooth audio quality drops."
         static let builtInMicBluetoothNotificationTitle = "Using MacBook mic"
         static let builtInMicBluetoothNotificationBody = "AirPods stay connected for listening while Foil records from your MacBook microphone."
+
+        static func systemDefaultBluetoothFallback(defaultInputName: String, fallbackInputName: String) -> String {
+            "System Default currently points to \(defaultInputName). Foil will record from \(fallbackInputName) when possible so your headphones can stay on the listening route."
+        }
+
+        static func bluetoothInputWarning(deviceName: String) -> String {
+            "Using \(deviceName) as the microphone can reduce other audio quality or volume while recording. Choose System Default, the Mac microphone, or another known non-Bluetooth input to keep playback unchanged."
+        }
     }
 
     @Bindable var appState: AppState
@@ -282,9 +290,30 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settings.builtInMicBluetoothGuidance")
             }
 
-            if let inputDevice = effectiveInputDevice, inputDevice.transport.isBluetooth {
+            if let fallbackDevice = BluetoothMicGuidance.automaticFallbackDevice(
+                selectedInputDeviceUID: appState.selectedInputDeviceUID,
+                effectiveInputDevice: effectiveInputDevice,
+                availableInputDevices: availableInputDevices
+            ), let inputDevice = effectiveInputDevice {
                 Label {
-                    Text("Using \(inputDevice.name) as the microphone can reduce other audio quality or volume while recording. Choose the Mac microphone or another non-Bluetooth input to keep playback unchanged.")
+                    Text(RecordingCopy.systemDefaultBluetoothFallback(
+                        defaultInputName: inputDevice.name,
+                        fallbackInputName: fallbackDevice.name
+                    ))
+                    .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("settings.systemDefaultBluetoothFallback")
+            } else if BluetoothMicGuidance.shouldWarnAboutBluetoothInput(
+                selectedInputDeviceUID: appState.selectedInputDeviceUID,
+                effectiveInputDevice: effectiveInputDevice,
+                availableInputDevices: availableInputDevices
+            ), let inputDevice = effectiveInputDevice {
+                Label {
+                    Text(RecordingCopy.bluetoothInputWarning(deviceName: inputDevice.name))
                         .fixedSize(horizontal: false, vertical: true)
                 } icon: {
                     Image(systemName: "exclamationmark.triangle.fill")
