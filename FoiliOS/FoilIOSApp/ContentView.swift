@@ -11,6 +11,7 @@ struct ContentView: View {
     @StateObject private var transcription = TranscriptionController()
     @State private var snapshot = FoilKeyboardSnapshot.initial
     @State private var storageReport = FoilKeyboardStorageReport.initial
+    @State private var keyboardHealth = FoilKeyboardHealthReport.initial
     @State private var secureEntry = ""
     private let refreshTimer = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
@@ -40,6 +41,42 @@ struct ContentView: View {
                             statusRow(lastRecordingURL.lastPathComponent, systemImage: "waveform.path")
                                 .font(.caption.monospaced())
                         }
+                    }
+                    .font(.callout)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Keyboard setup")
+                            .font(.headline)
+
+                        setupRow(
+                            title: "Add Foil Keyboard",
+                            detail: "Settings > General > Keyboard > Keyboards",
+                            systemImage: "keyboard"
+                        )
+                        setupRow(
+                            title: "Allow Full Access",
+                            detail: "Required so Foil Keyboard can read and clear dictation state",
+                            systemImage: "checkmark.shield"
+                        )
+                        setupRow(
+                            title: "Keyboard health",
+                            detail: keyboardHealthSummary,
+                            systemImage: keyboardHealth.fullAccessState == .enabled ? "checkmark.circle" : "exclamationmark.circle"
+                        )
+                        setupRow(
+                            title: "Shared state",
+                            detail: storageHealthSummary,
+                            systemImage: "externaldrive"
+                        )
+
+                        Button {
+                            bridge.reset()
+                            refresh()
+                        } label: {
+                            Label("Reset shared state", systemImage: "arrow.counterclockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("setup-reset-shared-state-button")
                     }
                     .font(.callout)
 
@@ -121,6 +158,10 @@ struct ContentView: View {
             .onOpenURL { url in
                 guard url.scheme == FoilIOSConstants.appURLScheme else { return }
                 switch url.host {
+                case "keyboard-health":
+                    let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                    let fullAccessValue = components?.queryItems?.first { $0.name == "fullAccess" }?.value
+                    bridge.recordKeyboardHealth(fullAccessEnabled: fullAccessValue == "on", snapshot: bridge.load())
                 case "complete":
                     bridge.completeFakeTranscript()
                 case "reset":
@@ -143,6 +184,7 @@ struct ContentView: View {
     private func refresh() {
         snapshot = bridge.load()
         storageReport = bridge.storageReport()
+        keyboardHealth = bridge.keyboardHealthReport()
     }
 
     private var storageReportSummary: String {
@@ -153,11 +195,48 @@ struct ContentView: View {
         return "Storage \(storageReport.operation): \(file), \(defaults), verified \(verifiedPhase) \(verifiedTranscript)"
     }
 
+    private var keyboardHealthSummary: String {
+        switch keyboardHealth.fullAccessState {
+        case .unverified:
+            "Open Foil Keyboard in a text field to verify"
+        case .disabled:
+            "Last verified by keyboard: Full Access off"
+        case .enabled:
+            keyboardHealth.snapshotHasTranscript ? "Last verified by keyboard: Full Access on, transcript waiting" : "Last verified by keyboard: Full Access on, ready for dictation"
+        }
+    }
+
+    private var storageHealthSummary: String {
+        if snapshot.transcript?.isEmpty == false {
+            return "Transcript pending"
+        }
+        if snapshot.phase == .idle {
+            return "Ready, no transcript"
+        }
+        return snapshot.phase.displayName
+    }
+
     private func statusRow(_ text: String, systemImage: String) -> some View {
         Label {
             Text(text)
                 .lineLimit(3)
                 .minimumScaleFactor(0.8)
+        } icon: {
+            Image(systemName: systemImage)
+        }
+    }
+
+    private func setupRow(title: String, detail: String, systemImage: String) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.8)
+            }
         } icon: {
             Image(systemName: systemImage)
         }

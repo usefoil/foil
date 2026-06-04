@@ -1,0 +1,743 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS Keyboard Onboarding And Full Access UX"
+  slug: "ios-keyboard-onboarding-full-access-ux"
+  kind: specific
+  tranche: "Make the custom keyboard prototype understandable, configurable, recoverable, and proven with a real transcript loop on iPhone-preview."
+  status: active
+  oracle:
+    signal: "Physical iPhone-preview walkthrough starts from unconfigured or unhealthy keyboard state, guides/blocks appropriately around Full Access, completes a real transcript insertion, and copied App Group state is idle/no transcript afterward."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Merged PR into codex/ios-keyboard-prototype plus receipts with WDA/source snippets, copied App Group state, sanitized screenshots, build/install commands, secret scan, issue/PR links, and final audit."
+  intake:
+    original_request: "Plan out the next iOS build slice around keyboard onboarding and Full Access UX."
+    interpreted_outcome: "Prepare a GoalBuddy board for onboarding, health/recovery, and real-loop proof around the Foil iOS custom keyboard."
+    input_shape: specific
+    audience: "Foil owner/developer and future iPhone prototype testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "The iOS prototype branch has a verified onboarding/recovery flow and physical real-transcription insertion proof."
+    likely_misfire: "Screens explain setup but the app cannot detect or recover Full Access/stale state, or only seeded transcripts are proved."
+    blind_spots_considered:
+      - "Allow Full Access is mandatory for the current shared-state architecture."
+      - "iOS Settings navigation may not be directly deep-linkable or automatable in a stable way."
+      - "The keyboard extension can know hasFullAccess, but the containing app may need indirect health signals."
+      - "Real transcription introduces microphone, network, API, timing, and privacy failure modes."
+      - "Secure fields reject custom keyboards by platform design."
+      - "Messages requires a safe operator-provided test thread."
+      - "Diagnostics must not leak transcript text or API keys."
+      - "Prototype debug UI should be intentionally kept, hidden, or removed."
+    existing_plan_facts:
+      - "Continue from codex/ios-keyboard-prototype."
+      - "Prior PR #226 proved reset persistence and target matrix with Full Access enabled."
+      - "Next product slice should make Full Access onboarding first-class."
+      - "Use the preview iPhone when available and unlocked."
+      - "Use the local Groq/Grok key only if live transcription is needed; do not print or commit it."
+      - "Create PRs into codex/ios-keyboard-prototype, not main."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-keyboard-onboarding-full-access-ux/"
+    command: "npx goalbuddy board docs/goals/ios-keyboard-onboarding-full-access-ux"
+
+active_task: T009
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: high
+    objective: "Map current iOS onboarding, keyboard health, Full Access detection, recovery controls, and prior evidence before implementation."
+    inputs:
+      - "docs/goals/ios-keyboard-state-and-target-matrix/goal.md"
+      - "docs/goals/ios-keyboard-state-and-target-matrix/state.yaml"
+      - "docs/goals/ios-keyboard-state-and-target-matrix/notes/T005-host-app-matrix.md"
+      - "docs/acceptance-evidence.md"
+      - "FoiliOS/**"
+      - "Current git branch/status"
+      - "Physical iPhone/WDA/tunnel availability if already running"
+    constraints:
+      - "Read-only."
+      - "Do not print or copy API key values."
+      - "Do not preserve raw accessibility trees from private apps."
+      - "Prefer exact files, UI states, Settings paths, commands, and observed device IDs."
+    expected_output:
+      - "Current branch/head and dirty-state summary."
+      - "Current app onboarding/health/recovery surfaces."
+      - "Current keyboard Full Access behavior."
+      - "Prior proof and remaining gaps."
+      - "Recommended first Worker slice with allowed_files, verify commands, and stop_if."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped the current iOS onboarding/full-access surface and prior evidence. The app currently exposes a prototype control panel, storage report, secure-field harness, manual Record/Stop/Transcribe buttons, and reset/fake-complete controls. The keyboard already gates Insert latest on UIInputViewController.hasFullAccess and opens the containing app for Start. There is no product onboarding checklist, no app-visible Full Access health model beyond indirect storage reports, no recovery flow framed for a normal user, and no physical proof yet for a real record/transcribe/return/insert loop in this goal."
+      evidence:
+        - "Read current ContentView.swift, KeyboardViewController.swift, FoilKeyboardBridge.swift, AudioCaptureController.swift, TranscriptionController.swift, FoilTranscriptionClient.swift, FoilIOSConstants.swift, and FoiliOS/project.yml."
+        - "Read prior matrix receipt docs/goals/ios-keyboard-state-and-target-matrix/notes/T005-host-app-matrix.md and prior T005/T006/T999 receipts."
+        - "git status showed branch codex/ios-keyboard-prototype at 8360e23 with only pre-existing untracked Xcode userdata, unrelated marketing plan, and this new goal directory."
+        - "devicectl listed iPhone-preview connected; xctrace listed iPhone-preview (26.4.2) online; WDA status failed to connect, confirming WDA stopped."
+      branch:
+        name: "codex/ios-keyboard-prototype"
+        head: "8360e23"
+        status: "Untracked: FoiliOS Xcode xcuserdata dirs, docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md, and this new goal directory."
+      current_app_surface:
+        file: "FoiliOS/FoilIOSApp/ContentView.swift"
+        facts:
+          - "Title/subtitle are Foil iOS and Keyboard shell ready."
+          - "Status rows show resolved snapshot phase/message, recorder status, transcription status, and Storage report summary."
+          - "If a transcript is present, the app displays the transcript text in the main surface."
+          - "Prototype buttons: Listening, Complete, Reset, Record, Stop, Transcribe."
+          - "SecureField secure-rejection-field exists as a local secure-keyboard rejection harness."
+          - "No onboarding checklist, setup progress model, Settings instructions, or first-run distinction exists."
+      current_keyboard_surface:
+        file: "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        facts:
+          - "Keyboard shows status, message, Insert latest, Start, and Next Keyboard."
+          - "refreshState reads FoilKeyboardBridge.load(), then checks hasFullAccess."
+          - "If hasFullAccess is false, message is Allow Full Access required and Insert latest becomes Insert latest (full access off), disabled."
+          - "If hasFullAccess is true and transcript exists, Insert latest is enabled."
+          - "Start writes handoffRequested, refreshes, and opens foilios://start."
+          - "Insert writes textDocumentProxy.insertText(transcript), bridge.reset(), then refreshes."
+      current_shared_state:
+        file: "FoiliOS/Shared/FoilKeyboardBridge.swift"
+        facts:
+          - "Canonical snapshot path is group container Library/foil-keyboard-snapshot.json."
+          - "Fallback read paths are Library/Caches/foil-keyboard-snapshot.json and root foil-keyboard-snapshot.json."
+          - "load() reads file paths plus UserDefaults and returns the newest updatedAt snapshot."
+          - "save/reset share persist(), which removes fallback files, overwrites canonical, writes UserDefaults, and saves transcript-free FoilKeyboardStorageReport."
+          - "Storage report records operation, phase, hasTranscript boolean, canonical write result, canonical verification phase/hasTranscript, defaultsWriteAttempted, fallback removal results, updatedAt."
+          - "Storage report does not currently record hasFullAccess because only the keyboard extension can observe that property."
+      current_recording_transcription:
+        files:
+          - "FoiliOS/FoilIOSApp/AudioCaptureController.swift"
+          - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+          - "FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift"
+        facts:
+          - "Audio recording asks AVAudioApplication record permission, writes m4a files to app Documents, and marks listening/processing states."
+          - "Transcription reads FOIL_IOS_GROQ_API_KEY from process environment or DEBUG UserDefaults.standard, then POSTs to Groq OpenAI-compatible audio transcription endpoint using whisper-large-v3-turbo."
+          - "Successful transcription writes a complete snapshot with message Groq transcript ready."
+          - "There is no onboarding around microphone permission, API key availability, network failure, or how to return to the keyboard after transcription completes."
+      prior_physical_evidence:
+        source: "docs/goals/ios-keyboard-state-and-target-matrix"
+        facts:
+          - "PR #226 merged into codex/ios-keyboard-prototype and proved reset persistence with Full Access enabled."
+          - "With Full Access off, WDA showed Allow Full Access required and Insert latest disabled."
+          - "With Full Access on, physical Notes proof showed keyboard Ready/no transcript and canonical JSON idle/no transcript after insert."
+          - "Notes, Safari address/search, Reminders new-title, and secure-field rejection matrix rows passed or were recorded; Messages remains untested pending a safe thread."
+          - "Full Access warning/system path observed: Settings > General > Keyboard > Keyboards > Foil Keyboard > Allow Full Access."
+      device:
+        core_device_id: "5320F5AD-2A71-50AC-94FE-207B544B6247"
+        hardware_udid: "00008030-001A0C980A33C02E"
+        xctrace: "iPhone-preview (26.4.2) online"
+        devicectl: "iPhone-preview connected; iPhone-prod paired but offline"
+        tunnel: "pymobiledevice3 remote tunneld processes are running"
+        wda: "http://192.168.1.40:8100/status failed to connect; WDA is stopped and should be restarted by Workers when physical UI proof is needed."
+      remaining_gaps:
+        - "Containing app cannot directly observe hasFullAccess; it needs a keyboard-written health signal or a clear unverified state."
+        - "Onboarding must avoid claiming it can bypass or soften Apple's Full Access warning."
+        - "Storage report and secure-field harness are still prototype/debug surfaces."
+        - "Main app currently exposes transcript text directly, which is useful for debug but risky for a polished health surface."
+        - "Real transcription path has not been proved inside this goal and may need local key/microphone/network handling."
+        - "Messages still needs a safe test context."
+      recommended_first_worker:
+        objective: "Implement the first onboarding/health vertical slice: app-visible setup checklist and safe health model that distinguishes not verified, Full Access off, Full Access on, stale transcript pending, and reset verified, with no reliance on deep Settings links."
+        allowed_files:
+          - "FoiliOS/FoilIOSApp/**"
+          - "FoiliOS/FoilKeyboard/**"
+          - "FoiliOS/Shared/**"
+          - "FoiliOS/project.yml"
+          - "FoiliOS/FoilIOS.xcodeproj/**"
+          - "docs/goals/ios-keyboard-onboarding-full-access-ux/**"
+        verify:
+          - "cd FoiliOS && xcodegen generate --spec project.yml"
+          - "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-onboarding-derived -allowProvisioningUpdates build"
+          - "Install on iPhone-preview with devicectl."
+          - "With Full Access off or a simulated keyboard health report, app shows the right blocked/unverified state and does not expose transcript text in health rows."
+          - "With Full Access on and keyboard launched, app shows verified healthy state."
+          - "App Reset clears canonical App Group JSON and storage/health report shows idle/no transcript."
+          - "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+          - "Secret/private-string scan over changed files and goal receipts."
+        stop_if:
+          - "App-side Full Access detection cannot be truthfully represented without keyboard participation."
+          - "Need to rely on unsupported Settings deep links for correctness."
+          - "A UI/copy claim would need legal/security review."
+          - "Device/WDA cannot be restored for physical proof."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose the smallest product-quality onboarding/recovery slice that can satisfy the oracle without overbuilding."
+    inputs:
+      - "T001 receipt"
+      - "Prior Full Access/stale state evidence"
+      - "Current diff/status"
+    constraints:
+      - "Do not implement."
+      - "Reject screen-only onboarding that does not detect or recover health."
+      - "Reject debug UI that leaks transcript text or secrets."
+      - "Keep scope inside FoiliOS and this goal unless necessary."
+    expected_output:
+      - "Decision: approved, blocked, or needs narrower scout."
+      - "Worker objective."
+      - "Allowed files."
+      - "Verify commands."
+      - "Stop conditions."
+      - "Which diagnostics stay user-facing, debug-only, or removed."
+    receipt:
+      result: done
+      task_id: T002
+      decision: approved
+      full_outcome_complete: false
+      selected_worker: T003
+      rationale: "Approve a first vertical onboarding/health slice rather than a screen-only onboarding pass. T001 shows the containing app cannot directly observe UIInputViewController.hasFullAccess; only the keyboard extension can. Therefore the first implementation must pair app-first setup UI with a keyboard-written health signal/report when Full Access is available, while keeping copy honest when it is not: the app can say not verified until the keyboard reports, the keyboard itself is authoritative for Full Access off/blocked, and the app can say healthy only when the keyboard reports Full Access on plus shared state reset."
+      scope_decision:
+        - "Keep prototype storage report visible for now, but treat it as diagnostic copy, not final product UI."
+        - "Do not display transcript text in health rows."
+        - "Do not rely on Settings deep links for correctness; manual path instructions are acceptable."
+        - "Defer real Groq transcription proof to T006."
+        - "Defer broad recovery polish to T004 after the first health/onboarding slice works."
+      allowed_files:
+        - "FoiliOS/FoilIOSApp/**"
+        - "FoiliOS/FoilKeyboard/**"
+        - "FoiliOS/Shared/**"
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/**"
+        - "docs/goals/ios-keyboard-onboarding-full-access-ux/**"
+      verify:
+        - "cd FoiliOS && xcodegen generate --spec project.yml"
+        - "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-onboarding-derived -allowProvisioningUpdates build"
+        - "Install on iPhone-preview with devicectl."
+        - "App shows a setup/health surface with Foil Keyboard install step, Allow Full Access step, keyboard health state, and reset affordance."
+        - "With keyboard not launched, app health is unverified rather than claiming Full Access."
+        - "With Full Access off, keyboard WDA source shows disabled insert and blocked/off copy; app does not falsely claim to have verified the off state through shared storage."
+        - "With Full Access on, keyboard WDA source shows normal insert availability when transcript exists and app-visible health report shows healthy/on after keyboard launch."
+        - "App reset clears canonical App Group JSON and health surface reports idle/no transcript."
+        - "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+        - "Secret/private-string scan over changed files and this goal."
+      stop_if:
+        - "The app cannot truthfully represent Full Access without keyboard participation."
+        - "iOS Settings requires manual steps that cannot be described accurately."
+        - "Need legal/security review for stronger Full Access privacy claims."
+        - "Device/WDA cannot be restored for physical proof."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Implement the first onboarding/health vertical slice: app setup/health surface plus keyboard-written Full Access health signal when available."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-keyboard-onboarding-full-access-ux/**"
+    verify:
+      - "Build for physical iPhone."
+      - "On iPhone-preview, app shows setup steps and current health state."
+      - "Settings path or handoff instructions are accurate for Foil Keyboard and Allow Full Access."
+      - "Onboarding copy explains the iOS Full Access warning without implying impossible privacy guarantees."
+      - "Keyboard writes a transcript-free health signal that lets the app distinguish unverified from healthy/on; Full Access off remains authoritative in the keyboard UI unless a callback path is explicitly added."
+      - "App reset clears canonical App Group JSON and app-visible state."
+      - "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+    stop_if:
+      - "iOS Settings state cannot be detected enough for product claims."
+      - "Need deep-link behavior that iOS blocks."
+      - "Copy would need legal/security review before proceeding."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Implemented the first onboarding/health vertical slice. The app now shows a Keyboard setup section with setup path, Allow Full Access requirement, keyboard health, shared state, and a visible Reset shared state recovery button. The keyboard writes a transcript-free FoilKeyboardHealthReport during refresh, so the app can show last verified keyboard health when Full Access is available. Reset now clears canonical snapshot state and updates the health report transcript flag while preserving last known Full Access state."
+      implementation:
+        - "Added FoilKeyboardFullAccessState and FoilKeyboardHealthReport to FoilKeyboardBridge."
+        - "Added keyboardHealthReport(), recordKeyboardHealth(fullAccessEnabled:snapshot:), and health report persistence."
+        - "KeyboardViewController.refreshState() now records transcript-free health on every refresh."
+        - "ContentView now renders Keyboard setup rows for Add Foil Keyboard, Allow Full Access, Keyboard health, Shared state, and Reset shared state."
+        - "Shared state summary now uses the live resolved snapshot rather than stale storage report verification."
+        - "FoilKeyboardBridge.reset() now also clears the health report transcript flag."
+      changed_files:
+        - "FoiliOS/Shared/FoilKeyboardBridge.swift"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "docs/goals/ios-keyboard-onboarding-full-access-ux/state.yaml"
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "cd FoiliOS && xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-onboarding-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-onboarding-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "curl/WDA source checks against http://192.168.1.40:8100 for app and keyboard health states"
+          status: pass
+        - cmd: "xcrun devicectl device info files --device 5320F5AD-2A71-50AC-94FE-207B544B6247 --domain-type appGroupDataContainer --domain-identifier group.com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+          status: pass
+        - cmd: "rg secret/API-key scan over FoiliOS and this goal"
+          status: pass
+      evidence:
+        - "Built for physical iPhone: cd FoiliOS && xcodegen generate --spec project.yml && xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-onboarding-derived -allowProvisioningUpdates build."
+        - "Installed on iPhone-preview with devicectl to /tmp/foil-ios-onboarding-derived/Build/Products/Debug-iphoneos/Foil iOS.app."
+        - "Initial app WDA source showed Keyboard setup, Add Foil Keyboard, Allow Full Access, Not verified, Shared state, and storage report rows."
+        - "After seeding a safe complete transcript and opening Foil Keyboard with Full Access on, WDA source showed keyboard_status=Transcript Ready, keyboard_message=Onboarding health final seed, insert_label=Insert latest, insert_enabled=true."
+        - "Returning to the app showed Keyboard setup=true, Full Access on=true, Transcript waiting in Foil Keyboard=true, Shared state=true, Transcript pending=true."
+        - "After tapping setup-reset-shared-state-button, app WDA source showed Last verified by keyboard: Full Access on, ready for dictation=true, Ready, no transcript=true, Transcript pending=false."
+        - "After reset, devicectl copy-back of Library/foil-keyboard-snapshot.json showed message Ready, phase idle, updatedAt 802299412.659037, and no transcript key."
+        - "WDA screenshot captured and visually inspected at /tmp/foil-device-screens/onboarding-health-ready-clean.png."
+        - "Settings proof toggled Allow Full Access from value 1 to value 0 and then restored it to value 1."
+        - "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux passed."
+        - "Secret/private-string scan found only FOIL_IOS_GROQ_API_KEY names and Authorization template, no key values or private Reminder strings."
+      strongest_realistic_failure_mode: "The app health surface claims the keyboard is ready while a transcript is still pending or canonical App Group state remains complete."
+      disproof: "With a seeded pending transcript, app showed transcript waiting/pending; after Reset shared state, app showed ready/no transcript and canonical JSON copied from the phone was idle/no transcript."
+      residual_risk:
+        - "Build log still contains the existing AppIntents metadata warning: Metadata extraction skipped. No AppIntents.framework dependency found."
+        - "After toggling Full Access off, Settings showed switch value 0, but Notes did not surface keyboard controls or Next keyboard in WDA for a fresh off-state keyboard screenshot. Prior PR #226 proved the off-state keyboard block; T004 should tighten the recovery/off-state walkthrough on this new UI."
+        - "The setup copy is first-pass prototype language and may need security/privacy copy review before polish."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Implement health and recovery controls for stale shared state and Full Access changes."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+      - "docs/goals/ios-keyboard-onboarding-full-access-ux/**"
+    verify:
+      - "With Full Access off, keyboard blocks Insert latest and app/keyboard health communicates the issue."
+      - "App-side reset clears canonical App Group JSON and app-visible state."
+      - "After Full Access is enabled, health updates and insertion can proceed."
+      - "No health surface exposes transcript content unless intentionally in a debug-only area."
+      - "Copied App Group state proves reset."
+    stop_if:
+      - "Containing app cannot reliably infer Full Access state from shared health signals."
+      - "Recovery requires destructive user-data changes."
+      - "Need files outside allowed scope."
+    receipt:
+      result: done
+      task_id: T004
+      summary: "Implemented the recovery half of the health slice. The keyboard now changes Start to Open Foil when Full Access is off, records a disabled health report, and opens the containing app through foilios://keyboard-health?fullAccess=off. The app handles that callback and updates its keyboard health surface to Last verified by keyboard: Full Access off. Reset shared state remains visible in the setup section and clears both the canonical snapshot transcript and stale health transcript flag."
+      implementation:
+        - "KeyboardViewController.startTapped() now detects !hasFullAccess, records disabled health, refreshes, and opens the containing app with a keyboard-health callback instead of requesting a dictation handoff."
+        - "KeyboardViewController.refreshState() now sets the Start button title to Open Foil when Full Access is off and Start when it is on."
+        - "ContentView.onOpenURL now handles foilios://keyboard-health?fullAccess=off|on and records app-visible keyboard health from the current shared snapshot."
+        - "FoilKeyboardBridge.reset() preserves last known Full Access state while clearing transcript-pending health after app-side reset."
+      changed_files:
+        - "FoiliOS/Shared/FoilKeyboardBridge.swift"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "docs/goals/ios-keyboard-onboarding-full-access-ux/state.yaml"
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "cd FoiliOS && xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-onboarding-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-onboarding-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "xcrun devicectl device process launch --device 5320F5AD-2A71-50AC-94FE-207B544B6247 com.neonwatty.FoilIOS --payload-url 'foilios://keyboard-health?fullAccess=off'"
+          status: pass
+        - cmd: "curl/WDA source checks against http://192.168.1.40:8100 for app callback and keyboard recovery states"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+          status: pass
+        - cmd: "rg secret/API-key scan over FoiliOS and this goal"
+          status: pass
+      evidence:
+        - "Built for physical iPhone with xcodegen and xcodebuild: cd FoiliOS && xcodegen generate --spec project.yml && xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-onboarding-derived -allowProvisioningUpdates build."
+        - "Installed the built app on iPhone-preview with devicectl from /tmp/foil-ios-onboarding-derived/Build/Products/Debug-iphoneos/Foil iOS.app."
+        - "Launched the app with payload URL foilios://keyboard-health?fullAccess=off; WDA source showed Keyboard health and Last verified by keyboard: Full Access off, while Shared state remained Ready, no transcript."
+        - "Opened Notes with Foil Keyboard after restoring Full Access on; WDA source showed Insert latest (no transcript), insert_enabled=false, keyboard_message=Ready, and Foil Keyboard present."
+        - "Returning to the app after the real keyboard refresh showed Last verified by keyboard: Full Access on, ready for dictation and Ready, no transcript."
+        - "After app-side Reset shared state, copied canonical App Group JSON from the phone showed phase idle, message Ready, updatedAt 802299412.659037, and no transcript key."
+        - "WDA screenshot of the clean ready state captured at /tmp/foil-device-screens/onboarding-health-ready-clean.png."
+        - "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux passed."
+        - "Secret/private-string scan over FoiliOS and this goal found only FOIL_IOS_GROQ_API_KEY environment-name references and an Authorization header template, not secret values."
+      strongest_realistic_failure_mode: "The app recovery surface could claim Full Access on or ready while the keyboard is actually permission-blocked or while stale transcript state remains pending."
+      disproof: "The keyboard-health URL path forced an app-visible Full Access off state, and a later real keyboard refresh with Full Access on restored the app to ready/no transcript. Copied canonical App Group JSON after reset showed idle/no transcript."
+      residual_risk:
+        - "The app-side Full Access off callback was proved by launching the payload URL, not by tapping the actual Open Foil button while Full Access was off, because WDA did not reliably surface the custom keyboard controls after the Settings toggle. T005 must focus on that keyboard-side physical path."
+        - "Build log still contains the existing AppIntents metadata warning: Metadata extraction skipped. No AppIntents.framework dependency found."
+        - "This slice still does not prove real Groq transcription; T006 owns that oracle requirement."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Refine keyboard-side unhealthy/full-access-off UX and return-to-app affordances."
+    allowed_files:
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+      - "FoiliOS/FoilIOSApp/**"
+      - "docs/goals/ios-keyboard-onboarding-full-access-ux/**"
+    verify:
+      - "Full Access off: WDA source shows clear disabled Insert latest state."
+      - "No transcript insertion happens when health is unsafe."
+      - "Keyboard offers an obvious path back to Foil app when recovery is needed."
+      - "Full Access on: normal Insert latest remains usable."
+    stop_if:
+      - "The keyboard extension cannot open the containing app in the needed state."
+      - "The UX would encourage users to bypass iOS warnings or secure-field behavior."
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Refined and proved the keyboard-side unhealthy/Full Access off UX on the physical iPhone. With a pending transcript and Allow Full Access toggled off in Settings, Foil Keyboard now shows a permission-specific block, disables Insert latest, keeps a visible Open Foil recovery button, and includes fallback copy telling the user to open the Foil app if iOS does not switch apps. The custom keyboard height was increased so the longer recovery copy does not crush the action buttons."
+      changed_files:
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "docs/goals/ios-keyboard-onboarding-full-access-ux/state.yaml"
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "cd FoiliOS && xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-onboarding-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-onboarding-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "WDA physical Settings route: Settings > General > Keyboard > Keyboards > Foil Keyboard > Allow Full Access, value 1 -> 0, later restored 0 -> Allow -> 1"
+          status: pass
+        - cmd: "WDA source checks for Notes + Foil Keyboard with pending transcript and Full Access off"
+          status: pass
+        - cmd: "WDA disabled-insert click attempt plus Notes text hash before/after"
+          status: pass
+        - cmd: "WDA screenshot saved to /tmp/foil-device-screens/t005-fullaccess-off-keyboard.png"
+          status: pass
+        - cmd: "xcrun devicectl device copy from --domain-type appGroupDataContainer --domain-identifier group.com.neonwatty.FoilIOS --source Library/foil-keyboard-snapshot.json --destination /tmp/foil-t005-snapshot.json"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+          status: pass
+        - cmd: "rg secret/API-key scan over changed files"
+          status: pass
+      implementation:
+        - "Changed the off-state keyboard message to: Allow Full Access required. Open Foil app to recover."
+        - "Added a completion handler around extensionContext.open(url) so a failed app-open attempt can show: Open Foil app from Home to recover."
+        - "Increased the custom keyboard height from 220 to 300 and allowed the message label three lines so Insert latest, Open Foil, and Next Keyboard remain usable."
+      evidence:
+        - "Seeded a pending transcript through the app UI by tapping complete-fake-transcript-button; app source showed Transcript Ready, Fake transcript ready, storage verified has transcript, and Shared state Transcript pending."
+        - "Before toggling off, Notes + Foil Keyboard source showed Transcript Ready, Fake transcript ready, Insert latest enabled, and Start with Full Access on."
+        - "Settings proof showed Allow Full Access switch value 1, then value 0 after toggling off."
+        - "With Full Access off and the pending transcript still present, Notes + Foil Keyboard source showed foil-keyboard-status=Transcript Ready, foil-keyboard-message=Allow Full Access required. Open Foil app to recover., foil-keyboard-insert-latest label Insert latest (full access off) enabled=false, and foil-keyboard-start label Open Foil enabled=true."
+        - "After layout fix, final WDA source showed foil-keyboard-root height 300, Insert latest (full access off) height 62, Open Foil height 47, and Next Keyboard height 40."
+        - "Disabled insert disproof: Notes text hash before click attempt was 3b757daee3e0361bbe5be56ab31b3e0391a5a03361662f81923c2b1e0e3cb75f, after click attempt was the same, with length 390 both times."
+        - "Screenshot captured at /tmp/foil-device-screens/t005-fullaccess-off-keyboard.png."
+        - "Restored Allow Full Access to value 1 by tapping Allow in Apple’s confirmation alert."
+        - "Cleared seeded transcript through setup-reset-shared-state-button; app showed Last verified by keyboard: Full Access on, ready for dictation and Shared state Ready, no transcript."
+        - "Copied App Group canonical snapshot from the phone after reset: message Ready, phase idle, updatedAt 802301318.963782, no transcript key."
+      strongest_realistic_failure_mode: "A pending transcript could still be inserted while Full Access is off, or the keyboard could communicate a generic no-transcript state rather than the real permission problem."
+      disproof: "The physical Notes keyboard source showed Transcript Ready while Insert latest was disabled with label Insert latest (full access off), and the Notes text hash did not change after a disabled insert click attempt."
+      residual_risk:
+        - "Tapping Open Foil from the Full Access off keyboard did not switch apps under WDA; this may be an iOS keyboard-extension restriction or an automation hit-testing limitation. The UX now includes fallback copy to open the Foil app from Home if the shortcut does not switch."
+        - "The devicectl payload URLs foilios://complete and foilios://reset did not mutate state during cold-launch checks; UI controls did work. A later polish task should decide whether URL handling is needed outside extension callbacks."
+        - "Build log still contains the existing AppIntents metadata warning: Metadata extraction skipped. No AppIntents.framework dependency found."
+
+  - id: T006
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run and harden the real record/transcribe/return/insert loop on iPhone-preview."
+    progress:
+      last_update: "2026-06-04T14:35:00-07:00"
+      summary: "Proved the physical recording half of the loop and hardened key lookup, but live Groq transcription is not yet possible because no local FOIL_IOS_GROQ_API_KEY, GROQ_API_KEY, or GROK_API_KEY was found in the process environment or likely Keychain entries."
+      evidence:
+        - "Environment presence check reported FOIL_IOS_GROQ_API_KEY missing, GROQ_API_KEY missing, and GROK_API_KEY missing; likely Keychain service/account probes also found no key without printing secrets."
+        - "Added GROQ_API_KEY fallback in TranscriptionController and updated missing-key copy to Missing FOIL_IOS_GROQ_API_KEY or GROQ_API_KEY."
+        - "Built and installed the fallback-key app on iPhone-preview with xcodegen, xcodebuild, and devicectl."
+        - "On iPhone-preview, tapped Record, played a safe spoken phrase from the Mac speaker, and observed Recording state with storage verified Listening no transcript."
+        - "Tapped Stop; app showed Processing, Recording saved for transcription, Recording saved, storage verified Processing no transcript, and Transcribe enabled."
+        - "Listed app Documents and found latest recording foil-ios-2026-06-04T21-32-35.726Z.m4a, 221 KB, without copying or committing audio."
+        - "Tapped Transcribe without a key; app showed Missing FOIL_IOS_GROQ_API_KEY before fallback build. After fallback build, phone was reset to Full Access on, ready for dictation and Ready, no transcript for a clean retry."
+      next_step: "Provide or locate a real Groq key, then relaunch Foil iOS with FOIL_IOS_GROQ_API_KEY or GROQ_API_KEY in the app environment, rerecord a short safe phrase, transcribe, return to Notes, insert once, and copy App Group state to prove idle/no transcript."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+      - "docs/goals/ios-keyboard-onboarding-full-access-ux/**"
+    verify:
+      - "Microphone permission path is handled."
+      - "Recording produces a local file without committing audio."
+      - "Groq/Grok transcription succeeds using a local secret without printing it."
+      - "User returns to Foil Keyboard and inserts transcript once in Notes or another safe field."
+      - "Canonical App Group JSON and app health show idle/no transcript after insertion."
+      - "Secret scan over FoiliOS and this goal."
+    stop_if:
+      - "API key unavailable or would need to be exposed."
+      - "Network/API failure prevents live transcription after documented retries."
+      - "Private audio/transcript content would need to be committed."
+    receipt:
+      result: done
+      task_id: T006
+      summary: "Completed the real physical iPhone-preview record/transcribe/return/insert loop. A valid local Groq key was located and validated without printing it, injected into the debug app preferences, used for one live transcription, then removed from device prefs and temp files. On the physical phone, Foil recorded a new m4a, transcribed it through Groq, exposed the pending transcript to the keyboard, inserted it once into Notes through Foil Keyboard, and reset the App Group snapshot to idle/no transcript."
+      claim: "The current iOS prototype can complete a real microphone-to-Groq-to-keyboard insertion loop on iPhone-preview and clear shared state afterward."
+      changed_files:
+        - "FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift"
+        - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+        - "docs/goals/ios-keyboard-onboarding-full-access-ux/state.yaml"
+      commands:
+        - cmd: "ruby secret-safe Groq candidate validator against https://api.groq.com/openai/v1/models, printing only status/source and saving the valid key to /tmp/foil-valid-groq-key temporarily"
+          status: pass
+        - cmd: "xcrun devicectl device copy to/from appDataContainer com.neonwatty.FoilIOS Library/Preferences/com.neonwatty.FoilIOS.plist to inject and then remove debug GROQ_API_KEY"
+          status: pass
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-onboarding-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-onboarding-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "xcodebuild WebDriverAgentRunner-nodebug against iPhone-preview and WDA HTTP session/tap/source/screenshot calls"
+          status: pass
+        - cmd: "xcrun devicectl device copy from appGroupDataContainer group.com.neonwatty.FoilIOS Library/foil-keyboard-snapshot.json before and after insertion"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+          status: pass
+        - cmd: "rg -n 'gsk_[A-Za-z0-9_-]+|FOIL_IOS_GROQ_API_KEY|GROQ_API_KEY|GROK_API_KEY|Authorization: Bearer' FoiliOS docs/goals/ios-keyboard-onboarding-full-access-ux"
+          status: pass
+      strongest_realistic_failure_modes:
+        - failure: "The app used a seeded/fake transcript instead of live transcription."
+          evidence:
+            - "Tapped Record on physical iPhone-preview, played a safe phrase from the Mac speaker, and WDA source recorded state Recording/Listening plus local file foil-ios-2026-06-04T21-45-09.740Z.m4a."
+            - "Tapped Stop; WDA source showed Processing, Recording saved for transcription, Recording saved, and Transcribe enabled."
+            - "Tapped transcribe-latest-button; polling reached Transcript Ready, Groq transcript ready, Transcription complete, and Storage save verified Transcript Ready has transcript."
+        - failure: "The pending transcript did not reach the custom keyboard or insertion did not affect the target app."
+          evidence:
+            - "Before insert, copied sanitized App Group snapshot /tmp/foil-t006-snapshot-after-transcribe-sanitized.json: phase complete, message Groq transcript ready, hasTranscript true."
+            - "Notes launched with Foil Keyboard visible; WDA source showed foil-keyboard-insert-latest label Insert latest, enabled true."
+            - "After tapping Insert latest, Notes source hash changed from f82513bbceb368096877a5e941a7bafd6b075baea39c80189abe1abe5ef39e12 to 681adbdf215e43ffa1aea22bc48fba2b82aefba6b55bf8563d37a2f74ba2561c and contained the safe transcript text."
+        - failure: "Insertion left stale transcript state available for a second accidental insert."
+          evidence:
+            - "Post-insert WDA source showed foil-keyboard-status Ready and foil-keyboard-insert-latest label Insert latest (no transcript), enabled false."
+            - "Copied sanitized App Group snapshot /tmp/foil-t006-snapshot-after-insert-sanitized.json: phase idle, message Ready, hasTranscript false."
+        - failure: "The local Groq key leaked into logs, receipts, repo files, or persisted device preferences."
+          evidence:
+            - "Groq-shaped candidates were validated with status/source only; key values and prefixes were not printed."
+            - "After proof, copied clean device preferences and verified groq_key_name_present false."
+            - "Temp key and preference files were removed before writing this receipt."
+      artifacts:
+        build_log: "/tmp/foil-ios-t006-build-current.log"
+        install_log: "/tmp/foil-ios-t006-install-current.log"
+        wda_log: "/tmp/wda-foil-onboarding-t006.log"
+        app_source_recording: "/tmp/foil-t006-app-source-recording.json"
+        app_source_after_stop: "/tmp/foil-t006-app-source-after-stop.json"
+        app_source_after_transcribe: "/tmp/foil-t006-app-source-after-transcribe.json"
+        snapshot_after_transcribe_sanitized: "/tmp/foil-t006-snapshot-after-transcribe-sanitized.json"
+        notes_source_before_insert: "/tmp/foil-t006-notes-source-before-insert.json"
+        notes_source_after_insert: "/tmp/foil-t006-notes-source-after-insert.json"
+        snapshot_after_insert_sanitized: "/tmp/foil-t006-snapshot-after-insert-sanitized.json"
+        screenshot_after_insert: "/tmp/foil-device-screens/t006-notes-after-insert.png"
+      residual_risk:
+        - "The recognized transcript text did not exactly match the spoken phrase, which is acceptable for this loop proof because the required claim is live transcription, handoff, insertion, and reset, not ASR accuracy benchmarking."
+        - "The proof used Notes as the safe insertion host; T007 remains queued for the broader host-app matrix."
+
+  - id: T007
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Rerun the privacy-safe host-app matrix and complete Messages only if a safe test thread is available."
+    allowed_files:
+      - "docs/goals/ios-keyboard-onboarding-full-access-ux/**"
+      - "FoiliOS/**"
+    verify:
+      - "Notes row still passes after onboarding/recovery changes."
+      - "Safari address/search row still passes."
+      - "Reminders row is either rerun safely or prior result is explicitly accepted with risk."
+      - "Secure-field rejection still passes."
+      - "Messages row passes only in a safe self/test thread, or remains a recorded blocker."
+    stop_if:
+      - "A target app exposes private content that cannot be sanitized."
+      - "Messages safe test context is unavailable."
+      - "Device locks or becomes unavailable."
+    receipt:
+      result: done
+      task_id: T007
+      summary: "Reran the privacy-safe physical host-app matrix after the onboarding/recovery and real-loop changes. Notes passed as part of T006's live transcript proof. Safari address/search passed with a seeded safe transcript. The secure-field harness rejected the custom keyboard and preserved the pending transcript. Reminders passed by creating/focusing a new safe reminder row, inserting the seeded transcript once, and proving post-insert reset. Messages remains intentionally untested because no safe self/test thread was provided in this run."
+      changed_files:
+        - "docs/goals/ios-keyboard-onboarding-full-access-ux/state.yaml"
+      commands:
+        - cmd: "WDA launched Foil iOS, tapped complete-fake-transcript-button, and verified Transcript Ready/Transcript pending for seeded matrix rows"
+          status: pass
+        - cmd: "WDA Notes proof from T006: foil-keyboard-insert-latest inserted the live transcript, source hash changed, and App Group reset to idle/no transcript"
+          status: pass
+        - cmd: "WDA Safari proof: launched com.apple.mobilesafari, focused URL field with Foil Keyboard visible, tapped Insert latest, and verified source hash changed plus safe transcript appeared in the URL field"
+          status: pass
+        - cmd: "xcrun devicectl copy from appGroupDataContainer group.com.neonwatty.FoilIOS after Safari insert"
+          status: pass
+        - cmd: "WDA secure-field proof: focused secure-rejection-field, verified Foil Keyboard/Insert latest absent, and copied App Group snapshot still complete/hasTranscript true"
+          status: pass
+        - cmd: "WDA Reminders proof: launched com.apple.reminders, tapped New Reminder, verified Foil Keyboard visible/Insert enabled, inserted seeded safe transcript, and saved sanitized hash-only result"
+          status: pass
+        - cmd: "xcrun devicectl copy from appGroupDataContainer group.com.neonwatty.FoilIOS after Reminders insert"
+          status: pass
+      evidence:
+        notes:
+          - "T006 Notes before/after source hashes changed from f82513bbceb368096877a5e941a7bafd6b075baea39c80189abe1abe5ef39e12 to 681adbdf215e43ffa1aea22bc48fba2b82aefba6b55bf8563d37a2f74ba2561c and contained the safe live transcript."
+          - "T006 post-insert snapshot /tmp/foil-t006-snapshot-after-insert-sanitized.json showed phase idle, message Ready, hasTranscript false."
+        safari:
+          - "Safari address/search before/after source hashes changed from 95fba4c6cfd05fcb8f2247497615e27abf4813420fb709f9fb3feb9214afd67e to eec87b325739b67f9ea903eb6871fbc8052ad1d3b6148843201dbad02d15a320."
+          - "Safari URL field included the safe seeded transcript Foil keyboard shell after insert; keyboard showed Insert latest (no transcript), enabled false."
+          - "Sanitized snapshot /tmp/foil-t007-snapshot-after-safari-sanitized.json showed phase idle, message Ready, hasTranscript false."
+        secure_field:
+          - "Focused secure-rejection-field; sanitized WDA extraction showed secure_field_focused true, foil_keyboard_present false, insert_button_present false, system_keyboard_seen true."
+          - "Sanitized snapshot /tmp/foil-t007-snapshot-secure-focused-sanitized.json showed phase complete, message Fake transcript ready, hasTranscript true, proving the pending transcript was not inserted into the secure field."
+          - "Reset after secure-field check produced /tmp/foil-t007-snapshot-after-secure-reset-sanitized.json with phase idle, message Ready, hasTranscript false."
+        reminders:
+          - "Created/focused a new Reminders row with Foil Keyboard visible and Insert enabled."
+          - "Sanitized result /tmp/foil-t007-reminders-sanitized-result.json showed before/after hashes changed from b9f579f7a7e0bf951844505e0b593f4386331213200930b610343847b0d45713 to e9b2372acf69f6f0a8950a243b49f55525ac17fa8754dd43798845eccf5e30aa, inserted_safe_transcript true, keyboard_reset_label true, insert_enabled_after false."
+          - "Sanitized snapshot /tmp/foil-t007-snapshot-after-reminders-sanitized.json showed phase idle, message Ready, hasTranscript false."
+        messages:
+          - "Messages was not launched or inspected because this run did not have an operator-provided safe self/test thread. This is recorded as a blocker for that row, not a pass."
+      strongest_realistic_failure_modes:
+        - failure: "A host app visually appears focused, but Foil Keyboard did not actually insert text or clear state."
+          evidence:
+            - "Notes, Safari, and Reminders each have before/after source hash changes plus safe transcript presence, followed by disabled Insert latest/no transcript or copied idle/no transcript App Group snapshots."
+        - failure: "Secure fields accidentally allow the custom keyboard or consume a pending transcript."
+          evidence:
+            - "With secure-rejection-field focused, Foil Keyboard and Insert latest were absent, and the App Group snapshot remained complete/hasTranscript true until explicit reset."
+        - failure: "Private target-app content leaks into durable receipts."
+          evidence:
+            - "Receipts record only sanitized booleans, hashes, safe seeded transcript text, and sanitized snapshots. Raw Reminders source dumps were deleted after extracting sanitized evidence."
+      residual_risk:
+        - "Messages remains untested pending a safe self/test thread."
+        - "The Reminders WDA source exposed private reminder metadata during local extraction; raw Reminders source files were deleted and no private reminder content is recorded in this receipt."
+
+  - id: T008
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Review onboarding, recovery, real-loop, and matrix evidence and decide the next product slice."
+    inputs:
+      - "T003/T004/T005/T006/T007 receipts"
+      - "Issue #216"
+      - "Physical screenshots/source snippets"
+    constraints:
+      - "Do not implement."
+      - "Distinguish platform constraints from product bugs."
+      - "Name whether the Whisperflow-style app/keyboard cycle remains acceptable."
+    expected_output:
+      - "Decision: continue, change architecture, or block pending user input."
+      - "Recommended next product slice."
+      - "App Store/TestFlight hardening risks."
+    receipt:
+      result: done
+      task_id: T008
+      decision: continue
+      full_outcome_complete: false
+      summary: "Approve continuing with the Whisperflow-style containing-app plus custom-keyboard architecture for the next iPhone prototype slice. T003-T007 prove that the keyboard can truthfully gate Full Access, the app can surface setup/health/recovery state, a real Groq transcription can move through App Group shared state, multiple safe target apps can insert once, and post-insert reset works. The remaining friction is a product/QA concern, not an architecture blocker for the preview prototype."
+      rationale:
+        - "The physical phone proved the critical oracle path: healthy setup, real record/transcribe, keyboard insertion into Notes, and idle/no transcript afterward."
+        - "The matrix also proved Safari, Reminders, and secure-field rejection behavior with sanitized evidence."
+        - "Full Access remains required for this architecture because the keyboard extension needs shared-state access; that is a platform constraint and must be explained honestly."
+        - "The user-visible reset/switching friction is acceptable for the next prototype but should not be mistaken for polished App Store UX."
+      recommended_next_product_slice:
+        title: "TestFlight-grade onboarding and failure recovery"
+        scope:
+          - "Replace prototype diagnostic rows with a first-run setup checklist and a compact health banner."
+          - "Add explicit microphone/network/transcription failure states and retry controls."
+          - "Make the app-to-keyboard return loop clearer after recording completes."
+          - "Add a privacy copy pass for Full Access, microphone use, transcript storage, and what is cleared after insert."
+          - "Add an operator-safe Messages test fixture/thread before claiming Messages support."
+      app_store_testflight_hardening_risks:
+        - "Apple's Full Access warning is inherently alarming; copy must explain necessity without overpromising privacy."
+        - "API keys must not be stored in DEBUG UserDefaults for production or TestFlight; live provider auth needs a production-safe secret/user-account story."
+        - "Keyboard extensions have stricter memory, network, and lifecycle behavior than containing apps; keep the extension lightweight."
+        - "Secure fields and some system contexts will reject custom keyboards by platform design; fallback UX must name that limitation."
+        - "The keyboard may need a switch-away/switch-back refresh after install, update, or Full Access changes; onboarding should make recovery obvious."
+        - "Raw recordings, transcripts, WDA accessibility trees, and target-app content must stay out of durable logs and PR artifacts."
+      residual_risk:
+        - "Messages remains unproven pending a safe test thread."
+        - "The physical proof used one preview iPhone on iOS 26.4.2; TestFlight should broaden OS/device coverage."
+
+  - id: T009
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Prepare issue and PR handoff artifacts for the verified onboarding/recovery implementation."
+    allowed_files:
+      - "docs/goals/ios-keyboard-onboarding-full-access-ux/**"
+      - "FoiliOS/**"
+    verify:
+      - "Issue #216 or follow-up issues updated with sanitized evidence and open questions."
+      - "PR targets codex/ios-keyboard-prototype, not main."
+      - "PR body includes acceptance-evidence claim/failure/evidence/residual-risk."
+      - "PR merged only if mergeable and verification passed, or left open with exact blocker."
+    stop_if:
+      - "GitHub auth unavailable."
+      - "Verification did not pass and no narrow blocker was recorded."
+    receipt: null
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Final audit against the goal oracle."
+    inputs:
+      - "All task receipts"
+      - "Build/install proof"
+      - "Onboarding proof"
+      - "Health/recovery proof"
+      - "Real transcription proof"
+      - "Target matrix proof"
+      - "Issue/PR links"
+      - "Current git status"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if Full Access off is not detected/blocked."
+      - "Reject completion if real transcription was not proved or narrowly blocked."
+      - "Reject completion if post-insert canonical App Group state was not checked."
+      - "Reject completion if private content or secrets were committed."
+      - "Reject completion if PR targets main."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode and evidence."
+      - "Residual risks."
+      - "Next board/task if not complete."
+    receipt: null
+
+checks:
+  dirty_fingerprint: "At prep time, branch codex/ios-keyboard-prototype had only pre-existing untracked Xcode xcuserdata dirs and docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md."
+  last_verification:
+    result: prep_only
+    task: null
+    commands:
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-update.mjs --json"
+        status: pass
+      - cmd: "git status --short --branch"
+        status: pass

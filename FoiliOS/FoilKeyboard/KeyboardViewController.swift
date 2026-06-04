@@ -45,7 +45,7 @@ final class KeyboardViewController: UIInputViewController {
         messageLabel.font = .preferredFont(forTextStyle: .caption1)
         messageLabel.textAlignment = .center
         messageLabel.textColor = .secondaryLabel
-        messageLabel.numberOfLines = 2
+        messageLabel.numberOfLines = 3
         messageLabel.accessibilityIdentifier = "foil-keyboard-message"
 
         startButton.setTitle("Start", for: .normal)
@@ -74,7 +74,7 @@ final class KeyboardViewController: UIInputViewController {
         stack.addArrangedSubview(nextKeyboardButton)
 
         view.addSubview(stack)
-        let heightConstraint = view.heightAnchor.constraint(equalToConstant: 220)
+        let heightConstraint = view.heightAnchor.constraint(equalToConstant: 300)
         heightConstraint.priority = .defaultHigh
         self.heightConstraint = heightConstraint
 
@@ -94,6 +94,12 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     @objc private func startTapped() {
+        if !hasFullAccess {
+            bridge.recordKeyboardHealth(fullAccessEnabled: false, snapshot: latestSnapshot)
+            refreshState()
+            openContainingApp(host: "keyboard-health", queryItems: [URLQueryItem(name: "fullAccess", value: "off")])
+            return
+        }
         bridge.requestHandoff()
         refreshState()
         openContainingApp()
@@ -110,10 +116,12 @@ final class KeyboardViewController: UIInputViewController {
         let snapshot = bridge.load()
         latestSnapshot = snapshot
         let fullAccessEnabled = hasFullAccess
+        bridge.recordKeyboardHealth(fullAccessEnabled: fullAccessEnabled, snapshot: snapshot)
         statusLabel.text = snapshot.phase.displayName
-        messageLabel.text = fullAccessEnabled ? snapshot.message : "Allow Full Access required"
+        messageLabel.text = fullAccessEnabled ? snapshot.message : "Allow Full Access required. Open Foil app to recover."
         let hasTranscript = snapshot.transcript?.isEmpty == false
         insertButton.isEnabled = hasTranscript && fullAccessEnabled
+        startButton.setTitle(fullAccessEnabled ? "Start" : "Open Foil", for: .normal)
         var insertConfiguration = insertButton.configuration ?? .filled()
         insertConfiguration.title = insertTitle(hasTranscript: hasTranscript, fullAccessEnabled: fullAccessEnabled)
         insertConfiguration.baseBackgroundColor = hasTranscript && fullAccessEnabled ? .systemBlue : .systemGray4
@@ -129,7 +137,20 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func openContainingApp() {
-        guard let url = URL(string: "\(FoilIOSConstants.appURLScheme)://start") else { return }
-        extensionContext?.open(url)
+        openContainingApp(host: "start")
+    }
+
+    private func openContainingApp(host: String, queryItems: [URLQueryItem] = []) {
+        var components = URLComponents()
+        components.scheme = FoilIOSConstants.appURLScheme
+        components.host = host
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let url = components.url else { return }
+        extensionContext?.open(url) { [weak self] success in
+            guard !success else { return }
+            DispatchQueue.main.async {
+                self?.messageLabel.text = "Open Foil app from Home to recover."
+            }
+        }
     }
 }

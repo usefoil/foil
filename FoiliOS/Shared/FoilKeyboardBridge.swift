@@ -75,9 +75,45 @@ struct FoilKeyboardStorageReport: Codable, Equatable {
     }
 }
 
+enum FoilKeyboardFullAccessState: String, Codable, Equatable {
+    case unverified
+    case disabled
+    case enabled
+
+    var displayName: String {
+        switch self {
+        case .unverified:
+            "Not verified"
+        case .disabled:
+            "Full Access off"
+        case .enabled:
+            "Full Access on"
+        }
+    }
+}
+
+struct FoilKeyboardHealthReport: Codable, Equatable {
+    var fullAccessState: FoilKeyboardFullAccessState
+    var snapshotPhase: FoilKeyboardPhase
+    var snapshotHasTranscript: Bool
+    var message: String
+    var updatedAt: Date
+
+    static var initial: FoilKeyboardHealthReport {
+        FoilKeyboardHealthReport(
+            fullAccessState: .unverified,
+            snapshotPhase: .idle,
+            snapshotHasTranscript: false,
+            message: "Open Foil Keyboard to verify setup",
+            updatedAt: .distantPast
+        )
+    }
+}
+
 struct FoilKeyboardBridge {
     private let defaultsKey = "foil.keyboard.snapshot.v1"
     private let reportDefaultsKey = "foil.keyboard.storageReport.v1"
+    private let healthDefaultsKey = "foil.keyboard.healthReport.v1"
     private let snapshotFileName = "foil-keyboard-snapshot.json"
 
     private var defaults: UserDefaults {
@@ -138,6 +174,25 @@ struct FoilKeyboardBridge {
         return report
     }
 
+    func keyboardHealthReport() -> FoilKeyboardHealthReport {
+        guard let data = defaults.data(forKey: healthDefaultsKey),
+              let report = try? JSONDecoder().decode(FoilKeyboardHealthReport.self, from: data) else {
+            return .initial
+        }
+        return report
+    }
+
+    func recordKeyboardHealth(fullAccessEnabled: Bool, snapshot: FoilKeyboardSnapshot) {
+        let report = FoilKeyboardHealthReport(
+            fullAccessState: fullAccessEnabled ? .enabled : .disabled,
+            snapshotPhase: snapshot.phase,
+            snapshotHasTranscript: snapshot.transcript?.isEmpty == false,
+            message: fullAccessEnabled ? "Foil Keyboard verified" : "Allow Full Access required",
+            updatedAt: Date()
+        )
+        saveKeyboardHealthReport(report)
+    }
+
     private func persist(_ snapshot: FoilKeyboardSnapshot, operation: String) {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         let removalResults = removeSnapshotFiles(Array(readableSnapshotFileURLs.dropFirst()))
@@ -192,6 +247,16 @@ struct FoilKeyboardBridge {
 
     func reset() {
         persist(.initial, operation: "reset")
+        let currentHealth = keyboardHealthReport()
+        saveKeyboardHealthReport(
+            FoilKeyboardHealthReport(
+                fullAccessState: currentHealth.fullAccessState,
+                snapshotPhase: .idle,
+                snapshotHasTranscript: false,
+                message: currentHealth.fullAccessState == .enabled ? "Foil Keyboard verified" : currentHealth.message,
+                updatedAt: Date()
+            )
+        )
     }
 
     private func writeSnapshotFile(_ data: Data) -> FoilKeyboardStoragePathResult {
@@ -264,6 +329,12 @@ struct FoilKeyboardBridge {
         )
         guard let data = try? JSONEncoder().encode(report) else { return }
         defaults.set(data, forKey: reportDefaultsKey)
+        defaults.synchronize()
+    }
+
+    private func saveKeyboardHealthReport(_ report: FoilKeyboardHealthReport) {
+        guard let data = try? JSONEncoder().encode(report) else { return }
+        defaults.set(data, forKey: healthDefaultsKey)
         defaults.synchronize()
     }
 }
