@@ -49,9 +49,13 @@ final class TranscriptionController: ObservableObject {
         if let environmentKey = nonEmpty(ProcessInfo.processInfo.environment["FOIL_IOS_GROQ_API_KEY"]) {
             return environmentKey
         }
+        if let environmentKey = nonEmpty(ProcessInfo.processInfo.environment["GROQ_API_KEY"]) {
+            return environmentKey
+        }
 
         #if DEBUG
         return nonEmpty(UserDefaults.standard.string(forKey: "FOIL_IOS_GROQ_API_KEY"))
+            ?? nonEmpty(UserDefaults.standard.string(forKey: "GROQ_API_KEY"))
         #else
         return nil
         #endif
