@@ -67,7 +67,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-keyboard-prototype/"
     command: "npx goalbuddy board docs/goals/ios-keyboard-prototype"
 
-active_task: T004
+active_task: T005
 
 tasks:
   - id: T001
@@ -244,7 +244,7 @@ tasks:
   - id: T004
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Implement PR 2: App Group bridge and keyboard/app handoff state machine, including fake-transcript insertion in simulator."
     allowed_files:
@@ -267,16 +267,72 @@ tasks:
       - "Need files outside allowed_files."
       - "Keyboard extension cannot be installed or selected in simulator."
       - "State survives only in the demo app but not in a host text field."
-    receipt: null
+    receipt:
+      result: done
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilIOSApp/Generated/FoilIOS.entitlements"
+        - "FoiliOS/FoilIOSApp/Generated/Info.plist"
+        - "FoiliOS/FoilKeyboard/Generated/FoilKeyboard.entitlements"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "FoiliOS/Shared/FoilIOSConstants.swift"
+        - "FoiliOS/Shared/FoilKeyboardBridge.swift"
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5' build"
+          status: pass
+        - cmd: "plutil -p FoiliOS/FoilKeyboard/Generated/Info.plist"
+          status: pass
+        - cmd: "plutil -p FoiliOS/FoilIOSApp/Generated/FoilIOS.entitlements"
+          status: pass
+        - cmd: "plutil -p FoiliOS/FoilKeyboard/Generated/FoilKeyboard.entitlements"
+          status: pass
+        - cmd: "xcrun simctl install 8C27AB74-4C3D-4E95-8D5F-837BC8FE4CEF '<built app path>'"
+          status: pass
+        - cmd: "xcrun simctl launch 8C27AB74-4C3D-4E95-8D5F-837BC8FE4CEF com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "xcrun simctl openurl 8C27AB74-4C3D-4E95-8D5F-837BC8FE4CEF foilios://complete"
+          status: pass
+        - cmd: "XcodeBuildMCP tap Open on iOS confirmation sheet"
+          status: pass
+        - cmd: "XcodeBuildMCP semantic snapshot"
+          status: pass
+        - cmd: "git diff --check"
+          status: pass
+      summary: "PR 2 added App Group entitlements, a shared Codable state bridge, app URL transitions, keyboard polling/handoff/insert-latest logic, and simulator proof that a URL handoff can drive the containing app into Transcript Ready with the fake transcript visible. PR #218 was merged into codex/ios-keyboard-prototype."
+      pull_request: "https://github.com/mean-weasel/foil/pull/218"
+      merged_at: "2026-06-04T12:24:40Z"
+      evidence:
+        - "/tmp/foil-ios-keyboard-prototype/pr2-fake-transcript-ready.jpg"
+        - "XcodeBuildMCP snapshot text contained Transcript Ready, Fake transcript ready, and Foil keyboard shell."
+      residual_risk:
+        - "True host-app custom-keyboard insertion is not proven; Settings automation landed in an Apps list and did not reach Keyboard settings."
+        - "XcodeBuildMCP UI automation attached to simulator 8C27 even after a profile was set for 8A7; UI proof used 8C27 while build proof used iOS 26.5 destination."
+        - "Physical preview-iPhone proof remains pending."
 
   - id: T005
     type: worker
     assignee: Worker
-    status: queued
+    status: active
     reasoning_hint: high
     objective: "Implement PR 3: containing-app microphone recording handoff and physical preview-iPhone proof."
-    allowed_files: []
-    verify: []
+    allowed_files:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+      - "FoiliOS/Tests/**"
+      - "docs/goals/ios-keyboard-prototype/state.yaml"
+    verify:
+      - "xcrun xctrace list devices"
+      - "cd FoiliOS && xcodegen generate --spec project.yml"
+      - "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5' build"
+      - "Physical preview-iPhone install/run/recording proof if iPhone-preview is online; otherwise a blocker receipt with the exact xctrace evidence."
+      - "git diff --check"
     stop_if:
       - "PR 2 is not merged into the prototype branch."
       - "Preview iPhone is unavailable to Xcode tooling."
@@ -346,10 +402,13 @@ checks:
   dirty_fingerprint: "initial branch includes pre-existing unrelated untracked docs/goals/youtube-volume-ptt-fix/ and docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md"
   last_verification:
     result: pass
-    task: T003
+    task: T004
     commands:
       - "cd FoiliOS && xcodegen generate --spec project.yml"
       - "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5' build"
-      - "xcrun simctl install 8A7EA28F-4690-4816-B650-38648E6F44FB '/Users/neonwatty/Library/Developer/Xcode/DerivedData/FoilIOS-etjpnlgwpgrmogdamhcddquunbkh/Build/Products/Debug-iphonesimulator/Foil iOS.app'"
-      - "xcrun simctl launch 8A7EA28F-4690-4816-B650-38648E6F44FB com.neonwatty.FoilIOS"
+      - "plutil -p FoiliOS/FoilKeyboard/Generated/Info.plist"
+      - "plutil -p FoiliOS/FoilIOSApp/Generated/FoilIOS.entitlements"
+      - "plutil -p FoiliOS/FoilKeyboard/Generated/FoilKeyboard.entitlements"
+      - "xcrun simctl openurl 8C27AB74-4C3D-4E95-8D5F-837BC8FE4CEF foilios://complete"
+      - "XcodeBuildMCP semantic snapshot after tapping Open"
       - "git diff --check"
