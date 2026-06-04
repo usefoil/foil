@@ -5,7 +5,9 @@ options:
     iOS: "17.0"
 settings:
   base:
+    CODE_SIGN_STYLE: Automatic
     CURRENT_PROJECT_VERSION: 1
+    DEVELOPMENT_TEAM: B3A6AN2HA4
     MARKETING_VERSION: 0.1.0
     SWIFT_VERSION: 5.0
     TARGETED_DEVICE_FAMILY: 1
@@ -69,6 +71,6 @@ targets:
             IsASCIICapable: true
             PrefersRightToLeft: false
             PrimaryLanguage: en-US
-            RequestsOpenAccess: false
+            RequestsOpenAccess: true
           NSExtensionPointIdentifier: com.apple.keyboard-service
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController

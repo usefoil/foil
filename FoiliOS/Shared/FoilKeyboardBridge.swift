@@ -39,12 +39,44 @@ struct FoilKeyboardSnapshot: Codable, Equatable {
 
 struct FoilKeyboardBridge {
     private let defaultsKey = "foil.keyboard.snapshot.v1"
+    private let snapshotFileName = "foil-keyboard-snapshot.json"
 
     private var defaults: UserDefaults {
         UserDefaults(suiteName: FoilIOSConstants.appGroupIdentifier) ?? .standard
     }
 
+    private var sharedContainerURL: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: FoilIOSConstants.appGroupIdentifier)
+    }
+
+    private var snapshotFileURL: URL? {
+        sharedContainerURL?
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent(snapshotFileName)
+    }
+
+    private var readableSnapshotFileURLs: [URL] {
+        guard let sharedContainerURL else { return [] }
+        return [
+            sharedContainerURL.appendingPathComponent(snapshotFileName),
+            sharedContainerURL
+                .appendingPathComponent("Library", isDirectory: true)
+                .appendingPathComponent(snapshotFileName),
+            sharedContainerURL
+                .appendingPathComponent("Library", isDirectory: true)
+                .appendingPathComponent("Caches", isDirectory: true)
+                .appendingPathComponent(snapshotFileName)
+        ]
+    }
+
     func load() -> FoilKeyboardSnapshot {
+        for url in readableSnapshotFileURLs {
+            if let data = try? Data(contentsOf: url),
+               let snapshot = try? JSONDecoder().decode(FoilKeyboardSnapshot.self, from: data) {
+                return snapshot
+            }
+        }
+
         guard let data = defaults.data(forKey: defaultsKey),
               let snapshot = try? JSONDecoder().decode(FoilKeyboardSnapshot.self, from: data) else {
             return .initial
@@ -54,7 +86,11 @@ struct FoilKeyboardBridge {
 
     func save(_ snapshot: FoilKeyboardSnapshot) {
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        if let snapshotFileURL {
+            try? data.write(to: snapshotFileURL, options: [.atomic])
+        }
         defaults.set(data, forKey: defaultsKey)
+        defaults.synchronize()
     }
 
     func requestHandoff() {

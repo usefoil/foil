@@ -10,80 +10,82 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Foil iOS")
-                        .font(.largeTitle.weight(.semibold))
-                    Text("Keyboard shell ready")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Foil iOS")
+                            .font(.largeTitle.weight(.semibold))
+                        Text("Keyboard shell ready")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label(snapshot.phase.displayName, systemImage: "waveform")
+                        Label(snapshot.message, systemImage: "keyboard")
+                        Label(audioCapture.status, systemImage: "mic")
+                        Label(transcription.status, systemImage: "text.bubble")
+                        if let transcript = snapshot.transcript {
+                            Label(transcript, systemImage: "text.quote")
+                        }
+                        if let lastRecordingURL = audioCapture.lastRecordingURL {
+                            Label(lastRecordingURL.lastPathComponent, systemImage: "waveform.path")
+                        }
+                    }
+                    .font(.body)
+
+                    HStack(spacing: 12) {
+                        Button("Listening") {
+                            bridge.markListening()
+                            refresh()
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("mark-listening-button")
+
+                        Button("Complete") {
+                            bridge.completeFakeTranscript()
+                            refresh()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("complete-fake-transcript-button")
+
+                        Button("Reset") {
+                            bridge.reset()
+                            refresh()
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("reset-keyboard-state-button")
+                    }
+
+                    HStack(spacing: 12) {
+                        Button("Record") {
+                            Task { await audioCapture.startRecording() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(audioCapture.isRecording)
+                        .accessibilityIdentifier("start-recording-button")
+
+                        Button("Stop") {
+                            audioCapture.stopRecording()
+                            refresh()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!audioCapture.isRecording)
+                        .accessibilityIdentifier("stop-recording-button")
+
+                        Button("Transcribe") {
+                            Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(audioCapture.lastRecordingURL == nil || audioCapture.isRecording)
+                        .accessibilityIdentifier("transcribe-latest-button")
+                    }
+
+                    Spacer(minLength: 0)
                 }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Label(snapshot.phase.displayName, systemImage: "waveform")
-                    Label(snapshot.message, systemImage: "keyboard")
-                    Label(audioCapture.status, systemImage: "mic")
-                    Label(transcription.status, systemImage: "text.bubble")
-                    if let transcript = snapshot.transcript {
-                        Label(transcript, systemImage: "text.quote")
-                    }
-                    if let lastRecordingURL = audioCapture.lastRecordingURL {
-                        Label(lastRecordingURL.lastPathComponent, systemImage: "waveform.path")
-                    }
-                }
-                .font(.body)
-
-                HStack(spacing: 12) {
-                    Button("Listening") {
-                        bridge.markListening()
-                        refresh()
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("mark-listening-button")
-
-                    Button("Complete") {
-                        bridge.completeFakeTranscript()
-                        refresh()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("complete-fake-transcript-button")
-
-                    Button("Reset") {
-                        bridge.reset()
-                        refresh()
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("reset-keyboard-state-button")
-                }
-
-                HStack(spacing: 12) {
-                    Button("Record") {
-                        Task { await audioCapture.startRecording() }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(audioCapture.isRecording)
-                    .accessibilityIdentifier("start-recording-button")
-
-                    Button("Stop") {
-                        audioCapture.stopRecording()
-                        refresh()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(!audioCapture.isRecording)
-                    .accessibilityIdentifier("stop-recording-button")
-
-                    Button("Transcribe") {
-                        Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(audioCapture.lastRecordingURL == nil || audioCapture.isRecording)
-                    .accessibilityIdentifier("transcribe-latest-button")
-                }
-
-                Spacer()
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .navigationTitle("Foil")
             .onAppear(perform: refresh)
             .onReceive(refreshTimer) { _ in refresh() }
