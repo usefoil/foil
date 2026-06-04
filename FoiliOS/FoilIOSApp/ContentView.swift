@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     private let bridge = FoilKeyboardBridge()
 
+    @StateObject private var audioCapture = AudioCaptureController()
     @State private var snapshot = FoilKeyboardSnapshot.initial
     private let refreshTimer = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
@@ -20,8 +21,12 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Label(snapshot.phase.displayName, systemImage: "waveform")
                     Label(snapshot.message, systemImage: "keyboard")
+                    Label(audioCapture.status, systemImage: "mic")
                     if let transcript = snapshot.transcript {
                         Label(transcript, systemImage: "text.quote")
+                    }
+                    if let lastRecordingURL = audioCapture.lastRecordingURL {
+                        Label(lastRecordingURL.lastPathComponent, systemImage: "waveform.path")
                     }
                 }
                 .font(.body)
@@ -49,6 +54,23 @@ struct ContentView: View {
                     .accessibilityIdentifier("reset-keyboard-state-button")
                 }
 
+                HStack(spacing: 12) {
+                    Button("Record") {
+                        Task { await audioCapture.startRecording() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(audioCapture.isRecording)
+                    .accessibilityIdentifier("start-recording-button")
+
+                    Button("Stop") {
+                        audioCapture.stopRecording()
+                        refresh()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!audioCapture.isRecording)
+                    .accessibilityIdentifier("stop-recording-button")
+                }
+
                 Spacer()
             }
             .padding(24)
@@ -63,6 +85,11 @@ struct ContentView: View {
                     bridge.completeFakeTranscript()
                 case "reset":
                     bridge.reset()
+                case "start":
+                    bridge.markListening()
+                    Task { await audioCapture.startRecording() }
+                case "stop":
+                    audioCapture.stopRecording()
                 default:
                     bridge.markListening()
                 }
