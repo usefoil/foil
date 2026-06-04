@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		05B62FBA1BC372A85B1B3E8A /* FoilKeyboardBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */; };
+		2CDF09B597678B083CCCF602 /* FoilKeyboardBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */; };
 		589C455BA82755598BC53393 /* FoilIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C18A113AB57751309B185D /* FoilIOSApp.swift */; };
 		624A853276103525C81EDD1F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B8ED6E6F949226BA93558B2 /* ContentView.swift */; };
 		6D9A57B023B74FAC7F4EDC91 /* FoilKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5EE790723AA98A22C747B75F /* FoilKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -44,7 +46,10 @@
 		5EE790723AA98A22C747B75F /* FoilKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = FoilKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B8ED6E6F949226BA93558B2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilIOSConstants.swift; sourceTree = "<group>"; };
+		9C3339B67E16E9D91B0D3263 /* FoilKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoilKeyboard.entitlements; sourceTree = "<group>"; };
+		AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilKeyboardBridge.swift; sourceTree = "<group>"; };
 		AF858F100CBDCDF206614F1F /* FoilIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FoilIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B86DEA8B1FAC1A8288373D21 /* FoilIOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoilIOS.entitlements; sourceTree = "<group>"; };
 		B8DED6D0B2DB4D4A56CBCC4C /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
 		BD61F96F53F4913F25FECC39 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		F5C18A113AB57751309B185D /* FoilIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilIOSApp.swift; sourceTree = "<group>"; };
@@ -63,6 +68,7 @@
 		278A669AC093B9EE5FD3CF6E /* Generated */ = {
 			isa = PBXGroup;
 			children = (
+				B86DEA8B1FAC1A8288373D21 /* FoilIOS.entitlements */,
 				58C4258EB9EC3B85F4B3132E /* Info.plist */,
 			);
 			path = Generated;
@@ -72,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */,
+				AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -89,6 +96,7 @@
 		E1A928FC1DCA871CC1C88FD8 /* Generated */ = {
 			isa = PBXGroup;
 			children = (
+				9C3339B67E16E9D91B0D3263 /* FoilKeyboard.entitlements */,
 				BD61F96F53F4913F25FECC39 /* Info.plist */,
 			);
 			path = Generated;
@@ -191,6 +199,7 @@
 				624A853276103525C81EDD1F /* ContentView.swift in Sources */,
 				589C455BA82755598BC53393 /* FoilIOSApp.swift in Sources */,
 				D22B502FB8F13DD32544442E /* FoilIOSConstants.swift in Sources */,
+				2CDF09B597678B083CCCF602 /* FoilKeyboardBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -199,6 +208,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8E076C9B35A2D3310945E36B /* FoilIOSConstants.swift in Sources */,
+				05B62FBA1BC372A85B1B3E8A /* FoilKeyboardBridge.swift in Sources */,
 				959656866E87C04F486DEE6A /* KeyboardViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -342,6 +352,7 @@
 		39883172217C4AEE9DB33CFC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = FoilKeyboard/Generated/FoilKeyboard.entitlements;
 				INFOPLIST_FILE = FoilKeyboard/Generated/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -360,6 +371,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FoilIOSApp/Generated/FoilIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = FoilIOSApp/Generated/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -377,6 +389,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = FoilIOSApp/Generated/FoilIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				INFOPLIST_FILE = FoilIOSApp/Generated/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -393,6 +406,7 @@
 		B8E58F82127A2B0E09BBCCB8 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = FoilKeyboard/Generated/FoilKeyboard.entitlements;
 				INFOPLIST_FILE = FoilKeyboard/Generated/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
