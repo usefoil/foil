@@ -153,8 +153,7 @@ final class AppState {
             isSynchronizingProviderSelection = true
             selectedTranscriptionProviderPresetID = Self.defaultPresetID(for: selectedTranscriptionProviderID)
             isSynchronizingProviderSelection = false
-            syncCleanupProviderWithTranscriptionPreset()
-            resetProviderConnectionTest()
+            handleTranscriptionProviderSelectionChanged()
         }
     }
 
@@ -165,9 +164,7 @@ final class AppState {
             isSynchronizingProviderSelection = true
             selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
             isSynchronizingProviderSelection = false
-            syncCleanupProviderWithTranscriptionPreset()
-            resetProviderConnectionTest()
-            refreshApiKeyState()
+            handleTranscriptionProviderSelectionChanged()
         }
     }
 
@@ -908,6 +905,22 @@ final class AppState {
                   transcriptCleanupProviderID == .none {
             transcriptCleanupProviderID = .groq
         }
+    }
+
+    private func handleTranscriptionProviderSelectionChanged() {
+        syncCleanupProviderWithTranscriptionPreset()
+        resetProviderConnectionTest()
+        refreshApiKeyState()
+        clearProviderScopedErrorPresentation()
+    }
+
+    private func clearProviderScopedErrorPresentation() {
+        guard case .error = status else { return }
+        clearError()
+        transcriptionStage = nil
+        feedbackMessage = nil
+        clipboardFeedback = nil
+        floatingStatusTransientVisible = false
     }
 
     func setStatus(_ newStatus: Status) {
