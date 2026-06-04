@@ -67,7 +67,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-keyboard-prototype/"
     command: "npx goalbuddy board docs/goals/ios-keyboard-prototype"
 
-active_task: T008
+active_task: T009
 
 tasks:
   - id: T001
@@ -517,7 +517,7 @@ tasks:
   - id: T008
     type: judge
     assignee: Judge
-    status: active
+    status: done
     reasoning_hint: high
     objective: "Audit the overnight prototype branch, merged PRs, simulator/device evidence, issue update, and remaining blockers."
     inputs:
@@ -539,6 +539,83 @@ tasks:
       - "Proof summary."
       - "Strongest remaining failure mode."
       - "Next task if not complete."
+    receipt:
+      result: done
+      full_outcome_complete: false
+      decision: not_complete
+      proof_summary:
+        - "Prototype branch codex/ios-keyboard-prototype is current at merge commit 0c43e464a9ce956ab90799357cf1d04283e8305b."
+        - "PR #217 added a contained iOS app plus custom keyboard extension shell."
+        - "PR #218 added App Group state, URL handoff, keyboard polling, and fake transcript insertion plumbing."
+        - "PR #219 added containing-app recording start/stop shell and simulator .m4a proof."
+        - "PR #220 added Groq transcription, proved a simulator .m4a can produce a live Groq transcript, and scrubbed temporary simulator key state."
+        - "PR #222 proved Foil Keyboard can be enabled in simulator Settings and can insert shared text into Apple Reminders."
+        - "Issue #216 now includes the overnight simulator insertion evidence and remaining open questions."
+      merged_pull_requests:
+        - "https://github.com/mean-weasel/foil/pull/217"
+        - "https://github.com/mean-weasel/foil/pull/218"
+        - "https://github.com/mean-weasel/foil/pull/219"
+        - "https://github.com/mean-weasel/foil/pull/220"
+        - "https://github.com/mean-weasel/foil/pull/222"
+      commands:
+        - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-keyboard-prototype/state.yaml"
+          status: pass
+        - cmd: "gh pr list --repo mean-weasel/foil --base codex/ios-keyboard-prototype --state all --json number,title,state,mergedAt,headRefName,url --limit 20"
+          status: pass
+        - cmd: "git log --oneline --decorate -n 8"
+          status: pass
+        - cmd: "xcrun xctrace list devices"
+          status: pass
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008140-001055D83E87001C' build"
+          status: failed
+      evidence:
+        - "/tmp/foil-ios-keyboard-prototype/pr1-app-shell.png"
+        - "/tmp/foil-ios-keyboard-prototype/pr2-fake-transcript-ready.jpg"
+        - "/tmp/foil-ios-keyboard-prototype/pr3-recording-saved.jpg"
+        - "/tmp/foil-ios-keyboard-prototype/pr4-groq-transcription.jpg"
+        - "/tmp/foil-ios-keyboard-prototype/pr5-keyboard-enabled.jpg"
+        - "/tmp/foil-ios-keyboard-prototype/pr5-reminders-foil-active-blank.jpg"
+        - "/tmp/foil-ios-keyboard-prototype/pr5-reminders-inserted.jpg"
+        - "Issue evidence update: https://github.com/mean-weasel/foil/issues/216#issuecomment-4622391759"
+        - "Reminders insertion proof: title changed from Hwould we to Hwould weFoil keyboard shell after tapping Insert latest."
+        - "Groq proof: final simulator snapshot contained Transcription complete, Groq transcript ready, transcript text Thank you., and recording foil-ios-2026-06-04T12-40-33.889Z.m4a."
+      strongest_remaining_failure_mode:
+        - "The simulator path works, but physical iPhone microphone/background/custom-keyboard behavior may still fail. This is the highest-risk part of the product because keyboard extensions and containing-app microphone handoff have device-only lifecycle constraints."
+      blocker_evidence:
+        - "xcrun xctrace list devices: iPhone-preview (26.4.2) remains offline."
+        - "xcrun xctrace list devices: iPhone-prod (26.5) became visible, but the physical-device build timed out and reported that iPhone-prod may need to be unlocked to recover from previously reported preparation errors."
+      residual_risk:
+        - "No preview-iPhone install/run/recording/transcription/insertion proof yet."
+        - "No broader insertion matrix yet for Messages, Safari, secure fields, or third-party apps."
+        - "Real-device signing/provisioning may need App Group entitlement setup that simulator builds do not require."
+      next_task: T009
+
+  - id: T009
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: high
+    objective: "When iPhone-preview is online, or iPhone-prod is unlocked and approved as fallback, run physical-device install, recording, transcription, keyboard enablement, and insertion proof."
+    allowed_files:
+      - "docs/goals/ios-keyboard-prototype/state.yaml"
+      - "docs/goals/ios-keyboard-prototype/notes/**"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+    verify:
+      - "xcrun xctrace list devices shows iPhone-preview online, or user approves and unlocks iPhone-prod fallback."
+      - "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=<device-id>' build"
+      - "Install and launch Foil iOS on the physical device."
+      - "Enable Foil Keyboard on the physical device."
+      - "Record microphone audio via containing app and prove a real audio file/transcription result."
+      - "Insert latest transcript into a real host app text field."
+      - "Record screenshots/video or a device log receipt without exposing secrets/private text."
+    stop_if:
+      - "iPhone-preview remains offline and iPhone-prod is locked/unavailable."
+      - "Physical-device signing or App Group provisioning blocks install."
+      - "Testing would expose private messages, contacts, or recordings."
     receipt: null
 
 checks:
@@ -553,5 +630,6 @@ checks:
       - "Apple Reminders insertion changed title to Hwould weFoil keyboard shell"
       - "gh issue comment 216 --repo mean-weasel/foil"
       - "xcrun xctrace list devices"
+      - "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008140-001055D83E87001C' build"
       - "git diff --check -- FoiliOS"
       - "rg secret/token-shaped patterns over FoiliOS and docs/goals/ios-keyboard-prototype"
