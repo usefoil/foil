@@ -4,6 +4,7 @@ struct ContentView: View {
     private let bridge = FoilKeyboardBridge()
 
     @StateObject private var audioCapture = AudioCaptureController()
+    @StateObject private var transcription = TranscriptionController()
     @State private var snapshot = FoilKeyboardSnapshot.initial
     private let refreshTimer = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
@@ -22,6 +23,7 @@ struct ContentView: View {
                     Label(snapshot.phase.displayName, systemImage: "waveform")
                     Label(snapshot.message, systemImage: "keyboard")
                     Label(audioCapture.status, systemImage: "mic")
+                    Label(transcription.status, systemImage: "text.bubble")
                     if let transcript = snapshot.transcript {
                         Label(transcript, systemImage: "text.quote")
                     }
@@ -69,6 +71,13 @@ struct ContentView: View {
                     .buttonStyle(.bordered)
                     .disabled(!audioCapture.isRecording)
                     .accessibilityIdentifier("stop-recording-button")
+
+                    Button("Transcribe") {
+                        Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(audioCapture.lastRecordingURL == nil || audioCapture.isRecording)
+                    .accessibilityIdentifier("transcribe-latest-button")
                 }
 
                 Spacer()
@@ -90,6 +99,8 @@ struct ContentView: View {
                     Task { await audioCapture.startRecording() }
                 case "stop":
                     audioCapture.stopRecording()
+                case "transcribe":
+                    Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
                 default:
                     bridge.markListening()
                 }

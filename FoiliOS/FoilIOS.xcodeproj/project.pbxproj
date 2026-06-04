@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0487CA500F0109EBC53F8710 /* FoilTranscriptionClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF921C0034784102049E070 /* FoilTranscriptionClient.swift */; };
 		05B62FBA1BC372A85B1B3E8A /* FoilKeyboardBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */; };
+		0BBFCD60BD149E3F6CB6DA66 /* TranscriptionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621DDB56882D26AAEC465CB0 /* TranscriptionController.swift */; };
 		2CDF09B597678B083CCCF602 /* FoilKeyboardBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */; };
 		589C455BA82755598BC53393 /* FoilIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C18A113AB57751309B185D /* FoilIOSApp.swift */; };
 		624A853276103525C81EDD1F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B8ED6E6F949226BA93558B2 /* ContentView.swift */; };
@@ -43,8 +45,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		1CF921C0034784102049E070 /* FoilTranscriptionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilTranscriptionClient.swift; sourceTree = "<group>"; };
 		58C4258EB9EC3B85F4B3132E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		5EE790723AA98A22C747B75F /* FoilKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = FoilKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		621DDB56882D26AAEC465CB0 /* TranscriptionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionController.swift; sourceTree = "<group>"; };
 		6B8ED6E6F949226BA93558B2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		77F32B52839F43D4C35AEE48 /* AudioCaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureController.swift; sourceTree = "<group>"; };
 		904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilIOSConstants.swift; sourceTree = "<group>"; };
@@ -91,6 +95,8 @@
 				77F32B52839F43D4C35AEE48 /* AudioCaptureController.swift */,
 				6B8ED6E6F949226BA93558B2 /* ContentView.swift */,
 				F5C18A113AB57751309B185D /* FoilIOSApp.swift */,
+				1CF921C0034784102049E070 /* FoilTranscriptionClient.swift */,
+				621DDB56882D26AAEC465CB0 /* TranscriptionController.swift */,
 				278A669AC093B9EE5FD3CF6E /* Generated */,
 			);
 			path = FoilIOSApp;
@@ -204,6 +210,8 @@
 				589C455BA82755598BC53393 /* FoilIOSApp.swift in Sources */,
 				D22B502FB8F13DD32544442E /* FoilIOSConstants.swift in Sources */,
 				2CDF09B597678B083CCCF602 /* FoilKeyboardBridge.swift in Sources */,
+				0487CA500F0109EBC53F8710 /* FoilTranscriptionClient.swift in Sources */,
+				0BBFCD60BD149E3F6CB6DA66 /* TranscriptionController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

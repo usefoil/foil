@@ -80,11 +80,15 @@ struct FoilKeyboardBridge {
     }
 
     func completeFakeTranscript() {
+        complete(transcript: FoilIOSConstants.fakeTranscript, message: "Fake transcript ready")
+    }
+
+    func complete(transcript: String, message: String = "Transcript ready") {
         save(
             FoilKeyboardSnapshot(
                 phase: .complete,
-                transcript: FoilIOSConstants.fakeTranscript,
-                message: "Fake transcript ready",
+                transcript: transcript,
+                message: message,
                 updatedAt: Date()
             )
         )
