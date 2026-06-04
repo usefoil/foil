@@ -109,15 +109,23 @@ final class KeyboardViewController: UIInputViewController {
     private func refreshState() {
         let snapshot = bridge.load()
         latestSnapshot = snapshot
+        let fullAccessEnabled = hasFullAccess
         statusLabel.text = snapshot.phase.displayName
-        messageLabel.text = snapshot.message
+        messageLabel.text = fullAccessEnabled ? snapshot.message : "Allow Full Access required"
         let hasTranscript = snapshot.transcript?.isEmpty == false
-        insertButton.isEnabled = hasTranscript
+        insertButton.isEnabled = hasTranscript && fullAccessEnabled
         var insertConfiguration = insertButton.configuration ?? .filled()
-        insertConfiguration.title = hasTranscript ? "Insert latest" : "Insert latest (no transcript)"
-        insertConfiguration.baseBackgroundColor = hasTranscript ? .systemBlue : .systemGray4
-        insertConfiguration.baseForegroundColor = hasTranscript ? .white : .secondaryLabel
+        insertConfiguration.title = insertTitle(hasTranscript: hasTranscript, fullAccessEnabled: fullAccessEnabled)
+        insertConfiguration.baseBackgroundColor = hasTranscript && fullAccessEnabled ? .systemBlue : .systemGray4
+        insertConfiguration.baseForegroundColor = hasTranscript && fullAccessEnabled ? .white : .secondaryLabel
         insertButton.configuration = insertConfiguration
+    }
+
+    private func insertTitle(hasTranscript: Bool, fullAccessEnabled: Bool) -> String {
+        if !fullAccessEnabled {
+            return "Insert latest (full access off)"
+        }
+        return hasTranscript ? "Insert latest" : "Insert latest (no transcript)"
     }
 
     private func openContainingApp() {

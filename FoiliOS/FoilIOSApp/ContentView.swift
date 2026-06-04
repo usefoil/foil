@@ -10,6 +10,8 @@ struct ContentView: View {
     @StateObject private var audioCapture = AudioCaptureController()
     @StateObject private var transcription = TranscriptionController()
     @State private var snapshot = FoilKeyboardSnapshot.initial
+    @State private var storageReport = FoilKeyboardStorageReport.initial
+    @State private var secureEntry = ""
     private let refreshTimer = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -29,6 +31,8 @@ struct ContentView: View {
                         statusRow(snapshot.message, systemImage: "keyboard")
                         statusRow(audioCapture.status, systemImage: "mic")
                         statusRow(transcription.status, systemImage: "text.bubble")
+                        statusRow(storageReportSummary, systemImage: "externaldrive")
+                            .accessibilityIdentifier("keyboard-storage-report-summary")
                         if let transcript = snapshot.transcript {
                             statusRow(transcript, systemImage: "text.quote")
                         }
@@ -38,6 +42,13 @@ struct ContentView: View {
                         }
                     }
                     .font(.callout)
+
+                    SecureField("Secure field rejection test", text: $secureEntry)
+                        .textContentType(.password)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("secure-rejection-field")
+                        .textFieldStyle(.roundedBorder)
 
                     LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
                         Button {
@@ -131,6 +142,15 @@ struct ContentView: View {
 
     private func refresh() {
         snapshot = bridge.load()
+        storageReport = bridge.storageReport()
+    }
+
+    private var storageReportSummary: String {
+        let file = storageReport.canonicalWriteSucceeded ? "file ok" : "file failed"
+        let verifiedPhase = storageReport.canonicalVerificationPhase?.displayName ?? "unverified"
+        let verifiedTranscript = storageReport.canonicalVerificationHasTranscript == true ? "has transcript" : "no transcript"
+        let defaults = storageReport.defaultsWriteAttempted ? "defaults written" : "defaults not written"
+        return "Storage \(storageReport.operation): \(file), \(defaults), verified \(verifiedPhase) \(verifiedTranscript)"
     }
 
     private func statusRow(_ text: String, systemImage: String) -> some View {
