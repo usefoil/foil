@@ -23,10 +23,19 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.neonwatty.FoilIOS
         PRODUCT_NAME: Foil iOS
+    entitlements:
+      path: FoilIOSApp/Generated/FoilIOS.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.neonwatty.FoilIOS
     info:
       path: FoilIOSApp/Generated/Info.plist
       properties:
         CFBundleDisplayName: Foil iOS
+        CFBundleURLTypes:
+          - CFBundleURLName: com.neonwatty.FoilIOS
+            CFBundleURLSchemes:
+              - foilios
         LSRequiresIPhoneOS: true
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -46,6 +55,11 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.neonwatty.FoilIOS.Keyboard
         PRODUCT_NAME: Foil Keyboard
         SKIP_INSTALL: YES
+    entitlements:
+      path: FoilKeyboard/Generated/FoilKeyboard.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.neonwatty.FoilIOS
     info:
       path: FoilKeyboard/Generated/Info.plist
       properties:

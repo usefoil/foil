@@ -1,16 +1,34 @@
 import UIKit
 
 final class KeyboardViewController: UIInputViewController {
+    private let bridge = FoilKeyboardBridge()
     private let stack = UIStackView()
     private let statusLabel = UILabel()
+    private let messageLabel = UILabel()
     private let startButton = UIButton(type: .system)
     private let insertButton = UIButton(type: .system)
     private let nextKeyboardButton = UIButton(type: .system)
+    private var refreshTimer: Timer?
+    private var latestSnapshot = FoilKeyboardSnapshot.initial
 
     override func viewDidLoad() {
         super.viewDidLoad()
         configureView()
         configureActions()
+        refreshState()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 0.75, repeats: true) { [weak self] _ in
+            self?.refreshState()
+        }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        refreshTimer?.invalidate()
+        refreshTimer = nil
     }
 
     private func configureView() {
@@ -20,10 +38,16 @@ final class KeyboardViewController: UIInputViewController {
         statusLabel.font = .preferredFont(forTextStyle: .headline)
         statusLabel.textAlignment = .center
 
+        messageLabel.text = "Ready"
+        messageLabel.font = .preferredFont(forTextStyle: .caption1)
+        messageLabel.textAlignment = .center
+        messageLabel.textColor = .secondaryLabel
+        messageLabel.numberOfLines = 2
+
         startButton.setTitle("Start", for: .normal)
         startButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
 
-        insertButton.setTitle("Insert shell text", for: .normal)
+        insertButton.setTitle("Insert latest", for: .normal)
         insertButton.titleLabel?.font = .preferredFont(forTextStyle: .body)
 
         nextKeyboardButton.setTitle("Next Keyboard", for: .normal)
@@ -34,6 +58,7 @@ final class KeyboardViewController: UIInputViewController {
         stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.addArrangedSubview(statusLabel)
+        stack.addArrangedSubview(messageLabel)
         stack.addArrangedSubview(startButton)
         stack.addArrangedSubview(insertButton)
         stack.addArrangedSubview(nextKeyboardButton)
@@ -55,10 +80,28 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     @objc private func startTapped() {
-        statusLabel.text = "Start shell tapped"
+        bridge.requestHandoff()
+        refreshState()
+        openContainingApp()
     }
 
     @objc private func insertTapped() {
-        textDocumentProxy.insertText(FoilIOSConstants.fakeTranscript)
+        guard let transcript = latestSnapshot.transcript, !transcript.isEmpty else { return }
+        textDocumentProxy.insertText(transcript)
+        bridge.reset()
+        refreshState()
+    }
+
+    private func refreshState() {
+        let snapshot = bridge.load()
+        latestSnapshot = snapshot
+        statusLabel.text = snapshot.phase.displayName
+        messageLabel.text = snapshot.message
+        insertButton.isEnabled = snapshot.transcript?.isEmpty == false
+    }
+
+    private func openContainingApp() {
+        guard let url = URL(string: "\(FoilIOSConstants.appURLScheme)://start") else { return }
+        extensionContext?.open(url)
     }
 }
