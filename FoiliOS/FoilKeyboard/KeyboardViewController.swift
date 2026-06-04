@@ -52,10 +52,11 @@ final class KeyboardViewController: UIInputViewController {
         startButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
         startButton.accessibilityIdentifier = "foil-keyboard-start"
 
-        insertButton.setTitle("Insert latest", for: .normal)
-        insertButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
-        insertButton.layer.cornerRadius = 10
-        insertButton.contentEdgeInsets = UIEdgeInsets(top: 14, left: 12, bottom: 14, right: 12)
+        var insertConfiguration = UIButton.Configuration.filled()
+        insertConfiguration.title = "Insert latest"
+        insertConfiguration.cornerStyle = .medium
+        insertConfiguration.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 12, bottom: 14, trailing: 12)
+        insertButton.configuration = insertConfiguration
         insertButton.accessibilityIdentifier = "foil-keyboard-insert-latest"
 
         nextKeyboardButton.setTitle("Next Keyboard", for: .normal)
@@ -112,9 +113,11 @@ final class KeyboardViewController: UIInputViewController {
         messageLabel.text = snapshot.message
         let hasTranscript = snapshot.transcript?.isEmpty == false
         insertButton.isEnabled = hasTranscript
-        insertButton.setTitle(hasTranscript ? "Insert latest" : "Insert latest (no transcript)", for: .normal)
-        insertButton.backgroundColor = hasTranscript ? .systemBlue : .systemGray4
-        insertButton.setTitleColor(hasTranscript ? .white : .secondaryLabel, for: .normal)
+        var insertConfiguration = insertButton.configuration ?? .filled()
+        insertConfiguration.title = hasTranscript ? "Insert latest" : "Insert latest (no transcript)"
+        insertConfiguration.baseBackgroundColor = hasTranscript ? .systemBlue : .systemGray4
+        insertConfiguration.baseForegroundColor = hasTranscript ? .white : .secondaryLabel
+        insertButton.configuration = insertConfiguration
     }
 
     private func openContainingApp() {

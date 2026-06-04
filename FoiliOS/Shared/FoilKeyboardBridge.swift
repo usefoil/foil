@@ -29,12 +29,14 @@ struct FoilKeyboardSnapshot: Codable, Equatable {
     var message: String
     var updatedAt: Date
 
-    static let initial = FoilKeyboardSnapshot(
-        phase: .idle,
-        transcript: nil,
-        message: "Ready",
-        updatedAt: Date()
-    )
+    static var initial: FoilKeyboardSnapshot {
+        FoilKeyboardSnapshot(
+            phase: .idle,
+            transcript: nil,
+            message: "Ready",
+            updatedAt: Date()
+        )
+    }
 }
 
 struct FoilKeyboardBridge {
@@ -58,30 +60,33 @@ struct FoilKeyboardBridge {
     private var readableSnapshotFileURLs: [URL] {
         guard let sharedContainerURL else { return [] }
         return [
-            sharedContainerURL.appendingPathComponent(snapshotFileName),
             sharedContainerURL
                 .appendingPathComponent("Library", isDirectory: true)
                 .appendingPathComponent(snapshotFileName),
             sharedContainerURL
                 .appendingPathComponent("Library", isDirectory: true)
                 .appendingPathComponent("Caches", isDirectory: true)
-                .appendingPathComponent(snapshotFileName)
+                .appendingPathComponent(snapshotFileName),
+            sharedContainerURL.appendingPathComponent(snapshotFileName)
         ]
     }
 
     func load() -> FoilKeyboardSnapshot {
+        var snapshots: [FoilKeyboardSnapshot] = []
+
         for url in readableSnapshotFileURLs {
             if let data = try? Data(contentsOf: url),
                let snapshot = try? JSONDecoder().decode(FoilKeyboardSnapshot.self, from: data) {
-                return snapshot
+                snapshots.append(snapshot)
             }
         }
 
-        guard let data = defaults.data(forKey: defaultsKey),
-              let snapshot = try? JSONDecoder().decode(FoilKeyboardSnapshot.self, from: data) else {
-            return .initial
+        if let data = defaults.data(forKey: defaultsKey),
+           let snapshot = try? JSONDecoder().decode(FoilKeyboardSnapshot.self, from: data) {
+            snapshots.append(snapshot)
         }
-        return snapshot
+
+        return snapshots.max { $0.updatedAt < $1.updatedAt } ?? .initial
     }
 
     func save(_ snapshot: FoilKeyboardSnapshot) {
@@ -131,6 +136,9 @@ struct FoilKeyboardBridge {
     }
 
     func reset() {
+        for url in readableSnapshotFileURLs.dropFirst() {
+            try? FileManager.default.removeItem(at: url)
+        }
         save(.initial)
     }
 }

@@ -39,6 +39,8 @@ targets:
             CFBundleURLSchemes:
               - foilios
         LSRequiresIPhoneOS: true
+        UIRequiresFullScreen: true
+        UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UIRequiredDeviceCapabilities:

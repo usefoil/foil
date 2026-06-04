@@ -2,6 +2,10 @@ import SwiftUI
 
 struct ContentView: View {
     private let bridge = FoilKeyboardBridge()
+    private let actionColumns = [
+        GridItem(.flexible(minimum: 118), spacing: 10),
+        GridItem(.flexible(minimum: 118), spacing: 10)
+    ]
 
     @StateObject private var audioCapture = AudioCaptureController()
     @StateObject private var transcription = TranscriptionController()
@@ -11,79 +15,93 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Foil iOS")
-                            .font(.largeTitle.weight(.semibold))
+                            .font(.title.weight(.semibold))
                         Text("Keyboard shell ready")
-                            .font(.title3)
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label(snapshot.phase.displayName, systemImage: "waveform")
-                        Label(snapshot.message, systemImage: "keyboard")
-                        Label(audioCapture.status, systemImage: "mic")
-                        Label(transcription.status, systemImage: "text.bubble")
+                    VStack(alignment: .leading, spacing: 10) {
+                        statusRow(snapshot.phase.displayName, systemImage: "waveform")
+                        statusRow(snapshot.message, systemImage: "keyboard")
+                        statusRow(audioCapture.status, systemImage: "mic")
+                        statusRow(transcription.status, systemImage: "text.bubble")
                         if let transcript = snapshot.transcript {
-                            Label(transcript, systemImage: "text.quote")
+                            statusRow(transcript, systemImage: "text.quote")
                         }
                         if let lastRecordingURL = audioCapture.lastRecordingURL {
-                            Label(lastRecordingURL.lastPathComponent, systemImage: "waveform.path")
+                            statusRow(lastRecordingURL.lastPathComponent, systemImage: "waveform.path")
+                                .font(.caption.monospaced())
                         }
                     }
-                    .font(.body)
+                    .font(.callout)
 
-                    HStack(spacing: 12) {
-                        Button("Listening") {
+                    LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
+                        Button {
                             bridge.markListening()
                             refresh()
+                        } label: {
+                            Label("Listening", systemImage: "waveform")
                         }
                         .buttonStyle(.bordered)
                         .accessibilityIdentifier("mark-listening-button")
 
-                        Button("Complete") {
+                        Button {
                             bridge.completeFakeTranscript()
                             refresh()
+                        } label: {
+                            Label("Complete", systemImage: "checkmark.circle")
                         }
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("complete-fake-transcript-button")
 
-                        Button("Reset") {
+                        Button {
                             bridge.reset()
                             refresh()
+                        } label: {
+                            Label("Reset", systemImage: "arrow.counterclockwise")
                         }
                         .buttonStyle(.bordered)
                         .accessibilityIdentifier("reset-keyboard-state-button")
-                    }
 
-                    HStack(spacing: 12) {
-                        Button("Record") {
+                        Button {
                             Task { await audioCapture.startRecording() }
+                        } label: {
+                            Label("Record", systemImage: "record.circle")
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(audioCapture.isRecording)
                         .accessibilityIdentifier("start-recording-button")
 
-                        Button("Stop") {
+                        Button {
                             audioCapture.stopRecording()
                             refresh()
+                        } label: {
+                            Label("Stop", systemImage: "stop.circle")
                         }
                         .buttonStyle(.bordered)
                         .disabled(!audioCapture.isRecording)
                         .accessibilityIdentifier("stop-recording-button")
 
-                        Button("Transcribe") {
+                        Button {
                             Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
+                        } label: {
+                            Label("Transcribe", systemImage: "text.bubble")
                         }
                         .buttonStyle(.bordered)
                         .disabled(audioCapture.lastRecordingURL == nil || audioCapture.isRecording)
                         .accessibilityIdentifier("transcribe-latest-button")
                     }
+                    .controlSize(.large)
+                    .labelStyle(.titleAndIcon)
+                    .buttonBorderShape(.roundedRectangle(radius: 8))
 
                     Spacer(minLength: 0)
                 }
-                .padding(24)
+                .padding(16)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .navigationTitle("Foil")
@@ -113,6 +131,16 @@ struct ContentView: View {
 
     private func refresh() {
         snapshot = bridge.load()
+    }
+
+    private func statusRow(_ text: String, systemImage: String) -> some View {
+        Label {
+            Text(text)
+                .lineLimit(3)
+                .minimumScaleFactor(0.8)
+        } icon: {
+            Image(systemName: systemImage)
+        }
     }
 }
 
