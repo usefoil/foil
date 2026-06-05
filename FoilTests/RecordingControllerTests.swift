@@ -49,7 +49,11 @@ final class RecordingControllerTests: XCTestCase {
     override func setUpWithError() throws {
         appState = AppState()
         audioRecorder = MockAudioRecorder()
-        controller = RecordingController(audioRecorder: audioRecorder, appState: appState)
+        controller = RecordingController(
+            audioRecorder: audioRecorder,
+            appState: appState,
+            prepareInputDeviceForRecording: { _ in nil }
+        )
         spy = RecordingControllerDelegateSpy()
         controller.delegate = spy
     }
@@ -159,7 +163,11 @@ final class RecordingControllerMockTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         appState = AppState()
         mock = MockAudioRecorder()
-        controller = RecordingController(audioRecorder: mock, appState: appState)
+        controller = RecordingController(
+            audioRecorder: mock,
+            appState: appState,
+            prepareInputDeviceForRecording: { _ in nil }
+        )
         spy = RecordingControllerDelegateSpy()
         controller.delegate = spy
     }
