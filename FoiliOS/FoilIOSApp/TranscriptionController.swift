@@ -3,45 +3,70 @@ import Foundation
 @MainActor
 final class TranscriptionController: ObservableObject {
     @Published private(set) var status = "Transcription idle"
+    @Published private(set) var recoveryMessage: String?
 
     private let bridge = FoilKeyboardBridge()
     private let client = FoilTranscriptionClient()
+    private let credentialStore = FoilCredentialStore.shared
+
+    var hasConfiguredAPIKey: Bool {
+        apiKey != nil
+    }
+
+    var credentialSummary: String {
+        hasConfiguredAPIKey ? "Groq key configured" : "Groq key needed"
+    }
+
+    func saveGroqAPIKey(_ value: String) throws {
+        try credentialStore.saveGroqAPIKey(value)
+        objectWillChange.send()
+    }
+
+    func clearGroqAPIKey() throws {
+        try credentialStore.clearGroqAPIKey()
+        objectWillChange.send()
+    }
 
     func transcribeLatestRecording(_ recordingURL: URL?) async {
         guard let recordingURL else {
             status = TranscriptionError.missingRecording.localizedDescription
+            recoveryMessage = "Record first, then tap Transcribe."
             return
         }
         guard let apiKey else {
             status = TranscriptionError.missingAPIKey.localizedDescription
+            recoveryMessage = "Save a Groq key, then tap Transcribe again."
+            bridge.fail(message: "Groq key needed. Open Foil app to recover.")
             return
         }
 
         status = "Transcribing"
+        recoveryMessage = nil
         bridge.save(
             FoilKeyboardSnapshot(
                 phase: .processing,
                 transcript: nil,
-                message: "Transcribing with Groq",
+                message: "Transcribing with Groq. Return when the transcript is ready.",
                 updatedAt: Date()
             )
         )
 
         do {
             let transcript = try await client.transcribe(audioFileURL: recordingURL, apiKey: apiKey)
-            let finalTranscript = transcript.isEmpty ? "(empty transcript)" : transcript
+            guard !transcript.isEmpty else {
+                status = "No speech detected"
+                recoveryMessage = "Record again, or reset shared state to return the keyboard to ready."
+                bridge.fail(message: "No speech detected. Record again in Foil.")
+                return
+            }
+            let finalTranscript = transcript
             status = "Transcription complete"
-            bridge.complete(transcript: finalTranscript, message: "Groq transcript ready")
+            recoveryMessage = nil
+            bridge.complete(transcript: finalTranscript, message: "Groq transcript ready. Switch back and tap Insert latest.")
         } catch {
             status = error.localizedDescription
-            bridge.save(
-                FoilKeyboardSnapshot(
-                    phase: .idle,
-                    transcript: nil,
-                    message: "Transcription failed",
-                    updatedAt: Date()
-                )
-            )
+            recoveryMessage = "Check the key or network, then tap Transcribe again."
+            bridge.fail(message: "Transcription failed. Open Foil app to retry.")
         }
     }
 
@@ -51,6 +76,9 @@ final class TranscriptionController: ObservableObject {
         }
         if let environmentKey = nonEmpty(ProcessInfo.processInfo.environment["GROQ_API_KEY"]) {
             return environmentKey
+        }
+        if let storedKey = credentialStore.loadGroqAPIKey() {
+            return storedKey
         }
 
         #if DEBUG

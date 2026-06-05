@@ -7,6 +7,7 @@ final class KeyboardViewController: UIInputViewController {
     private let messageLabel = UILabel()
     private let startButton = UIButton(type: .system)
     private let insertButton = UIButton(type: .system)
+    private let resetButton = UIButton(type: .system)
     private let nextKeyboardButton = UIButton(type: .system)
     private var heightConstraint: NSLayoutConstraint?
     private var refreshTimer: Timer?
@@ -59,6 +60,13 @@ final class KeyboardViewController: UIInputViewController {
         insertButton.configuration = insertConfiguration
         insertButton.accessibilityIdentifier = "foil-keyboard-insert-latest"
 
+        var resetConfiguration = UIButton.Configuration.gray()
+        resetConfiguration.title = "Clear latest"
+        resetConfiguration.cornerStyle = .medium
+        resetConfiguration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+        resetButton.configuration = resetConfiguration
+        resetButton.accessibilityIdentifier = "foil-keyboard-clear-latest"
+
         nextKeyboardButton.setTitle("Next Keyboard", for: .normal)
         nextKeyboardButton.titleLabel?.font = .preferredFont(forTextStyle: .caption1)
         nextKeyboardButton.accessibilityIdentifier = "foil-keyboard-next"
@@ -70,6 +78,7 @@ final class KeyboardViewController: UIInputViewController {
         stack.addArrangedSubview(statusLabel)
         stack.addArrangedSubview(messageLabel)
         stack.addArrangedSubview(insertButton)
+        stack.addArrangedSubview(resetButton)
         stack.addArrangedSubview(startButton)
         stack.addArrangedSubview(nextKeyboardButton)
 
@@ -90,6 +99,7 @@ final class KeyboardViewController: UIInputViewController {
     private func configureActions() {
         startButton.addTarget(self, action: #selector(startTapped), for: .touchUpInside)
         insertButton.addTarget(self, action: #selector(insertTapped), for: .touchUpInside)
+        resetButton.addTarget(self, action: #selector(resetTapped), for: .touchUpInside)
         nextKeyboardButton.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
     }
 
@@ -110,6 +120,13 @@ final class KeyboardViewController: UIInputViewController {
         textDocumentProxy.insertText(transcript)
         bridge.reset()
         refreshState()
+        messageLabel.text = "Inserted and cleared."
+    }
+
+    @objc private func resetTapped() {
+        bridge.reset()
+        refreshState()
+        messageLabel.text = "Cleared. Start again when ready."
     }
 
     private func refreshState() {
@@ -120,13 +137,20 @@ final class KeyboardViewController: UIInputViewController {
         statusLabel.text = snapshot.phase.displayName
         messageLabel.text = fullAccessEnabled ? snapshot.message : "Allow Full Access required. Open Foil app to recover."
         let hasTranscript = snapshot.transcript?.isEmpty == false
+        let hasRecoverableState = snapshot.phase != .idle || hasTranscript
         insertButton.isEnabled = hasTranscript && fullAccessEnabled
+        resetButton.isEnabled = hasRecoverableState && fullAccessEnabled
         startButton.setTitle(fullAccessEnabled ? "Start" : "Open Foil", for: .normal)
         var insertConfiguration = insertButton.configuration ?? .filled()
         insertConfiguration.title = insertTitle(hasTranscript: hasTranscript, fullAccessEnabled: fullAccessEnabled)
         insertConfiguration.baseBackgroundColor = hasTranscript && fullAccessEnabled ? .systemBlue : .systemGray4
         insertConfiguration.baseForegroundColor = hasTranscript && fullAccessEnabled ? .white : .secondaryLabel
         insertButton.configuration = insertConfiguration
+
+        var resetConfiguration = resetButton.configuration ?? .gray()
+        resetConfiguration.title = resetTitle(hasRecoverableState: hasRecoverableState, fullAccessEnabled: fullAccessEnabled)
+        resetConfiguration.baseForegroundColor = hasRecoverableState && fullAccessEnabled ? .label : .secondaryLabel
+        resetButton.configuration = resetConfiguration
     }
 
     private func insertTitle(hasTranscript: Bool, fullAccessEnabled: Bool) -> String {
@@ -134,6 +158,13 @@ final class KeyboardViewController: UIInputViewController {
             return "Insert latest (full access off)"
         }
         return hasTranscript ? "Insert latest" : "Insert latest (no transcript)"
+    }
+
+    private func resetTitle(hasRecoverableState: Bool, fullAccessEnabled: Bool) -> String {
+        if !fullAccessEnabled {
+            return "Clear latest (full access off)"
+        }
+        return hasRecoverableState ? "Clear latest" : "Clear latest (ready)"
     }
 
     private func openContainingApp() {

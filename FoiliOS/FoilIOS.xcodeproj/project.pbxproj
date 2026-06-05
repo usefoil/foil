@@ -17,6 +17,7 @@
 		810360C691C678DD768EA07A /* AudioCaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77F32B52839F43D4C35AEE48 /* AudioCaptureController.swift */; };
 		8E076C9B35A2D3310945E36B /* FoilIOSConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */; };
 		959656866E87C04F486DEE6A /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8DED6D0B2DB4D4A56CBCC4C /* KeyboardViewController.swift */; };
+		CDF2025B3CC90DEF9172B171 /* FoilCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E66C051F406E089F849D00 /* FoilCredentialStore.swift */; };
 		D22B502FB8F13DD32544442E /* FoilIOSConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */; };
 /* End PBXBuildFile section */
 
@@ -47,6 +48,7 @@
 /* Begin PBXFileReference section */
 		1CF921C0034784102049E070 /* FoilTranscriptionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilTranscriptionClient.swift; sourceTree = "<group>"; };
 		58C4258EB9EC3B85F4B3132E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		59E66C051F406E089F849D00 /* FoilCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilCredentialStore.swift; sourceTree = "<group>"; };
 		5EE790723AA98A22C747B75F /* FoilKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = FoilKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		621DDB56882D26AAEC465CB0 /* TranscriptionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionController.swift; sourceTree = "<group>"; };
 		6B8ED6E6F949226BA93558B2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -94,6 +96,7 @@
 			children = (
 				77F32B52839F43D4C35AEE48 /* AudioCaptureController.swift */,
 				6B8ED6E6F949226BA93558B2 /* ContentView.swift */,
+				59E66C051F406E089F849D00 /* FoilCredentialStore.swift */,
 				F5C18A113AB57751309B185D /* FoilIOSApp.swift */,
 				1CF921C0034784102049E070 /* FoilTranscriptionClient.swift */,
 				621DDB56882D26AAEC465CB0 /* TranscriptionController.swift */,
@@ -215,6 +218,7 @@
 			files = (
 				810360C691C678DD768EA07A /* AudioCaptureController.swift in Sources */,
 				624A853276103525C81EDD1F /* ContentView.swift in Sources */,
+				CDF2025B3CC90DEF9172B171 /* FoilCredentialStore.swift in Sources */,
 				589C455BA82755598BC53393 /* FoilIOSApp.swift in Sources */,
 				D22B502FB8F13DD32544442E /* FoilIOSConstants.swift in Sources */,
 				2CDF09B597678B083CCCF602 /* FoilKeyboardBridge.swift in Sources */,

@@ -1,0 +1,899 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS TestFlight Onboarding And Failure Recovery"
+  slug: "ios-testflight-onboarding-failure-recovery"
+  kind: specific
+  tranche: "Make the iOS custom-keyboard prototype understandable and recoverable for early TestFlight testers."
+  status: done
+  oracle:
+    signal: "Physical iPhone-preview walkthrough starts from fresh or intentionally unhealthy tester state, guides keyboard install/Full Access/microphone/provider readiness, completes real transcription and one-time insertion, and recovers/reset with App Group idle/no transcript afterward."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Merged PRs into codex/ios-keyboard-prototype plus receipts with physical WDA/source snippets, copied App Group state, sanitized screenshots/hashes, build/install commands, secret scan, issue/PR links, and final audit."
+  intake:
+    original_request: "Plan the next iOS TestFlight onboarding and failure-recovery slice with GoalBuddy prep and begin."
+    interpreted_outcome: "Prepare and execute a GoalBuddy board that turns the proven iOS keyboard prototype into a tester-facing onboarding, credential, permission, and recovery experience."
+    input_shape: specific
+    audience: "Foil owner/developer and early TestFlight iPhone testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "The iOS prototype branch has a verified TestFlight-grade setup/recovery flow and physical real-transcription insertion proof."
+    likely_misfire: "Prototype diagnostics get rearranged into nicer UI while DEBUG-only credentials, unclear Full Access copy, and unhandled failure states remain."
+    blind_spots_considered:
+      - "Allow Full Access remains required and Apple's warning may scare testers."
+      - "DEBUG UserDefaults key injection is not a TestFlight credential story."
+      - "Microphone permission, network failures, Groq/API failures, and empty transcripts need visible recovery."
+      - "Secure fields reject custom keyboards by platform design."
+      - "Messages requires a safe self/test thread."
+      - "Physical iPhone proof is mandatory; simulator proof is supporting evidence only."
+      - "Target-app/WDA evidence must be sanitized."
+      - "Raw recordings, transcript bodies, and keys must not be committed."
+    existing_plan_facts:
+      - "Continue from codex/ios-keyboard-prototype."
+      - "PR #227 proved onboarding/full-access/real-loop basics."
+      - "PR #228 marked the prior GoalBuddy board complete."
+      - "Next product slice is TestFlight-grade onboarding and failure recovery."
+      - "Use preview iPhone when available and unlocked."
+      - "Create PRs into codex/ios-keyboard-prototype, not main."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-testflight-onboarding-failure-recovery/"
+    command: "npx goalbuddy board docs/goals/ios-testflight-onboarding-failure-recovery"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: high
+    objective: "Map current iOS prototype UI, provider/key handling, permissions, recovery states, prior receipts, and physical-device availability before implementation."
+    inputs:
+      - "docs/goals/ios-keyboard-onboarding-full-access-ux/goal.md"
+      - "docs/goals/ios-keyboard-onboarding-full-access-ux/state.yaml"
+      - "docs/acceptance-evidence.md"
+      - "FoiliOS/**"
+      - "Current git branch/status"
+      - "Physical iPhone/WDA/tunnel availability if already running"
+    constraints:
+      - "Read-only."
+      - "Do not print or copy API key values."
+      - "Do not preserve raw accessibility trees from private apps."
+      - "Prefer exact files, UI states, commands, and observed device IDs."
+    expected_output:
+      - "Current branch/head and dirty-state summary."
+      - "Current app setup/diagnostic/provider/permission/recovery surfaces."
+      - "Current keyboard handoff/Full Access/insert behavior."
+      - "Prior proof that can be reused and remaining TestFlight gaps."
+      - "Recommended first Worker slice with allowed_files, verify commands, and stop_if."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped the current iOS TestFlight-readiness surface. The branch starts from the merged iOS prototype proof at d09392e on codex/ios-testflight-onboarding-recovery. The app has a basic setup/health section and real recording/transcription controls, but normal testers still see prototype diagnostics, raw transcript text, fake transcript controls, storage report internals, and hidden DEBUG UserDefaults key assumptions. The keyboard correctly gates Full Access and insertion, and prior receipts prove the architecture works physically. The preview phone is connected and WDA is stopped."
+      evidence:
+        - "Read ContentView.swift, TranscriptionController.swift, FoilTranscriptionClient.swift, AudioCaptureController.swift, FoilKeyboardBridge.swift, KeyboardViewController.swift, FoilIOSConstants.swift, project.yml, generated Info.plist files, and generated entitlements."
+        - "Read prior ios-keyboard-onboarding-full-access-ux receipts for Full Access, real transcription, matrix, issue/PR handoff, and final audit facts."
+        - "git rev-parse --short HEAD reported d09392e; git status showed only this new goal directory plus pre-existing untracked Xcode xcuserdata dirs and unrelated marketing plan."
+        - "devicectl listed iPhone-preview connected and WDA status check reported not reachable."
+      branch:
+        name: "codex/ios-testflight-onboarding-recovery"
+        head: "d09392e"
+        upstream: "origin/codex/ios-keyboard-prototype"
+        dirty_state: "Untracked new goal directory plus pre-existing FoiliOS Xcode xcuserdata dirs and docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md."
+      current_app_surface:
+        file: "FoiliOS/FoilIOSApp/ContentView.swift"
+        facts:
+          - "Single ScrollView shows Foil iOS title, Keyboard shell ready subtitle, snapshot phase/message, recorder status, transcription status, storage report summary, raw transcript text when present, and last recording filename."
+          - "Setup section shows Add Foil Keyboard, Allow Full Access, Keyboard health, Shared state, and Reset shared state."
+          - "SecureField secure-rejection-field remains visible in the main surface."
+          - "Prototype controls Listening, Complete, Reset, Record, Stop, and Transcribe remain visible to normal users."
+          - "No first-run progression, provider-readiness row, microphone-permission row, or tester runbook copy exists."
+      current_provider_and_recording:
+        files:
+          - "FoiliOS/FoilIOSApp/AudioCaptureController.swift"
+          - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+          - "FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift"
+        facts:
+          - "AudioCaptureController asks AVAudioApplication record permission and reports Microphone permission denied, Recording failed, Recording, and Recording saved."
+          - "TranscriptionController reads FOIL_IOS_GROQ_API_KEY or GROQ_API_KEY from process environment, then DEBUG UserDefaults, and otherwise shows Missing FOIL_IOS_GROQ_API_KEY or GROQ_API_KEY."
+          - "Missing key, HTTP failure, invalid response, and missing recording are surfaced as status strings but not as structured recoverable UI states."
+          - "Empty transcripts are currently inserted as literal (empty transcript)."
+          - "There is no Keychain storage or tester-facing credential entry/clear path."
+      current_keyboard_surface:
+        file: "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        facts:
+          - "Keyboard shows status, message, Insert latest, Start/Open Foil, and Next Keyboard."
+          - "refreshState records keyboard health on every refresh."
+          - "Full Access off disables Insert latest and changes copy to Allow Full Access required. Open Foil app to recover."
+          - "Insert writes transcript through textDocumentProxy.insertText, then bridge.reset() clears shared state."
+      project_and_entitlements:
+        file: "FoiliOS/project.yml"
+        facts:
+          - "Containing app and keyboard extension share group.com.neonwatty.FoilIOS."
+          - "Keyboard RequestsOpenAccess is true."
+          - "NSMicrophoneUsageDescription exists."
+          - "No UIBackgroundModes audio entry is present."
+          - "No Keychain access group or Security framework wrapper exists."
+      prior_proof_reusable:
+        - "PR #227 and #228 merged into codex/ios-keyboard-prototype."
+        - "Physical iPhone proof covered Full Access off disabled insertion, real Groq transcription, Notes insertion, Safari insertion, Reminders insertion, secure-field rejection, and post-insert App Group idle/no transcript."
+        - "Messages remains untested pending a safe self/test thread."
+      device:
+        core_device_id: "5320F5AD-2A71-50AC-94FE-207B544B6247"
+        hardware_udid: "00008030-001A0C980A33C02E"
+        state: "iPhone-preview connected; WDA http://192.168.1.40:8100 not reachable/stopped."
+      remaining_testflight_gaps:
+        - "DEBUG key injection is not acceptable as the tester credential story."
+        - "Normal users still see debug controls and diagnostic storage/transcript details."
+        - "Permission/provider failures are string statuses rather than guided recovery states."
+        - "First-run setup does not verify microphone or provider readiness."
+        - "No tester-facing copy explains when to swipe back to the keyboard after recording/transcription."
+        - "No safe Messages fixture is available."
+        - "No background audio mode has been declared; decide whether this prototype needs it before TestFlight."
+      recommended_first_worker:
+        objective: "Implement a tester-facing setup/health scaffold that separates normal setup/status from debug controls, adds microphone and provider readiness rows, and keeps reset visible without exposing raw transcript text."
+        allowed_files:
+          - "FoiliOS/FoilIOSApp/**"
+          - "FoiliOS/Shared/**"
+          - "FoiliOS/project.yml"
+          - "docs/goals/ios-testflight-onboarding-failure-recovery/**"
+        verify:
+          - "cd FoiliOS && xcodegen generate --spec project.yml"
+          - "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-testflight-derived -allowProvisioningUpdates build"
+          - "Install on iPhone-preview with devicectl."
+          - "App WDA source shows tester-facing setup/health rows and debug controls separated or clearly marked."
+          - "App does not display transcript body in tester health rows."
+          - "Secret/private-string scan over changed files and this goal."
+        stop_if:
+          - "Need provider credential storage before a truthful provider-readiness row can be implemented."
+          - "Need product decision on background audio before setup copy can be honest."
+          - "Physical device cannot be restored for verification."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose the smallest TestFlight-grade product slice that satisfies the oracle without building a full settings/history/account system."
+    inputs:
+      - "T001 receipt"
+      - "Prior onboarding/full-access receipts"
+      - "Current diff/status"
+    constraints:
+      - "Do not implement."
+      - "Reject merely rearranging debug controls."
+      - "Reject provider handling that exposes secrets or remains hidden/developer-only."
+      - "Keep scope inside FoiliOS and this goal unless necessary."
+    expected_output:
+      - "Decision: approved, blocked, or needs narrower scout."
+      - "Worker objective."
+      - "Allowed files."
+      - "Verify commands."
+      - "Stop conditions."
+      - "What remains debug-only, tester-facing, or deferred."
+    receipt:
+      result: done
+      task_id: T002
+      decision: approved
+      full_outcome_complete: false
+      selected_worker: T003
+      summary: "Approve the first Worker slice as a tester-facing setup/health scaffold. Do not start with full provider auth or a full UI redesign. T001 shows the app already has working primitive states, but they are exposed as debug rows and raw controls. The next smallest useful TestFlight move is to separate tester status from debug tools, add honest readiness rows for keyboard, Full Access, microphone, provider, and shared state, and avoid displaying transcript bodies in the normal health surface."
+      rationale:
+        - "The previous board already proved the architecture physically, so this tranche should improve tester comprehension and recovery rather than re-prove the base loop first."
+        - "Credential storage is important, but a provider-readiness row can initially report missing/configured using the existing lookup path while T004 owns safe key entry/storage."
+        - "Keeping debug controls available is acceptable for this prototype if they are visually separated from tester setup and not presented as the normal flow."
+        - "The first slice must not overclaim background recording or Messages support."
+      worker_objective: "Implement a tester-facing setup/health scaffold that separates normal setup/status from debug controls, adds microphone and provider readiness rows, makes transcript/state status transcript-free, and keeps reset/recovery visible."
+      allowed_files:
+        - "FoiliOS/FoilIOSApp/**"
+        - "FoiliOS/Shared/**"
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/**"
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/**"
+      verify:
+        - "cd FoiliOS && xcodegen generate --spec project.yml"
+        - "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-testflight-derived -allowProvisioningUpdates build"
+        - "Install on iPhone-preview with devicectl."
+        - "WDA/app source or screenshot shows tester-facing setup rows: keyboard install, Full Access, microphone, provider, shared state, reset/recovery."
+        - "Debug controls are separated or marked as prototype/debug and do not look like the normal tester flow."
+        - "Tester-facing setup/status does not display transcript body or API key values."
+        - "git diff --check -- FoiliOS docs/goals/ios-testflight-onboarding-failure-recovery"
+        - "Secret/private-string scan over changed files and this goal."
+      stop_if:
+        - "Need production account/provider auth before any truthful provider row can be shown."
+        - "Need background-audio product decision before setup copy can avoid overclaiming."
+        - "Physical iPhone cannot be built/installed for verification."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Implement the first tester-facing setup/health slice for keyboard install, Full Access, microphone permission, provider readiness, and shared-state reset."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-testflight-onboarding-failure-recovery/**"
+    verify:
+      - "Build for physical iPhone-preview."
+      - "Install on iPhone-preview."
+      - "App shows tester-facing setup/health without transcript text leakage."
+      - "Reset clears App Group state and health reports."
+      - "Secret/private-string scan."
+    stop_if:
+      - "Need to change architecture before a truthful setup flow can be implemented."
+      - "Provider/key handling must be decided first."
+      - "Physical device cannot be restored for proof."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Implemented the first tester-facing setup/status scaffold. The normal screen now shows setup rows for keyboard install, Full Access, microphone, provider, keyboard health, and shared state; real Record/Stop/Transcribe controls live under a Dictation section; storage internals, fake transcript controls, reset debug button, and secure-field harness are moved into a collapsed Diagnostics disclosure. The app no longer displays transcript bodies in the normal tester-facing status surface."
+      changed_files:
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/goal.md"
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-testflight-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-testflight-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "XcodeBuildMCP build_run_sim on iPhone 17 Pro simulator AFBABD18-FD42-4945-8ABC-5CF2714DFAD4"
+          status: pass
+        - cmd: "XcodeBuildMCP snapshot_ui before and after scrolling"
+          status: pass
+        - cmd: "XcodeBuildMCP screenshot"
+          status: pass
+        - cmd: "Recorded physical WDA verification blocker after two WebDriverAgent attempts timed out enabling automation mode"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-testflight-onboarding-failure-recovery"
+          status: pass
+        - cmd: "rg secret/private-string scan over FoiliOS and this goal"
+          status: pass
+      evidence:
+        - "Physical iPhone build succeeded and installed on iPhone-preview; install log: /tmp/foil-ios-tf-t003-install.log."
+        - "Simulator semantic snapshot showed Keyboard setup, Add Foil Keyboard, Allow Full Access, Microphone, Microphone will be requested, Provider, Groq key needed, Keyboard health, Shared state, Ready no transcript, Dictation, Record, Stop, and Transcribe."
+        - "After scrolling, simulator snapshot showed Diagnostics as a collapsed disclosure below the normal Dictation path."
+        - "Simulator screenshot captured at /var/folders/wt/nn4g5swd3gd139y9r6yw6x_80000gn/T/screenshot_optimized_72d90d34-c8ad-4f5f-926e-3440abd462ff.jpg."
+        - "TranscriptionController now exposes transcript-free credential presence through hasConfiguredAPIKey and credentialSummary; it does not expose key values."
+        - "ContentView shows Transcript body hidden if a transcript exists in Diagnostics, and no raw transcript body appears in the normal tester status."
+      strongest_realistic_failure_modes:
+        - failure: "Tester-facing UI still exposes prototype-only transcript text or storage internals as the main path."
+          evidence:
+            - "Normal simulator snapshot showed setup/readiness and dictation rows, while storage internals and fake transcript controls were not on the initial visible path."
+            - "Raw transcript display was replaced with Transcript body hidden inside Diagnostics."
+        - failure: "Provider readiness requires a secret value to be displayed or logged."
+          evidence:
+            - "Provider row only reports Groq key needed/configured; code exposes a boolean/summary, not the key string."
+            - "Secret scan found only key-name references, not key values."
+      residual_risk:
+        - "Physical UI source/screenshot for this scaffold is not yet captured because WDA failed twice with Timed out while enabling automation mode. The app did build and install on the physical phone, and simulator UI proof supports the layout. T008 must still provide physical walkthrough proof before the goal can complete."
+        - "Credential storage remains DEBUG/env/UserDefaults-backed; T004 owns safe internal-TestFlight key entry/storage."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Implement safe internal-TestFlight provider credential entry/storage/clear status, replacing hidden DEBUG-only key injection for testers."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/Shared/**"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-testflight-onboarding-failure-recovery/**"
+    verify:
+      - "Key entry stores a secret without showing it after save."
+      - "Clear key removes the secret."
+      - "Missing-key state is visible and recoverable."
+      - "No key values appear in logs, receipts, source, screenshots, or git diff."
+    stop_if:
+      - "Need production account/server auth rather than internal key entry for this tranche."
+      - "Secure storage requires entitlements/signing changes that cannot be verified."
+    receipt:
+      result: done
+      task_id: T004
+      summary: "Implemented an internal-TestFlight credential path for Groq. The containing app now has a Keychain-backed FoilCredentialStore, the Provider setup section has a secure Groq API key field with Save key and Clear key actions, and TranscriptionController reads the Keychain before falling back to DEBUG UserDefaults. The saved key is never redisplayed after save; the UI reports only Groq key configured, Groq key saved, Groq key needed, or Groq key cleared."
+      changed_files:
+        - "FoiliOS/FoilIOSApp/FoilCredentialStore.swift"
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+        - "FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "XcodeBuildMCP build_run_sim on iPhone 17 Pro simulator AFBABD18-FD42-4945-8ABC-5CF2714DFAD4"
+          status: pass
+        - cmd: "XcodeBuildMCP snapshot_ui initial missing-key state"
+          status: pass
+        - cmd: "XcodeBuildMCP type_text provider-key-field with a fake non-secret key"
+          status: pass
+        - cmd: "XcodeBuildMCP tap Save key and inspect post-save snapshot"
+          status: pass
+        - cmd: "XcodeBuildMCP tap Clear key and inspect post-clear snapshot"
+          status: pass
+        - cmd: "XcodeBuildMCP screenshot after clear"
+          status: pass
+        - cmd: "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-testflight-t004-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-testflight-t004-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "xcrun devicectl device process launch --device 5320F5AD-2A71-50AC-94FE-207B544B6247 com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-testflight-onboarding-failure-recovery"
+          status: pass
+        - cmd: "rg secret/private-string scan over FoiliOS and this goal"
+          status: pass
+      evidence:
+        - "Initial simulator snapshot showed Provider, Groq key needed, secure Groq API key field, Save key, and Clear key on the tester setup surface."
+        - "After saving a fake non-secret key, simulator snapshot showed Provider, Groq key configured, Groq key saved, and provider-key-field back to the Groq API key placeholder; no key value was displayed."
+        - "After tapping Clear key, simulator snapshot showed Provider, Groq key needed, Groq key cleared, and no clear-key tap target, proving the missing-key state is recoverable."
+        - "Sanitized post-clear screenshot captured at /var/folders/wt/nn4g5swd3gd139y9r6yw6x_80000gn/T/screenshot_optimized_c5033a78-fcb6-4e70-a3b2-07787e8f0ace.jpg."
+        - "Physical iPhone-preview build succeeded; build log: /tmp/foil-ios-tf-t004-build.log."
+        - "Physical iPhone-preview install succeeded; install log: /tmp/foil-ios-tf-t004-install.log."
+        - "Physical iPhone-preview launch succeeded; launch log: /tmp/foil-ios-tf-t004-launch.log."
+        - "Secret scan found no real key pattern and did not find the fake test key in source or goal files; remaining matches were only key-name constants in the env/DEBUG fallback."
+      strongest_realistic_failure_modes:
+        - failure: "The tester can save a key but the app redisplays or commits the key value afterward."
+          evidence:
+            - "Post-save simulator snapshot showed the field reset to its Groq API key placeholder and status-only text Groq key configured/Groq key saved."
+            - "Secret scan included the fake non-secret key string and found no match in FoiliOS or this goal."
+        - failure: "The app still depends on hidden DEBUG-only UserDefaults injection for normal internal testers."
+          evidence:
+            - "TranscriptionController now reads FoilCredentialStore.shared.loadGroqAPIKey() before the DEBUG UserDefaults fallback."
+            - "The Provider section exposes a normal secure field plus Save key/Clear key controls."
+        - failure: "Keychain storage compiles on simulator but breaks signing or startup on the physical preview phone."
+          evidence:
+            - "Physical iPhone-preview build, install, and launch all succeeded with the new Keychain code in the app target."
+      residual_risk:
+        - "Physical UI tapping/screenshot for the credential field remains blocked because WebDriverAgent is not reachable at 192.168.1.40:8100. Simulator UI proof covers save/clear mechanics; physical proof for full walkthrough remains required in T008."
+        - "This is still an internal-TestFlight key-entry path, not production account/server auth. That is acceptable for this tranche but should remain a future product decision."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Implement microphone, network/API, empty transcript, stale transcript, and retry/reset failure recovery states."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+      - "docs/goals/ios-testflight-onboarding-failure-recovery/**"
+    verify:
+      - "Missing key can be produced and recovered."
+      - "Microphone denied/unavailable path is visible or explicitly blocked with exact reason."
+      - "Network/API failure is visible and retryable."
+      - "Stale transcript can be reset from app and keyboard."
+      - "Physical proof for at least one failure recovery."
+    stop_if:
+      - "iOS permission state cannot be reset/controlled safely on the preview phone."
+      - "Testing a failure would require leaking secrets or private content."
+    receipt:
+      result: done
+      outcome_note: "Done for implementation and simulator proof; physical UI proof remains explicitly deferred to T008 because WDA is unreachable."
+      task_id: T005
+      summary: "Implemented recoverable failure states for the iOS app and keyboard. Shared state now has a failed phase displayed as Needs Attention. Microphone denial records a recoverable shared-state failure and app recovery copy. Missing-key, API/network failure, and empty transcript all set explicit recovery guidance instead of silently falling back or producing placeholder insertions. Pending transcripts now show a recovery section with reset guidance, and the custom keyboard has a Clear latest button that clears stale/non-idle shared state without inserting text."
+      changed_files:
+        - "FoiliOS/Shared/FoilKeyboardBridge.swift"
+        - "FoiliOS/FoilIOSApp/AudioCaptureController.swift"
+        - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "XcodeBuildMCP build_run_sim on iPhone 17 Pro simulator AFBABD18-FD42-4945-8ABC-5CF2714DFAD4"
+          status: pass
+        - cmd: "XcodeBuildMCP denied simulator microphone prompt after tapping Record"
+          status: pass
+        - cmd: "XcodeBuildMCP snapshot_ui after mic denial"
+          status: pass
+        - cmd: "XcodeBuildMCP tap setup Reset shared state after mic-denied shared failure"
+          status: pass
+        - cmd: "xcrun simctl openurl AFBABD18-FD42-4945-8ABC-5CF2714DFAD4 foilios://complete, then accepted Open confirmation"
+          status: pass
+        - cmd: "XcodeBuildMCP snapshot_ui for pending transcript recovery"
+          status: pass
+        - cmd: "XcodeBuildMCP tap recovery-reset-shared-state-button"
+          status: pass
+        - cmd: "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-testflight-t005-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-testflight-t005-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "xcrun devicectl device process launch --device 5320F5AD-2A71-50AC-94FE-207B544B6247 com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-testflight-onboarding-failure-recovery"
+          status: pass
+        - cmd: "rg secret/private-string scan over FoiliOS and this goal"
+          status: pass
+        - cmd: "nl -ba direct inspection of KeyboardViewController.swift and FoilKeyboardBridge.swift"
+          status: pass
+      evidence:
+        - "After denying microphone in simulator, semantic snapshot showed Microphone blocked in Settings, Shared state Needs Attention, Dictation Needs Attention, message Microphone blocked. Open Foil app to recover., status Microphone permission denied, Recovery, Enable Microphone access in Settings, then return to Foil., and Reset shared state."
+        - "After tapping setup Reset shared state, simulator snapshot showed Shared state Ready, no transcript and Dictation Ready while the microphone permission recovery remained visible, separating App Group cleanup from iOS Settings recovery."
+        - "A safe fake transcript created through foilios://complete showed Shared state Transcript pending, Dictation Transcript Ready, Recovery, Transcript waiting. Insert it once from Foil Keyboard, or reset shared state., and recovery-reset-shared-state-button."
+        - "Tapping recovery-reset-shared-state-button cleared the pending transcript back to Shared state Ready, no transcript and removed the Recovery section."
+        - "KeyboardViewController direct inspection showed resetButton configured as Clear latest at lines 10, 63-68, added to the stack at line 81, wired to resetTapped at lines 102 and 125-128, and enabled only for recoverable state at lines 137-150."
+        - "FoilKeyboardBridge direct inspection showed failed phase at lines 3-25 and fail(message:) persisting failed/no-transcript snapshots at lines 251-260."
+        - "Physical iPhone-preview build, install, and launch succeeded with the recovery code; logs: /tmp/foil-ios-tf-t005-build.log, /tmp/foil-ios-tf-t005-install.log, /tmp/foil-ios-tf-t005-launch.log."
+        - "Secret scan found no real key pattern and did not find the fake test key in source or goal files; remaining matches were only key-name constants in the env/DEBUG fallback."
+      strongest_realistic_failure_modes:
+        - failure: "A failure state looks unhealthy but gives the tester no concrete recovery action."
+          evidence:
+            - "Mic denial snapshot showed explicit Recovery text and a reset action."
+            - "Pending transcript snapshot showed insert-once-or-reset guidance plus a recovery reset button."
+        - failure: "Empty speech or API/network failure leaves a stale placeholder transcript that the keyboard can insert."
+          evidence:
+            - "TranscriptionController now uses bridge.fail for empty transcript and caught errors, with transcript nil."
+            - "FoilKeyboardBridge fail(message:) persists phase failed with transcript nil."
+        - failure: "A stale transcript can only be cleared from the containing app, trapping the user in target apps."
+          evidence:
+            - "KeyboardViewController now includes a Clear latest button wired to bridge.reset() and enabled for non-idle or transcript-bearing snapshots."
+        - failure: "Recovery changes compile on simulator but break physical signing/startup."
+          evidence:
+            - "Physical iPhone-preview build, install, and launch succeeded."
+      residual_risk:
+        - "Physical UI proof of the failure-recovery interactions remains deferred because WebDriverAgent is still unreachable at 192.168.1.40:8100. T008 must close this with a physical matrix once device automation is restored."
+        - "Network/API failure and empty-transcript paths were verified by source inspection and build coverage, not by a live Groq failure run in this slice. T008 or a focused provider-failure task should exercise at least one live provider failure with sanitized evidence."
+
+  - id: T006
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Improve return-to-keyboard handoff states and copy across app and keyboard after record, processing, transcript ready, insert, and reset."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/**"
+      - "FoiliOS/FoilKeyboard/**"
+      - "FoiliOS/Shared/**"
+      - "docs/goals/ios-testflight-onboarding-failure-recovery/**"
+    verify:
+      - "Physical walkthrough shows clear app copy before returning to target app."
+      - "Keyboard states are correct for listening, processing, transcript ready, no transcript, and Full Access off."
+      - "No stale second insert remains possible."
+    stop_if:
+      - "The app/keyboard handoff requires a broader interaction redesign."
+    receipt:
+      result: done
+      task_id: T006
+      summary: "Improved handoff guidance without changing the architecture. Shared state messages now tell testers what to do while Foil opens, records, saves, transcribes, and finishes. The app shows a Handoff section for active/non-idle phases, including transcript-ready copy that says to switch back to the target app and tap Insert latest once. The keyboard now gives immediate confirmation after Insert latest and Clear latest reset actions."
+      changed_files:
+        - "FoiliOS/Shared/FoilKeyboardBridge.swift"
+        - "FoiliOS/FoilIOSApp/AudioCaptureController.swift"
+        - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "XcodeBuildMCP build_run_sim on iPhone 17 Pro simulator AFBABD18-FD42-4945-8ABC-5CF2714DFAD4"
+          status: pass
+        - cmd: "xcrun simctl openurl AFBABD18-FD42-4945-8ABC-5CF2714DFAD4 foilios://complete"
+          status: pass
+        - cmd: "XcodeBuildMCP wait_for_ui textContains 'Switch back to the target app'"
+          status: pass
+        - cmd: "XcodeBuildMCP tap setup Reset shared state after transcript-ready handoff"
+          status: pass
+        - cmd: "xcodebuild -project FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-testflight-t006-derived -allowProvisioningUpdates build"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-testflight-t006-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "xcrun devicectl device process launch --device 5320F5AD-2A71-50AC-94FE-207B544B6247 com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-testflight-onboarding-failure-recovery"
+          status: pass
+        - cmd: "rg secret/private-string scan over FoiliOS and this goal"
+          status: pass
+      evidence:
+        - "Simulator transcript-ready state matched Handoff text: Transcript is ready. Switch back to the target app and tap Insert latest once."
+        - "Tapping setup Reset shared state after the transcript-ready state returned Shared state to Ready, no transcript and Dictation to Ready."
+        - "FoilKeyboardBridge messages now distinguish opening, recording, saved-for-transcribe, transcribing, transcript-ready, and failure states."
+        - "KeyboardViewController now sets messageLabel to Inserted and cleared. after insert and Cleared. Start again when ready. after clear."
+        - "Physical iPhone-preview build, install, and launch succeeded with the handoff-copy changes; logs: /tmp/foil-ios-tf-t006-build.log, /tmp/foil-ios-tf-t006-install.log, /tmp/foil-ios-tf-t006-launch.log."
+        - "Secret scan found no real key pattern and did not find the fake test key in source or goal files; remaining matches were only key-name constants in the env/DEBUG fallback."
+      strongest_realistic_failure_modes:
+        - failure: "Transcript ready state leaves the tester unsure whether to stay in Foil or return to the target app."
+          evidence:
+            - "Simulator semantic wait matched the explicit switch-back-and-insert-once Handoff guidance."
+        - failure: "Reset or insert still leaves stale second-insert risk."
+          evidence:
+            - "App reset after transcript-ready returned the shared state to Ready, no transcript."
+            - "Keyboard insert and clear paths both call bridge.reset() and refresh state."
+        - failure: "Handoff-copy changes compile on simulator but break physical signing/startup."
+          evidence:
+            - "Physical iPhone-preview build, install, and launch succeeded."
+      residual_risk:
+        - "Physical keyboard UI confirmation for Inserted and cleared / Clear latest still requires WDA or manual target-app walkthrough; T008 remains responsible for physical matrix proof."
+
+  - id: T007
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Establish Messages test fixture or record a precise blocker."
+    allowed_files:
+      - "docs/goals/ios-testflight-onboarding-failure-recovery/**"
+      - "FoiliOS/**"
+    verify:
+      - "Messages is tested only in a safe self/test thread."
+      - "No private Messages content, contacts, phone numbers, or full accessibility trees are committed."
+    stop_if:
+      - "No safe Messages test thread is available."
+      - "Messages exposes private content that cannot be sanitized."
+    receipt:
+      result: done
+      task_id: T007
+      summary: "Recorded a precise Messages fixture blocker. The simulator Messages app launches, but it currently shows pre-existing conversation rows rather than a dedicated self/test thread. The physical phone's Messages app cannot be inspected safely because WDA is still unreachable, and reading or preserving private Messages accessibility trees is out of bounds. T008 may include Messages only after a clearly safe self/test thread is created and automation can target it without capturing private content."
+      changed_files:
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      commands:
+        - cmd: "xcrun simctl list devices booted"
+          status: pass
+        - cmd: "xcrun simctl launch AFBABD18-FD42-4945-8ABC-5CF2714DFAD4 com.apple.MobileSMS"
+          status: pass
+        - cmd: "XcodeBuildMCP session_set_defaults pinned simulatorId AFBABD18-FD42-4945-8ABC-5CF2714DFAD4"
+          status: pass
+        - cmd: "XcodeBuildMCP snapshot_ui of simulator Messages, used only to determine fixture availability"
+          status: pass
+      evidence:
+        - "Booted simulator is iPhone 17 Pro AFBABD18-FD42-4945-8ABC-5CF2714DFAD4."
+        - "Messages launched on the simulator with bundle com.apple.MobileSMS."
+        - "Semantic snapshot showed existing conversation rows and no verified self/test thread. The raw conversation identifiers are intentionally not copied into this receipt."
+        - "No screenshot, full accessibility tree, phone number, contact, or message body was written to the repo."
+      strongest_realistic_failure_modes:
+        - failure: "We accidentally treat an existing/private Messages row as a safe fixture."
+          evidence:
+            - "T007 rejects the current simulator Messages state because it is not a dedicated self/test thread."
+        - failure: "Messages evidence leaks private content."
+          evidence:
+            - "No Messages screenshot, full accessibility tree, contact, phone number, or message text is committed; the receipt records only sanitized fixture availability."
+      residual_risk:
+        - "Messages remains untested. Create a dedicated safe self/test thread before including Messages in the physical matrix."
+        - "Physical Messages automation still depends on restoring WDA or using a manual sanitized walkthrough."
+
+  - id: T008
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run physical TestFlight-readiness matrix: setup, credential readiness, real transcription, Notes, Safari, Reminders, Messages if safe, secure-field rejection, and at least one failure recovery."
+    allowed_files:
+      - "docs/goals/ios-testflight-onboarding-failure-recovery/**"
+      - "FoiliOS/**"
+    verify:
+      - "Notes real loop passes."
+      - "Safari row passes."
+      - "Reminders row passes or prior result is explicitly accepted with risk."
+      - "Secure-field rejection passes."
+      - "Messages passes only with safe fixture or remains recorded blocker."
+      - "At least one failure recovery path is physically proved."
+      - "Post-insert App Group state is idle/no transcript."
+    stop_if:
+      - "Device locks or becomes unavailable."
+      - "A target app exposes private content that cannot be sanitized."
+    progress_receipt:
+      status: partial
+      summary: "Restored physical WDA access and proved safe Foil-only physical matrix pieces. Target-app insertion matrix is not complete yet."
+      commands:
+        - cmd: "xcodebuild WebDriverAgentRunner-nodebug against physical iPhone-preview"
+          status: pass
+        - cmd: "GET http://192.168.1.40:8100/status"
+          status: pass
+        - cmd: "WDA session for com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "Filtered physical Foil app source for setup/provider labels and secret-like strings"
+          status: pass
+        - cmd: "WDA fake-key save and clear on physical phone"
+          status: pass
+        - cmd: "WDA foilios://complete and foilios://reset physical shared-state transition"
+          status: pass
+      evidence:
+        - "WDA endpoint reported ready at http://192.168.1.40:8100; log: /tmp/foil-ios-t008-wda.log."
+        - "Physical Foil app source contained Keyboard setup, Provider, Groq key needed, Groq API key, Save key, Clear key, Microphone, Keyboard health, Shared state, Dictation, and Reset shared state; source filter reported containsSecretLike false."
+        - "Physical fake-key save reported Groq key configured/Groq key saved and fakeLeak false/secretLike false; clear reported Groq key needed/Groq key cleared and fakeLeak false/secretLike false."
+        - "Physical foilios://complete reported Transcript pending, Transcript Ready, Fake transcript ready, Handoff guidance present, and fake transcript body not exposed in source."
+        - "Physical foilios://reset reported Ready, no transcript and no pending transcript."
+      residual_risk:
+        - "Notes, Safari, Reminders, secure-field rejection, and Messages target-app matrix remain to be run or explicitly blocked with sanitized evidence."
+        - "WDA can control the phone now, but SwiftUI physical scrolling to off-screen app buttons was unreliable; target-app testing should use stable visible controls and avoid full private source captures."
+    receipt:
+      result: done
+      task_id: T008
+      summary: "Completed the physical TestFlight-readiness matrix that can be safely automated today. WDA was restored, Foil setup/provider state was verified on the physical phone, fake-key save/clear passed without leaking values, Safari/Notes/Reminders insertion passed with the safe transcript fixture, secure-field rejection passed on a sterile Safari password page, live Groq transcription reached Transcript Ready, a live transcript inserted into a fresh Notes note and cleared Foil state, and missing-key failure recovery was physically proved. Messages remains a recorded safe-fixture blocker from T007."
+      changed_files:
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      commands:
+        - cmd: "xcodebuild WebDriverAgentRunner-nodebug against physical iPhone-preview; WDA ready at http://192.168.1.40:8100"
+          status: pass
+        - cmd: "WDA filtered Foil source for setup/provider labels and secret-like strings"
+          status: pass
+        - cmd: "WDA fake-key save and clear on physical phone"
+          status: pass
+        - cmd: "WDA foilios://complete and foilios://reset physical shared-state transition"
+          status: pass
+        - cmd: "WDA Safari Example Domain insertion with safe Foil keyboard fixture"
+          status: pass
+        - cmd: "WDA Notes new-note insertion with safe Foil keyboard fixture"
+          status: pass
+        - cmd: "WDA Reminders new-reminder insertion with safe Foil keyboard fixture"
+          status: pass
+        - cmd: "WDA Safari sterile password-field secure-input rejection"
+          status: pass
+        - cmd: "WDA live Groq key save, physical recording, macOS spoken prompt, stop, and transcribe"
+          status: pass
+        - cmd: "WDA live transcript insertion into a fresh Notes note"
+          status: pass
+        - cmd: "WDA missing-key recording/transcribe failure followed by reset"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-testflight-onboarding-failure-recovery"
+          status: pass
+        - cmd: "rg secret/private-string scan over FoiliOS and this goal"
+          status: pass
+      evidence:
+        - "WDA endpoint reported ready; latest WDA log: /tmp/foil-ios-t008-wda-continue.log."
+        - "Physical Foil source contained setup/provider/microphone/keyboard/shared-state/dictation rows and source filter reported containsSecretLike false."
+        - "Physical fake-key save reported Groq key configured/Groq key saved with fakeLeak false and secretLike false; clear reported Groq key needed/Groq key cleared with fakeLeak false and secretLike false."
+        - "Physical Safari row: Example Domain opened, Foil keyboard Insert latest was visible, tapping Insert latest changed the keyboard to Insert latest (no transcript), and Foil later reported Ready, no transcript."
+        - "Physical Notes safe-fixture row: New note button was used, text target found, Foil Insert latest visible, insertion produced the safe fixture text, keyboard switched to no-transcript, and Foil reported Ready, no transcript."
+        - "Physical Reminders safe-fixture row: New Reminder button was used, text target found, Foil Insert latest visible, insertion produced the safe fixture text, keyboard switched to no-transcript, and Foil reported Ready, no transcript."
+        - "Physical secure-field row: sterile Safari password page loaded from local test server, secure field found/focused, and Insert latest/Next Keyboard were not visible while the secure field was focused."
+        - "Physical live transcription row: a plausible length-56 Groq key was saved without source leakage, foilios://start recorded while macOS spoke a harmless phrase, foilios://stop saved the recording, and foilios://transcribe reached Transcript Ready with secretLike false."
+        - "Physical live insertion row: fresh Notes note was created, Foil Insert latest was visible, tapping it made the target non-empty, keyboard switched to no-transcript, and Foil reported Ready, no transcript."
+        - "Physical failure-recovery row: after clearing the key, a short recording plus transcribe produced Groq key needed, Needs Attention, Recovery, and Save a Groq key, then reset returned Ready, no transcript with no pending/transcript-ready state."
+        - "Messages remains untested by design because T007 found no verified safe self/test thread and no private Messages content was preserved."
+        - "Final scan found no real key values, fake test key, private target strings, or Messages simulator row identifiers in FoiliOS or the goal files; remaining matches were only key-name constants in TranscriptionController."
+      strongest_realistic_failure_modes:
+        - failure: "The keyboard inserts once but leaves a stale transcript available for a second insert."
+          evidence:
+            - "Safari, Notes, Reminders, and live Notes insertion all showed no-transcript keyboard state and/or Foil Ready, no transcript after insertion."
+        - failure: "Physical provider credential handling leaks a key through UI/source/receipt."
+          evidence:
+            - "Fake-key and real-key save checks reported secretLike false in WDA source; final repo scan found no key values."
+        - failure: "Simulator-only recovery proof hides a physical device failure."
+          evidence:
+            - "Physical missing-key failure showed Needs Attention/Recovery/Save a Groq key guidance and reset returned Ready, no transcript."
+        - failure: "Secure text fields allow Foil custom-keyboard insertion when they should not."
+          evidence:
+            - "Sterile Safari password field focus showed no Insert latest or Next Keyboard controls."
+        - failure: "Messages testing leaks private content."
+          evidence:
+            - "Messages was not tested; T007 recorded the safe-fixture blocker and no private Messages content was committed."
+      residual_risk:
+        - "Messages remains the only untested target-app row until a dedicated self/test thread exists."
+        - "The live transcript text itself was not printed or committed; the proof is Transcript Ready plus non-empty fresh-note insertion and post-insert Foil clear."
+        - "The local sterile secure-field HTTP server was used only for the password-field row and should be stopped after this run."
+
+  - id: T009
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit TestFlight readiness risks before handoff."
+    inputs:
+      - "All Worker receipts"
+      - "Build/install proof"
+      - "Physical matrix proof"
+      - "Entitlements/project settings"
+    constraints:
+      - "Do not implement."
+      - "Distinguish prototype-acceptable risks from TestFlight blockers."
+    expected_output:
+      - "Decision: ready for handoff, needs another Worker, or blocked."
+      - "App Store/TestFlight risks."
+      - "Follow-up issues."
+    receipt:
+      result: done
+      task_id: T009
+      decision: ready_for_handoff
+      full_outcome_complete: false
+      summary: "Judge audit accepts the implementation as ready for issue/PR handoff for an internal TestFlight prototype slice. The board now has physical proof for credential save/clear, live Groq transcription, one-time insertion into Safari/Notes/Reminders, secure-field rejection, missing-key recovery, and post-insert App Group idle/no-transcript. Messages remains a documented safe-fixture blocker, not a hidden failure. Production account/server auth remains out of scope for this tranche."
+      changed_files:
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      audited_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOSApp/Generated/Info.plist"
+        - "FoiliOS/FoilKeyboard/Generated/Info.plist"
+        - "FoiliOS/FoilIOSApp/Generated/FoilIOS.entitlements"
+        - "FoiliOS/FoilKeyboard/Generated/FoilKeyboard.entitlements"
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      evidence:
+        - "FoilIOS and FoilKeyboard entitlements both include group.com.neonwatty.FoilIOS."
+        - "FoilKeyboard Info.plist has RequestsOpenAccess true under com.apple.keyboard-service."
+        - "FoilIOS Info.plist has NSMicrophoneUsageDescription and the foilios URL scheme."
+        - "T008 receipt proves physical WDA matrix for setup/provider, Safari, Notes, Reminders, secure-field rejection, live transcription, live insertion, missing-key recovery, and post-insert Ready/no transcript state."
+        - "Final diff check and secret/private-string scan passed with only key-name constants remaining."
+      app_store_testflight_risks:
+        - "Messages target remains untested until a dedicated self/test thread exists."
+        - "Provider credential entry is internal-TestFlight key entry, not production account/server auth."
+        - "Background audio mode is not declared; current prototype records while Foil is foregrounded and does not claim background recording."
+        - "Generated Info.plist inspection shows CFBundleShortVersionString 1.0 while project settings declare MARKETING_VERSION 0.1.0; verify archive/export metadata before actual TestFlight upload."
+        - "The app still contains prototype URL hooks and collapsed Diagnostics controls; acceptable for internal prototype PR, but should be revisited before wider beta."
+      next_step: "Proceed to T010 issue/PR handoff targeting codex/ios-keyboard-prototype, not main."
+
+  - id: T010
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Prepare issue/PR handoff artifacts for the verified TestFlight onboarding/failure-recovery implementation."
+    allowed_files:
+      - "docs/goals/ios-testflight-onboarding-failure-recovery/**"
+      - "FoiliOS/**"
+    verify:
+      - "Issue #216 or follow-up issues updated with sanitized evidence and open questions."
+      - "PR targets codex/ios-keyboard-prototype, not main."
+      - "PR body includes acceptance-evidence claim/failure/evidence/residual-risk."
+      - "PR merged only if mergeable and verification passed, or left open with exact blocker."
+    stop_if:
+      - "GitHub auth unavailable."
+      - "Verification did not pass and no narrow blocker was recorded."
+    receipt:
+      result: done
+      task_id: T010
+      summary: "Prepared GitHub handoff artifacts. Committed the iOS TestFlight onboarding/recovery implementation, pushed codex/ios-testflight-onboarding-recovery, opened a draft PR into codex/ios-keyboard-prototype, and updated issue #216 with sanitized physical proof and residual risks."
+      changed_files:
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      commit:
+        sha: "eb3a6d1"
+        message: "Prepare iOS TestFlight keyboard recovery"
+      pull_request:
+        url: "https://github.com/mean-weasel/foil/pull/229"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-testflight-onboarding-recovery"
+        draft: true
+      issue_update:
+        issue: 216
+        url: "https://github.com/mean-weasel/foil/issues/216#issuecomment-4627552909"
+      commands:
+        - cmd: "git add explicit Foil iOS and GoalBuddy files only"
+          status: pass
+        - cmd: "git diff --cached --check"
+          status: pass
+        - cmd: "rg secret/private-string scan over FoiliOS and this goal"
+          status: pass
+        - cmd: "GoalBuddy check-goal-state"
+          status: pass
+        - cmd: "git commit -m 'Prepare iOS TestFlight keyboard recovery'"
+          status: pass
+        - cmd: "git push -u origin codex/ios-testflight-onboarding-recovery"
+          status: pass
+        - cmd: "gh pr create --draft --base codex/ios-keyboard-prototype --head codex/ios-testflight-onboarding-recovery"
+          status: pass
+        - cmd: "gh issue comment 216"
+          status: pass
+      residual_risk:
+        - "This receipt itself still needs to be committed and pushed after T010 is marked done."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit against the TestFlight onboarding/failure-recovery oracle."
+    inputs:
+      - "All task receipts"
+      - "Build/install proof"
+      - "Physical setup/recovery proof"
+      - "Credential/key proof"
+      - "Real transcription proof"
+      - "Target matrix proof"
+      - "Issue/PR links"
+      - "Current git/GitHub status"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if credentials remain hidden/developer-only."
+      - "Reject completion if real transcription was not proved or narrowly blocked."
+      - "Reject completion if post-insert App Group state was not checked."
+      - "Reject completion if private content or secrets were committed."
+      - "Reject completion if PR targets main."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode and evidence."
+      - "Residual risks."
+      - "Next board/task if not complete."
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "Final audit accepts the GoalBuddy board as complete for the intended internal TestFlight prototype tranche. The branch contains a tester-facing app setup/recovery surface, shared Keychain credential handling, clearer keyboard reset/insert states, recoverable provider/microphone/transcription failures, physical iPhone proof across target apps, and GitHub handoff into codex/ios-keyboard-prototype. Messages remains a documented fixture blocker rather than an undisclosed gap."
+      branch:
+        name: "codex/ios-testflight-onboarding-recovery"
+        head_before_final_receipt_commit: "8dfaaa2"
+        upstream: "origin/codex/ios-testflight-onboarding-recovery"
+      pull_request:
+        url: "https://github.com/mean-weasel/foil/pull/229"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-testflight-onboarding-recovery"
+        draft: true
+        state: open
+      issue_update:
+        issue: 216
+        url: "https://github.com/mean-weasel/foil/issues/216#issuecomment-4627552909"
+      strongest_realistic_failure_mode:
+        claim: "The iOS keyboard could look ready but fail in real target apps by leaking credentials/private text, inserting stale transcripts repeatedly, or leaving App Group state dirty after insertion."
+        evidence_that_rules_it_out:
+          - "Physical WDA matrix in T008 saved and cleared provider credentials without source leakage, then proved setup/provider source had no secret-like strings."
+          - "Physical Safari, Notes, and Reminders runs showed Foil keyboard visible, safe fixture insertion or live transcript insertion, post-insert noTranscript true, and reset/ready/no-transcript state afterward."
+          - "Physical secure-field fixture showed iOS suppressed the custom keyboard in a password field; Insert latest and Next Keyboard were not exposed and source had no secret-like strings."
+          - "Physical live Groq run saved a real key, recorded/transcribed a macOS say phrase, reached transcriptReady true without printing or committing the transcript body, inserted the latest transcript into Notes once, then returned to no-transcript/ready state."
+          - "Physical missing-key recovery after clearing the key showed Groq key needed, Needs attention, Save key recovery action, and reset back to Ready/no transcript."
+          - "Secret/private-string scan passed with only expected key-name constants, and git diff --check passed."
+      verification:
+        - cmd: "xcodebuild/XcodeBuildMCP simulator build-run"
+          status: pass
+        - cmd: "Physical iPhone build/install/launch"
+          status: pass
+        - cmd: "Physical WDA matrix: setup/provider, Safari, Notes, Reminders, secure-field fixture, live transcription, live insertion, missing-key recovery"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-testflight-onboarding-failure-recovery"
+          status: pass
+        - cmd: "Secret/private-string scan over FoiliOS and this goal"
+          status: pass
+        - cmd: "GoalBuddy check-goal-state before final closeout"
+          status: pass
+        - cmd: "gh pr view 229 --json url,number,state,isDraft,baseRefName,headRefName,commits"
+          status: pass
+      residual_risks:
+        - "Messages target remains untested until a dedicated safe self/test thread exists."
+        - "Provider credential entry is internal-TestFlight key entry, not production account/server auth."
+        - "Background audio mode is not declared; prototype records while Foil is foregrounded."
+        - "Generated Info.plist inspection showed CFBundleShortVersionString 1.0 while project settings declare MARKETING_VERSION 0.1.0; verify archive/export metadata before an actual TestFlight upload."
+        - "Prototype URL hooks and collapsed Diagnostics controls remain acceptable for this internal PR but should be revisited before wider beta."
+      non_goal_changes_left_untouched:
+        - "FoiliOS/FoilIOS.xcodeproj/project.xcworkspace/xcuserdata/"
+        - "FoiliOS/FoilIOS.xcodeproj/xcuserdata/"
+        - "docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md"
+
+checks:
+  dirty_fingerprint: "At prep time, branch codex/ios-testflight-onboarding-recovery is based on origin/codex/ios-keyboard-prototype; pre-existing untracked Xcode xcuserdata dirs and docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md remain unrelated."
+  last_verification:
+    result: done
+    task: T999
+    commands:
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-update.mjs --json"
+        status: pass
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+        status: pass

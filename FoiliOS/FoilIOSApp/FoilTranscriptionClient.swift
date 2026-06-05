@@ -57,7 +57,7 @@ enum TranscriptionError: LocalizedError {
         case .httpStatus(let status):
             "Transcription failed with HTTP \(status)"
         case .missingAPIKey:
-            "Missing FOIL_IOS_GROQ_API_KEY or GROQ_API_KEY"
+            "Groq key needed"
         case .missingRecording:
             "No recording available"
         }

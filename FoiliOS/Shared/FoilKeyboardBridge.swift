@@ -6,6 +6,7 @@ enum FoilKeyboardPhase: String, Codable, Equatable {
     case listening
     case processing
     case complete
+    case failed
 
     var displayName: String {
         switch self {
@@ -19,6 +20,8 @@ enum FoilKeyboardPhase: String, Codable, Equatable {
             "Processing"
         case .complete:
             "Transcript Ready"
+        case .failed:
+            "Needs Attention"
         }
     }
 }
@@ -213,7 +216,7 @@ struct FoilKeyboardBridge {
             FoilKeyboardSnapshot(
                 phase: .handoffRequested,
                 transcript: nil,
-                message: "Swipe back after Foil opens",
+                message: "Foil is opening. Dictate there, then switch back to insert.",
                 updatedAt: Date()
             )
         )
@@ -224,7 +227,7 @@ struct FoilKeyboardBridge {
             FoilKeyboardSnapshot(
                 phase: .listening,
                 transcript: nil,
-                message: "Listening placeholder",
+                message: "Recording in Foil. Stop when finished.",
                 updatedAt: Date()
             )
         )
@@ -239,6 +242,17 @@ struct FoilKeyboardBridge {
             FoilKeyboardSnapshot(
                 phase: .complete,
                 transcript: transcript,
+                message: message,
+                updatedAt: Date()
+            )
+        )
+    }
+
+    func fail(message: String) {
+        save(
+            FoilKeyboardSnapshot(
+                phase: .failed,
+                transcript: nil,
                 message: message,
                 updatedAt: Date()
             )
