@@ -1,0 +1,338 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS TestFlight Build 3 Forward Proof"
+  slug: "ios-testflight-build3-forward-proof"
+  kind: existing_plan
+  tranche: "Prove the forward TestFlight update from Foil iOS build 2 to build 3 and rerun the live mailbox smoke."
+  status: done
+  oracle:
+    signal: "Build 0.1.0 (3) is uploaded, beta-ready, attached to internal testers, installed on iPhone-preview over build 2, and passes the short live mailbox/audio/keyboard insertion smoke."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Receipts with version bump diff, archive/export/upload status, App Store Connect beta/group state, TestFlight UI/install metadata, devicectl build 3 metadata, live smoke evidence, secret scan, PR link, and final audit verdict."
+  intake:
+    original_request: "Great do this."
+    interpreted_outcome: "Execute the recommended build-3 forward TestFlight proof tranche."
+    input_shape: existing_plan
+    audience: "Foil owner/developer"
+    authority: approved
+    proof_type: demo
+    completion_proof: "iPhone-preview reports Foil iOS bundle version 3 from TestFlight and the live mailbox/audio/keyboard insertion smoke passes on that build."
+    likely_misfire: "Uploading build 3 but proving the smoke against build 2, or bumping only generated project metadata while project.yml stays stale."
+    blind_spots_considered:
+      - "FoiliOS/project.yml still declared CURRENT_PROJECT_VERSION 1 while the generated Xcode project declared 2."
+      - "TestFlight automatic updates may have been disabled by the prior older-build install."
+      - "App Store Connect export compliance and internal group attachment must be repeated for build 3."
+      - "WDA may need to be restarted for TestFlight/Notes interaction."
+      - "Audio can still route incorrectly or produce a weak transcript."
+      - "Build 3 may not appear immediately in TestFlight after upload/attachment."
+    existing_plan_facts:
+      - "PR #239 proved TestFlight build 2 on iPhone-preview."
+      - "Current phone metadata reports Foil iOS 0.1.0 bundle version 2."
+      - "The shorter smoke can reuse the mailbox command flow and Notes insertion path from PR #239."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-testflight-build3-forward-proof/"
+    command: "npx goalbuddy board docs/goals/ios-testflight-build3-forward-proof"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Bump iOS build metadata to 3 from source, archive/export/upload build 0.1.0 (3), and attach it to internal TestFlight."
+    allowed_files:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-testflight-build3-forward-proof/**"
+    verify:
+      - "cd FoiliOS && xcodegen generate --spec project.yml"
+      - "Inspect project.yml and project.pbxproj for CURRENT_PROJECT_VERSION = 3 and MARKETING_VERSION = 0.1.0."
+      - "xcodebuild archive for generic iOS Release."
+      - "xcodebuild -exportArchive to IPA."
+      - "Inspect IPA app and keyboard metadata for CFBundleShortVersionString 0.1.0 and CFBundleVersion 3."
+      - "altool validate/upload/build-status for build 3."
+      - "App Store Connect API: set usesNonExemptEncryption=false and attach build 3 to Foil Internal Testers."
+      - "git diff --check over touched files."
+      - "Targeted secret scan over touched files."
+    stop_if:
+      - "Archive/export/upload fails twice with the same root cause."
+      - "App Store Connect credentials are missing or would need to be printed."
+      - "Build 3 remains unavailable or not VALID after upload processing wait."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Bumped Foil iOS build metadata to 3 from project.yml, regenerated the Xcode project, archived/exported build 0.1.0 (3), validated/uploaded it to App Store Connect, explicitly cleared beta export compliance, and attached build 3 to Foil Internal Testers."
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-testflight-build3-forward-proof/goal.md"
+        - "docs/goals/ios-testflight-build3-forward-proof/state.yaml"
+      artifacts:
+        archive: "/tmp/FoilIOS-Build3.xcarchive"
+        export: "/tmp/FoilIOS-Build3Export"
+        ipa: "/tmp/FoilIOS-Build3Export/Foil iOS.ipa"
+      app_store_connect:
+        delivery_id: "a63f40b0-6e8a-4993-bf53-1213e85d2712"
+        beta_group_id: "bcca568d-167d-44cb-b952-a410e9c9e10f"
+        beta_state: "IN_BETA_TESTING"
+        external_state: "READY_FOR_BETA_SUBMISSION"
+      evidence:
+        - "FoiliOS/project.yml changed CURRENT_PROJECT_VERSION from 1 to 3."
+        - "XcodeGen regenerated FoilIOS.xcodeproj and changed generated CURRENT_PROJECT_VERSION values from 2 to 3."
+        - "Release archive succeeded at /tmp/FoilIOS-Build3.xcarchive."
+        - "Export succeeded to /tmp/FoilIOS-Build3Export/Foil iOS.ipa."
+        - "IPA metadata inspection showed app version 0.1.0 build 3 and keyboard version 0.1.0 build 3."
+        - "altool validation reported VERIFY SUCCEEDED with no errors."
+        - "altool upload reported UPLOAD SUCCEEDED with no errors and delivery UUID a63f40b0-6e8a-4993-bf53-1213e85d2712."
+        - "altool build-status reported build-status VALID, import-status VALID, is-on-app-store-connect true, and usesNonExemptEncryption false."
+        - "App Store Connect beta detail initially showed MISSING_EXPORT_COMPLIANCE, so API PATCH set usesNonExemptEncryption=false explicitly."
+        - "After the patch, buildBetaDetails reported IN_BETA_TESTING / READY_FOR_BETA_SUBMISSION."
+        - "Attaching build 3 to Foil Internal Testers succeeded; the group now contains build 3, build 2, and build 1."
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "xcodebuild archive -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -configuration Release -destination generic/platform=iOS -archivePath /tmp/FoilIOS-Build3.xcarchive"
+          status: pass
+        - cmd: "xcodebuild -exportArchive -archivePath /tmp/FoilIOS-Build3.xcarchive -exportPath /tmp/FoilIOS-Build3Export"
+          status: pass
+        - cmd: "IPA metadata PlistBuddy inspection for app and keyboard version/build"
+          status: pass
+        - cmd: "xcrun altool --validate-app"
+          status: pass
+        - cmd: "xcrun altool --upload-app"
+          status: pass
+        - cmd: "xcrun altool --build-status --delivery-id a63f40b0-6e8a-4993-bf53-1213e85d2712"
+          status: pass
+        - cmd: "App Store Connect API PATCH build usesNonExemptEncryption=false"
+          status: pass
+        - cmd: "App Store Connect API attach build 3 to beta group bcca568d-167d-44cb-b952-a410e9c9e10f"
+          status: pass
+      residual_risk:
+        - "TestFlight UI/device installation has not yet been proven for build 3; T002 owns that."
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Install/update TestFlight build 0.1.0 (3) over build 2 on iPhone-preview and record whether it is treated as a normal forward update."
+    allowed_files:
+      - "docs/goals/ios-testflight-build3-forward-proof/**"
+    verify:
+      - "Start WDA and inspect TestFlight Foil Dictation UI."
+      - "Record whether TestFlight shows build 3 as latest/current or as older build."
+      - "Install/update build 3 through TestFlight."
+      - "xcrun devicectl device info apps reports Foil iOS 0.1.0 bundle version 3."
+      - "git diff --check over touched files."
+    stop_if:
+      - "TestFlight needs destructive app deletion."
+      - "Build 3 is not visible to the tester after reasonable refresh/poll."
+      - "Phone locks, disconnects, or needs manual Apple ID action."
+    receipt:
+      result: done
+      task_id: T002
+      summary: "Installed TestFlight build 0.1.0 (3) over build 2 on iPhone-preview through the normal TestFlight Update path. TestFlight showed build 3 as the app detail build with an Update button, while Previous Builds pointed to 0.1.0 (2); devicectl then reported Foil iOS bundle version 3."
+      changed_files:
+        - "docs/goals/ios-testflight-build3-forward-proof/state.yaml"
+      evidence:
+        - "Before update, xcrun devicectl device info apps reported Foil iOS 0.1.0 bundle version 2."
+        - "After returning from Previous Builds to app details, TestFlight showed Update for Foil Dictation and VERSION 0.1.0 Build 3."
+        - "The Previous Builds row showed 0.1.0 (2), which distinguishes build 3 as the forward/latest detail build."
+        - "Automatic Updates switch was visible and off, confirming the residual from the prior older-build install."
+        - "WDA clicked TestFlight.offerButton.update."
+        - "devicectl poll 1 still showed build 2, poll 2 changed to Foil iOS 0.1.0 bundle version 3, and polls 3-24 remained build 3."
+      commands:
+        - cmd: "Start WDA on iPhone-preview and create WDA session."
+          status: pass
+        - cmd: "Launch com.apple.TestFlight via devicectl."
+          status: pass
+        - cmd: "WDA inspect TestFlight app details / Previous Builds."
+          status: pass
+        - cmd: "WDA click TestFlight.offerButton.update."
+          status: pass
+        - cmd: "xcrun devicectl device info apps --device 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          status: pass
+      residual_risk:
+        - "Automatic Updates remained off after the previous older-build proof; this board records it but does not re-enable it."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Run the short live mailbox/audio/transcription/keyboard insertion smoke against TestFlight build 3."
+    allowed_files:
+      - "docs/goals/ios-testflight-build3-forward-proof/**"
+    verify:
+      - "Launch com.neonwatty.FoilIOS and confirm device metadata still reports bundle version 3."
+      - "Mailbox startRecording moves snapshot to listening."
+      - "Mac speaker sterile audio transcribes to non-empty intended text."
+      - "Foil Keyboard inserts latest into Notes."
+      - "Shared state resets to idle/Ready with no transcript."
+      - "Screenshot artifact saved under notes/visual."
+      - "git diff --check over touched files."
+    stop_if:
+      - "The app is not proven to be build 3."
+      - "Audio capture returns silence/weak transcript twice after route verification."
+      - "Host insertion would expose private content."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Ran the short live mailbox/audio/transcription/keyboard insertion smoke against TestFlight build 0.1.0 (3). The app launched as bundle version 3, captured Mac speaker audio after AirPods were disconnected, transcribed the intended sterile phrase, inserted it into Notes through Foil Keyboard, and reset shared state."
+      changed_files:
+        - "docs/goals/ios-testflight-build3-forward-proof/state.yaml"
+        - "docs/goals/ios-testflight-build3-forward-proof/notes/visual/build3-notes-insert-reset.png"
+      evidence:
+        - "devicectl launched com.neonwatty.FoilIOS and confirmed Foil iOS 0.1.0 bundle version 3."
+        - "Audio initially reported AirPods for output/system, so AirPods were disconnected and output/system were switched to MacBook Pro Speakers before recording."
+        - "Mailbox action=startRecording changed the App Group snapshot to phase listening."
+        - "Sterile phrase: Foil build three forward update audio proof. Green canyon marble."
+        - "Mailbox action=stopRecording changed the App Group snapshot to phase processing with recording saved."
+        - "Mailbox action=transcribeLatest changed the App Group snapshot to phase complete with transcript `Foil build 3 forward update audio prove green canyon marble`."
+        - "Notes launched, WDA switched from system keyboard to Foil Keyboard, and Foil Keyboard showed Transcript Ready with enabled Insert latest."
+        - "After tapping Insert latest, the Notes TextView contained the build-3 transcript appended to the sterile test note."
+        - "Foil Keyboard reset to Ready with disabled Insert latest (no transcript), and the copied App Group snapshot showed phase idle and message Ready."
+        - "Screenshot: notes/visual/build3-notes-insert-reset.png"
+      commands:
+        - cmd: "xcrun devicectl device process launch com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "xcrun devicectl device info apps reports Foil iOS 0.1.0 bundle version 3"
+          status: pass
+        - cmd: "blueutil disconnect AirPods and SwitchAudioSource output/system to MacBook Pro Speakers"
+          status: pass
+        - cmd: "App Group command mailbox startRecording/stopRecording/transcribeLatest"
+          status: pass
+        - cmd: "WDA switch to Foil Keyboard and tap foil-keyboard-insert-latest"
+          status: pass
+        - cmd: "App Group snapshot copy after insert"
+          status: pass
+        - cmd: "WDA screenshot saved to notes/visual/build3-notes-insert-reset.png"
+          status: pass
+      residual_risk:
+        - "The transcript had normal provider variation (`proof` recognized as `prove`)."
+        - "The Notes field contains prior sterile smoke text; this proof asserts the appended build-3 transcript and reset behavior."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Commit, PR, and merge the build-3 proof artifacts back into codex/ios-keyboard-prototype."
+    allowed_files:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-testflight-build3-forward-proof/**"
+    verify:
+      - "GoalBuddy state checker passes."
+      - "git diff --check over touched files."
+      - "Targeted secret scan over touched files."
+      - "Create PR targeting codex/ios-keyboard-prototype."
+      - "Merge PR if clean and no checks fail."
+    stop_if:
+      - "Proof did not run and no useful blocker receipt exists."
+      - "GitHub auth or merge permissions fail."
+      - "Secret scan reports private material."
+    receipt:
+      result: done
+      task_id: T004
+      summary: "Committed and opened the build-3 forward TestFlight proof PR into codex/ios-keyboard-prototype."
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-testflight-build3-forward-proof/goal.md"
+        - "docs/goals/ios-testflight-build3-forward-proof/state.yaml"
+        - "docs/goals/ios-testflight-build3-forward-proof/notes/visual/build3-notes-insert-reset.png"
+      pull_request:
+        number: 240
+        url: "https://github.com/mean-weasel/foil/pull/240"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-testflight-build3-forward-proof"
+      commands:
+        - cmd: "node .../check-goal-state.mjs docs/goals/ios-testflight-build3-forward-proof/state.yaml"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-testflight-build3-forward-proof"
+          status: pass
+        - cmd: "rg targeted secret scan over FoiliOS and docs/goals/ios-testflight-build3-forward-proof"
+          status: pass
+        - cmd: "git commit -m 'Prove iOS TestFlight build 3 update'"
+          status: pass
+        - cmd: "git push -u origin codex/ios-testflight-build3-forward-proof"
+          status: pass
+        - cmd: "gh pr create --base codex/ios-keyboard-prototype --head codex/ios-testflight-build3-forward-proof"
+          status: pass
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit whether the build-3 forward TestFlight proof tranche is complete."
+    inputs:
+      - "All task receipts."
+      - "Current git status and PR state."
+      - "Device/TestFlight/live smoke evidence."
+    constraints:
+      - "Do not mark complete if the phone still reports build 2."
+      - "Name the strongest realistic remaining failure mode."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "missing evidence"
+      - "next task if not complete"
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "The build-3 forward TestFlight proof tranche is complete. Build 3 was produced from project.yml, uploaded and attached to internal TestFlight, presented as the normal Update path over build 2, installed on iPhone-preview, and passed the short live mailbox/audio/keyboard insertion smoke."
+      strongest_realistic_failure_mode:
+        claim: "The smoke could have accidentally run against build 2 or a Debug install rather than the forward TestFlight build 3."
+        evidence_that_rules_it_out:
+          - "T001 changed project.yml and generated Xcode build settings to CURRENT_PROJECT_VERSION 3, then IPA metadata showed app and keyboard build 3."
+          - "T001 uploaded build 3 and App Store Connect beta state reported IN_BETA_TESTING after explicit export-compliance patch and group attachment."
+          - "T002 TestFlight UI showed build 3 as Update and Previous Builds as 0.1.0 (2), then devicectl polls changed from bundle version 2 to bundle version 3 and remained there."
+          - "T003 launched com.neonwatty.FoilIOS after the build-3 install and rechecked devicectl metadata as bundle version 3 before the live smoke."
+      additional_failure_modes:
+        - claim: "Audio proof could be invalid because the Mac routed speech to AirPods instead of speakers."
+          evidence_that_rules_it_out:
+            - "T003 detected output/system were AirPods, disconnected them, switched output/system to MacBook Pro Speakers, and only then recorded."
+        - claim: "The transcript could exist in shared state but fail to insert through Foil Keyboard."
+          evidence_that_rules_it_out:
+            - "T003 observed Foil Keyboard Transcript Ready with enabled Insert latest, tapped it, saw the Notes TextView contain the build-3 transcript, and copied an idle/Ready App Group snapshot after reset."
+      residual_risk:
+        - "Automatic Updates remained off from the prior older-build install. A follow-up should decide whether to re-enable it manually or prove the next build updates while it is off."
+        - "This proves Notes insertion only; broader target-app matrix remains a separate set of smokes."
