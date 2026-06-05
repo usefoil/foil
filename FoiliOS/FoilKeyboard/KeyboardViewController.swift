@@ -134,37 +134,27 @@ final class KeyboardViewController: UIInputViewController {
         latestSnapshot = snapshot
         let fullAccessEnabled = hasFullAccess
         bridge.recordKeyboardHealth(fullAccessEnabled: fullAccessEnabled, snapshot: snapshot)
-        statusLabel.text = snapshot.phase.displayName
-        messageLabel.text = fullAccessEnabled ? snapshot.message : "Allow Full Access required. Open Foil app to recover."
+        let presentation = FoilDictationLoopPresenter.keyboardPresentation(
+            snapshot: snapshot,
+            fullAccessEnabled: fullAccessEnabled
+        )
+        statusLabel.text = presentation.status
+        messageLabel.text = presentation.message
         let hasTranscript = snapshot.transcript?.isEmpty == false
         let hasRecoverableState = snapshot.phase != .idle || hasTranscript
         insertButton.isEnabled = hasTranscript && fullAccessEnabled
         resetButton.isEnabled = hasRecoverableState && fullAccessEnabled
-        startButton.setTitle(fullAccessEnabled ? "Dictate in Foil" : "Open Foil", for: .normal)
+        startButton.setTitle(presentation.startTitle, for: .normal)
         var insertConfiguration = insertButton.configuration ?? .filled()
-        insertConfiguration.title = insertTitle(hasTranscript: hasTranscript, fullAccessEnabled: fullAccessEnabled)
+        insertConfiguration.title = presentation.insertTitle
         insertConfiguration.baseBackgroundColor = hasTranscript && fullAccessEnabled ? .systemBlue : .systemGray4
         insertConfiguration.baseForegroundColor = hasTranscript && fullAccessEnabled ? .white : .secondaryLabel
         insertButton.configuration = insertConfiguration
 
         var resetConfiguration = resetButton.configuration ?? .gray()
-        resetConfiguration.title = resetTitle(hasRecoverableState: hasRecoverableState, fullAccessEnabled: fullAccessEnabled)
+        resetConfiguration.title = presentation.clearTitle
         resetConfiguration.baseForegroundColor = hasRecoverableState && fullAccessEnabled ? .label : .secondaryLabel
         resetButton.configuration = resetConfiguration
-    }
-
-    private func insertTitle(hasTranscript: Bool, fullAccessEnabled: Bool) -> String {
-        if !fullAccessEnabled {
-            return "Insert latest (full access off)"
-        }
-        return hasTranscript ? "Insert latest" : "No transcript"
-    }
-
-    private func resetTitle(hasRecoverableState: Bool, fullAccessEnabled: Bool) -> String {
-        if !fullAccessEnabled {
-            return "Clear latest (full access off)"
-        }
-        return hasRecoverableState ? "Clear latest" : "Clear"
     }
 
     private func openContainingApp() {

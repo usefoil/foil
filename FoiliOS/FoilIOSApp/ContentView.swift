@@ -193,10 +193,10 @@ struct ContentView: View {
                 Spacer(minLength: 8)
                 Text(dictationStage.badge)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(dictationStage.tint)
+                    .foregroundStyle(dictationStage.tone.color)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(dictationStage.tint.opacity(0.12), in: Capsule())
+                    .background(dictationStage.tone.color.opacity(0.12), in: Capsule())
             }
 
             Text(dictationStage.detail)
@@ -206,7 +206,7 @@ struct ContentView: View {
                 .minimumScaleFactor(0.8)
                 .accessibilityIdentifier("dictation-stage-detail")
 
-            if let primaryAction = primaryDictationAction {
+            if let primaryAction = dictationStage.primaryAction {
                 Button {
                     perform(primaryAction)
                 } label: {
@@ -238,7 +238,7 @@ struct ContentView: View {
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(dictationStage.tint.opacity(0.28))
+                .strokeBorder(dictationStage.tone.color.opacity(0.28))
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("dictation-console")
@@ -476,98 +476,24 @@ struct ContentView: View {
         return snapshot.phase.displayName
     }
 
-    private var dictationStage: DictationStage {
-        if audioCapture.isRecording || snapshot.phase == .listening {
-            return DictationStage(
-                title: "Recording",
-                badge: "Live",
-                detail: "Speak now. Finish the recording before creating a transcript.",
-                systemImage: "waveform.circle.fill",
-                tint: .red
-            )
-        }
-
-        if snapshot.transcript?.isEmpty == false || snapshot.phase == .complete {
-            return DictationStage(
-                title: "Transcript ready",
-                badge: "Ready",
-                detail: "Return to the target app and insert from Foil Keyboard.",
-                systemImage: "checkmark.circle.fill",
-                tint: .green
-            )
-        }
-
-        if snapshot.phase == .processing || transcription.status == "Transcribing" {
-            return DictationStage(
-                title: "Creating transcript",
-                badge: "Working",
-                detail: "Foil is preparing the latest recording for keyboard insertion.",
-                systemImage: "text.bubble.fill",
-                tint: .blue
-            )
-        }
-
-        if snapshot.phase == .failed || recoveryMessage != nil {
-            return DictationStage(
-                title: "Needs attention",
-                badge: "Recover",
-                detail: recoveryMessage ?? snapshot.message,
-                systemImage: "exclamationmark.circle.fill",
-                tint: .orange
-            )
-        }
-
-        if audioCapture.lastRecordingURL != nil {
-            return DictationStage(
-                title: "Recording saved",
-                badge: "Next",
-                detail: "Create a transcript from the latest recording.",
-                systemImage: "waveform.badge.checkmark",
-                tint: .blue
-            )
-        }
-
-        return DictationStage(
-            title: "Ready to dictate",
-            badge: "Ready",
-            detail: "Start a new recording from Foil.",
-            systemImage: "mic.circle.fill",
-            tint: .accentColor
+    private var dictationStage: FoilAppLoopPresentation {
+        FoilDictationLoopPresenter.appPresentation(
+            snapshot: snapshot,
+            isRecording: audioCapture.isRecording,
+            hasSavedRecording: audioCapture.lastRecordingURL != nil,
+            isTranscribing: transcription.status == "Transcribing",
+            recoveryMessage: recoveryMessage
         )
     }
 
-    private var primaryDictationAction: DictationPrimaryAction? {
-        if audioCapture.isRecording {
-            return .stop
-        }
-
-        if snapshot.transcript?.isEmpty == false || snapshot.phase == .complete {
-            return nil
-        }
-
-        if canRetryTranscription {
-            return .retry
-        }
-
-        if audioCapture.lastRecordingURL != nil && snapshot.phase != .failed {
-            return .transcribe
-        }
-
-        if snapshot.phase == .failed {
-            return .reset
-        }
-
-        return .record
-    }
-
-    private func perform(_ action: DictationPrimaryAction) {
+    private func perform(_ action: FoilAppPrimaryAction) {
         switch action {
         case .record:
             Task { await audioCapture.startRecording() }
-        case .stop:
+        case .stopRecording:
             audioCapture.stopRecording()
             refresh()
-        case .transcribe, .retry:
+        case .createTranscript, .retryTranscript:
             Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
         case .reset:
             bridge.reset()
@@ -602,63 +528,19 @@ struct ContentView: View {
     }
 }
 
-private struct DictationStage {
-    var title: String
-    var badge: String
-    var detail: String
-    var systemImage: String
-    var tint: Color
-}
-
-private enum DictationPrimaryAction {
-    case record
-    case stop
-    case transcribe
-    case retry
-    case reset
-
-    var title: String {
+private extension FoilLoopTone {
+    var color: Color {
         switch self {
-        case .record:
-            "Record dictation"
-        case .stop:
-            "Finish recording"
-        case .transcribe:
-            "Create transcript"
-        case .retry:
-            "Retry transcript"
-        case .reset:
-            "Reset dictation"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .record:
-            "record.circle"
-        case .stop:
-            "stop.circle"
-        case .transcribe:
-            "text.bubble"
-        case .retry:
-            "arrow.clockwise"
-        case .reset:
-            "arrow.counterclockwise"
-        }
-    }
-
-    var accessibilityIdentifier: String {
-        switch self {
-        case .record:
-            "primary-record-dictation-button"
-        case .stop:
-            "primary-finish-recording-button"
-        case .transcribe:
-            "primary-create-transcript-button"
-        case .retry:
-            "primary-retry-transcript-button"
-        case .reset:
-            "primary-reset-dictation-button"
+        case .ready:
+            .accentColor
+        case .live:
+            .red
+        case .working:
+            .blue
+        case .success:
+            .green
+        case .attention:
+            .orange
         }
     }
 }
