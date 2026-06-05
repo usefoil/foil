@@ -54,7 +54,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-ux-v0-2/"
     command: "npx goalbuddy board docs/goals/ios-ux-v0.2"
 
-active_task: T004
+active_task: T005
 
 tasks:
   - id: T001
@@ -239,7 +239,7 @@ tasks:
   - id: T004
     type: worker
     assignee: Worker
-    status: active
+    status: blocked
     reasoning_hint: medium
     objective: "Package build 0.1.0 (5), get it onto iPhone-preview, and run the physical app/keyboard insertion smoke for the v0.2 UX."
     allowed_files:
@@ -255,6 +255,78 @@ tasks:
     stop_if:
       - "App Store Connect or signing credentials require user-only action."
       - "Physical phone is locked/disconnected."
+      - "Insertion smoke would expose private content."
+    receipt:
+      result: blocked
+      task_id: T004
+      summary: "Completed the build-5 TestFlight packaging/upload/attach side, but physical install/launch/smoke is blocked because iPhone-preview's CoreDevice tunnel is stuck in connecting."
+      completed:
+        - "Archived build 0.1.0 (5) to /tmp/FoilIOS-Build5.xcarchive."
+        - "Exported app-store-connect IPA to /tmp/FoilIOS-Build5Export/Foil iOS.ipa."
+        - "Inspected IPA metadata: app version 0.1.0 build 5 and keyboard version 0.1.0 build 5."
+        - "altool validation reported VERIFY SUCCEEDED."
+        - "altool upload reported UPLOAD SUCCEEDED."
+        - "altool build-status reported BUILD-STATUS VALID, IMPORT-STATUS VALID, IS-ON-APP-STORE-CONNECT true, and USES-NON-EXEMPT-ENCRYPTION false."
+        - "App Store Connect API found build 5 as VALID, patched usesNonExemptEncryption=false, and confirmed externalBuildState READY_FOR_BETA_SUBMISSION."
+        - "App Store Connect API attached build 5 to Foil Internal Testers; group membership includes build 5."
+      blocked_on:
+        - "iPhone-preview is visible, paired, booted, wired, and reachable by ping, but CoreDevice reports connectionProperties.tunnelState=connecting."
+        - "WDA start failed with Xcode destination error: Device is busy (Connecting to iPhone-preview)."
+        - "devicectl install app timed out after 120 seconds."
+        - "devicectl process launch timed out after 30 seconds."
+        - "Polling CoreDevice tunnel state for 12 attempts left tunnelState=connecting."
+      evidence:
+        archive: "/tmp/FoilIOS-Build5.xcarchive"
+        export: "/tmp/FoilIOS-Build5Export/Foil iOS.ipa"
+        delivery_id: "e872502d-994e-4fd4-a9f9-af7669cdebbc"
+        app_store_connect_build_id: "e872502d-994e-4fd4-a9f9-af7669cdebbc"
+        beta_group_contains_build5: true
+        device_identifier: "5320F5AD-2A71-50AC-94FE-207B544B6247"
+        device_udid: "00008030-001A0C980A33C02E"
+        tunnel_state: "connecting"
+      commands:
+        - cmd: "xcodebuild archive for FoilIOS build 5"
+          status: pass
+        - cmd: "xcodebuild -exportArchive for build 5"
+          status: pass
+        - cmd: "IPA PlistBuddy metadata inspection"
+          status: pass
+        - cmd: "xcrun altool --validate-app"
+          status: pass
+        - cmd: "xcrun altool --upload-app"
+          status: pass
+        - cmd: "xcrun altool --build-status --delivery-id e872502d-994e-4fd4-a9f9-af7669cdebbc"
+          status: pass
+        - cmd: "App Store Connect API patch export compliance and attach internal beta group"
+          status: pass
+        - cmd: "xcodebuild WebDriverAgentRunner-nodebug test"
+          status: blocked
+        - cmd: "xcrun devicectl device install app --timeout 120"
+          status: blocked
+        - cmd: "xcrun devicectl device process launch --timeout 30"
+          status: blocked
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Recover iPhone-preview CoreDevice/WDA control, install or update build 5, and run the physical Foil app/keyboard insertion smoke."
+    allowed_files:
+      - "docs/goals/ios-ux-v0.2/**"
+    verify:
+      - "CoreDevice tunnel state is no longer stuck at connecting."
+      - "WDA or devicectl can launch/install apps on iPhone-preview."
+      - "Foil iOS reports bundle version 5 on iPhone-preview."
+      - "Updated v0.2 guided dictation console is visually inspected if screenshot/control is available."
+      - "Foil Keyboard inserts a sterile transcript into Notes and resets App Group state."
+      - "Record screenshot(s), device metadata, and App Group reset evidence."
+      - "GoalBuddy state checker passes."
+      - "git diff --check passes."
+      - "Targeted secret scan finds no private material."
+    stop_if:
+      - "Phone remains in CoreDevice tunnelState=connecting after user replug/unlock or equivalent recovery."
+      - "Installing build 5 would require deleting user data."
       - "Insertion smoke would expose private content."
 
   - id: T999
