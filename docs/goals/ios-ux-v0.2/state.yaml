@@ -1,0 +1,124 @@
+# GoalBuddy v2 state.yaml
+
+version: 2
+
+goal:
+  title: "Foil iOS UX v0.2"
+  slug: "ios-ux-v0.2"
+  kind: existing_plan
+  tranche: "Plan and implement the next small product UX layer over the proven iOS TestFlight keyboard prototype."
+  status: active
+  oracle:
+    signal: "A tester can use the containing app and keyboard without knowing about the mailbox test harness, and physical-device smokes prove the updated UX."
+    cadence: "after Scout/Judge/Worker packages"
+    final_proof: "UX diff, screenshots, physical-device insertion proof, target-app matrix note, and final audit."
+  intake:
+    original_request: "After build 4 update hygiene, prepare the larger iOS UX v0.2 board."
+    interpreted_outcome: "Start a product UX tranche for the iOS dictation prototype."
+    input_shape: existing_plan
+    audience: "Foil owner/developer and early iPhone TestFlight testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "Containing app and keyboard UX improvements are implemented and smoke-tested on TestFlight/physical iPhone."
+    likely_misfire: "Polishing UI copy while leaving the real record/transcribe/insert/recovery workflow confusing or unproven."
+    blind_spots_considered:
+      - "Keyboard extensions cannot record directly."
+      - "The proven mailbox is useful internally but should not define the user mental model."
+      - "TestFlight build/update proof is now healthy through build 4."
+      - "Audio can route to AirPods and create weak transcripts."
+      - "Messages testing needs a sterile fixture."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: pending
+    url: "http://goalbuddy.localhost:41737/ios-ux-v0.2/"
+    command: "npx goalbuddy board docs/goals/ios-ux-v0.2"
+
+active_task: T001
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: active
+    reasoning_hint: medium
+    objective: "Map the current iOS containing-app and keyboard UX, proven physical-device flows, rough edges, and the smallest high-value v0.2 Worker slice."
+    inputs:
+      - "FoiliOS/FoilIOSApp"
+      - "FoiliOS/FoilKeyboard"
+      - "FoiliOS/Shared"
+      - "Recent GoalBuddy proof boards for builds 2, 3, and 4."
+      - "docs/acceptance-evidence.md"
+    constraints:
+      - "Read-only."
+      - "Do not implement."
+      - "Do not print secrets or private transcripts."
+    expected_output:
+      - "Current UX map."
+      - "Known proven flows and known weak spots."
+      - "Recommended first bounded Worker slice with allowed_files, verify, and stop_if."
+    receipt: null
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Choose the first safe UX v0.2 Worker package from T001 evidence."
+    inputs:
+      - "T001 receipt."
+      - "Goal oracle."
+    constraints:
+      - "Read-only."
+      - "Reject broad redesign or landing-page work."
+      - "Prefer a vertical slice that improves a real tester workflow and can be physically smoked."
+    expected_output:
+      - "decision"
+      - "Worker objective"
+      - "allowed_files"
+      - "verify commands"
+      - "stop_if"
+    receipt: null
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Execute the Judge-approved first UX v0.2 implementation slice."
+    allowed_files: []
+    verify: []
+    stop_if:
+      - "Need files outside allowed_files."
+      - "UX behavior is ambiguous."
+      - "Physical-device smoke cannot be run or narrowly blocked."
+    receipt: null
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Audit whether the UX v0.2 tranche is complete."
+    receipt: null
+
