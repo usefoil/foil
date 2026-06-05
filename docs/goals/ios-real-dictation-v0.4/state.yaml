@@ -1,0 +1,345 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "iOS Real Dictation Reliability v0.4"
+  slug: "ios-real-dictation-v0.4"
+  kind: existing_plan
+  tranche: "Upload build 6 and prove repeated real-device dictation/keyboard insertion reliability."
+  status: done
+  oracle:
+    signal: "Physical iPhone-preview TestFlight build 0.1.0 (6) completes 3+ consecutive live record/transcribe/insert/reset cycles in Notes without stale transcript reuse."
+    cadence: "after each Worker package and final audit"
+    final_proof: "Build/upload receipts, installed-device metadata, repeated physical-device screenshots/state snapshots, secret scan, and final audit."
+  intake:
+    original_request: "Great - do this."
+    interpreted_outcome: "Execute the next iOS reliability tranche for real dictation on the preview iPhone."
+    input_shape: existing_plan
+    audience: "Foil owner/developer and early iPhone TestFlight testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "Foil iOS build 6 is installed from TestFlight on iPhone-preview and completes repeated real record/transcribe/keyboard-insert/reset cycles."
+    likely_misfire: "Uploading a build and passing one happy-path smoke while reusing stale transcript state, skipping keyboard insertion, or hiding phrase mismatches."
+    blind_spots_considered:
+      - "Keyboard extensions cannot record directly, so recording remains in the containing app."
+      - "Phone audio from Mac speakers can be misrecognized even when the real loop works."
+      - "TestFlight may lag after upload and require refresh or automatic update."
+      - "App Group state can look reset in one reader while stale canonical state remains."
+      - "Secrets, JWTs, and private phone content must not enter receipts."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: queued
+    url: "http://goalbuddy.localhost:41737/ios-real-dictation-v0-4/"
+    command: "npx goalbuddy board docs/goals/ios-real-dictation-v0.4"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: medium
+    objective: "Map the current v0.3 proof, TestFlight build/upload runbook, device control path, and strongest realistic v0.4 failure modes."
+    inputs:
+      - "docs/goals/ios-real-dictation-v0.3/**"
+      - "docs/goals/ios-testflight-build4-update-hygiene/**"
+      - "docs/ios-testflight-upload-runbook.md"
+      - "docs/acceptance-evidence.md"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+    constraints:
+      - "Read-only."
+      - "Do not expose credentials."
+      - "Do not implement product changes during Scout."
+    expected_output:
+      - "Build metadata starting point."
+      - "Upload/install command path."
+      - "Physical proof gap and failure modes to attack."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped the v0.4 starting point and proof gap. Foil iOS source metadata is at 0.1.0 build 5, App Store Connect API-key auth is locally configured, iPhone-preview is paired and available, and the prior physical proof succeeded once but left repeatability and audio-recognition tolerance as the main risks."
+      evidence:
+        - "rg showed FoiliOS/project.yml CURRENT_PROJECT_VERSION 5 and MARKETING_VERSION 0.1.0."
+        - "rg showed generated FoilIOS.xcodeproj CURRENT_PROJECT_VERSION 5."
+        - "docs/ios-testflight-upload-runbook.md records App Store Connect app Foil Dictation, bundle id com.neonwatty.FoilIOS, Apple ID 6777069277, and beta group Foil Internal Testers."
+        - "Local key presence check found AuthKey_Q46379TC9A.p8 without printing private key contents."
+        - "xcrun devicectl list devices showed iPhone-preview available with CoreDevice identifier 5320F5AD-2A71-50AC-94FE-207B544B6247."
+        - "v0.3 receipt proves one real Groq transcript inserted into Notes and App Group reset, but records the residual phrase mismatch `Foiled lift` vs intended `Foil live` from Mac speaker-to-phone microphone capture."
+      strongest_failure_modes:
+        - "Build upload proof could accidentally test an older build if device metadata is not checked after TestFlight update."
+        - "Repeated smoke could pass by reusing stale App Group transcript unless each cycle records a fresh transcript and verifies reset."
+        - "Mac speaker audio can produce provider variation, so phrase matching needs tolerant semantic proof and explicit mismatch recording."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Choose the smallest v0.4 slice that materially improves confidence over v0.3."
+    inputs:
+      - "T001 receipt"
+    constraints:
+      - "Do not overclaim exact transcription when audio source is Mac speaker output."
+    expected_output:
+      - "Decision with exact tasks, proof threshold, and transcript tolerance."
+    receipt:
+      result: done
+      task_id: T002
+      decision: "Proceed with a build-metadata-only app change for build 6 plus a release/device reliability proof tranche. Do not add a new direct-audio fixture yet; first prove the existing real loop can survive repeated user-style cycles."
+      proof_threshold:
+        - "App and keyboard IPA metadata must both show version 0.1.0 build 6."
+        - "iPhone-preview must report installed Foil iOS bundle version 6 before reliability testing."
+        - "Run at least three consecutive cycles with a short, distinctive sterile phrase, accepting ordinary ASR capitalization/punctuation/homophone variation but rejecting empty, unrelated, stale, or private transcripts."
+        - "Each cycle must show fresh transcript text before insert and idle/Ready/no transcript after insert."
+      non_claims:
+        - "This slice does not claim exact-word transcription quality from Mac speaker audio."
+        - "This slice does not claim background recording or direct keyboard microphone capture."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Bump Foil iOS to TestFlight build 6, regenerate the Xcode project, run simulator/build verification, archive/export/upload, clear export compliance, and attach to internal TestFlight."
+    inputs:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      - "docs/ios-testflight-upload-runbook.md"
+    constraints:
+      - "Do not print or commit App Store Connect private keys, Groq keys, or JWTs."
+      - "Keep app version at 0.1.0 unless project policy requires otherwise."
+    expected_output:
+      - "Build 6 IPA uploaded, beta-ready, and attached."
+      - "Receipt with commands and metadata proof."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Bumped Foil iOS to build 6, regenerated the Xcode project, verified simulator tests/builds, archived/exported the Release IPA, validated/uploaded it to App Store Connect, cleared beta export compliance, and attached it to Foil Internal Testers."
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-real-dictation-v0.4/state.yaml"
+      artifacts:
+        archive: "/tmp/FoilIOS-Build6.xcarchive"
+        export: "/tmp/FoilIOS-Build6Export"
+        ipa: "/tmp/FoilIOS-Build6Export/Foil iOS.ipa"
+      app_store_connect:
+        delivery_id: "9422b9b9-0ac8-47c9-a266-d4923633d56f"
+        build_id: "9422b9b9-0ac8-47c9-a266-d4923633d56f"
+        beta_group_id: "bcca568d-167d-44cb-b952-a410e9c9e10f"
+        internal_state: "IN_BETA_TESTING"
+        external_state: "READY_FOR_BETA_SUBMISSION"
+      evidence:
+        - "xcodegen generate --spec project.yml succeeded."
+        - "rg showed CURRENT_PROJECT_VERSION 6 in FoiliOS/project.yml and generated FoilIOS.xcodeproj/project.pbxproj."
+        - "XcodeBuildMCP FoilIOSTests on iPhone 17 simulator passed 2/2 tests with no warnings or errors."
+        - "XcodeBuildMCP FoilIOS simulator build succeeded with no warnings or errors."
+        - "Release archive succeeded at /tmp/FoilIOS-Build6.xcarchive."
+        - "Export succeeded to /tmp/FoilIOS-Build6Export/Foil iOS.ipa."
+        - "IPA metadata inspection showed app version 0.1.0 build 6 and keyboard version 0.1.0 build 6."
+        - "IPA icon inspection found CFBundleIconName AppIcon plus AppIcon60x60@2x.png, AppIcon76x76@2x~ipad.png, and Assets.car."
+        - "altool validation reported VERIFY SUCCEEDED with no errors."
+        - "altool upload reported UPLOAD SUCCEEDED with delivery UUID 9422b9b9-0ac8-47c9-a266-d4923633d56f."
+        - "altool build-status reported build-status VALID, import-status VALID, is-on-app-store-connect true, and APP_STORE_ELIGIBLE."
+        - "App Store Connect API initially reported buildBetaDetail MISSING_EXPORT_COMPLIANCE; PATCH set usesNonExemptEncryption=false."
+        - "After patch, buildBetaDetail reported internal IN_BETA_TESTING and external READY_FOR_BETA_SUBMISSION."
+        - "Attaching build 6 to beta group bcca568d-167d-44cb-b952-a410e9c9e10f returned HTTP 204; relationship verification reported contains_build_6 true."
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "XcodeBuildMCP test_sim for FoilIOSTests"
+          status: pass
+        - cmd: "XcodeBuildMCP build_sim for FoilIOS"
+          status: pass
+        - cmd: "xcodebuild archive/export for build 6"
+          status: pass
+        - cmd: "IPA metadata PlistBuddy inspection for app and keyboard version/build"
+          status: pass
+        - cmd: "xcrun altool --validate-app"
+          status: pass
+        - cmd: "xcrun altool --upload-app"
+          status: pass
+        - cmd: "xcrun altool --build-status --delivery-id 9422b9b9-0ac8-47c9-a266-d4923633d56f"
+          status: pass
+        - cmd: "App Store Connect API PATCH build usesNonExemptEncryption=false"
+          status: pass
+        - cmd: "App Store Connect API attach build 6 to Foil Internal Testers"
+          status: pass
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Install/update TestFlight build 6 on iPhone-preview and prove installed metadata."
+    inputs:
+      - "TestFlight build 6"
+      - "iPhone-preview device"
+    constraints:
+      - "Stop if human Apple ID/TestFlight action is required."
+      - "Do not expose private phone content in receipts."
+    expected_output:
+      - "devicectl proves Foil iOS 0.1.0 bundle version 6."
+    receipt:
+      result: done
+      task_id: T004
+      summary: "Updated iPhone-preview from Foil iOS build 5 to TestFlight build 6 and proved installed metadata."
+      artifacts:
+        - "docs/goals/ios-real-dictation-v0.4/notes/visual/build6-testflight-initial.png"
+        - "docs/goals/ios-real-dictation-v0.4/notes/visual/build6-testflight-after-first-tap.png"
+        - "docs/goals/ios-real-dictation-v0.4/notes/visual/build6-testflight-after-confirm.png"
+        - "docs/goals/ios-real-dictation-v0.4/notes/visual/build6-testflight-installed.png"
+      device:
+        name: "iPhone-preview"
+        coredevice_id: "5320F5AD-2A71-50AC-94FE-207B544B6247"
+        udid: "00008030-001A0C980A33C02E"
+      evidence:
+        - "Before update, devicectl reported Foil iOS 0.1.0 bundle version 5."
+        - "TestFlight source showed Foil Dictation 0.1.0 (6) with Install control."
+        - "First raw coordinate tap opened the expected replacement confirmation dialog, but the first confirmation tap used screenshot-pixel coordinates and did not dismiss the dialog; 36 polls still reported build 5."
+        - "Source then showed the confirmation alert with accessible Install button at point rect x=211 y=560 width=169 height=68."
+        - "A point-coordinate tap at x=295 y=594 accepted the replacement confirmation."
+        - "After confirmation, devicectl poll 1 reported build 5 and poll 2 reported Foil iOS 0.1.0 bundle version 6."
+        - "Post-install TestFlight source showed Foil Dictation 0.1.0 (6) and Open."
+      commands:
+        - cmd: "xcrun devicectl device info apps --device 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          status: pass
+        - cmd: "WDA screenshot/source for TestFlight build 6 card and confirmation dialog"
+          status: pass
+        - cmd: "WDA point-coordinate tap on confirmation Install"
+          status: pass
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run repeated physical-device real dictation cycles in Notes and collect screenshots/state snapshots."
+    inputs:
+      - "Installed build 6 on iPhone-preview"
+      - "Notes app with sterile test note"
+      - "Local Groq key configured on device"
+    constraints:
+      - "At least three consecutive cycles are required for a reliability claim."
+      - "Record phrase mismatches as residual risk, not as hidden success."
+      - "Screenshots must avoid private content."
+    expected_output:
+      - "3+ real record/transcribe/keyboard insert/reset cycles with artifacts."
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Ran repeated physical-device real dictation cycles on TestFlight build 6. One initial weak recording was rejected; three subsequent fresh Groq transcripts inserted through Foil Keyboard into Notes and reset canonical App Group state to idle/Ready."
+      device:
+        name: "iPhone-preview"
+        coredevice_id: "5320F5AD-2A71-50AC-94FE-207B544B6247"
+        installed_build: "0.1.0 (6)"
+      rejected_attempts:
+        - attempt: "cycle1-initial"
+          phrase: "violet cactus one"
+          transcript: "."
+          reason: "Rejected as weak proof because transcript was only punctuation and did not contain the sterile phrase."
+          artifacts:
+            - "docs/goals/ios-real-dictation-v0.4/notes/cycle1-complete-snapshot.json"
+      counted_cycles:
+        - cycle: 1
+          phrase: "violet cactus number one, repeated three times"
+          transcript: "Violet cactus number one violet cactus number one violet cactus number one"
+          insertion_evidence: "Notes source after insert contained the transcript; canonical App Group snapshot reset to phase idle/message Ready/no transcript."
+          artifacts:
+            - "docs/goals/ios-real-dictation-v0.4/notes/cycle1-retry-complete-snapshot.json"
+            - "docs/goals/ios-real-dictation-v0.4/notes/cycle1-after-insert-snapshot.json"
+            - "docs/goals/ios-real-dictation-v0.4/notes/visual/cycle1-before-insert.png"
+            - "docs/goals/ios-real-dictation-v0.4/notes/visual/cycle1-after-insert.png"
+        - cycle: 2
+          phrase: "silver compass number two, repeated three times"
+          transcript: "What are you working out there? Silver compass number 2, silver compass number 2, silver compass number 2."
+          insertion_evidence: "Notes source after insert contained the new Silver compass transcript after the prior Violet cactus text; canonical App Group snapshot reset to phase idle/message Ready/no transcript."
+          artifacts:
+            - "docs/goals/ios-real-dictation-v0.4/notes/cycle2-complete-snapshot.json"
+            - "docs/goals/ios-real-dictation-v0.4/notes/cycle2-after-insert-snapshot.json"
+            - "docs/goals/ios-real-dictation-v0.4/notes/visual/cycle2-before-insert.png"
+            - "docs/goals/ios-real-dictation-v0.4/notes/visual/cycle2-after-insert.png"
+        - cycle: 3
+          phrase: "green lantern number three, repeated three times"
+          transcript: "Green Lantern Number 3"
+          insertion_evidence: "Notes source after insert contained Green Lantern Number 3 after the prior two transcripts; canonical App Group snapshot reset to phase idle/message Ready/no transcript."
+          artifacts:
+            - "docs/goals/ios-real-dictation-v0.4/notes/cycle3-complete-snapshot.json"
+            - "docs/goals/ios-real-dictation-v0.4/notes/cycle3-after-insert-snapshot.json"
+            - "docs/goals/ios-real-dictation-v0.4/notes/visual/cycle3-before-insert.png"
+            - "docs/goals/ios-real-dictation-v0.4/notes/visual/cycle3-after-insert.png"
+      evidence:
+        - "Before cycles, Foil app source showed Ready to dictate, Groq key configured, and Full Access on."
+        - "Before cycles, canonical App Group snapshot copied from device showed phase idle/message Ready/no transcript."
+        - "Each counted cycle used the App Group command mailbox to reset, startRecording, stopRecording, and transcribeLatest while Foil iOS was foregrounded."
+        - "Each counted cycle produced a distinct Groq transcript before insertion, ruling down stale transcript reuse."
+        - "Each counted cycle then launched Notes, showed Transcript Ready / Insert latest enabled in Foil Keyboard, tapped Insert latest, and copied the canonical snapshot back as idle/Ready."
+      residual_risk:
+        - "Mac speaker-to-phone microphone audio still has quality variability: one initial attempt produced only punctuation, cycle 2 captured a small extra environmental phrase, and cycle 3 collapsed the repeated phrase to one occurrence."
+        - "This proves repeated foreground app recording plus keyboard insertion, not direct keyboard microphone capture or background recording."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Final audit: try to disprove the v0.4 reliability claim, update receipts, and prepare PR/merge handoff."
+    inputs:
+      - "All task receipts"
+      - "git diff"
+    constraints:
+      - "Do not mark done if physical proof is incomplete."
+    expected_output:
+      - "Final receipt with claim, strongest failure modes, evidence, residual risks, PR link, and merge result."
+    receipt:
+      result: done
+      task_id: T999
+      summary: "Final audit passed. The v0.4 claim is limited to TestFlight build 6 plus three repeated foreground-app real-dictation cycles inserting through Foil Keyboard into Notes with canonical App Group reset after each insert."
+      claim: "Foil iOS 0.1.0 build 6 is uploaded, beta-ready, installed on iPhone-preview, and can repeatedly record in the containing app, transcribe through Groq, insert via Foil Keyboard into Notes, and reset shared state."
+      strongest_failure_modes:
+        - failure: "The phone could still be running build 5 while build 6 exists only in App Store Connect."
+          ruled_out_by: "Before update devicectl reported bundle version 5; after tapping TestFlight's build 6 replacement confirmation at point coordinates, devicectl poll 2 reported Foil iOS 0.1.0 bundle version 6 and TestFlight showed 0.1.0 (6) Open."
+        - failure: "The repeated proof could reuse stale transcript state instead of recording fresh audio."
+          ruled_out_by: "Three counted cycles have distinct complete snapshots before insert: Violet cactus number one, Silver compass number 2, and Green Lantern Number 3. Each cycle's after-insert snapshot copied from the canonical App Group file showed phase idle/message Ready/no transcript."
+        - failure: "The keyboard could show ready text but fail to mutate the host app or clear canonical state."
+          ruled_out_by: "Notes accessibility source after cycle 1 contained the Violet cactus transcript; after cycle 2 contained the new Silver compass transcript after the prior text; after cycle 3 contained Green Lantern Number 3 after the prior two transcripts. Each post-insert snapshot reset to idle/Ready."
+        - failure: "Build/upload proof could pass locally but fail App Store Connect/TestFlight readiness."
+          ruled_out_by: "altool validation/upload/build-status succeeded; ASC API reported buildBetaDetail internal IN_BETA_TESTING / external READY_FOR_BETA_SUBMISSION; beta group relationship verification returned contains_build_6 true."
+        - failure: "Credentials or private key material could leak into committed proof."
+          ruled_out_by: "Targeted secret scan over touched files found no Groq/OpenAI key, JWT bearer token, or private-key block patterns."
+      verification:
+        - "git diff --check: pass."
+        - "Targeted secret scan: pass/no matches."
+        - "XcodeBuildMCP FoilIOSTests on iPhone 17 simulator: pass, 2/2 tests."
+        - "XcodeBuildMCP FoilIOS simulator build: pass, no warnings/errors."
+        - "IPA metadata: app and keyboard version 0.1.0 build 6."
+        - "Physical iPhone-preview: devicectl reports Foil iOS 0.1.0 bundle version 6."
+      residual_risk:
+        - "Live speaker-to-phone microphone audio remains noisy: one rejected attempt produced only punctuation, cycle 2 included a small environmental phrase, and cycle 3 returned one phrase instead of all three repetitions."
+        - "This does not prove direct keyboard microphone capture, secure-field insertion, background recording, or arbitrary target-app compatibility."
+      full_outcome_complete: true
