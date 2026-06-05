@@ -1,0 +1,318 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS Physical Automation Runbook"
+  slug: "ios-physical-automation-runbook"
+  kind: specific
+  tranche: "Make physical iPhone automation setup repeatable and safely testable for future Foil iOS boards."
+  status: done
+  oracle:
+    signal: "A repo runbook or helper surface can diagnose physical iPhone/WDA/tunnel readiness, name safe test boundaries, and pass a smoke check or record an exact blocker."
+    cadence: "after Scout, Judge, Worker, smoke test, and final audit"
+    final_proof: "PR into codex/ios-keyboard-prototype with runbook/helper files, WDA/device smoke output or blocker, diff/secret scan, and privacy boundary audit."
+  intake:
+    original_request: "Continue unattended GoalBuddy planning, investigation, testing, PR-ing for the iOS effort."
+    interpreted_outcome: "After archive-readiness, improve repeatability of physical iPhone testing without touching private content."
+    input_shape: specific
+    audience: "Foil owner/developer and future Codex/GoalBuddy test runs."
+    authority: approved
+    proof_type: artifact
+    completion_proof: "A committed runbook/helper with current-machine smoke proof or exact blocker."
+    likely_misfire: "Writing vague setup notes that do not actually tell the agent how to determine if WDA, tunnel, or physical device control is usable."
+    blind_spots_considered:
+      - "WDA may require xcodebuild/Appium paths that differ by machine."
+      - "Physical phone can be connected but locked, paired but unavailable, or reachable by devicectl but not WDA."
+      - "Appium/pymobiledevice tooling may be absent or installed outside Xcode Python."
+      - "Private app accessibility trees must not be saved as proof."
+      - "Runbook commands need cleanup steps so background WDA/test servers are not left running."
+    existing_plan_facts:
+      - "Use iPhone-preview when available."
+      - "Prior WDA runner path used /Users/neonwatty/.appium/node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent/WebDriverAgent.xcodeproj."
+      - "Prior WDA runner bundle id used com.neonwatty.WebDriverAgentRunner."
+      - "Prior physical target-app matrix proved Safari, Notes, Reminders, secure-field rejection, live transcription, and missing-key recovery."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-physical-automation-runbook/"
+    command: "npx goalbuddy board docs/goals/ios-physical-automation-runbook"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: high
+    objective: "Map existing iOS physical automation docs/scripts, WDA/Appium paths, device reachability, and safe proof constraints."
+    inputs:
+      - "Current branch/status."
+      - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      - "docs/goals/ios-unattended-testflight-conveyor/state.yaml"
+      - "docs/acceptance-evidence.md"
+      - "Repo docs/scripts mentioning WDA, Appium, devicectl, iOS physical testing, or TestFlight."
+      - "Current devicectl and WDA localhost status."
+    constraints:
+      - "Read-only."
+      - "Do not inspect private app accessibility trees."
+      - "Do not start WDA yet unless Judge later approves it."
+      - "Do not print secrets."
+    expected_output:
+      - "Existing docs/scripts inventory."
+      - "Current physical device and WDA status."
+      - "Known commands from prior receipts that should become runbook/helper content."
+      - "Recommended Worker slice with allowed_files, verify, and stop_if."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped current physical automation state. The repo has many GoalBuddy receipts with successful WDA/devicectl physical testing commands, but no dedicated runbook or helper script for future agents. iPhone-preview is connected, WDA is not listening on localhost:8100, the Appium WebDriverAgent project exists locally, iproxy exists, and Xcode's Python does not have pymobiledevice3 installed."
+      evidence:
+        - "git status showed branch codex/ios-physical-automation-runbook at 131a605 with conveyor/runbook board edits plus pre-existing unrelated untracked Xcode xcuserdata and marketing plan."
+        - "rg over docs/scripts/FoiliOS found WDA/devicectl evidence in prior GoalBuddy receipts but no dedicated physical automation runbook outside newly created board files."
+        - "find scripts docs showed existing provider/macOS QA scripts and GoalBuddy docs, but no iOS WDA helper script."
+        - "xcrun devicectl list devices showed iPhone-preview connected and iPhone-prod available paired."
+        - "curl --max-time 2 http://127.0.0.1:8100/status failed to connect, so WDA is currently down locally."
+        - "test -d /Users/neonwatty/.appium/node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent/WebDriverAgent.xcodeproj reported WDA_PROJECT_PRESENT."
+        - "command -v iproxy reported /opt/homebrew/bin/iproxy."
+        - "/Applications/Xcode.app/Contents/Developer/usr/bin/python3 -m pymobiledevice3 exited 1 with No module named pymobiledevice3."
+        - "Prior receipts recorded successful WDA runner command against iPhone-preview and successful devicectl install/copy commands."
+      current_state:
+        branch: "codex/ios-physical-automation-runbook"
+        head: "131a605"
+        preview_device: "iPhone-preview connected via devicectl, identifier 5320F5AD-2A71-50AC-94FE-207B544B6247"
+        wda_localhost_8100: "not listening"
+        wda_project: "/Users/neonwatty/.appium/node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent/WebDriverAgent.xcodeproj"
+        wda_runner_bundle_id: "com.neonwatty.WebDriverAgentRunner"
+        iproxy: "/opt/homebrew/bin/iproxy"
+        xcode_python_pymobiledevice3: "missing"
+      prior_successful_commands:
+        - "xcodebuild -project /Users/neonwatty/.appium/node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent/WebDriverAgent.xcodeproj -scheme WebDriverAgentRunner-nodebug -destination 'id=00008030-001A0C980A33C02E' -configuration Debug DEVELOPMENT_TEAM=B3A6AN2HA4 CODE_SIGN_STYLE=Automatic PRODUCT_BUNDLE_IDENTIFIER=com.neonwatty.WebDriverAgentRunner -allowProvisioningUpdates test"
+        - "curl GET against WDA /status when the endpoint was ready."
+        - "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '<built Foil iOS.app path>'"
+        - "xcrun devicectl device copy from --domain-type appGroupDataContainer --domain-identifier group.com.neonwatty.FoilIOS --source Library/foil-keyboard-snapshot.json --destination <tmp json>"
+      recommendation:
+        chosen_slice: "Add a docs/ios-physical-automation-runbook.md with exact WDA/devicectl readiness, startup, smoke, privacy, and cleanup commands; optionally add a tiny dependency-free shell helper only if Judge approves."
+        allowed_files:
+          - "docs/ios-physical-automation-runbook.md"
+          - "docs/goals/ios-physical-automation-runbook/**"
+          - "docs/goals/ios-unattended-testflight-conveyor/**"
+        verify:
+          - "Run doc command snippets that are safe/read-only: devicectl list devices, WDA status curl, WDA path presence, iproxy presence."
+          - "Do not start WDA unless Judge requires live proof."
+          - "Run git diff --check and secret/private-string scan."
+        stop_if:
+          - "Smoke proof would require starting WDA or inspecting private app source without explicit need."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose the smallest useful runbook/helper slice with smoke proof."
+    inputs:
+      - "T001 receipt."
+      - "docs/acceptance-evidence.md"
+    constraints:
+      - "Read-only."
+      - "Reject vague docs without a smoke command."
+      - "Reject private target-app evidence."
+    expected_output:
+      - "decision: proceed | blocked | split"
+      - "allowed_files"
+      - "verify commands"
+      - "stop_if"
+    receipt:
+      result: done
+      task_id: T002
+      decision: proceed
+      chosen_slice: "Write a dedicated docs/ios-physical-automation-runbook.md with exact commands, expected readiness signals, privacy boundaries, and cleanup."
+      rationale:
+        - "T001 found no dedicated runbook, but enough proven commands exist in receipts to distill into durable docs."
+        - "A dependency-free helper script may be useful later, but docs-first avoids adding a maintenance surface before the command shape settles."
+        - "Live WDA startup is not needed to prove the first runbook slice; current smoke can prove device presence, WDA absence detection, WDA project path, iproxy presence, and pymobiledevice3 absence."
+      allowed_files:
+        - "docs/ios-physical-automation-runbook.md"
+        - "docs/goals/ios-physical-automation-runbook/**"
+        - "docs/goals/ios-unattended-testflight-conveyor/**"
+      verify:
+        - "xcrun devicectl list devices"
+        - "curl --max-time 2 http://127.0.0.1:8100/status || true"
+        - "test -d WDA project path"
+        - "command -v iproxy"
+        - "Xcode Python pymobiledevice3 module check"
+        - "git diff --check over touched files"
+        - "secret/private-string scan over touched files"
+      stop_if:
+        - "Writing the runbook would require private app content or raw WDA trees."
+        - "Smoke command evidence contradicts the documented readiness checks."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Implement the Judge-approved physical automation runbook/helper and open a PR."
+    allowed_files:
+      - "docs/**"
+      - "scripts/**"
+      - "docs/goals/ios-physical-automation-runbook/**"
+      - "docs/goals/ios-unattended-testflight-conveyor/**"
+    verify:
+      - "Run Judge-selected smoke commands."
+      - "Run git diff --check over touched files."
+      - "Run secret/private-string scan over touched files."
+      - "Open PR into codex/ios-keyboard-prototype."
+    stop_if:
+      - "Smoke testing would require private app content."
+      - "WDA/device setup requires user unlock/account action."
+      - "Adding a helper script would require installing new global dependencies."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Added a dedicated iOS physical automation runbook with privacy boundaries, device readiness checks, WDA readiness/startup/cleanup commands, Foil install/App Group state-copy patterns, safe target-app evidence rules, and a receipt checklist. Safe smoke checks passed without starting WDA or touching private target-app content."
+      changed_files:
+        - "docs/ios-physical-automation-runbook.md"
+        - "docs/goals/ios-physical-automation-runbook/state.yaml"
+      implementation:
+        - "Documented devicectl device readiness checks for iPhone-preview."
+        - "Documented local WDA project, iproxy, and pymobiledevice3 checks."
+        - "Documented WDA startup command using the Appium-bundled WebDriverAgent project."
+        - "Documented cleanup commands for WDA and sterile local test servers."
+        - "Documented Foil app install and App Group snapshot copy commands."
+        - "Documented safe target-app evidence boundaries for Notes, Safari, Reminders, secure fields, and Messages."
+      commands:
+        - cmd: "xcrun devicectl list devices"
+          status: pass
+        - cmd: "curl -sS --max-time 2 http://127.0.0.1:8100/status || true"
+          status: pass
+          note: "Reported connection failure as expected for WDA-down state."
+        - cmd: "test -d /Users/neonwatty/.appium/node_modules/appium-xcuitest-driver/node_modules/appium-webdriveragent/WebDriverAgent.xcodeproj"
+          status: pass
+        - cmd: "command -v iproxy"
+          status: pass
+        - cmd: "/Applications/Xcode.app/Contents/Developer/usr/bin/python3 -m pymobiledevice3 --help"
+          status: pass
+          note: "Exited 1 with No module named pymobiledevice3, matching runbook warning."
+        - cmd: "git diff --check -- docs/ios-physical-automation-runbook.md docs/goals/ios-physical-automation-runbook docs/goals/ios-unattended-testflight-conveyor"
+          status: pass
+        - cmd: "rg secret/private-string scan over touched docs/goals"
+          status: pass
+      evidence:
+        - "devicectl listed iPhone-preview connected, identifier 5320F5AD-2A71-50AC-94FE-207B544B6247."
+        - "WDA localhost status check failed to connect, proving the runbook's down-state diagnosis path."
+        - "WDA_PROJECT_PRESENT was printed for the Appium WebDriverAgent project path."
+        - "command -v iproxy returned /opt/homebrew/bin/iproxy."
+        - "Xcode Python pymobiledevice3 check printed No module named pymobiledevice3."
+      strongest_realistic_failure_mode:
+        claim: "The runbook could give future agents vague or stale commands that cannot diagnose the actual current machine state."
+        evidence_that_rules_it_out:
+          - "Every readiness command in the first half of the runbook was smoke-checked against the current machine state."
+          - "The runbook explicitly documents the current WDA-down and pymobiledevice3-missing states rather than assuming success."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit against physical automation runbook oracle."
+    inputs:
+      - "All receipts."
+      - "Smoke output or blocker."
+      - "PR/issue links."
+      - "Current git/GitHub status."
+    constraints:
+      - "Do not implement."
+      - "Reject completion if runbook does not include cleanup/privacy boundaries."
+      - "Reject completion if no smoke proof or exact blocker exists."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode and evidence."
+      - "Residual risks."
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "Final audit accepts the physical automation runbook slice as complete. The new runbook gives future agents concrete physical iPhone/WDA readiness checks, startup/cleanup commands, app install/App Group proof commands, privacy boundaries, and receipt requirements. Safe smoke checks matched the documented current machine state."
+      pull_request:
+        number: 231
+        url: "https://github.com/mean-weasel/foil/pull/231"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-physical-automation-runbook"
+        state: open
+        draft: true
+        merge_state: clean
+      commit:
+        sha: "84ad4fb"
+        message: "Add iOS physical automation runbook"
+      strongest_realistic_failure_mode:
+        claim: "The runbook might look useful but fail to diagnose the actual local physical automation state."
+        evidence_that_rules_it_out:
+          - "devicectl, WDA status, WDA project path, iproxy, and pymobiledevice3 checks were run against the current machine."
+          - "The runbook explicitly documents WDA-down and pymobiledevice3-missing states rather than assuming automation is ready."
+          - "Privacy boundaries and cleanup commands are included, reducing the risk of private app evidence or leftover WDA processes."
+      verification:
+        - cmd: "xcrun devicectl list devices"
+          status: pass
+        - cmd: "curl -sS --max-time 2 http://127.0.0.1:8100/status || true"
+          status: pass
+        - cmd: "test -d WebDriverAgent.xcodeproj path"
+          status: pass
+        - cmd: "command -v iproxy"
+          status: pass
+        - cmd: "Xcode Python pymobiledevice3 module check"
+          status: pass
+          note: "Missing module detected and documented."
+        - cmd: "git diff --check over touched files"
+          status: pass
+        - cmd: "secret/private-string scan over touched files"
+          status: pass
+        - cmd: "gh pr view 231"
+          status: pass
+        - cmd: "gh pr checks 231"
+          status: pass
+          note: "No checks reported."
+      residual_risks:
+        - "This runbook slice does not start WDA or run a new host-app matrix."
+        - "Messages still requires an operator-provided safe self/test thread before automation."
+
+checks:
+  dirty_fingerprint: "Created after PR #230 merged archive-readiness into codex/ios-keyboard-prototype."
+  last_verification:
+    result: done
+    task: T999
+    commands:
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-unattended-testflight-conveyor/state.yaml"
+        status: pass
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-physical-automation-runbook/state.yaml"
+        status: pass
