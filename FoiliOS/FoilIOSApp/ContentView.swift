@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct ContentView: View {
@@ -13,6 +14,9 @@ struct ContentView: View {
     @State private var storageReport = FoilKeyboardStorageReport.initial
     @State private var keyboardHealth = FoilKeyboardHealthReport.initial
     @State private var secureEntry = ""
+    @State private var providerKeyEntry = ""
+    @State private var providerCredentialMessage = ""
+    @State private var showDiagnostics = false
     private let refreshTimer = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -26,23 +30,6 @@ struct ContentView: View {
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        statusRow(snapshot.phase.displayName, systemImage: "waveform")
-                        statusRow(snapshot.message, systemImage: "keyboard")
-                        statusRow(audioCapture.status, systemImage: "mic")
-                        statusRow(transcription.status, systemImage: "text.bubble")
-                        statusRow(storageReportSummary, systemImage: "externaldrive")
-                            .accessibilityIdentifier("keyboard-storage-report-summary")
-                        if let transcript = snapshot.transcript {
-                            statusRow(transcript, systemImage: "text.quote")
-                        }
-                        if let lastRecordingURL = audioCapture.lastRecordingURL {
-                            statusRow(lastRecordingURL.lastPathComponent, systemImage: "waveform.path")
-                                .font(.caption.monospaced())
-                        }
-                    }
-                    .font(.callout)
 
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Keyboard setup")
@@ -58,6 +45,17 @@ struct ContentView: View {
                             detail: "Required so Foil Keyboard can read and clear dictation state",
                             systemImage: "checkmark.shield"
                         )
+                        setupRow(
+                            title: "Microphone",
+                            detail: microphonePermissionSummary,
+                            systemImage: "mic"
+                        )
+                        setupRow(
+                            title: "Provider",
+                            detail: transcription.credentialSummary,
+                            systemImage: transcription.hasConfiguredAPIKey ? "key.fill" : "key"
+                        )
+                        providerCredentialEditor
                         setupRow(
                             title: "Keyboard health",
                             detail: keyboardHealthSummary,
@@ -80,72 +78,96 @@ struct ContentView: View {
                     }
                     .font(.callout)
 
-                    SecureField("Secure field rejection test", text: $secureEntry)
-                        .textContentType(.password)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("secure-rejection-field")
-                        .textFieldStyle(.roundedBorder)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Dictation")
+                            .font(.headline)
 
-                    LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
-                        Button {
-                            bridge.markListening()
-                            refresh()
-                        } label: {
-                            Label("Listening", systemImage: "waveform")
+                        VStack(alignment: .leading, spacing: 10) {
+                            statusRow(snapshot.phase.displayName, systemImage: "waveform")
+                            statusRow(snapshot.message, systemImage: "keyboard")
+                            statusRow(audioCapture.status, systemImage: "mic")
+                            statusRow(transcription.status, systemImage: "text.bubble")
                         }
-                        .buttonStyle(.bordered)
-                        .accessibilityIdentifier("mark-listening-button")
+                        .font(.callout)
 
-                        Button {
-                            bridge.completeFakeTranscript()
-                            refresh()
-                        } label: {
-                            Label("Complete", systemImage: "checkmark.circle")
+                        LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
+                            recordingButtons
                         }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("complete-fake-transcript-button")
-
-                        Button {
-                            bridge.reset()
-                            refresh()
-                        } label: {
-                            Label("Reset", systemImage: "arrow.counterclockwise")
-                        }
-                        .buttonStyle(.bordered)
-                        .accessibilityIdentifier("reset-keyboard-state-button")
-
-                        Button {
-                            Task { await audioCapture.startRecording() }
-                        } label: {
-                            Label("Record", systemImage: "record.circle")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(audioCapture.isRecording)
-                        .accessibilityIdentifier("start-recording-button")
-
-                        Button {
-                            audioCapture.stopRecording()
-                            refresh()
-                        } label: {
-                            Label("Stop", systemImage: "stop.circle")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(!audioCapture.isRecording)
-                        .accessibilityIdentifier("stop-recording-button")
-
-                        Button {
-                            Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
-                        } label: {
-                            Label("Transcribe", systemImage: "text.bubble")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(audioCapture.lastRecordingURL == nil || audioCapture.isRecording)
-                        .accessibilityIdentifier("transcribe-latest-button")
+                        .controlSize(.large)
+                        .labelStyle(.titleAndIcon)
+                        .buttonBorderShape(.roundedRectangle(radius: 8))
                     }
-                    .controlSize(.large)
-                    .labelStyle(.titleAndIcon)
-                    .buttonBorderShape(.roundedRectangle(radius: 8))
+
+                    if let handoffGuidance {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Handoff")
+                                .font(.headline)
+                            statusRow(handoffGuidance, systemImage: "arrow.left.arrow.right")
+                                .font(.callout)
+                        }
+                    }
+
+                    if let recoveryMessage {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Recovery")
+                                .font(.headline)
+                            statusRow(recoveryMessage, systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                                .font(.callout)
+
+                            LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
+                                if canRetryTranscription {
+                                    Button {
+                                        Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
+                                    } label: {
+                                        Label("Retry transcription", systemImage: "arrow.clockwise")
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .accessibilityIdentifier("retry-transcription-button")
+                                }
+
+                                Button {
+                                    bridge.reset()
+                                    refresh()
+                                } label: {
+                                    Label("Reset shared state", systemImage: "arrow.counterclockwise")
+                                }
+                                .buttonStyle(.bordered)
+                                .accessibilityIdentifier("recovery-reset-shared-state-button")
+                            }
+                            .controlSize(.large)
+                            .labelStyle(.titleAndIcon)
+                            .buttonBorderShape(.roundedRectangle(radius: 8))
+                        }
+                    }
+
+                    DisclosureGroup("Diagnostics", isExpanded: $showDiagnostics) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            statusRow(storageReportSummary, systemImage: "externaldrive")
+                                .accessibilityIdentifier("keyboard-storage-report-summary")
+                            if snapshot.transcript?.isEmpty == false {
+                                statusRow("Transcript body hidden", systemImage: "text.quote")
+                            }
+                            if let lastRecordingURL = audioCapture.lastRecordingURL {
+                                statusRow(lastRecordingURL.lastPathComponent, systemImage: "waveform.path")
+                                    .font(.caption.monospaced())
+                            }
+
+                            SecureField("Secure field rejection test", text: $secureEntry)
+                                .textContentType(.password)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .accessibilityIdentifier("secure-rejection-field")
+                                .textFieldStyle(.roundedBorder)
+
+                            LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
+                                diagnosticButtons
+                            }
+                            .controlSize(.large)
+                            .labelStyle(.titleAndIcon)
+                            .buttonBorderShape(.roundedRectangle(radius: 8))
+                        }
+                        .padding(.top, 8)
+                    }
 
                     Spacer(minLength: 0)
                 }
@@ -181,10 +203,130 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
+    private var recordingButtons: some View {
+        Button {
+            Task { await audioCapture.startRecording() }
+        } label: {
+            Label("Record", systemImage: "record.circle")
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(audioCapture.isRecording)
+        .accessibilityIdentifier("start-recording-button")
+
+        Button {
+            audioCapture.stopRecording()
+            refresh()
+        } label: {
+            Label("Stop", systemImage: "stop.circle")
+        }
+        .buttonStyle(.bordered)
+        .disabled(!audioCapture.isRecording)
+        .accessibilityIdentifier("stop-recording-button")
+
+        Button {
+            Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
+        } label: {
+            Label("Transcribe", systemImage: "text.bubble")
+        }
+        .buttonStyle(.bordered)
+        .disabled(audioCapture.lastRecordingURL == nil || audioCapture.isRecording)
+        .accessibilityIdentifier("transcribe-latest-button")
+    }
+
+    private var providerCredentialEditor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SecureField("Groq API key", text: $providerKeyEntry)
+                .textContentType(.password)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("provider-key-field")
+
+            HStack(spacing: 10) {
+                Button {
+                    saveProviderKey()
+                } label: {
+                    Label("Save key", systemImage: "key")
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(providerKeyEntry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("save-provider-key-button")
+
+                Button {
+                    clearProviderKey()
+                } label: {
+                    Label("Clear key", systemImage: "trash")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!transcription.hasConfiguredAPIKey)
+                .accessibilityIdentifier("clear-provider-key-button")
+            }
+
+            if !providerCredentialMessage.isEmpty {
+                Text(providerCredentialMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("provider-credential-message")
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var diagnosticButtons: some View {
+        Button {
+            bridge.markListening()
+            refresh()
+        } label: {
+            Label("Listening", systemImage: "waveform")
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier("mark-listening-button")
+
+        Button {
+            bridge.completeFakeTranscript()
+            refresh()
+        } label: {
+            Label("Complete", systemImage: "checkmark.circle")
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityIdentifier("complete-fake-transcript-button")
+
+        Button {
+            bridge.reset()
+            refresh()
+        } label: {
+            Label("Reset", systemImage: "arrow.counterclockwise")
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier("reset-keyboard-state-button")
+    }
+
     private func refresh() {
         snapshot = bridge.load()
         storageReport = bridge.storageReport()
         keyboardHealth = bridge.keyboardHealthReport()
+    }
+
+    private func saveProviderKey() {
+        do {
+            try transcription.saveGroqAPIKey(providerKeyEntry)
+            providerKeyEntry = ""
+            providerCredentialMessage = "Groq key saved"
+        } catch {
+            providerCredentialMessage = error.localizedDescription
+        }
+    }
+
+    private func clearProviderKey() {
+        do {
+            try transcription.clearGroqAPIKey()
+            providerKeyEntry = ""
+            providerCredentialMessage = "Groq key cleared"
+        } catch {
+            providerCredentialMessage = error.localizedDescription
+        }
     }
 
     private var storageReportSummary: String {
@@ -193,6 +335,56 @@ struct ContentView: View {
         let verifiedTranscript = storageReport.canonicalVerificationHasTranscript == true ? "has transcript" : "no transcript"
         let defaults = storageReport.defaultsWriteAttempted ? "defaults written" : "defaults not written"
         return "Storage \(storageReport.operation): \(file), \(defaults), verified \(verifiedPhase) \(verifiedTranscript)"
+    }
+
+    private var recoveryMessage: String? {
+        if snapshot.transcript?.isEmpty == false {
+            return "Transcript waiting. Insert it once from Foil Keyboard, or reset shared state."
+        }
+        if let message = audioCapture.recoveryMessage {
+            return message
+        }
+        if let message = transcription.recoveryMessage {
+            return message
+        }
+        if snapshot.phase == .failed {
+            return snapshot.message
+        }
+        return nil
+    }
+
+    private var handoffGuidance: String? {
+        switch snapshot.phase {
+        case .handoffRequested:
+            return "Foil is open. Record, stop, and transcribe here, then switch back to the target app."
+        case .listening:
+            return "Recording is active. Stop when finished, then transcribe."
+        case .processing:
+            return "Processing is underway. If recording is saved, tap Transcribe; if transcription is running, wait for the ready state."
+        case .complete:
+            return "Transcript is ready. Switch back to the target app and tap Insert latest once."
+        case .failed:
+            return "Resolve the recovery item here before returning to the keyboard."
+        case .idle:
+            return nil
+        }
+    }
+
+    private var canRetryTranscription: Bool {
+        transcription.recoveryMessage != nil && audioCapture.lastRecordingURL != nil && !audioCapture.isRecording
+    }
+
+    private var microphonePermissionSummary: String {
+        switch AVAudioApplication.shared.recordPermission {
+        case .granted:
+            "Microphone allowed"
+        case .denied:
+            "Microphone blocked in Settings"
+        case .undetermined:
+            "Microphone will be requested"
+        @unknown default:
+            "Microphone status unavailable"
+        }
     }
 
     private var keyboardHealthSummary: String {

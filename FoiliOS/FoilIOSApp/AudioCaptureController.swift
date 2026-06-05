@@ -5,6 +5,7 @@ import Foundation
 final class AudioCaptureController: NSObject, ObservableObject {
     @Published private(set) var status = "Recorder idle"
     @Published private(set) var lastRecordingURL: URL?
+    @Published private(set) var recoveryMessage: String?
 
     private let bridge = FoilKeyboardBridge()
     private var recorder: AVAudioRecorder?
@@ -18,10 +19,13 @@ final class AudioCaptureController: NSObject, ObservableObject {
 
         guard await requestRecordPermission() else {
             status = "Microphone permission denied"
+            recoveryMessage = "Enable Microphone access in Settings, then return to Foil."
+            bridge.fail(message: "Microphone blocked. Open Foil app to recover.")
             return
         }
 
         do {
+            recoveryMessage = nil
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.record, mode: .measurement, options: [])
             try session.setActive(true)
@@ -40,6 +44,8 @@ final class AudioCaptureController: NSObject, ObservableObject {
             recorder = nil
             lastRecordingURL = nil
             status = "Recording failed: \(error.localizedDescription)"
+            recoveryMessage = "Try recording again, or reset shared state if the keyboard looks stuck."
+            bridge.fail(message: "Recording failed. Open Foil app to retry.")
         }
     }
 
@@ -48,11 +54,12 @@ final class AudioCaptureController: NSObject, ObservableObject {
         recorder.stop()
         self.recorder = nil
         status = "Recording saved"
+        recoveryMessage = nil
         bridge.save(
             FoilKeyboardSnapshot(
                 phase: .processing,
                 transcript: nil,
-                message: "Recording saved for transcription",
+                message: "Recording saved. Tap Transcribe in Foil.",
                 updatedAt: Date()
             )
         )
