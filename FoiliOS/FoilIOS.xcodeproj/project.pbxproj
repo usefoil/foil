@@ -11,6 +11,7 @@
 		05B62FBA1BC372A85B1B3E8A /* FoilKeyboardBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */; };
 		0BBFCD60BD149E3F6CB6DA66 /* TranscriptionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621DDB56882D26AAEC465CB0 /* TranscriptionController.swift */; };
 		2CDF09B597678B083CCCF602 /* FoilKeyboardBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */; };
+		4AC314D95DEBA3047166C0F8 /* FoilTranscriptionClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3583EEDEF91366197D5835CE /* FoilTranscriptionClientTests.swift */; };
 		589C455BA82755598BC53393 /* FoilIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5C18A113AB57751309B185D /* FoilIOSApp.swift */; };
 		624A853276103525C81EDD1F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B8ED6E6F949226BA93558B2 /* ContentView.swift */; };
 		6D9A57B023B74FAC7F4EDC91 /* FoilKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5EE790723AA98A22C747B75F /* FoilKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -30,6 +31,13 @@
 			remoteGlobalIDString = 703C5364F8BC2374DED729D7;
 			remoteInfo = FoilKeyboard;
 		};
+		946CEEE628B51A1A5FFE85E1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D221B7F649CB2A77C6A6CBA6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 96A1764FCA87F93A306E97F9;
+			remoteInfo = FoilIOS;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -48,12 +56,14 @@
 
 /* Begin PBXFileReference section */
 		1CF921C0034784102049E070 /* FoilTranscriptionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilTranscriptionClient.swift; sourceTree = "<group>"; };
+		3583EEDEF91366197D5835CE /* FoilTranscriptionClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilTranscriptionClientTests.swift; sourceTree = "<group>"; };
 		58C4258EB9EC3B85F4B3132E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		59E66C051F406E089F849D00 /* FoilCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilCredentialStore.swift; sourceTree = "<group>"; };
 		5EE790723AA98A22C747B75F /* FoilKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = FoilKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		621DDB56882D26AAEC465CB0 /* TranscriptionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionController.swift; sourceTree = "<group>"; };
 		6B8ED6E6F949226BA93558B2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		77F32B52839F43D4C35AEE48 /* AudioCaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureController.swift; sourceTree = "<group>"; };
+		83AB451FE990B167DFC3C540 /* FoilIOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FoilIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilIOSConstants.swift; sourceTree = "<group>"; };
 		9C3339B67E16E9D91B0D3263 /* FoilKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoilKeyboard.entitlements; sourceTree = "<group>"; };
 		AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilKeyboardBridge.swift; sourceTree = "<group>"; };
@@ -70,6 +80,7 @@
 			isa = PBXGroup;
 			children = (
 				AF858F100CBDCDF206614F1F /* FoilIOS.app */,
+				83AB451FE990B167DFC3C540 /* FoilIOSTests.xctest */,
 				5EE790723AA98A22C747B75F /* FoilKeyboard.appex */,
 			);
 			name = Products;
@@ -82,6 +93,14 @@
 				58C4258EB9EC3B85F4B3132E /* Info.plist */,
 			);
 			path = Generated;
+			sourceTree = "<group>";
+		};
+		58B02F69A1F87C5BE8F63171 /* FoilIOSTests */ = {
+			isa = PBXGroup;
+			children = (
+				3583EEDEF91366197D5835CE /* FoilTranscriptionClientTests.swift */,
+			);
+			path = FoilIOSTests;
 			sourceTree = "<group>";
 		};
 		8294BF3EF4933F6D2256230A /* Shared */ = {
@@ -130,6 +149,7 @@
 			isa = PBXGroup;
 			children = (
 				BFC2C7D7A5AA72FDB4B793E4 /* FoilIOSApp */,
+				58B02F69A1F87C5BE8F63171 /* FoilIOSTests */,
 				F6000C25B50DD296469203C1 /* FoilKeyboard */,
 				8294BF3EF4933F6D2256230A /* Shared */,
 				0E70DFAE24DE620E123A83BC /* Products */,
@@ -176,6 +196,24 @@
 			productReference = AF858F100CBDCDF206614F1F /* FoilIOS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E936932789F08964950BD93F /* FoilIOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D4157FD919A872274447F1E4 /* Build configuration list for PBXNativeTarget "FoilIOSTests" */;
+			buildPhases = (
+				809F228C7D8F558060C00DAC /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B0B3E09B6EA1455ED8329484 /* PBXTargetDependency */,
+			);
+			name = FoilIOSTests;
+			packageProductDependencies = (
+			);
+			productName = FoilIOSTests;
+			productReference = 83AB451FE990B167DFC3C540 /* FoilIOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -190,6 +228,10 @@
 						ProvisioningStyle = Automatic;
 					};
 					96A1764FCA87F93A306E97F9 = {
+						DevelopmentTeam = B3A6AN2HA4;
+						ProvisioningStyle = Automatic;
+					};
+					E936932789F08964950BD93F = {
 						DevelopmentTeam = B3A6AN2HA4;
 						ProvisioningStyle = Automatic;
 					};
@@ -210,6 +252,7 @@
 			projectRoot = "";
 			targets = (
 				96A1764FCA87F93A306E97F9 /* FoilIOS */,
+				E936932789F08964950BD93F /* FoilIOSTests */,
 				703C5364F8BC2374DED729D7 /* FoilKeyboard */,
 			);
 		};
@@ -242,6 +285,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		809F228C7D8F558060C00DAC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4AC314D95DEBA3047166C0F8 /* FoilTranscriptionClientTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BFDB0F10858582E6BE0A73D0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -255,6 +306,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		B0B3E09B6EA1455ED8329484 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 96A1764FCA87F93A306E97F9 /* FoilIOS */;
+			targetProxy = 946CEEE628B51A1A5FFE85E1 /* PBXContainerItemProxy */;
+		};
 		C515E2FFDD215F1D61A57E21 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 703C5364F8BC2374DED729D7 /* FoilKeyboard */;
@@ -410,6 +466,23 @@
 			};
 			name = Debug;
 		};
+		5C9FFB626F7E7DCA32F77EE2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.FoilIOSTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Foil iOS.app/Foil iOS";
+			};
+			name = Release;
+		};
 		8C732693891C7E07F36CCAF0 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -422,6 +495,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.FoilIOS;
+				PRODUCT_MODULE_NAME = FoilIOS;
 				PRODUCT_NAME = "Foil iOS";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -440,6 +514,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.FoilIOS;
+				PRODUCT_MODULE_NAME = FoilIOS;
 				PRODUCT_NAME = "Foil iOS";
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -463,6 +538,23 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
+		};
+		F1DB510041AE187980C31870 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.FoilIOSTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Foil iOS.app/Foil iOS";
+			};
+			name = Debug;
 		};
 /* End XCBuildConfiguration section */
 
@@ -490,6 +582,15 @@
 			buildConfigurations = (
 				39883172217C4AEE9DB33CFC /* Debug */,
 				B8E58F82127A2B0E09BBCCB8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D4157FD919A872274447F1E4 /* Build configuration list for PBXNativeTarget "FoilIOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F1DB510041AE187980C31870 /* Debug */,
+				5C9FFB626F7E7DCA32F77EE2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

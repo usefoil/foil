@@ -1,0 +1,377 @@
+# GoalBuddy v2 state.yaml
+
+version: 2
+
+goal:
+  title: "Foil iOS Real Dictation v0.3"
+  slug: "ios-real-dictation-v0.3"
+  kind: existing_plan
+  tranche: "Implement and prove the first real iPhone dictation loop over the v0.2 keyboard shell."
+  status: done
+  oracle:
+    signal: "A known spoken phrase records in the containing app, transcribes through Groq, becomes Insert latest in Foil Keyboard, inserts into Notes on physical iPhone, and clears from App Group state."
+    cadence: "after Scout/Judge/Worker packages"
+    final_proof: "Focused tests, simulator build/UI proof, physical-device insertion proof, App Group reset inspection, and final audit."
+  intake:
+    original_request: "Do the next iOS build step: real dictation instead of fake transcript."
+    interpreted_outcome: "Implement the v0.3 record/transcribe/insert loop for Foil iOS."
+    input_shape: existing_plan
+    audience: "Foil owner/developer and early iPhone TestFlight testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "A real spoken phrase is recorded, transcribed, inserted from the keyboard, and cleared on the physical iPhone."
+    likely_misfire: "Building UI or network plumbing that appears ready but only proves fake transcript insertion or untested provider code."
+    blind_spots_considered:
+      - "Keyboard extensions cannot record directly; recording must remain in the containing app."
+      - "Provider calls may fail because of key, network, audio format, or privacy/logging mistakes."
+      - "Physical keyboard insertion can pass while App Group transcript state remains stale."
+      - "Simulator proof is weaker than device proof for microphone, keyboard, and App Group behavior."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: queued
+    url: "http://goalbuddy.localhost:41737/ios-real-dictation-v0-3/"
+    command: "npx goalbuddy board docs/goals/ios-real-dictation-v0.3"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: medium
+    objective: "Map the current iOS recording, transcription, credential, App Group, keyboard, and test surfaces; identify the smallest safe v0.3 real-dictation Worker slice."
+    inputs:
+      - "FoiliOS/FoilIOSApp"
+      - "FoiliOS/FoilKeyboard"
+      - "FoiliOS/Shared"
+      - "FoiliOS/project.yml"
+      - "docs/goals/ios-ux-v0.2/state.yaml"
+      - "docs/acceptance-evidence.md"
+    constraints:
+      - "Read-only."
+      - "Do not implement."
+      - "Do not print secrets, raw private transcripts, JWTs, or private accessibility trees."
+    expected_output:
+      - "Current architecture map."
+      - "Existing fake/real provider gaps."
+      - "Recommended first bounded Worker slice with allowed_files, tests, verify, and stop_if."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped the current iOS real-dictation surfaces. The app already has a nominal real path: AudioCaptureController records m4a, TranscriptionController calls FoilTranscriptionClient, the client posts multipart audio to Groq, and FoilKeyboardBridge completes a transcript for keyboard insertion. The gap is proof and testability, not missing architecture."
+      evidence:
+        - "Read FoiliOS/FoilIOSApp/AudioCaptureController.swift."
+        - "Read FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift."
+        - "Read FoiliOS/FoilIOSApp/TranscriptionController.swift."
+        - "Read FoiliOS/FoilIOSApp/ContentView.swift."
+        - "Read FoiliOS/FoilKeyboard/KeyboardViewController.swift."
+        - "Read FoiliOS/Shared/FoilKeyboardBridge.swift."
+        - "Read FoiliOS/project.yml and confirmed no existing iOS unit-test target."
+      current_architecture:
+        recording:
+          - "AudioCaptureController requests microphone permission, starts AVAudioRecorder with AAC m4a, marks App Group state listening, and saves the recording URL."
+          - "stopRecording saves phase processing with message Recording saved. Tap Transcribe in Foil."
+        transcription:
+          - "TranscriptionController loads Groq key from environment, keychain, or DEBUG UserDefaults; it marks processing, calls FoilTranscriptionClient, completes non-empty transcript, and fails empty/error cases."
+          - "FoilTranscriptionClient posts multipart/form-data to https://api.groq.com/openai/v1/audio/transcriptions with model whisper-large-v3-turbo."
+        keyboard:
+          - "KeyboardViewController reads shared snapshot, enables Insert latest for complete transcript, inserts text via textDocumentProxy, then resets bridge state."
+        fixtures:
+          - "Fake transcript URL/diagnostic path remains available through bridge.completeFakeTranscript and foilios://complete."
+      gaps:
+        - "No FoilIOS unit-test target exists, so provider/client regressions are only caught by build or live manual proof."
+        - "FoilTranscriptionClient is pinned to URLSession.shared and has private multipart construction, making deterministic provider tests impossible without a small seam."
+        - "The real path has not yet been disproven on simulator/device in this board; v0.2 proof only covered fake transcript insertion."
+      recommended_first_slice:
+        objective: "Add FoilIOSTests and a small injectable transport seam for FoilTranscriptionClient, then prove multipart request construction, success trimming, HTTP error handling, and no accidental secret/body leakage in errors."
+        allowed_files:
+          - "FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift"
+          - "FoiliOS/project.yml"
+          - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+          - "FoiliOS/FoilIOSTests/**"
+          - "docs/goals/ios-real-dictation-v0.3/**"
+        failing_tests:
+          - "FoilTranscriptionClientTests.testTranscribeUploadsMultipartAudioToGroqAndTrimsResponse"
+          - "FoilTranscriptionClientTests.testTranscribeThrowsHTTPStatusWithoutLeakingResponseBody"
+        verify:
+          - "cd FoiliOS && xcodegen generate --spec project.yml"
+          - "xcodebuild test -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOSTests -destination 'platform=iOS Simulator,name=<available iPhone>'"
+          - "xcodebuild build -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'platform=iOS Simulator,name=<available iPhone>'"
+          - "GoalBuddy state checker, git diff --check, targeted secret scan."
+        stop_if:
+          - "Adding the test target requires signing/provisioning changes outside project.yml."
+          - "The transport seam changes production request semantics beyond testability."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose the first safe v0.3 Worker package from T001 evidence and the goal oracle."
+    inputs:
+      - "T001 receipt."
+      - "Goal oracle."
+    constraints:
+      - "Read-only."
+      - "Prefer a vertical slice that can be proven without committing secrets."
+      - "Reject work that only improves fake-transcript UI."
+    expected_output:
+      - "decision"
+      - "Worker objective"
+      - "allowed_files"
+      - "failing tests to write first"
+      - "verify commands"
+      - "stop_if"
+    receipt:
+      result: done
+      task_id: T002
+      decision: "Proceed with the Scout-recommended testability slice before physical proof."
+      rationale:
+        - "The runtime real-dictation path already exists, so broad implementation would risk churn without improving proof."
+        - "A deterministic provider seam is the smallest reversible change that lets us disprove malformed upload, untrimmed transcript, and unsafe error-body leakage before live Groq/device testing."
+        - "Keeping fake transcript fixtures intact preserves the v0.2 insertion proof path."
+      worker_objective: "Add a FoilIOSTests target and refactor FoilTranscriptionClient to support injected upload transport while preserving production URLSession behavior."
+      allowed_files:
+        - "FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift"
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "FoiliOS/FoilIOSTests/**"
+        - "docs/goals/ios-real-dictation-v0.3/**"
+      failing_tests:
+        - "FoilTranscriptionClientTests.testTranscribeUploadsMultipartAudioToGroqAndTrimsResponse"
+        - "FoilTranscriptionClientTests.testTranscribeThrowsHTTPStatusWithoutLeakingResponseBody"
+      verify:
+        - "cd FoiliOS && xcodegen generate --spec project.yml"
+        - "xcodebuild test -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOSTests -destination 'platform=iOS Simulator,name=<available iPhone>'"
+        - "xcodebuild build -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'platform=iOS Simulator,name=<available iPhone>'"
+        - "GoalBuddy state checker passes."
+        - "git diff --check passes."
+        - "Targeted secret scan finds no private material."
+      stop_if:
+        - "Project generation removes required signing/app-extension settings."
+        - "Provider behavior changes beyond injection/testability."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Implement the chosen first real-dictation vertical slice after writing failing tests."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      - "FoiliOS/FoilIOSTests/**"
+      - "docs/goals/ios-real-dictation-v0.3/**"
+    verify:
+      - "cd FoiliOS && xcodegen generate --spec project.yml"
+      - "xcodebuild test -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOSTests -destination 'platform=iOS Simulator,name=<available iPhone>'"
+      - "xcodebuild build -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'platform=iOS Simulator,name=<available iPhone>'"
+      - "GoalBuddy state checker passes."
+      - "git diff --check passes."
+      - "Targeted secret scan finds no private material."
+    stop_if:
+      - "Project generation removes required signing/app-extension settings."
+      - "Provider behavior changes beyond injection/testability."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Added a FoilIOSTests target and refactored FoilTranscriptionClient behind an injectable upload transport while preserving the production URLSession.shared behavior."
+      changed_files:
+        - "FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift"
+        - "FoiliOS/FoilIOSTests/FoilTranscriptionClientTests.swift"
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-real-dictation-v0.3/state.yaml"
+      red:
+        - "xcodebuild test -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOSTests -destination 'platform=iOS Simulator,name=iPhone 17' initially failed because the new test expected missing FoilTranscriptionUploading."
+      implementation:
+        - "Added FoilTranscriptionUploading protocol and URLSession conformance."
+        - "Added FoilTranscriptionClient initializer with injectable transport and boundaryProvider defaults."
+        - "Kept endpoint https://api.groq.com/openai/v1/audio/transcriptions and model whisper-large-v3-turbo unchanged."
+        - "Made TranscriptionError Equatable for precise tests."
+        - "Added FoilIOSTests with test host/module settings so app internals can be tested without changing display name or bundle id."
+      evidence:
+        - "Focused tests passed: xcodebuild test -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOSTests -destination 'platform=iOS Simulator,name=iPhone 17' executed 2 tests with 0 failures."
+        - "Simulator app build passed: xcodebuild build -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'platform=iOS Simulator,name=iPhone 17'."
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "xcodebuild test -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOSTests -destination 'platform=iOS Simulator,name=iPhone 17'"
+          status: pass
+        - cmd: "xcodebuild build -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'platform=iOS Simulator,name=iPhone 17'"
+          status: pass
+      strongest_failure_modes:
+        - "Malformed multipart upload would pass build but fail live Groq: ruled down by testTranscribeUploadsMultipartAudioToGroqAndTrimsResponse asserting endpoint, method, Authorization, Content-Type boundary, model part, file part, audio bytes, terminator, and trimmed transcript."
+        - "Provider error could leak response body/secrets: ruled down by testTranscribeThrowsHTTPStatusWithoutLeakingResponseBody asserting HTTP 401 error without body fragments."
+        - "Adding the test target could break app/keyboard build: ruled down by FoilIOS simulator build success."
+
+  - id: T004
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Review T003 implementation and evidence; decide whether to proceed to physical device proof, request fixes, or narrow the goal."
+    inputs:
+      - "T003 receipt."
+      - "git diff."
+      - "test/build output."
+    constraints:
+      - "Read-only unless recording the board receipt."
+      - "Do not accept simulator-only proof as final."
+    expected_output:
+      - "decision"
+      - "remaining risks"
+      - "next task activation"
+    receipt:
+      result: done
+      task_id: T004
+      decision: "Proceed to T005 physical iPhone proof before any broader implementation."
+      rationale:
+        - "T003 gives deterministic provider request proof, but the goal oracle is a real recorded phrase inserted through the keyboard."
+        - "The containing app already exposes the real flow, so another code slice would be speculative until live device proof identifies an actual gap."
+        - "The fake transcript path remains intact and can be used as fallback/control evidence, but it cannot complete v0.3."
+      remaining_risks:
+        - "Physical device may not have microphone permission or a configured Groq key."
+        - "Mac speaker audio may not be captured clearly enough by the phone microphone."
+        - "WDA/CoreDevice tunnel may need the same recovery used in v0.2."
+        - "Keyboard insertion can work while App Group canonical state remains stale unless copied back and inspected."
+      next_task: "T005"
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run simulator and physical iPhone proof for the real dictation loop, including Notes insertion and App Group reset inspection."
+    allowed_files:
+      - "docs/goals/ios-real-dictation-v0.3/**"
+    verify:
+      - "Focused unit tests for provider/snapshot/controller behavior."
+      - "FoilIOS simulator build."
+      - "Physical iPhone install/launch."
+      - "Known phrase record/transcribe/keyboard insert in Notes."
+      - "App Group snapshot copied back after insert shows idle/Ready/no transcript."
+      - "Targeted secret scan."
+      - "GoalBuddy state checker."
+      - "git diff --check."
+    stop_if:
+      - "Physical iPhone, microphone permission, Groq key, or WDA access is unavailable."
+      - "The transcript contains private or unstable content that cannot be safely recorded as evidence."
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Ran the real dictation loop on iPhone-preview: installed the current branch, recorded sterile audio through the containing app, transcribed with Groq, inserted the real transcript through Foil Keyboard into Notes, and copied back App Group state after insertion."
+      changed_files:
+        - "docs/goals/ios-real-dictation-v0.3/state.yaml"
+        - "docs/goals/ios-real-dictation-v0.3/notes/visual/v03-device-before-record.png"
+        - "docs/goals/ios-real-dictation-v0.3/notes/visual/v03-device-recording-saved.png"
+        - "docs/goals/ios-real-dictation-v0.3/notes/visual/v03-device-transcript-ready.png"
+        - "docs/goals/ios-real-dictation-v0.3/notes/visual/v03-device-notes-real-insert.png"
+      environment:
+        device: "iPhone-preview"
+        device_udid: "00008030-001A0C980A33C02E"
+        coredevice_id: "5320F5AD-2A71-50AC-94FE-207B544B6247"
+        installed_app: "Foil iOS 0.1.0 build 5, direct Debug device build from this branch"
+        wda_session_app: "6D705DF0-6E0E-47EC-BE2A-EDB545A52743"
+        wda_session_notes: "D63629C3-DFAE-4A03-A911-5EB11874555C"
+      proof:
+        - "Pre-record app source showed Ready to dictate, microphone allowed, Groq key configured, keyboard Full Access on, shared state Ready/no transcript."
+        - "Tapped Record dictation, played sterile phrase through macOS speech, then tapped Finish recording."
+        - "Post-record source showed Recording saved and Transcribe/Create transcript enabled."
+        - "Tapped Create transcript and poll 1 showed Transcript ready, Groq transcript ready, Transcription complete, and Shared state Transcript pending."
+        - "Canonical App Group snapshot before insert showed phase complete and transcript Foiled lift dictation violet cactus."
+        - "Notes fresh note source showed Foil Keyboard visible with Transcript Ready, Groq transcript ready message, and Insert latest enabled."
+        - "After tapping Insert latest, Notes TextView value was exactly Foiled lift dictation violet cactus."
+        - "After insertion, Foil Keyboard showed Ready, No transcript disabled, Clear disabled."
+        - "Canonical App Group snapshot after insertion showed phase idle, message Ready, and no transcript field."
+      artifacts:
+        - "docs/goals/ios-real-dictation-v0.3/notes/visual/v03-device-before-record.png"
+        - "docs/goals/ios-real-dictation-v0.3/notes/visual/v03-device-recording-saved.png"
+        - "docs/goals/ios-real-dictation-v0.3/notes/visual/v03-device-transcript-ready.png"
+        - "docs/goals/ios-real-dictation-v0.3/notes/visual/v03-device-notes-real-insert.png"
+      commands:
+        - cmd: "xcodebuild build -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=00008030-001A0C980A33C02E' DEVELOPMENT_TEAM=B3A6AN2HA4 CODE_SIGN_STYLE=Automatic -allowProvisioningUpdates"
+          status: pass
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/Users/neonwatty/Library/Developer/Xcode/DerivedData/FoilIOS-etjpnlgwpgrmogdamhcddquunbkh/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+        - cmd: "xcrun devicectl device process launch com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "xcodebuild WebDriverAgentRunner-nodebug test"
+          status: pass
+        - cmd: "WDA source/screenshot for Foil iOS pre-record, recording saved, and transcript ready"
+          status: pass
+        - cmd: "xcrun devicectl device copy from appGroupDataContainer before insert"
+          status: pass
+        - cmd: "WDA source/screenshot for Notes insert and keyboard reset"
+          status: pass
+        - cmd: "xcrun devicectl device copy from appGroupDataContainer after insert"
+          status: pass
+      strongest_failure_modes:
+        - "The app could show Transcript ready from stale fake data: ruled out by recording a new sterile phrase, seeing Groq transcript ready after Create transcript, and copying App Group transcript Foiled lift dictation violet cactus before insert."
+        - "Keyboard could insert something other than the App Group transcript: ruled out by Notes TextView value exactly matching the copied App Group transcript."
+        - "Keyboard could visually reset while canonical App Group transcript remains stale: ruled out by post-insert App Group copy showing idle/Ready/no transcript."
+        - "The current branch might only be simulator-proven: ruled out by direct physical-device build/install and WDA proof on iPhone-preview."
+      residual_risk:
+        - "Mac speaker-to-phone microphone audio caused a minor recognition mismatch from the spoken phrase, producing Foiled lift instead of Foil live. This still proves real-provider insertion; future UX polish should add a clearer live-audio fixture or direct audio injection for exact-phrase accuracy."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit against the goal oracle and acceptance-evidence burden of proof."
+    inputs:
+      - "All task receipts."
+      - "Final diff."
+      - "Physical proof artifacts."
+    constraints:
+      - "Do not mark done on happy-path tests alone."
+      - "Name strongest realistic failure modes and evidence that rules each out."
+    expected_output:
+      - "result"
+      - "decision"
+      - "full_outcome_complete"
+      - "residual risk"
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      audit:
+        claim: "Foil iOS can record audio in the containing app, transcribe through Groq, make the real transcript available to Foil Keyboard, insert it into Notes, and clear shared state afterward."
+        strongest_realistic_failure_modes:
+          - failure: "Provider upload code is malformed even though UI proof passed once."
+            evidence: "FoilTranscriptionClientTests assert endpoint, POST method, Authorization header, multipart boundary, model part, file part, audio bytes, response trimming, and HTTP error behavior."
+          - failure: "Physical phone proof used stale/fake transcript instead of live Groq."
+            evidence: "T005 recorded sterile phrase, tapped Create transcript, saw Groq transcript ready/Transcription complete, and copied App Group snapshot with real transcript Foiled lift dictation violet cactus before insertion."
+          - failure: "Keyboard inserted text but failed to clear canonical App Group state."
+            evidence: "After Insert latest, WDA source showed Notes TextView value Foiled lift dictation violet cactus and keyboard reset; copied App Group snapshot showed phase idle, message Ready, and no transcript field."
+          - failure: "Project/test wiring broke the app or keyboard extension."
+            evidence: "FoilIOSTests passed, FoilIOS simulator build passed, and physical-device build/install/launch passed."
+          - failure: "Secrets or private data leaked into committed artifacts."
+            evidence: "Only sterile transcript text is recorded; provider key field remained secure/hidden; no API key/JWT/provisioning secret is included in receipts."
+      residual_risk:
+        - "The live speech transcript was not exact to the spoken phrase because phone microphone captured Mac speaker audio imperfectly. Need better audio fixture for exact phrase QA."
