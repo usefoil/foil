@@ -53,7 +53,7 @@ final class TranscriptionController: ObservableObject {
 
         do {
             let transcript = try await client.transcribe(audioFileURL: recordingURL, apiKey: apiKey)
-            guard !transcript.isEmpty else {
+            guard FoilTranscriptQuality.isAcceptable(transcript) else {
                 status = "No speech detected"
                 recoveryMessage = "Record again, or reset shared state to return the keyboard to ready."
                 bridge.fail(message: "No speech detected. Record again in Foil.")
