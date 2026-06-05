@@ -8,7 +8,7 @@ goal:
   slug: "ios-physical-automation-runbook"
   kind: specific
   tranche: "Make physical iPhone automation setup repeatable and safely testable for future Foil iOS boards."
-  status: active
+  status: done
   oracle:
     signal: "A repo runbook or helper surface can diagnose physical iPhone/WDA/tunnel readiness, name safe test boundaries, and pass a smoke check or record an exact blocker."
     cadence: "after Scout, Judge, Worker, smoke test, and final audit"
@@ -65,7 +65,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-physical-automation-runbook/"
     command: "npx goalbuddy board docs/goals/ios-physical-automation-runbook"
 
-active_task: T999
+active_task: null
 
 tasks:
   - id: T001
@@ -241,7 +241,7 @@ tasks:
   - id: T999
     type: judge
     assignee: Judge
-    status: active
+    status: done
     reasoning_hint: high
     objective: "Final audit against physical automation runbook oracle."
     inputs:
@@ -258,13 +258,61 @@ tasks:
       - "full_outcome_complete: true | false"
       - "Strongest realistic failure mode and evidence."
       - "Residual risks."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "Final audit accepts the physical automation runbook slice as complete. The new runbook gives future agents concrete physical iPhone/WDA readiness checks, startup/cleanup commands, app install/App Group proof commands, privacy boundaries, and receipt requirements. Safe smoke checks matched the documented current machine state."
+      pull_request:
+        number: 231
+        url: "https://github.com/mean-weasel/foil/pull/231"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-physical-automation-runbook"
+        state: open
+        draft: true
+        merge_state: clean
+      commit:
+        sha: "84ad4fb"
+        message: "Add iOS physical automation runbook"
+      strongest_realistic_failure_mode:
+        claim: "The runbook might look useful but fail to diagnose the actual local physical automation state."
+        evidence_that_rules_it_out:
+          - "devicectl, WDA status, WDA project path, iproxy, and pymobiledevice3 checks were run against the current machine."
+          - "The runbook explicitly documents WDA-down and pymobiledevice3-missing states rather than assuming automation is ready."
+          - "Privacy boundaries and cleanup commands are included, reducing the risk of private app evidence or leftover WDA processes."
+      verification:
+        - cmd: "xcrun devicectl list devices"
+          status: pass
+        - cmd: "curl -sS --max-time 2 http://127.0.0.1:8100/status || true"
+          status: pass
+        - cmd: "test -d WebDriverAgent.xcodeproj path"
+          status: pass
+        - cmd: "command -v iproxy"
+          status: pass
+        - cmd: "Xcode Python pymobiledevice3 module check"
+          status: pass
+          note: "Missing module detected and documented."
+        - cmd: "git diff --check over touched files"
+          status: pass
+        - cmd: "secret/private-string scan over touched files"
+          status: pass
+        - cmd: "gh pr view 231"
+          status: pass
+        - cmd: "gh pr checks 231"
+          status: pass
+          note: "No checks reported."
+      residual_risks:
+        - "This runbook slice does not start WDA or run a new host-app matrix."
+        - "Messages still requires an operator-provided safe self/test thread before automation."
 
 checks:
   dirty_fingerprint: "Created after PR #230 merged archive-readiness into codex/ios-keyboard-prototype."
   last_verification:
-    result: prep
-    task: T001
+    result: done
+    task: T999
     commands:
       - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-unattended-testflight-conveyor/state.yaml"
+        status: pass
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-physical-automation-runbook/state.yaml"
         status: pass
