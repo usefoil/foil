@@ -113,11 +113,26 @@ struct FoilKeyboardHealthReport: Codable, Equatable {
     }
 }
 
+enum FoilIOSCommandAction: String, Codable, Equatable {
+    case startRecording
+    case stopRecording
+    case transcribeLatest
+    case resetSharedState
+    case completeFakeTranscript
+}
+
+struct FoilIOSCommand: Codable, Equatable {
+    var id: String
+    var action: FoilIOSCommandAction
+    var updatedAt: Date
+}
+
 struct FoilKeyboardBridge {
     private let defaultsKey = "foil.keyboard.snapshot.v1"
     private let reportDefaultsKey = "foil.keyboard.storageReport.v1"
     private let healthDefaultsKey = "foil.keyboard.healthReport.v1"
     private let snapshotFileName = "foil-keyboard-snapshot.json"
+    private let commandFileName = "foil-ios-command.json"
 
     private var defaults: UserDefaults {
         UserDefaults(suiteName: FoilIOSConstants.appGroupIdentifier) ?? .standard
@@ -131,6 +146,12 @@ struct FoilKeyboardBridge {
         sharedContainerURL?
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent(snapshotFileName)
+    }
+
+    private var commandFileURL: URL? {
+        sharedContainerURL?
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent(commandFileName)
     }
 
     private var readableSnapshotFileURLs: [URL] {
@@ -183,6 +204,20 @@ struct FoilKeyboardBridge {
             return .initial
         }
         return report
+    }
+
+    func loadCommand() -> FoilIOSCommand? {
+        guard let commandFileURL,
+              let data = try? Data(contentsOf: commandFileURL),
+              let command = try? JSONDecoder().decode(FoilIOSCommand.self, from: data) else {
+            return nil
+        }
+        return command
+    }
+
+    func clearCommand() {
+        guard let commandFileURL else { return }
+        try? FileManager.default.removeItem(at: commandFileURL)
     }
 
     func recordKeyboardHealth(fullAccessEnabled: Bool, snapshot: FoilKeyboardSnapshot) {

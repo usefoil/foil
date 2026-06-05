@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var providerKeyEntry = ""
     @State private var providerCredentialMessage = ""
     @State private var showDiagnostics = false
+    @State private var lastHandledCommandID: String?
     private let refreshTimer = Timer.publish(every: 0.75, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -201,6 +202,8 @@ struct ContentView: View {
                 refresh()
             }
         }
+        .onAppear(perform: handlePendingCommand)
+        .onReceive(refreshTimer) { _ in handlePendingCommand() }
     }
 
     @ViewBuilder
@@ -307,6 +310,33 @@ struct ContentView: View {
         snapshot = bridge.load()
         storageReport = bridge.storageReport()
         keyboardHealth = bridge.keyboardHealthReport()
+    }
+
+    private func handlePendingCommand() {
+        guard let command = bridge.loadCommand(),
+              command.id != lastHandledCommandID else {
+            return
+        }
+
+        lastHandledCommandID = command.id
+        bridge.clearCommand()
+
+        switch command.action {
+        case .startRecording:
+            bridge.markListening()
+            Task { await audioCapture.startRecording() }
+        case .stopRecording:
+            audioCapture.stopRecording()
+            refresh()
+        case .transcribeLatest:
+            Task { await transcription.transcribeLatestRecording(audioCapture.lastRecordingURL) }
+        case .resetSharedState:
+            bridge.reset()
+            refresh()
+        case .completeFakeTranscript:
+            bridge.completeFakeTranscript()
+            refresh()
+        }
     }
 
     private func saveProviderKey() {
