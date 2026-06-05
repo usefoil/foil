@@ -8,7 +8,7 @@ goal:
   slug: "ios-testflight-archive-readiness"
   kind: specific
   tranche: "Verify and fix iOS archive/version metadata enough for an internal TestFlight attempt or exact blocker."
-  status: active
+  status: done
   oracle:
     signal: "Fresh branch from codex/ios-keyboard-prototype has aligned version/build metadata in project.yml, generated plists, and built archive/export evidence, or a precise Apple/signing/export blocker."
     cadence: "after Scout, Judge, Worker, archive/export attempt, and final audit"
@@ -64,7 +64,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-testflight-archive-readiness/"
     command: "npx goalbuddy board docs/goals/ios-testflight-archive-readiness"
 
-active_task: T999
+active_task: null
 
 tasks:
   - id: T001
@@ -265,7 +265,7 @@ tasks:
   - id: T999
     type: judge
     assignee: Judge
-    status: active
+    status: done
     reasoning_hint: high
     objective: "Final audit against archive-readiness oracle."
     inputs:
@@ -282,13 +282,63 @@ tasks:
       - "full_outcome_complete: true | false"
       - "Strongest realistic failure mode and evidence."
       - "Residual risks."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "Final audit accepts the archive-readiness slice as complete. The stale generated Info.plist version values were replaced with Xcode build-setting substitutions, and the Release archive plus exported IPA both prove app and keyboard metadata resolve to version 0.1.0 build 1. A draft PR was opened into codex/ios-keyboard-prototype."
+      pull_request:
+        number: 230
+        url: "https://github.com/mean-weasel/foil/pull/230"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-testflight-archive-readiness"
+        state: open
+        draft: true
+        merge_state: clean
+      commit:
+        sha: "dd848a0"
+        message: "Prepare iOS TestFlight archive metadata"
+      strongest_realistic_failure_mode:
+        claim: "The source plists could be fixed while the archived or exported IPA still carries version 1.0, causing the TestFlight artifact to be mislabeled."
+        evidence_that_rules_it_out:
+          - "Archived app and embedded keyboard Info.plists under /tmp/FoilIOS-TestFlightReadiness.xcarchive both report CFBundleShortVersionString 0.1.0 and CFBundleVersion 1."
+          - "Exported /tmp/FoilIOS-TestFlightReadinessExport/Foil iOS.ipa was unzipped and both payload Info.plists report version 0.1.0 build 1."
+          - "DistributionSummary.plist reports Store provisioning profiles, beta-reports-active true, get-task-allow false, and Cloud Managed Apple Distribution certificate."
+      verification:
+        - cmd: "cd FoiliOS && xcodegen generate"
+          status: pass
+        - cmd: "xcodebuild archive -project FoilIOS.xcodeproj -scheme FoilIOS -configuration Release -destination generic/platform=iOS -archivePath /tmp/FoilIOS-TestFlightReadiness.xcarchive -allowProvisioningUpdates"
+          status: pass
+        - cmd: "xcodebuild -exportArchive -archivePath /tmp/FoilIOS-TestFlightReadiness.xcarchive -exportPath /tmp/FoilIOS-TestFlightReadinessExport -exportOptionsPlist /tmp/FoilIOS-TestFlightReadiness-ExportOptions.plist -allowProvisioningUpdates"
+          status: pass
+        - cmd: "PlistBuddy source, archive, and exported IPA payload metadata inspection"
+          status: pass
+        - cmd: "plutil -lint generated app and keyboard Info.plists"
+          status: pass
+        - cmd: "git diff --check over touched files"
+          status: pass
+        - cmd: "rg secret/private-string scan over touched files"
+          status: pass
+        - cmd: "gh pr view 230"
+          status: pass
+        - cmd: "gh pr checks 230"
+          status: pass
+          note: "No checks reported."
+      exported_artifact:
+        ipa_path: "/tmp/FoilIOS-TestFlightReadinessExport/Foil iOS.ipa"
+        sha256: "e237e0a133f27d19f4fcdf5132061a0178cba4a06b6fd3834fd76f8045340c3e"
+      residual_risks:
+        - "This proves an exportable IPA, not an upload to App Store Connect/TestFlight."
+        - "The PR is still draft/open until the conveyor lands it or the user reviews it."
 
 checks:
   dirty_fingerprint: "Created from the unattended conveyor after PR #229 merged into codex/ios-keyboard-prototype."
   last_verification:
-    result: prep
-    task: T001
+    result: done
+    task: T999
     commands:
       - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-unattended-testflight-conveyor/state.yaml"
+        status: pass
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-testflight-archive-readiness/state.yaml"
         status: pass
