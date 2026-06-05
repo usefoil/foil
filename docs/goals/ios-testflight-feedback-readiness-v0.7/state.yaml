@@ -1,0 +1,131 @@
+# GoalBuddy v2 state.yaml
+
+version: 2
+
+goal:
+  title: "Foil iOS TestFlight Feedback Readiness v0.7"
+  slug: "ios-testflight-feedback-readiness-v0.7"
+  kind: specific
+  tranche: "Prepare the next honest TestFlight feedback loop after v0.7 proof boards."
+  status: queued
+  oracle:
+    signal: "A tester can read the handoff, install/use the right build, understand the record-return-insert loop, recover from common failures, and send useful feedback."
+    cadence: "after physical/quality/matrix boards"
+    final_proof: "Release notes or issue update, build decision, feedback checklist, proof/blocker summary, secret scan, and PR/merge receipt."
+  intake:
+    original_request: "Next several iOS GoalBuddy boards."
+    interpreted_outcome: "End the v0.7 conveyor with a TestFlight feedback handoff."
+    input_shape: specific
+    audience: "Foil owner/developer and early iPhone TestFlight testers"
+    authority: approved
+    proof_type: artifact
+    completion_proof: "Feedback handoff reflects the actual proof state and latest build."
+    likely_misfire: "Uploading/announcing a build that still lacks the physical or useful-dictation proof users need."
+    blind_spots_considered:
+      - "Testers need clear reset/retry instructions for keyboard extension weirdness."
+      - "The app may require swipe-away/swipe-back keyboard reset behavior."
+      - "Build numbers and TestFlight processing/export-compliance states must be exact."
+      - "Feedback should ask for target app, field type, phrase length, and recovery outcome without collecting private text."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-testflight-feedback-readiness-v0-7/"
+    command: "npx goalbuddy board docs/goals/ios-testflight-feedback-readiness-v0.7"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: queued
+    reasoning_hint: medium
+    objective: "Collect the proof/blocker state from the v0.7 child boards and current TestFlight/App Store Connect build state."
+    inputs:
+      - "docs/goals/ios-build7-physical-smoke/state.yaml"
+      - "docs/goals/ios-useful-dictation-quality-proof/state.yaml"
+      - "docs/goals/ios-target-app-insertion-matrix-v0.7/state.yaml"
+      - "App Store Connect/TestFlight status if needed"
+    constraints:
+      - "Read-only."
+      - "Do not print ASC keys or JWTs."
+    expected_output:
+      - "Latest build and proof status."
+      - "Tester-facing claims that are safe to make."
+      - "Claims that must be avoided."
+    receipt: null
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Draft/update the tester handoff: what to install, how to enable keyboard/full access, how to record/return/insert, how to reset, and what feedback to send."
+    inputs:
+      - "T001 receipt"
+      - "Issue #216 or current canonical iOS issue"
+    constraints:
+      - "Short concrete tester instructions."
+      - "No private data requests."
+      - "No unsupported claims."
+    expected_output:
+      - "Issue/update or docs handoff."
+      - "Feedback checklist."
+    receipt: null
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: high
+    objective: "Decide and, if justified, prepare/upload the next TestFlight build with exact export-compliance and beta-group proof."
+    inputs:
+      - "T001/T002 receipts"
+      - "Current build metadata"
+    constraints:
+      - "Do not upload if no code/product change or proof state justifies a new build."
+      - "If uploading, bump build number once and verify IPA metadata."
+    expected_output:
+      - "Build decision."
+      - "Upload/attach proof or no-upload rationale."
+    receipt: null
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Audit the TestFlight feedback handoff against actual proof and blockers."
+    inputs:
+      - "All task receipts"
+      - "handoff artifact"
+      - "build status"
+    constraints:
+      - "Reject stale build numbers."
+      - "Reject hidden blockers."
+    expected_output:
+      - "complete | blocked"
+      - "safe tester claims"
+      - "next post-v0.7 board recommendation"
+    receipt: null
