@@ -28,6 +28,13 @@ account authentication and an external upload command.
 - No tester was added to that group yet because the account has multiple
   existing beta-tester records, including duplicates, and the preview phone's
   intended TestFlight Apple ID should be chosen explicitly.
+- The preview phone's App Store account was confirmed through WDA on the
+  physical device, and a fresh beta tester for that account was created directly
+  into `Foil Internal Testers`.
+- The internal group now has one tester in `INVITED` state.
+- `iPhone-preview` does not currently have TestFlight installed. Opening the
+  TestFlight App Store listing reached an Apple Account password prompt, so
+  installation requires human authentication on the phone.
 - Regenerate `/tmp` archive/export artifacts before a future upload because
   those paths are ephemeral.
 
@@ -227,10 +234,12 @@ Latest group receipt:
 - group ID: `bcca568d-167d-44cb-b952-a410e9c9e10f`
 - attached build ID: `b6ee56d7-a91a-4183-9552-0a725a77d46e`
 - group build count: `1`
-- group tester count: `0`
+- group tester count: `1`
+- tester state: `INVITED`
 
-Next human action: choose the Apple ID/TestFlight account on
-`iPhone-preview`, then add the matching beta tester to `Foil Internal Testers`.
+Next human action: install TestFlight on `iPhone-preview` by completing the
+Apple Account password prompt on the phone, then accept the Foil Dictation
+TestFlight invitation.
 
 ## Validate With Apple ID App Password
 
@@ -284,7 +293,14 @@ Evidence:
   READY_FOR_BETA_TESTING`.
 - App Store Connect API created internal group `Foil Internal Testers` and
   attached the uploaded build to it.
+- WDA confirmed the preview phone's App Store account, and App Store Connect API
+  created a matching beta tester directly in `Foil Internal Testers`.
+- App Store Connect API reported the group has one attached build and one beta
+  tester in `INVITED` state.
+- `devicectl` found App Store installed but not TestFlight on `iPhone-preview`;
+  opening the TestFlight App Store listing reached an Apple Account password
+  prompt.
 
 Residual risk / follow-up: App Store Connect/TestFlight may still require
-the intended tester Apple ID to be added before the build appears on
-`iPhone-preview`.
+human authentication on `iPhone-preview` before TestFlight can be installed and
+the Foil Dictation invitation can be accepted.
