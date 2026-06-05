@@ -70,7 +70,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-testflight-onboarding-failure-recovery/"
     command: "npx goalbuddy board docs/goals/ios-testflight-onboarding-failure-recovery"
 
-active_task: T010
+active_task: T999
 
 tasks:
   - id: T001
@@ -754,7 +754,7 @@ tasks:
   - id: T010
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Prepare issue/PR handoff artifacts for the verified TestFlight onboarding/failure-recovery implementation."
     allowed_files:
@@ -768,12 +768,47 @@ tasks:
     stop_if:
       - "GitHub auth unavailable."
       - "Verification did not pass and no narrow blocker was recorded."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T010
+      summary: "Prepared GitHub handoff artifacts. Committed the iOS TestFlight onboarding/recovery implementation, pushed codex/ios-testflight-onboarding-recovery, opened a draft PR into codex/ios-keyboard-prototype, and updated issue #216 with sanitized physical proof and residual risks."
+      changed_files:
+        - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      commit:
+        sha: "eb3a6d1"
+        message: "Prepare iOS TestFlight keyboard recovery"
+      pull_request:
+        url: "https://github.com/mean-weasel/foil/pull/229"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-testflight-onboarding-recovery"
+        draft: true
+      issue_update:
+        issue: 216
+        url: "https://github.com/mean-weasel/foil/issues/216#issuecomment-4627552909"
+      commands:
+        - cmd: "git add explicit Foil iOS and GoalBuddy files only"
+          status: pass
+        - cmd: "git diff --cached --check"
+          status: pass
+        - cmd: "rg secret/private-string scan over FoiliOS and this goal"
+          status: pass
+        - cmd: "GoalBuddy check-goal-state"
+          status: pass
+        - cmd: "git commit -m 'Prepare iOS TestFlight keyboard recovery'"
+          status: pass
+        - cmd: "git push -u origin codex/ios-testflight-onboarding-recovery"
+          status: pass
+        - cmd: "gh pr create --draft --base codex/ios-keyboard-prototype --head codex/ios-testflight-onboarding-recovery"
+          status: pass
+        - cmd: "gh issue comment 216"
+          status: pass
+      residual_risk:
+        - "This receipt itself still needs to be committed and pushed after T010 is marked done."
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: active
     reasoning_hint: high
     objective: "Final audit against the TestFlight onboarding/failure-recovery oracle."
     inputs:
