@@ -1,18 +1,34 @@
 import Foundation
 
+protocol FoilTranscriptionUploading {
+    func upload(for request: URLRequest, from body: Data) async throws -> (Data, URLResponse)
+}
+
+extension URLSession: FoilTranscriptionUploading {}
+
 struct FoilTranscriptionClient {
     private let endpoint = URL(string: "https://api.groq.com/openai/v1/audio/transcriptions")!
     private let model = "whisper-large-v3-turbo"
+    private let transport: FoilTranscriptionUploading
+    private let boundaryProvider: () -> String
+
+    init(
+        transport: FoilTranscriptionUploading = URLSession.shared,
+        boundaryProvider: @escaping () -> String = { "Boundary-\(UUID().uuidString)" }
+    ) {
+        self.transport = transport
+        self.boundaryProvider = boundaryProvider
+    }
 
     func transcribe(audioFileURL: URL, apiKey: String) async throws -> String {
-        let boundary = "Boundary-\(UUID().uuidString)"
+        let boundary = boundaryProvider()
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
         let body = try buildMultipartBody(audioFileURL: audioFileURL, boundary: boundary)
-        let (data, response) = try await URLSession.shared.upload(for: request, from: body)
+        let (data, response) = try await transport.upload(for: request, from: body)
 
         guard let http = response as? HTTPURLResponse else {
             throw TranscriptionError.invalidResponse
@@ -44,7 +60,7 @@ private struct TranscriptionResponse: Decodable {
     let text: String
 }
 
-enum TranscriptionError: LocalizedError {
+enum TranscriptionError: LocalizedError, Equatable {
     case invalidResponse
     case httpStatus(Int)
     case missingAPIKey
