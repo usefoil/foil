@@ -18,6 +18,16 @@ account authentication and an external upload command.
   `b6ee56d7-a91a-4183-9552-0a725a77d46e`.
 - Apple reported the uploaded build as `VALID`, `APP_STORE_ELIGIBLE`,
   `is-on-app-store-connect: true`, version `1`, min OS `17.0`.
+- Export compliance has been answered for the uploaded build:
+  `usesNonExemptEncryption: false`.
+- TestFlight build beta detail reports `internalBuildState:
+  READY_FOR_BETA_TESTING` and `externalBuildState:
+  READY_FOR_BETA_SUBMISSION`.
+- Internal beta group `Foil Internal Testers` exists and has build
+  `b6ee56d7-a91a-4183-9552-0a725a77d46e` attached.
+- No tester was added to that group yet because the account has multiple
+  existing beta-tester records, including duplicates, and the preview phone's
+  intended TestFlight Apple ID should be chosen explicitly.
 - Regenerate `/tmp` archive/export artifacts before a future upload because
   those paths are ephemeral.
 
@@ -170,6 +180,58 @@ xcrun altool --build-status \
   --output-format json
 ```
 
+## Clear Export Compliance
+
+When App Store Connect reports `MISSING_EXPORT_COMPLIANCE`, set the build's
+non-exempt-encryption answer. Keep the JWT private and do not print the token.
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"data":{"type":"builds","id":"<build_id>","attributes":{"usesNonExemptEncryption":false}}}' \
+  "https://api.appstoreconnect.apple.com/v1/builds/<build_id>"
+```
+
+Expected follow-up state for the Foil iOS build:
+
+- build `usesNonExemptEncryption: false`
+- beta detail `internalBuildState: READY_FOR_BETA_TESTING`
+- beta detail `externalBuildState: READY_FOR_BETA_SUBMISSION`
+
+## Internal TestFlight Group
+
+Create an internal group if none exists:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"data":{"type":"betaGroups","attributes":{"name":"Foil Internal Testers","isInternalGroup":true,"feedbackEnabled":true},"relationships":{"app":{"data":{"type":"apps","id":"6777069277"}}}}}' \
+  "https://api.appstoreconnect.apple.com/v1/betaGroups"
+```
+
+Attach the uploaded build to the group:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"data":[{"type":"builds","id":"b6ee56d7-a91a-4183-9552-0a725a77d46e"}]}' \
+  "https://api.appstoreconnect.apple.com/v1/betaGroups/<group_id>/relationships/builds"
+```
+
+Latest group receipt:
+
+- group name: `Foil Internal Testers`
+- group ID: `bcca568d-167d-44cb-b952-a410e9c9e10f`
+- attached build ID: `b6ee56d7-a91a-4183-9552-0a725a77d46e`
+- group build count: `1`
+- group tester count: `0`
+
+Next human action: choose the Apple ID/TestFlight account on
+`iPhone-preview`, then add the matching beta tester to `Foil Internal Testers`.
+
 ## Validate With Apple ID App Password
 
 ```bash
@@ -216,7 +278,13 @@ Evidence:
 - `xcrun altool --build-status --delivery-id b6ee56d7-a91a-4183-9552-0a725a77d46e ...`
   reported `build-status: VALID`, `import-status: VALID`,
   `is-on-app-store-connect: true`, and `uses-non-exempt-encryption: false`.
+- App Store Connect API `PATCH /v1/builds/b6ee56d7-a91a-4183-9552-0a725a77d46e`
+  accepted `usesNonExemptEncryption: false`.
+- App Store Connect API reported `internalBuildState:
+  READY_FOR_BETA_TESTING`.
+- App Store Connect API created internal group `Foil Internal Testers` and
+  attached the uploaded build to it.
 
 Residual risk / follow-up: App Store Connect/TestFlight may still require
-post-processing review fields, tester-group setup, export compliance answers, or
-manual internal distribution steps before the build appears for every tester.
+the intended tester Apple ID to be added before the build appears on
+`iPhone-preview`.
