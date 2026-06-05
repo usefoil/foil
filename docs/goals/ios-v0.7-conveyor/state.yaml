@@ -1,0 +1,195 @@
+# GoalBuddy v2 state.yaml
+
+version: 2
+
+goal:
+  title: "Foil iOS v0.7 GoalBuddy Conveyor"
+  slug: "ios-v0.7-conveyor"
+  kind: existing_plan
+  tranche: "Coordinate the next several iOS GoalBuddy boards through physical proof, useful dictation, insertion coverage, and TestFlight feedback readiness."
+  status: active
+  oracle:
+    signal: "Each child board either lands a verified PR into codex/ios-keyboard-prototype or records an exact blocker with the next safe task queued."
+    cadence: "after each child-board closeout"
+    final_proof: "Child board receipts, PR/merge links, simulator/device evidence, secret scans, and final conveyor audit."
+  intake:
+    original_request: "Plan out the next several goalbuddy prep boards and manage yourself through them."
+    interpreted_outcome: "Create a sequenced iOS v0.7 GoalBuddy conveyor and start executing it."
+    input_shape: existing_plan
+    audience: "Foil owner/developer and early TestFlight testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "The v0.7 conveyor boards are created, registered, and progressed in order with receipts."
+    likely_misfire: "Creating a stack of nice-looking plans without actually advancing the iPhone proof loop."
+    blind_spots_considered:
+      - "Build 7 is TestFlight-ready but not physically installed/proven on iPhone-preview."
+      - "WDA recently failed with Timed out while enabling automation mode."
+      - "Earlier real audio proof showed provider plumbing but produced punctuation-only text."
+      - "Only a limited insertion matrix is proven; secure fields and safe Messages coverage need care."
+      - "Board sprawl can hide the actual next task unless one conductor owns sequencing."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-v0-7-conveyor/"
+    command: "npx goalbuddy board docs/goals/ios-v0.7-conveyor"
+
+active_task: T004
+
+tasks:
+  - id: T001
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Create and register the child boards for physical build-7 smoke, useful dictation quality, target-app insertion matrix, and TestFlight feedback readiness."
+    inputs:
+      - "docs/goals/ios-ux-v0.6-product-loop/state.yaml"
+      - "docs/goals/ios-preview-device-smoke/state.yaml"
+      - "docs/ios-physical-automation-runbook.md"
+    constraints:
+      - "Do not edit product code in this task."
+      - "Use exact blockers and proof surfaces from existing receipts."
+      - "Register each board with the local GoalBuddy board hub."
+    expected_output:
+      - "Four child board goal/state files."
+      - "Clickable local board URLs."
+      - "Next active board selected."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Created and registered the iOS v0.7 conveyor plus four child boards, sequenced around the known proof gaps: build 7 physical smoke, useful dictation quality, target-app insertion matrix, and TestFlight feedback readiness."
+      boards:
+        - slug: "ios-build7-physical-smoke"
+          url: "http://goalbuddy.localhost:41737/ios-build7-physical-smoke/"
+          role: "first active execution board; prove or block build 7 on iPhone-preview."
+        - slug: "ios-useful-dictation-quality-proof"
+          url: "http://goalbuddy.localhost:41737/ios-useful-dictation-quality-proof/"
+          role: "second execution board; prove known-phrase useful dictation and weak-output recovery."
+        - slug: "ios-target-app-insertion-matrix-v0.7"
+          url: "http://goalbuddy.localhost:41737/ios-target-app-insertion-matrix-v0-7/"
+          role: "third execution board; expand sanitized target-app insertion coverage."
+        - slug: "ios-testflight-feedback-readiness-v0.7"
+          url: "http://goalbuddy.localhost:41737/ios-testflight-feedback-readiness-v0-7/"
+          role: "fourth execution board; prepare truthful tester handoff/build decision."
+      validation:
+        - "ruby YAML load succeeded for all five new state.yaml files."
+        - "npx goalbuddy board registered all five boards with the local hub."
+      next_active_board: "docs/goals/ios-build7-physical-smoke/goal.md"
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run docs/goals/ios-build7-physical-smoke first and record whether build 7 can be installed/proven physically."
+    inputs:
+      - "docs/goals/ios-build7-physical-smoke/goal.md"
+    constraints:
+      - "Do not skip exact WDA blocker evidence."
+      - "Do not claim physical proof without an installed build-7 app or equivalent TestFlight/device proof."
+    expected_output:
+      - "Merged PR or blocker receipt from the physical smoke board."
+    receipt:
+      result: done_with_delegation
+      task_id: T002
+      summary: "Ran the build-7 physical-smoke child board. It cleared the WDA/install/app-proof blocker: iPhone-preview now has Foil iOS 0.1.0 build 7 installed; WDA is reachable; physical app UI shows the v0.6 Record in Foil loop; App Group snapshot is idle/no transcript. Live keyboard insertion is delegated to the target-app matrix board."
+      child_board: "docs/goals/ios-build7-physical-smoke/goal.md"
+      evidence:
+        - "WDA status ready true at http://192.168.1.40:8100/status."
+        - "devicectl installed apps shows Foil iOS 0.1.0 bundle version 7."
+        - "WDA source found Record in Foil, primary-record-dictation-button, and the Return to your keyboard detail."
+        - "App Group snapshot sanitized state: phase idle, message Ready, hasTranscript false."
+      residual_risk:
+        - "Keyboard insertion remains queued in docs/goals/ios-target-app-insertion-matrix-v0.7."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run docs/goals/ios-useful-dictation-quality-proof after physical automation is available or a blocker is recorded."
+    inputs:
+      - "docs/goals/ios-useful-dictation-quality-proof/goal.md"
+    constraints:
+      - "Do not treat punctuation-only transcripts as useful dictation."
+      - "Do not commit transcript content from private contexts."
+    expected_output:
+      - "Useful dictation proof PR/receipt or exact blocker."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Ran the useful-dictation child board. Build 7 physically recorded a sterile phrase via iPhone-preview microphone, Groq returned useful text, and the App Group snapshot is complete with a transcript containing violet, cactus, and number one."
+      child_board: "docs/goals/ios-useful-dictation-quality-proof/goal.md"
+      evidence:
+        - "Physical WDA flow: Record in Foil -> macOS say played known phrase -> Finish recording -> Transcribe."
+        - "WDA source found Ready for keyboard, Insert latest, Groq transcript ready, and Transcription complete."
+        - "App Group snapshot transcript: Violet cactus number one violet cactus number one ."
+      residual_risk:
+        - "No target-app insertion claim yet; transcript remains staged for docs/goals/ios-target-app-insertion-matrix-v0.7."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: high
+    objective: "Run docs/goals/ios-target-app-insertion-matrix-v0.7 for sanitized cross-app insertion coverage."
+    inputs:
+      - "docs/goals/ios-target-app-insertion-matrix-v0.7/goal.md"
+    constraints:
+      - "Messages only with a safe self/test thread."
+      - "Secure fields must prove custom keyboard absence or no insertion."
+    expected_output:
+      - "Matrix receipt with sanitized physical evidence."
+    receipt: null
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Run docs/goals/ios-testflight-feedback-readiness-v0.7 to prepare the next external-tester loop."
+    inputs:
+      - "docs/goals/ios-testflight-feedback-readiness-v0.7/goal.md"
+    constraints:
+      - "Do not ship another TestFlight build unless release notes, proof, and blocker status are truthful."
+    expected_output:
+      - "Release/feedback readiness receipt and PR."
+    receipt: null
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Final conveyor audit against board sprawl, missing proof, unmerged PRs, and residual blockers."
+    inputs:
+      - "All child board receipts"
+      - "git status"
+      - "PR/merge links"
+    constraints:
+      - "Reject completion if any child board is active without a receipt."
+      - "Reject completion if a physical proof claim is simulator-only."
+    expected_output:
+      - "Conveyor complete | blocked with exact next action."
+    receipt: null

@@ -1,0 +1,185 @@
+# GoalBuddy v2 state.yaml
+
+version: 2
+
+goal:
+  title: "Foil iOS Useful Dictation Quality Proof"
+  slug: "ios-useful-dictation-quality-proof"
+  kind: specific
+  tranche: "Prove useful iPhone dictation, not punctuation-only provider plumbing."
+  status: done
+  oracle:
+    signal: "A known sterile phrase records/transcribes into useful text and weak punctuation-only results are handled as retry/failure."
+    cadence: "after testability changes and after physical proof"
+    final_proof: "Red/green tests, simulator/device recording proof, sanitized transcript oracle, keyboard insertion proof, secret scan, and PR/merge receipt."
+  intake:
+    original_request: "Next several iOS GoalBuddy boards."
+    interpreted_outcome: "Use a dedicated board to close the known useful-dictation gap."
+    input_shape: specific
+    audience: "Foil owner/developer and early TestFlight testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "Known phrase -> useful transcript -> Insert latest -> inserted text, with weak output rejected."
+    likely_misfire: "Calling Groq success useful when the transcript is only '.' or empty."
+    blind_spots_considered:
+      - "Earlier physical proof used mostly silence and got '.'."
+      - "Provider round-trip success does not imply user-usable dictation."
+      - "Real microphone proof can be flaky; tests need a deterministic oracle."
+      - "Transcript evidence is safe only for sterile known phrases."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-useful-dictation-quality-proof/"
+    command: "npx goalbuddy board docs/goals/ios-useful-dictation-quality-proof"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: high
+    objective: "Map current audio/transcription/test seams and choose a sterile known-phrase proof path."
+    inputs:
+      - "FoiliOS/FoilIOSApp/AudioCaptureController.swift"
+      - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+      - "FoiliOS/FoilIOSApp/FoilTranscriptionClient.swift"
+      - "FoiliOS/Shared/FoilTranscriptQuality.swift"
+      - "Existing iOS tests"
+    constraints:
+      - "Read-only."
+      - "Do not print provider keys."
+    expected_output:
+      - "Testability gap map."
+      - "Known phrase oracle."
+      - "Largest safe Worker slice."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped current useful-dictation seams. Build 7 already has tested punctuation-only rejection, credential storage, physical record/stop/transcribe UI, and provider-ready state. The right path was an immediate physical known-phrase proof rather than more code."
+      findings:
+        - "FoilTranscriptQuality rejects empty/punctuation-only strings and accepts short real speech; tests already cover '.', '...?!', 'OK', 'Number 3', and 'Violet cactus number one'."
+        - "TranscriptionController calls FoilTranscriptQuality before completing the App Group snapshot; weak output becomes No speech detected and bridge.fail."
+        - "Physical app source showed Groq key configured."
+        - "WDA could address primary-record-dictation-button and primary-finish-recording-button on the physical build-7 app."
+      recommended_worker: "Run a physical known-phrase proof with sterile phrase violet cactus number one."
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Add tests and code paths needed to classify useful vs weak transcript output without displaying weak output as success."
+    inputs:
+      - "T001 receipt"
+    constraints:
+      - "TDD: failing tests first."
+      - "Do not broaden into provider/key storage unless required."
+    expected_output:
+      - "Focused transcript-quality/recovery tests."
+      - "UI/presenter state reflects useful vs retry."
+    receipt:
+      result: skipped_no_code_needed
+      task_id: T002
+      summary: "No code change was needed before proof. The no-speech/weak-output guard and tests already existed from PR #247/build 7, so the board advanced directly to physical known-phrase verification."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run a sterile known-phrase physical or simulator/device proof and insert the resulting useful transcript through the keyboard."
+    inputs:
+      - "T002 implementation"
+      - "iPhone-preview or simulator proof path"
+    constraints:
+      - "Only record/quote known sterile phrase text."
+      - "If physical microphone proof is unavailable, mark physical blocker and keep simulator proof clearly labeled."
+    expected_output:
+      - "Known phrase transcript evidence."
+      - "Keyboard insertion/reset proof."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Ran a physical known-phrase proof on iPhone-preview build 7. WDA tapped Record in Foil, macOS say played the sterile phrase, WDA tapped Finish recording and Transcribe, the app reached Ready for keyboard / Groq transcript ready, and the App Group snapshot contained useful known-phrase text."
+      phrase: "violet cactus number one"
+      commands:
+        - cmd: "WDA tap primary-record-dictation-button"
+          status: pass
+        - cmd: "say -v Samantha -r 150 'violet cactus number one. violet cactus number one.'"
+          status: pass
+        - cmd: "WDA tap primary-finish-recording-button"
+          status: pass
+        - cmd: "WDA tap Transcribe"
+          status: pass
+        - cmd: "WDA source poll for Ready for keyboard / Groq transcript ready / Transcription complete"
+          status: pass
+        - cmd: "devicectl copy App Group Library/foil-keyboard-snapshot.json"
+          status: pass
+      evidence:
+        - "WDA source after transcription found Ready for keyboard, Insert latest, Groq transcript ready, and Transcription complete."
+        - "Sanitized App Group snapshot had phase complete, message Groq transcript ready. Switch back and tap Insert latest., hasTranscript true."
+        - "Sterile transcript was Violet cactus number one violet cactus number one ."
+        - "Normalized transcript was violet cactus number one violet cactus number one and contained violet, cactus, and number one."
+      artifacts:
+        - "docs/goals/ios-useful-dictation-quality-proof/notes/visual/known-phrase-ready-for-keyboard.png"
+      residual_risk:
+        - "This proves a short, clean, speaker-played phrase in a quiet environment. It does not yet prove noisy real-world dictation or long-form accuracy."
+        - "The transcript remains waiting for target-app insertion; continue with the insertion-matrix board."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit whether useful dictation is proven or still only provider plumbing."
+    inputs:
+      - "All task receipts"
+      - "tests/build logs"
+      - "device proof"
+    constraints:
+      - "Reject punctuation-only success."
+      - "Reject private transcript evidence."
+    expected_output:
+      - "complete | blocked"
+      - "strongest failure mode and proof"
+    receipt:
+      result: done
+      task_id: T999
+      claim: "Useful dictation is physically proven for a sterile short phrase on iPhone-preview build 7: the phone recorded audio, Groq produced useful text containing the expected phrase tokens, and Foil stored it as a complete keyboard transcript."
+      strongest_failure_modes:
+        - failure_mode: "Provider plumbing could succeed while useful dictation still returns only punctuation."
+          ruled_out_by:
+            - "The App Group snapshot transcript was Violet cactus number one violet cactus number one ., not punctuation-only."
+            - "Normalized transcript contained violet, cactus, and number one."
+        - failure_mode: "The proof might bypass the physical phone microphone."
+          ruled_out_by:
+            - "WDA tapped the physical app's Record button, macOS played audio audibly with say, WDA tapped Finish recording, and the app transcribed the saved recording."
+        - failure_mode: "Weak-output rejection might be untested."
+          ruled_out_by:
+            - "FoilTranscriptQualityTests already reject empty and punctuation-only transcripts, and TranscriptionController gates completion through FoilTranscriptQuality."
+      residual_risk:
+        - "No target-app insertion claim is made by this board; the transcript is staged for the insertion-matrix board."
+        - "No broad dictation-quality claim is made for noisy, long-form, accented, or spontaneous speech."

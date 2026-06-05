@@ -1,0 +1,186 @@
+# GoalBuddy v2 state.yaml
+
+version: 2
+
+goal:
+  title: "Foil iOS Target App Insertion Matrix v0.7"
+  slug: "ios-target-app-insertion-matrix-v0.7"
+  kind: specific
+  tranche: "Expand privacy-safe physical insertion coverage across target apps."
+  status: active
+  oracle:
+    signal: "Each target row has sanitized WDA/App Group proof of insertion or expected rejection."
+    cadence: "after each matrix row group"
+    final_proof: "Matrix table, sanitized evidence, App Group state, WDA cleanup, secret scan, and PR/issue receipt."
+  intake:
+    original_request: "Next several iOS GoalBuddy boards."
+    interpreted_outcome: "Use a dedicated board to broaden cross-app insertion proof."
+    input_shape: specific
+    audience: "Foil owner/developer and early TestFlight testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "Notes/Safari/Reminders/secure-field rows have proof, and Messages is either safely proven or explicitly blocked."
+    likely_misfire: "Testing only Notes again and calling arbitrary app insertion proven."
+    blind_spots_considered:
+      - "Custom keyboards are blocked in secure fields by design."
+      - "Messages can expose private content unless a sterile thread exists."
+      - "Target field mutation should be hashed/boolean when full text is private."
+      - "App Group reset is part of insertion correctness."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-target-app-insertion-matrix-v0-7/"
+    command: "npx goalbuddy board docs/goals/ios-target-app-insertion-matrix-v0.7"
+
+active_task: T003
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: high
+    objective: "Define the safe target-app matrix, available fixtures, and WDA selectors before running rows."
+    inputs:
+      - "docs/ios-physical-automation-runbook.md"
+      - "Prior insertion receipts"
+      - "Connected iPhone-preview"
+    constraints:
+      - "Read-only apart from sterile fixture discovery."
+      - "Do not expose private app content."
+    expected_output:
+      - "Matrix rows."
+      - "Selectors/proof method per row."
+      - "Skip/blocker criteria."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Defined the safe first row as a Safari local web fixture because Notes/Reminders/Messages may expose private state. WDA was ready, iPhone-preview had the known useful transcript staged, and a sterile local fixture was practical from the phone over the Mac Wi-Fi address."
+      target_app_facts:
+        - "WDA status ready true at http://192.168.1.40:8100/status."
+        - "Staged App Group snapshot before insertion had phase complete and normalized transcript violet cactus number one violet cactus number one."
+        - "iPhone-preview process list showed MobileSafari, MobileNotes, Reminders, WebDriverAgentRunner, and Foil iOS, so private app surfaces were plausible and should be avoided without a sterile fixture."
+        - "Mac en0 address was 192.168.1.34."
+      selected_first_row:
+        app: "Safari"
+        fixture: "docs/goals/ios-target-app-insertion-matrix-v0.7/notes/fixture/index.html"
+        url: "http://192.168.1.34:8945/"
+        rationale: "Sterile textarea with visible length/value output; avoids private Notes/Reminders/Messages content."
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Run Notes, Safari/local fixture, and Reminders insertion rows with sanitized proof."
+    inputs:
+      - "T001 receipt"
+      - "Build 7 or latest installed Foil app"
+    constraints:
+      - "Use sterile note/query/reminder text only."
+      - "Record App Group no-transcript/reset proof after each insertion."
+    expected_output:
+      - "Pass/fail/blocker rows with evidence."
+    receipt:
+      result: done_safari_fixture_only
+      task_id: T002
+      summary: "Ran the Safari/local fixture insertion row. Safari loaded the sterile fixture, WDA focused the textarea, Foil Keyboard was active with Transcript ready and foil-keyboard-insert-latest, Insert latest appended the known phrase, and App Group state reset to idle/no transcript."
+      fixture_server:
+        command: "python3 -m http.server 8945 --bind 0.0.0.0"
+        session_id: 10718
+        served_url: "http://192.168.1.34:8945/"
+      commands:
+        - cmd: "xcrun devicectl device process launch --device 5320F5AD-2A71-50AC-94FE-207B544B6247 com.apple.mobilesafari --terminate-existing --payload-url http://192.168.1.34:8945/"
+          status: pass
+        - cmd: "WDA navigate Safari session to http://192.168.1.34:8945/"
+          status: pass
+        - cmd: "WDA tap textarea labelled Foil sterile target"
+          status: pass
+        - cmd: "WDA source for foil-keyboard-root, Transcript ready, foil-keyboard-insert-latest"
+          status: pass
+        - cmd: "WDA tap foil-keyboard-insert-latest"
+          status: pass
+        - cmd: "WDA source after insertion"
+          status: pass
+        - cmd: "devicectl copy App Group Library/foil-keyboard-snapshot.json"
+          status: pass
+      evidence:
+        - "Before tap, WDA source showed foil-keyboard-root, Transcript ready, Insert latest, foil-keyboard-insert-latest, Clear latest, and Dictate again in Foil."
+        - "After tap, WDA source showed the fixture value length 51 and value Violet cactus number one violet cactus number one ."
+        - "After tap, WDA source showed Foil Keyboard insert title No transcript yet."
+        - "Copied App Group snapshot after insertion had phase idle, message Ready, hasTranscript false, transcriptLength 0."
+      artifacts:
+        - "docs/goals/ios-target-app-insertion-matrix-v0.7/notes/visual/safari-fixture-attempt.png"
+        - "docs/goals/ios-target-app-insertion-matrix-v0.7/notes/visual/safari-fixture-after-insert.png"
+      residual_risk:
+        - "Notes and Reminders rows remain queued."
+        - "Secure-field rejection remains queued."
+        - "Messages remains queued only if a safe self/test thread exists."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Run secure-field rejection proof with a sterile password-field fixture."
+    inputs:
+      - "T001 receipt"
+    constraints:
+      - "Do not work around platform rejection."
+      - "Prove Foil Keyboard absence or no insertion as expected."
+    expected_output:
+      - "Secure-field row proof."
+    receipt: null
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "If a safe Messages self/test thread exists, run Messages insertion; otherwise record the exact blocker and setup need."
+    inputs:
+      - "T001 receipt"
+    constraints:
+      - "No private Messages content."
+      - "No screenshot/tree commits from Messages unless sterile."
+    expected_output:
+      - "Messages pass or blocker receipt."
+    receipt: null
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Audit matrix completeness and reject overbroad insertion claims."
+    inputs:
+      - "All row receipts"
+      - "App Group state evidence"
+    constraints:
+      - "Reject arbitrary app claims not backed by rows."
+      - "Reject private-content evidence."
+    expected_output:
+      - "complete | partial | blocked"
+      - "matrix summary"
+    receipt: null
