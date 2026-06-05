@@ -2,6 +2,11 @@ import XCTest
 @testable import Foil
 
 final class HotkeyMonitorCustomKeyTests: XCTestCase {
+    private var events: [String] = []
+
+    override func setUp() {
+        events = []
+    }
 
     func testConfigureCustomKeySetsProperties() {
         let monitor = HotkeyMonitor()
@@ -47,5 +52,52 @@ final class HotkeyMonitorCustomKeyTests: XCTestCase {
         XCTAssertTrue(all.contains(.globeFn))
         XCTAssertTrue(all.contains(.custom))
         XCTAssertEqual(all.count, 4)
+    }
+
+    func testMatchingCustomHotkeyKeyDownIsConsumedAndStartsRecording() {
+        let monitor = HotkeyMonitor()
+        monitor.configure(hotkeyChoice: .custom, recordingMode: .hold)
+        monitor.configureCustomKey(keyCode: 0x7E, modifiers: 0)
+        monitor.onRecordingStarted = { [weak self] in self?.events.append("started") }
+
+        let consumed = monitor.handleCGEventForTesting(
+            type: .keyDown,
+            keyCode: 0x7E,
+            flags: []
+        )
+
+        XCTAssertTrue(consumed)
+        XCTAssertEqual(events, ["started"])
+    }
+
+    func testMatchingCustomHotkeyKeyUpIsConsumedAndStopsRecording() {
+        let monitor = HotkeyMonitor()
+        monitor.configure(hotkeyChoice: .custom, recordingMode: .hold)
+        monitor.configureCustomKey(keyCode: 0x7E, modifiers: 0)
+        monitor.onRecordingStarted = { [weak self] in self?.events.append("started") }
+        monitor.onRecordingStopped = { [weak self] in self?.events.append("stopped") }
+
+        XCTAssertTrue(monitor.handleCGEventForTesting(type: .keyDown, keyCode: 0x7E, flags: []))
+        Thread.sleep(forTimeInterval: 0.25)
+        let consumed = monitor.handleCGEventForTesting(type: .keyUp, keyCode: 0x7E, flags: [])
+
+        XCTAssertTrue(consumed)
+        XCTAssertEqual(events, ["started", "stopped"])
+    }
+
+    func testNonMatchingCustomHotkeyIsPassedThrough() {
+        let monitor = HotkeyMonitor()
+        monitor.configure(hotkeyChoice: .custom, recordingMode: .hold)
+        monitor.configureCustomKey(keyCode: 0x7E, modifiers: 0)
+        monitor.onRecordingStarted = { [weak self] in self?.events.append("started") }
+
+        let consumed = monitor.handleCGEventForTesting(
+            type: .keyDown,
+            keyCode: 0x7D,
+            flags: []
+        )
+
+        XCTAssertFalse(consumed)
+        XCTAssertEqual(events, [])
     }
 }

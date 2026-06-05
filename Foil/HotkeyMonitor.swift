@@ -189,13 +189,8 @@ final class HotkeyMonitor {
 
         if hotkeyChoice == .custom {
             let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
-            if type == .keyDown && keyCode == customKeyCode {
-                let rawFlags = event.flags.rawValue
-                if customModifiers == 0 || (rawFlags & customModifiers) == customModifiers {
-                    handleKeyStateChange(pressed: true)
-                }
-            } else if type == .keyUp && keyCode == customKeyCode {
-                handleKeyStateChange(pressed: false)
+            if handleCustomHotkeyEvent(type: type, keyCode: keyCode, flags: event.flags) {
+                return nil
             } else if type == .keyDown && keyDown {
                 if !otherKeysDuringHold {
                     otherKeysDuringHold = true
@@ -228,6 +223,37 @@ final class HotkeyMonitor {
     private func handleQueuedPasteDeliveryShortcutIfNeeded(event: CGEvent) -> Bool {
         let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
         return handleQueuedPasteDeliveryShortcut(keyCode: keyCode, flags: event.flags)
+    }
+
+    @discardableResult
+    func handleCGEventForTesting(type: CGEventType, keyCode: UInt16, flags: CGEventFlags) -> Bool {
+        let source = CGEventSource(stateID: .hidSystemState)
+        guard let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: type == .keyDown) else {
+            return false
+        }
+        event.flags = flags
+        return handleCGEvent(type: type, event: event) == nil
+    }
+
+    private func handleCustomHotkeyEvent(type: CGEventType, keyCode: UInt16, flags: CGEventFlags) -> Bool {
+        guard hotkeyChoice == .custom, keyCode == customKeyCode else {
+            return false
+        }
+
+        switch type {
+        case .keyDown:
+            let rawFlags = flags.rawValue
+            guard customModifiers == 0 || (rawFlags & customModifiers) == customModifiers else {
+                return false
+            }
+            handleKeyStateChange(pressed: true)
+            return true
+        case .keyUp:
+            handleKeyStateChange(pressed: false)
+            return true
+        default:
+            return false
+        }
     }
 
     private func handleQueuedPasteDeliveryShortcut(keyCode: UInt16, flags: CGEventFlags) -> Bool {
