@@ -9,10 +9,17 @@ account authentication and an external upload command.
 
 - `altool` is available through Xcode.
 - Standalone Transporter is not installed under `/Applications`.
-- No App Store Connect-like environment variables were present during the latest check.
-- No known App Store Connect keychain item names were found during presence-only checks.
-- No `AuthKey_*.p8` files were found in the standard `altool` search locations.
-- The prior exported IPA under `/tmp` was not present during the latest check, so regenerate before upload.
+- App Store Connect API key authentication is configured locally via a private
+  key file under `~/.appstoreconnect/private_keys/`. Do not commit or print that
+  file.
+- App Store Connect has an iOS app record named `Foil Dictation` for bundle ID
+  `com.neonwatty.FoilIOS`, Apple ID `6777069277`, SKU `foil-ios-001`.
+- The first TestFlight upload succeeded on 2026-06-05 with delivery UUID
+  `b6ee56d7-a91a-4183-9552-0a725a77d46e`.
+- Apple reported the uploaded build as `VALID`, `APP_STORE_ELIGIBLE`,
+  `is-on-app-store-connect: true`, version `1`, min OS `17.0`.
+- Regenerate `/tmp` archive/export artifacts before a future upload because
+  those paths are ephemeral.
 
 ## Required Authentication
 
@@ -121,6 +128,13 @@ Expected values:
 
 - app version `0.1.0`, build `1`
 - keyboard extension version `0.1.0`, build `1`
+- app plist has `CFBundleIconName` set to `AppIcon`
+- app bundle contains `AppIcon60x60@2x.png`, `AppIcon76x76@2x~ipad.png`, and
+  `Assets.car`
+
+The app icon check matters because App Store Connect validation previously
+failed with errors `90022`, `90023`, and `90713` when the IPA did not contain
+the required iPhone/iPad icon files or `CFBundleIconName`.
 
 ## Validate With API Key
 
@@ -142,6 +156,18 @@ xcrun altool --upload-app \
   --type ios \
   --api-key <api_key_id> \
   --api-issuer <issuer_id>
+```
+
+## Check Uploaded Build Status
+
+Use the delivery UUID returned by upload:
+
+```bash
+xcrun altool --build-status \
+  --delivery-id <delivery_uuid> \
+  --api-key <api_key_id> \
+  --api-issuer <issuer_id> \
+  --output-format json
 ```
 
 ## Validate With Apple ID App Password
@@ -168,16 +194,29 @@ xcrun altool --upload-app \
   --provider-public-id <provider_public_id>
 ```
 
-## Current Blocker
+## Latest Successful Receipt
 
-The latest unattended check stopped before validation/upload because no safe
-local App Store Connect authentication material was visible:
+Claim: Foil iOS can be validated and uploaded to App Store Connect/TestFlight
+from this machine.
 
-- no matching App Store Connect environment variables;
-- no matching known keychain item names;
-- no `AuthKey_*.p8` files in standard search locations;
-- `altool --list-providers` failed with missing JWT or username/app-password authentication.
+Strongest realistic failure mode: local archive/export works, but App Store
+Connect rejects the package because the app record, authentication, icon
+catalog, signing, version metadata, or upload pipeline is still wrong.
 
-Next human action: provide either an App Store Connect API key/issuer/private
-key file or an Apple ID app-specific password plus provider public ID, then rerun
-validation before upload.
+Evidence:
+
+- `xcrun altool --list-apps --filter-bundle-id com.neonwatty.FoilIOS ...`
+  returned App Store Connect app `6777069277`, name `Foil Dictation`.
+- Local IPA inspection found `CFBundleIconName => AppIcon`, bundle ID
+  `com.neonwatty.FoilIOS`, version `0.1.0`, build `1`,
+  `AppIcon60x60@2x.png`, `AppIcon76x76@2x~ipad.png`, and `Assets.car`.
+- `xcrun altool --validate-app ...` reported `VERIFY SUCCEEDED with no errors`.
+- `xcrun altool --upload-app ...` reported `UPLOAD SUCCEEDED with no errors`
+  and delivery UUID `b6ee56d7-a91a-4183-9552-0a725a77d46e`.
+- `xcrun altool --build-status --delivery-id b6ee56d7-a91a-4183-9552-0a725a77d46e ...`
+  reported `build-status: VALID`, `import-status: VALID`,
+  `is-on-app-store-connect: true`, and `uses-non-exempt-encryption: false`.
+
+Residual risk / follow-up: App Store Connect/TestFlight may still require
+post-processing review fields, tester-group setup, export compliance answers, or
+manual internal distribution steps before the build appears for every tester.

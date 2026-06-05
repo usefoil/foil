@@ -275,13 +275,102 @@ tasks:
         - "Actual App Store Connect validation/upload remains blocked until the user provides API key/issuer/private key or Apple ID app-password/provider details."
         - "A future upload should regenerate the IPA first because /tmp artifacts are ephemeral."
 
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Resume after App Store Connect credentials and app record were provided; fix any validation blocker, upload the IPA, and record sanitized proof."
+    allowed_files:
+      - "FoiliOS/**"
+      - "docs/ios-testflight-upload-runbook.md"
+      - "docs/goals/ios-testflight-upload-readiness/**"
+    receipt:
+      result: done
+      task_id: T004
+      summary: "Moved the user-downloaded App Store Connect private key into the altool search location, regenerated the Foil iOS archive/export, created a durable AppIcon asset catalog after Apple validation rejected the first IPA, then validated and uploaded the corrected IPA to App Store Connect/TestFlight."
+      app_store_connect:
+        app_name: "Foil Dictation"
+        apple_id: "6777069277"
+        bundle_id: "com.neonwatty.FoilIOS"
+        sku: "foil-ios-001"
+      changed_files:
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "FoiliOS/FoilIOSApp/Assets.xcassets/AppIcon.appiconset/Contents.json"
+        - "FoiliOS/FoilIOSApp/Assets.xcassets/AppIcon.appiconset/*.png"
+        - "FoiliOS/FoilIOSApp/Generated/Info.plist"
+        - "FoiliOS/project.yml"
+        - "docs/ios-testflight-upload-runbook.md"
+        - "docs/goals/ios-testflight-upload-readiness/state.yaml"
+      validation_failure_fixed:
+        errors:
+          - "90022 missing iPhone 120x120 app icon"
+          - "90023 missing iPad 152x152 app icon"
+          - "90713 missing CFBundleIconName"
+        fix:
+          - "Added Assets.xcassets/AppIcon.appiconset with iPhone, iPad, and marketing icon entries."
+          - "Generated RGB PNG icon assets, including 120x120 and 152x152."
+          - "Set ASSETCATALOG_COMPILER_APPICON_NAME to AppIcon."
+          - "Added CFBundleIconName: AppIcon to the generated app Info.plist via project.yml."
+      commands:
+        - cmd: "xcrun altool --list-apps --filter-bundle-id com.neonwatty.FoilIOS --api-key ... --api-issuer ... --output-format json"
+          status: pass
+        - cmd: "xcodegen generate"
+          status: pass
+        - cmd: "xcodebuild archive -project FoilIOS.xcodeproj -scheme FoilIOS -configuration Release -destination 'generic/platform=iOS' -archivePath /tmp/FoilIOS-TestFlightReadiness.xcarchive -allowProvisioningUpdates"
+          status: pass
+        - cmd: "xcodebuild -exportArchive -archivePath /tmp/FoilIOS-TestFlightReadiness.xcarchive -exportPath /tmp/FoilIOS-TestFlightReadinessExport -exportOptionsPlist /tmp/FoilIOS-TestFlightReadiness-ExportOptions.plist -allowProvisioningUpdates"
+          status: pass
+        - cmd: "local IPA inspection for CFBundleIconName, 120x120 icon, 152x152 icon, bundle ID, version, build, and SHA-256"
+          status: pass
+        - cmd: "xcrun altool --validate-app -f '/tmp/FoilIOS-TestFlightReadinessExport/Foil iOS.ipa' --type ios --api-key ... --api-issuer ..."
+          status: pass
+        - cmd: "xcrun altool --upload-app -f '/tmp/FoilIOS-TestFlightReadinessExport/Foil iOS.ipa' --type ios --api-key ... --api-issuer ... --show-progress"
+          status: pass
+        - cmd: "xcrun altool --build-status --delivery-id b6ee56d7-a91a-4183-9552-0a725a77d46e --api-key ... --api-issuer ... --output-format json"
+          status: pass
+      evidence:
+        - "Apple app lookup returned App Store Connect ID 6777069277, name Foil Dictation, bundle ID com.neonwatty.FoilIOS, SKU foil-ios-001."
+        - "New IPA SHA-256 is 1c1043d22ee3854f8d5ccb5202c2d2b39cb11dcd706cb241c800d0e21bf56ee3."
+        - "Local IPA inspection found CFBundleIconName => AppIcon, AppIcon60x60@2x.png at 120x120, AppIcon76x76@2x~ipad.png at 152x152, and Assets.car."
+        - "altool validation reported VERIFY SUCCEEDED with no errors."
+        - "altool upload reported UPLOAD SUCCEEDED with no errors and delivery UUID b6ee56d7-a91a-4183-9552-0a725a77d46e."
+        - "altool build-status reported build-status VALID, import-status VALID, is-on-app-store-connect true, APP_STORE_ELIGIBLE, and uses-non-exempt-encryption false."
+      residual_risk:
+        - "App Store Connect/TestFlight may still require tester groups, export-compliance UI confirmations, or processing time before every tester can install the build."
+
+  - id: T005
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit after the actual TestFlight upload."
+    receipt:
+      result: done
+      task_id: T005
+      decision: complete
+      full_outcome_complete: true
+      summary: "Final audit accepts the resumed board as complete by actual upload proof, not just a blocker. App Store Connect resolved the app record, validation passed with no errors, upload succeeded, and Apple reports the uploaded build as VALID and present on App Store Connect."
+      strongest_realistic_failure_mode:
+        claim: "We might think TestFlight upload is done because local export and upload command succeeded, while Apple actually rejected or failed to import the build."
+        evidence_that_rules_it_out:
+          - "altool validation on the corrected IPA reported VERIFY SUCCEEDED with no errors."
+          - "altool upload returned delivery UUID b6ee56d7-a91a-4183-9552-0a725a77d46e and UPLOAD SUCCEEDED with no errors."
+          - "altool build-status for that delivery UUID reported build-status VALID, import-status VALID, is-on-app-store-connect true, and APP_STORE_ELIGIBLE."
+      residual_risks:
+        - "Tester distribution and any App Store Connect UI metadata/compliance prompts are separate follow-up work."
+
 checks:
   dirty_fingerprint: "Created after PR #231 merged physical automation runbook into codex/ios-keyboard-prototype."
   last_verification:
     result: done
-    task: T999
+    task: T005
     commands:
-      - cmd: "xcrun altool --help"
+      - cmd: "xcrun altool --validate-app"
+        status: pass
+      - cmd: "xcrun altool --upload-app"
+        status: pass
+      - cmd: "xcrun altool --build-status --delivery-id b6ee56d7-a91a-4183-9552-0a725a77d46e"
         status: pass
       - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-testflight-upload-readiness/state.yaml"
         status: pass
