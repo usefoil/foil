@@ -67,7 +67,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-unattended-testflight-conveyor/"
     command: "npx goalbuddy board docs/goals/ios-unattended-testflight-conveyor"
 
-active_task: T006
+active_task: T007
 
 tasks:
   - id: T001
@@ -352,7 +352,7 @@ tasks:
   - id: T006
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Execute docs/goals/ios-testflight-archive-readiness through at least Scout/Judge and one safe Worker slice if approved."
     allowed_files:
@@ -368,6 +368,69 @@ tasks:
       - "Apple account/signing/export state requires user input."
       - "Device lock/disconnect blocks physical proof that is actually required for the selected slice."
       - "A live secret would be needed and no safe local source is available."
+    receipt:
+      result: done
+      task_id: T006
+      summary: "Executed the iOS TestFlight archive-readiness board through Scout, Judge, Worker, final audit, PR creation, and merge. PR #230 landed into codex/ios-keyboard-prototype with merge commit 131a605."
+      changed_files:
+        - "docs/goals/ios-unattended-testflight-conveyor/state.yaml"
+        - "docs/goals/ios-testflight-archive-readiness/goal.md"
+        - "docs/goals/ios-testflight-archive-readiness/state.yaml"
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOSApp/Generated/Info.plist"
+        - "FoiliOS/FoilKeyboard/Generated/Info.plist"
+      board:
+        slug: "ios-testflight-archive-readiness"
+        final_status: done
+        url: "http://goalbuddy.localhost:41737/ios-testflight-archive-readiness/"
+      pull_request:
+        number: 230
+        url: "https://github.com/mean-weasel/foil/pull/230"
+        final_state: merged
+        merged_at: "2026-06-05T02:41:36Z"
+        merge_commit: "131a60555824b93050c2ed759c1ab33860f0076c"
+        base: "codex/ios-keyboard-prototype"
+      commands:
+        - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-testflight-archive-readiness/state.yaml"
+          status: pass
+        - cmd: "git commit -m 'Prepare iOS TestFlight archive metadata'"
+          status: pass
+        - cmd: "git push -u origin codex/ios-testflight-archive-readiness"
+          status: pass
+        - cmd: "gh pr create --draft --base codex/ios-keyboard-prototype --head codex/ios-testflight-archive-readiness"
+          status: pass
+        - cmd: "git commit -m 'Complete iOS archive readiness audit'"
+          status: pass
+        - cmd: "git push"
+          status: pass
+        - cmd: "gh pr ready 230"
+          status: pass
+        - cmd: "gh pr merge 230 --merge"
+          status: pass
+        - cmd: "git fetch origin codex/ios-keyboard-prototype && git log --oneline -6 origin/codex/ios-keyboard-prototype"
+          status: pass
+      evidence:
+        - "Archive board checker passed with goal_status done and active_task null."
+        - "PR #230 was opened, pushed with final audit receipt, marked ready, and merged."
+        - "gh pr view 230 reported state MERGED, mergedAt 2026-06-05T02:41:36Z, mergeCommit 131a60555824b93050c2ed759c1ab33860f0076c."
+        - "origin/codex/ios-keyboard-prototype log starts with 131a605 Merge pull request #230 from mean-weasel/codex/ios-testflight-archive-readiness."
+      next_recommendation: "Start a physical automation recovery/runbook board from updated codex/ios-keyboard-prototype."
+
+  - id: T007
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Prepare the next GoalBuddy board for physical iPhone automation recovery/runbook work."
+    allowed_files:
+      - "docs/goals/ios-unattended-testflight-conveyor/**"
+      - "docs/goals/ios-physical-automation-runbook/**"
+    verify:
+      - "Create docs/goals/ios-physical-automation-runbook/goal.md, state.yaml, and notes/."
+      - "Register the local board."
+      - "Run GoalBuddy checker for the new board."
+    stop_if:
+      - "GoalBuddy checker rejects the prepared board."
     receipt: null
 
   - id: T999
