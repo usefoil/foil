@@ -34,6 +34,8 @@ targets:
       path: FoilIOSApp/Generated/Info.plist
       properties:
         CFBundleDisplayName: Foil iOS
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleURLTypes:
           - CFBundleURLName: com.neonwatty.FoilIOS
             CFBundleURLSchemes:
@@ -68,6 +70,8 @@ targets:
       path: FoilKeyboard/Generated/Info.plist
       properties:
         CFBundleDisplayName: Foil Keyboard
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionAttributes:
             IsASCIICapable: true
