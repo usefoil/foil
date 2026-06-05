@@ -1,0 +1,401 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS TestFlight Distributed Mailbox Proof"
+  slug: "ios-testflight-distributed-mailbox-proof"
+  kind: existing_plan
+  tranche: "Prove TestFlight build 0.1.0 (2) on iPhone-preview with the live mailbox/audio/keyboard insertion loop."
+  status: done
+  oracle:
+    signal: "iPhone-preview runs the TestFlight-managed Foil iOS build 0.1.0 (2), and the same mailbox start/stop/transcribe plus Foil Keyboard insertion loop passes or is narrowly blocked with proof."
+    cadence: "after each Scout/Judge/Worker package and at final audit"
+    final_proof: "Receipts with TestFlight install/version evidence, device identifiers, command mailbox snapshots, live audio transcript proof, Notes insertion proof, reset proof, secret scan, PR link, and final audit verdict."
+  intake:
+    original_request: "Plan this out with GoalBuddy Prep and then start implementing."
+    interpreted_outcome: "Close the remaining iOS proof gap by validating the distributed TestFlight build, not just the Debug-installed build."
+    input_shape: existing_plan
+    audience: "Foil owner/developer"
+    authority: approved
+    proof_type: demo
+    completion_proof: "The preview iPhone has TestFlight-managed build 0.1.0 (2) installed and the physical live mailbox/audio/keyboard insertion smoke passes or records an exact blocker."
+    likely_misfire: "Claiming TestFlight success while the phone is still running the Debug-installed build."
+    blind_spots_considered:
+      - "TestFlight may not yet expose build 2 or may require manual tester action."
+      - "The Debug-installed app may block TestFlight install/update unless deleted."
+      - "Deleting the app may reset keyboard, microphone, App Group, or provider state."
+      - "WDA/tunnel may be down or unable to inspect the physical phone."
+      - "Audio can silently route to AirPods and produce a false transcription failure."
+      - "Notes or accessibility output can include private content if not controlled."
+      - "App Store Connect API key material must not be printed or committed."
+    existing_plan_facts:
+      - "PR #238 added the command mailbox and merged it into codex/ios-keyboard-prototype."
+      - "PR #238 uploaded TestFlight build 0.1.0 (2) and App Store Connect reported build-status VALID."
+      - "The Debug-installed physical loop passed after switching macOS audio to MacBook Pro Speakers."
+      - "The next proof must install/update the TestFlight-managed build on iPhone-preview."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-testflight-distributed-mailbox-proof/"
+    command: "npx goalbuddy board docs/goals/ios-testflight-distributed-mailbox-proof"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: medium
+    objective: "Map current branch, phone, TestFlight, installed-app, WDA, keyboard, Notes, App Group, and audio-route state without changing installs."
+    inputs:
+      - "Current git status/log and PR #238 merge state."
+      - "docs/goals/ios-preview-device-smoke/notes/T012-live-command-mailbox-smoke.md"
+      - "xcrun devicectl device info and installed app metadata for iPhone-preview."
+      - "WDA/tunnel reachability if available."
+      - "TestFlight app UI only if privacy-safe and already accessible."
+      - "macOS audio output/system route."
+    constraints:
+      - "Read-only."
+      - "Do not delete or reinstall Foil."
+      - "Do not print secrets, private accessibility trees, or private Notes content."
+      - "Prefer exact identifiers, versions, build numbers, process states, and command outputs."
+      - "If app install source cannot be observed directly, record the limitation and the strongest indirect evidence."
+    expected_output:
+      - "Branch/head/upstream and dirty-state summary."
+      - "iPhone-preview connected/unlocked/WDA state."
+      - "Installed Foil app version/build/source if observable."
+      - "TestFlight build 2 availability if observable without destructive action."
+      - "Current keyboard/Notes/App Group state relevant to the next smoke."
+      - "Current macOS audio route and whether AirPods are connected."
+      - "Recommended T002 decision with stop conditions."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped the current TestFlight proof state without changing the Foil install. The preview phone is connected, booted, wired, unlocked enough for devicectl operations, and running TestFlight, Foil iOS, Foil Keyboard, and Notes. WDA is not listening. The installed Foil app is version 0.1.0 build 1, so the phone is not yet proven to be running the uploaded TestFlight build 0.1.0 (2). The App Group snapshot is idle/ready, and macOS audio output/system are MacBook Pro Speakers with AirPods disconnected."
+      evidence:
+        - "Branch: codex/ios-testflight-distributed-mailbox-proof at 5d169df, branched from merged codex/ios-keyboard-prototype."
+        - "Dirty state contains the new GoalBuddy board plus pre-existing untracked Xcode xcuserdata and docs/superpowers marketing plan files."
+        - "GoalBuddy board registered at http://goalbuddy.localhost:41737/ios-testflight-distributed-mailbox-proof/."
+        - "xcrun devicectl list devices shows iPhone-preview connected with CoreDevice id 5320F5AD-2A71-50AC-94FE-207B544B6247."
+        - "xcrun devicectl device info details shows physical iPhone 11, booted, Developer Mode enabled, wired transport, tunnelState connected, UDID 00008030-001A0C980A33C02E."
+        - "xcrun devicectl device info apps shows Foil iOS com.neonwatty.FoilIOS installed as version 0.1.0 bundle version 1."
+        - "xcrun devicectl device info processes shows MobileNotes, TestFlight, Foil iOS, and Foil Keyboard running."
+        - "WDA endpoints http://192.168.1.40:8100/status and http://127.0.0.1:8100/status failed to connect."
+        - "App Group snapshot Library/foil-keyboard-snapshot.json copied back with phase idle and message Ready."
+        - "SwitchAudioSource reports MacBook Pro Speakers for output and system; blueutil reports AirPods address 9C:F3:AC:28:C7:62 is not connected."
+      commands:
+        - cmd: "git status --short --branch && git log --oneline -5 --decorate"
+          status: pass
+        - cmd: "node .../check-goal-state.mjs docs/goals/ios-testflight-distributed-mailbox-proof/state.yaml"
+          status: pass
+        - cmd: "npx goalbuddy board docs/goals/ios-testflight-distributed-mailbox-proof"
+          status: pass
+        - cmd: "xcrun devicectl list devices"
+          status: pass
+        - cmd: "xcrun devicectl device info details --device 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          status: pass
+        - cmd: "xcrun devicectl device info apps --device 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          status: pass
+        - cmd: "xcrun devicectl device info processes --device 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          status: pass
+        - cmd: "curl --max-time 2 WDA status endpoints"
+          status: failed_expected
+        - cmd: "xcrun devicectl device copy from appGroupDataContainer group.com.neonwatty.FoilIOS Library/foil-keyboard-snapshot.json"
+          status: pass
+        - cmd: "SwitchAudioSource output/system checks and blueutil AirPods connection check"
+          status: pass
+      recommended_next:
+        task: T002
+        decision_needed: "Choose an install/update path that can distinguish TestFlight build 2 from the current installed build 1 without deleting the app unless necessary."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose the safest TestFlight install/update path from T001 evidence."
+    inputs:
+      - "T001 receipt."
+      - "Goal oracle and non-negotiable constraints."
+    constraints:
+      - "Read-only except for writing this receipt."
+      - "Reject destructive deletion unless the evidence proves it is necessary and user approval is already present."
+      - "Do not approve a path that cannot distinguish Debug proof from TestFlight proof."
+    expected_output:
+      - "decision: proceed | ask_user | blocked"
+      - "chosen install/update path"
+      - "allowed_files for Worker"
+      - "verify commands or UI observations"
+      - "stop_if conditions"
+    receipt:
+      result: done
+      task_id: T002
+      decision: proceed
+      full_outcome_complete: false
+      chosen_path: "Restore WDA, inspect TestFlight on the physical phone, and use a non-destructive Install or Update path for Foil build 0.1.0 (2) if TestFlight offers one."
+      rationale:
+        - "T001 proves the current installed Foil app is build 1, so the distributed build 2 proof gap is real."
+        - "T001 also proves TestFlight is installed/running and the phone is connected, so UI-driven TestFlight inspection is the next safe step."
+        - "Deletion is not approved by this board because it can reset keyboard, microphone, App Group, and provider state; if TestFlight requires deletion, stop and ask the user."
+        - "WDA restoration changes only the automation harness and is necessary to inspect/tap TestFlight without relying on private manual screenshots."
+      allowed_files:
+        - "docs/goals/ios-testflight-distributed-mailbox-proof/state.yaml"
+        - "docs/goals/ios-testflight-distributed-mailbox-proof/notes/**"
+      verify:
+        - "Start WDA on iPhone-preview and confirm /status responds."
+        - "Inspect TestFlight UI for Foil Dictation/Foil iOS build 0.1.0 (2)."
+        - "Tap only non-destructive Install, Update, Open, Continue, or accept-test prompts for Foil."
+        - "Re-check xcrun devicectl device info apps for com.neonwatty.FoilIOS build number."
+        - "Launch com.neonwatty.FoilIOS after installation/update."
+        - "git diff --check -- docs/goals/ios-testflight-distributed-mailbox-proof"
+      stop_if:
+        - "TestFlight requires deleting the existing Foil app."
+        - "Build 0.1.0 (2) is not visible to the tester."
+        - "The phone locks, disconnects, or requires Apple ID/account action."
+        - "WDA fails to start twice with the same root cause."
+        - "A raw private accessibility tree or screenshot would need to be committed."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Install or update Foil iOS build 0.1.0 (2) through TestFlight on iPhone-preview using the T002-approved path."
+    allowed_files:
+      - "docs/goals/ios-testflight-distributed-mailbox-proof/state.yaml"
+      - "docs/goals/ios-testflight-distributed-mailbox-proof/notes/**"
+    verify:
+      - "Record TestFlight UI or device metadata evidence for build 0.1.0 (2)."
+      - "Launch com.neonwatty.FoilIOS from the installed app."
+      - "Confirm keyboard availability or record exact reset/re-enable steps needed."
+      - "git diff --check -- docs/goals/ios-testflight-distributed-mailbox-proof"
+    stop_if:
+      - "TestFlight requires deletion of the Debug app without prior approval."
+      - "TestFlight build 2 is unavailable to the tester."
+      - "Phone locks, disconnects, or requires manual account action."
+      - "Need to persist private UI screenshots or raw private accessibility dumps."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Made TestFlight build 0.1.0 (2) available to the preview tester group, installed it from TestFlight on iPhone-preview, and verified the device now reports Foil iOS bundle version 2."
+      changed_files:
+        - "docs/goals/ios-testflight-distributed-mailbox-proof/state.yaml"
+      external_changes:
+        - "App Store Connect build 9d60d9c5-45d4-42d8-9104-9d7541ddbecf had usesNonExemptEncryption set to false."
+        - "Build 9d60d9c5-45d4-42d8-9104-9d7541ddbecf was attached to beta group bcca568d-167d-44cb-b952-a410e9c9e10f (Foil Internal Testers)."
+        - "TestFlight install of Foil Dictation 0.1.0 (2) was accepted on iPhone-preview."
+      evidence:
+        - "Before App Store Connect API changes, build 2 existed with processingState VALID but buildBetaDetails internalBuildState MISSING_EXPORT_COMPLIANCE and group builds only contained build 1 b6ee56d7-a91a-4183-9552-0a725a77d46e."
+        - "After PATCH /v1/builds/9d60d9c5-45d4-42d8-9104-9d7541ddbecf, usesNonExemptEncryption was false."
+        - "After POST /v1/betaGroups/bcca568d-167d-44cb-b952-a410e9c9e10f/relationships/builds, buildBetaDetails internalBuildState was IN_BETA_TESTING and the group relationship contained build 2 plus build 1."
+        - "TestFlight UI initially showed Foil Dictation 0.1.0 Build 1, then Previous Builds exposed 0.1.0 (2) with an Install button."
+        - "The first TestFlight confirmation said the app was already installed; the second said Install Older Build? for build (2). Both visible right-side Install confirmations were clicked through WDA."
+        - "xcrun devicectl device info apps later reported Foil iOS com.neonwatty.FoilIOS version 0.1.0 bundle version 2."
+      commands:
+        - cmd: "xcrun altool --generate-jwt --apiKey <redacted key id> --apiIssuer <redacted issuer> captured to /tmp without committing or printing the JWT after the first tool-stream correction."
+          status: pass
+        - cmd: "GET /v1/builds/9d60d9c5-45d4-42d8-9104-9d7541ddbecf"
+          status: pass
+        - cmd: "GET /v1/buildBetaDetails?filter[build]=9d60d9c5-45d4-42d8-9104-9d7541ddbecf"
+          status: pass
+        - cmd: "GET /v1/betaGroups/bcca568d-167d-44cb-b952-a410e9c9e10f/relationships/builds"
+          status: pass
+        - cmd: "PATCH /v1/builds/9d60d9c5-45d4-42d8-9104-9d7541ddbecf usesNonExemptEncryption=false"
+          status: pass
+        - cmd: "POST /v1/betaGroups/bcca568d-167d-44cb-b952-a410e9c9e10f/relationships/builds attach build 2"
+          status: pass
+        - cmd: "WDA element click on TestFlight Previous Builds, build 0.1.0 (2) Install, and visible Install confirmations"
+          status: pass
+        - cmd: "xcrun devicectl device info apps --device 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          status: pass
+      residual_risk:
+        - "TestFlight labeled build 2 as an older build and warned automatic updates would be turned off for this app; future TestFlight auto-update behavior should be re-enabled or recorded after this proof tranche."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Run the live mailbox/audio/transcription/keyboard-insertion smoke against the TestFlight-managed build."
+    allowed_files:
+      - "docs/goals/ios-testflight-distributed-mailbox-proof/state.yaml"
+      - "docs/goals/ios-testflight-distributed-mailbox-proof/notes/**"
+      - "docs/goals/ios-testflight-distributed-mailbox-proof/notes/visual/**"
+    verify:
+      - "Write App Group command action=startRecording and observe phase=listening."
+      - "Play sterile Mac speaker audio and confirm macOS route is not AirPods."
+      - "Write command action=stopRecording and observe recording saved/processing state."
+      - "Write command action=transcribeLatest and observe phase=complete with non-empty sterile transcript."
+      - "Use Foil Keyboard in Notes to tap Insert latest and confirm the Notes text field contains the sterile transcript."
+      - "Confirm shared state resets to idle/empty transcript after insertion."
+      - "git diff --check -- docs/goals/ios-testflight-distributed-mailbox-proof"
+    stop_if:
+      - "The app is not proven to be TestFlight-managed build 2."
+      - "Audio capture returns silence twice after route verification."
+      - "Groq/provider key is missing or would need to be printed."
+      - "Host-app insertion would expose private content."
+    receipt:
+      result: done
+      task_id: T004
+      summary: "Ran the live mailbox/audio/transcription/keyboard insertion smoke against the TestFlight-managed build 0.1.0 (2). The first audio take produced a weak transcript, so the route/volume were reverified and a second louder take produced the intended sterile transcript, which Foil Keyboard inserted into Notes and then reset shared state."
+      changed_files:
+        - "docs/goals/ios-testflight-distributed-mailbox-proof/state.yaml"
+        - "docs/goals/ios-testflight-distributed-mailbox-proof/notes/visual/testflight-build2-notes-insert-reset.png"
+      evidence:
+        - "xcrun devicectl device process launch launched com.neonwatty.FoilIOS after TestFlight install, and devicectl app metadata still reported version 0.1.0 bundle version 2."
+        - "Writing command action=startRecording to App Group Library/foil-ios-command.json changed the snapshot to phase listening with message Recording in Foil. Stop when finished."
+        - "First recording/transcribe attempt completed but returned transcript `. Thank you.`, so it was treated as weak proof rather than success."
+        - "macOS output and system routes were verified as MacBook Pro Speakers, output volume was set to 100, and AirPods were not connected."
+        - "Second recording used the phrase: Foil TestFlight build two second audio proof. Orange lantern river."
+        - "Second command action=stopRecording changed the snapshot to phase processing with message Recording saved. Tap Transcribe in Foil."
+        - "Second command action=transcribeLatest changed the snapshot to phase complete with transcript `Foil test flight build 2 second audio prove Orange Lantern River`."
+        - "Notes was launched, WDA switched from system keyboard to Foil Keyboard, and Foil Keyboard showed Transcript Ready plus enabled foil-keyboard-insert-latest."
+        - "After tapping foil-keyboard-insert-latest, the Notes TextView contained the TestFlight transcript appended to the sterile test note."
+        - "Foil Keyboard reset to Ready with disabled Insert latest (no transcript) and Clear latest (ready)."
+        - "The App Group snapshot copied back after insertion showed phase idle and message Ready."
+        - "Screenshot: notes/visual/testflight-build2-notes-insert-reset.png"
+      commands:
+        - cmd: "xcrun devicectl device process launch --device 5320F5AD-2A71-50AC-94FE-207B544B6247 com.neonwatty.FoilIOS --terminate-existing"
+          status: pass
+        - cmd: "xcrun devicectl device info apps --device 5320F5AD-2A71-50AC-94FE-207B544B6247 | rg Foil"
+          status: pass
+        - cmd: "xcrun devicectl device copy to appGroupDataContainer group.com.neonwatty.FoilIOS Library/foil-ios-command.json action=startRecording"
+          status: pass
+        - cmd: "say -v Samantha ... sterile phrase through MacBook Pro Speakers"
+          status: pass
+        - cmd: "xcrun devicectl device copy to appGroupDataContainer group.com.neonwatty.FoilIOS Library/foil-ios-command.json action=stopRecording"
+          status: pass
+        - cmd: "xcrun devicectl device copy to appGroupDataContainer group.com.neonwatty.FoilIOS Library/foil-ios-command.json action=transcribeLatest"
+          status: pass
+        - cmd: "SwitchAudioSource output/system checks and osascript volume output volume 100"
+          status: pass
+        - cmd: "WDA click Next keyboard, foil-keyboard-insert-latest, and inspect Notes TextView/keyboard reset state"
+          status: pass
+        - cmd: "xcrun devicectl device copy from appGroupDataContainer group.com.neonwatty.FoilIOS Library/foil-keyboard-snapshot.json"
+          status: pass
+        - cmd: "WDA screenshot saved to notes/visual/testflight-build2-notes-insert-reset.png"
+          status: pass
+      residual_risk:
+        - "The transcript had normal provider variation (`proof` recognized as `prove`) but captured the intended sterile phrase well enough for this smoke."
+        - "The existing Notes field contains prior sterile smoke text; this proof only asserts the appended TestFlight transcript and reset behavior."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Open a PR with the distributed-build proof artifacts back into codex/ios-keyboard-prototype."
+    allowed_files:
+      - "docs/goals/ios-testflight-distributed-mailbox-proof/**"
+    verify:
+      - "Run GoalBuddy state checker."
+      - "Run git diff --check over touched goal files."
+      - "Run targeted secret/private-string scan over touched goal files."
+      - "Create a commit and PR targeting codex/ios-keyboard-prototype."
+    stop_if:
+      - "The proof did not run and no useful blocker receipt exists."
+      - "GitHub auth fails."
+      - "Secret scan reports key/private material in touched files."
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Opened the distributed-build proof PR back into codex/ios-keyboard-prototype with the GoalBuddy board, state receipts, and screenshot artifact."
+      changed_files:
+        - "docs/goals/ios-testflight-distributed-mailbox-proof/goal.md"
+        - "docs/goals/ios-testflight-distributed-mailbox-proof/state.yaml"
+        - "docs/goals/ios-testflight-distributed-mailbox-proof/notes/visual/testflight-build2-notes-insert-reset.png"
+      pull_request:
+        number: 239
+        url: "https://github.com/mean-weasel/foil/pull/239"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-testflight-distributed-mailbox-proof"
+      commands:
+        - cmd: "node .../check-goal-state.mjs docs/goals/ios-testflight-distributed-mailbox-proof/state.yaml"
+          status: pass
+        - cmd: "git diff --check -- docs/goals/ios-testflight-distributed-mailbox-proof"
+          status: pass
+        - cmd: "rg targeted secret scan over docs/goals/ios-testflight-distributed-mailbox-proof"
+          status: pass
+        - cmd: "git add -f docs/goals/ios-testflight-distributed-mailbox-proof/state.yaml and commit proof files"
+          status: pass
+        - cmd: "git push -u origin codex/ios-testflight-distributed-mailbox-proof"
+          status: pass
+        - cmd: "gh pr create --base codex/ios-keyboard-prototype --head codex/ios-testflight-distributed-mailbox-proof"
+          status: pass
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit whether the distributed TestFlight mailbox proof tranche is complete."
+    inputs:
+      - "All task receipts."
+      - "Current git status and PR state."
+      - "Device/TestFlight/live smoke evidence."
+    constraints:
+      - "Read-only except for writing the final audit receipt."
+      - "Do not mark complete if the phone only ran a Debug-installed build."
+      - "Name the strongest realistic remaining failure mode."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "missing evidence"
+      - "next task if not complete"
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "The distributed TestFlight mailbox proof tranche is complete. The phone was initially running Foil iOS 0.1.0 build 1, build 2 was made available and installed through TestFlight, devicectl verified bundle version 2, and the live mailbox/audio/transcription/keyboard insertion loop passed on that installed build."
+      strongest_realistic_failure_mode:
+        claim: "The proof could still be accidentally using the previous Debug-installed app instead of the TestFlight-managed build 2."
+        evidence_that_rules_it_out:
+          - "T001 devicectl metadata showed the starting install was Foil iOS 0.1.0 bundle version 1."
+          - "T003 App Store Connect API showed build 2 was initially not in the internal group and not beta-ready, then changed to IN_BETA_TESTING and attached to Foil Internal Testers."
+          - "T003 WDA/TestFlight evidence selected 0.1.0 (2) from Previous Builds and accepted TestFlight install confirmations."
+          - "T003 devicectl metadata repeatedly reported Foil iOS 0.1.0 bundle version 2 after install."
+          - "T004 launched com.neonwatty.FoilIOS after that install and ran mailbox commands against the App Group used by the installed app."
+      additional_failure_modes:
+        - claim: "The audio/transcription proof could be a false positive caused by silence or AirPods routing."
+          evidence_that_rules_it_out:
+            - "T004 recorded the first weak transcript `. Thank you.` as failed/weak proof."
+            - "T004 reverified MacBook Pro Speakers as output/system route, set volume to 100, and reran with a longer sterile phrase."
+            - "The second transcript captured the intended phrase as `Foil test flight build 2 second audio prove Orange Lantern River`."
+        - claim: "The transcript could exist in shared state but not insert through the custom keyboard."
+          evidence_that_rules_it_out:
+            - "WDA observed Foil Keyboard Transcript Ready and enabled foil-keyboard-insert-latest."
+            - "After tapping Insert latest, Notes TextView contained the TestFlight transcript."
+            - "Foil Keyboard reset to Ready with disabled Insert latest (no transcript), and the copied App Group snapshot showed phase idle and message Ready."
+      residual_risk:
+        - "TestFlight called build 2 an older build and disabled automatic updates for this app during the proof. Future TestFlight update behavior should be checked when a newer build is uploaded."
+        - "This board proves Notes insertion; broader app insertion matrix remains covered by earlier boards and future target-specific smokes."
