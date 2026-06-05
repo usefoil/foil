@@ -8,7 +8,7 @@ goal:
   slug: "ios-testflight-onboarding-failure-recovery"
   kind: specific
   tranche: "Make the iOS custom-keyboard prototype understandable and recoverable for early TestFlight testers."
-  status: active
+  status: done
   oracle:
     signal: "Physical iPhone-preview walkthrough starts from fresh or intentionally unhealthy tester state, guides keyboard install/Full Access/microphone/provider readiness, completes real transcription and one-time insertion, and recovers/reset with App Group idle/no transcript afterward."
     cadence: "after each Worker package and at final audit"
@@ -70,7 +70,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-testflight-onboarding-failure-recovery/"
     command: "npx goalbuddy board docs/goals/ios-testflight-onboarding-failure-recovery"
 
-active_task: T999
+active_task: null
 
 tasks:
   - id: T001
@@ -808,7 +808,7 @@ tasks:
   - id: T999
     type: judge
     assignee: Judge
-    status: active
+    status: done
     reasoning_hint: high
     objective: "Final audit against the TestFlight onboarding/failure-recovery oracle."
     inputs:
@@ -833,13 +833,67 @@ tasks:
       - "Strongest realistic failure mode and evidence."
       - "Residual risks."
       - "Next board/task if not complete."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "Final audit accepts the GoalBuddy board as complete for the intended internal TestFlight prototype tranche. The branch contains a tester-facing app setup/recovery surface, shared Keychain credential handling, clearer keyboard reset/insert states, recoverable provider/microphone/transcription failures, physical iPhone proof across target apps, and GitHub handoff into codex/ios-keyboard-prototype. Messages remains a documented fixture blocker rather than an undisclosed gap."
+      branch:
+        name: "codex/ios-testflight-onboarding-recovery"
+        head_before_final_receipt_commit: "8dfaaa2"
+        upstream: "origin/codex/ios-testflight-onboarding-recovery"
+      pull_request:
+        url: "https://github.com/mean-weasel/foil/pull/229"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-testflight-onboarding-recovery"
+        draft: true
+        state: open
+      issue_update:
+        issue: 216
+        url: "https://github.com/mean-weasel/foil/issues/216#issuecomment-4627552909"
+      strongest_realistic_failure_mode:
+        claim: "The iOS keyboard could look ready but fail in real target apps by leaking credentials/private text, inserting stale transcripts repeatedly, or leaving App Group state dirty after insertion."
+        evidence_that_rules_it_out:
+          - "Physical WDA matrix in T008 saved and cleared provider credentials without source leakage, then proved setup/provider source had no secret-like strings."
+          - "Physical Safari, Notes, and Reminders runs showed Foil keyboard visible, safe fixture insertion or live transcript insertion, post-insert noTranscript true, and reset/ready/no-transcript state afterward."
+          - "Physical secure-field fixture showed iOS suppressed the custom keyboard in a password field; Insert latest and Next Keyboard were not exposed and source had no secret-like strings."
+          - "Physical live Groq run saved a real key, recorded/transcribed a macOS say phrase, reached transcriptReady true without printing or committing the transcript body, inserted the latest transcript into Notes once, then returned to no-transcript/ready state."
+          - "Physical missing-key recovery after clearing the key showed Groq key needed, Needs attention, Save key recovery action, and reset back to Ready/no transcript."
+          - "Secret/private-string scan passed with only expected key-name constants, and git diff --check passed."
+      verification:
+        - cmd: "xcodebuild/XcodeBuildMCP simulator build-run"
+          status: pass
+        - cmd: "Physical iPhone build/install/launch"
+          status: pass
+        - cmd: "Physical WDA matrix: setup/provider, Safari, Notes, Reminders, secure-field fixture, live transcription, live insertion, missing-key recovery"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-testflight-onboarding-failure-recovery"
+          status: pass
+        - cmd: "Secret/private-string scan over FoiliOS and this goal"
+          status: pass
+        - cmd: "GoalBuddy check-goal-state before final closeout"
+          status: pass
+        - cmd: "gh pr view 229 --json url,number,state,isDraft,baseRefName,headRefName,commits"
+          status: pass
+      residual_risks:
+        - "Messages target remains untested until a dedicated safe self/test thread exists."
+        - "Provider credential entry is internal-TestFlight key entry, not production account/server auth."
+        - "Background audio mode is not declared; prototype records while Foil is foregrounded."
+        - "Generated Info.plist inspection showed CFBundleShortVersionString 1.0 while project settings declare MARKETING_VERSION 0.1.0; verify archive/export metadata before an actual TestFlight upload."
+        - "Prototype URL hooks and collapsed Diagnostics controls remain acceptable for this internal PR but should be revisited before wider beta."
+      non_goal_changes_left_untouched:
+        - "FoiliOS/FoilIOS.xcodeproj/project.xcworkspace/xcuserdata/"
+        - "FoiliOS/FoilIOS.xcodeproj/xcuserdata/"
+        - "docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md"
 
 checks:
   dirty_fingerprint: "At prep time, branch codex/ios-testflight-onboarding-recovery is based on origin/codex/ios-keyboard-prototype; pre-existing untracked Xcode xcuserdata dirs and docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md remain unrelated."
   last_verification:
-    result: prep_only
-    task: null
+    result: done
+    task: T999
     commands:
       - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-update.mjs --json"
+        status: pass
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
         status: pass
