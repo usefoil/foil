@@ -19,8 +19,10 @@
 		8E076C9B35A2D3310945E36B /* FoilIOSConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */; };
 		959656866E87C04F486DEE6A /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8DED6D0B2DB4D4A56CBCC4C /* KeyboardViewController.swift */; };
 		A25968F91F0AFD1352EA240C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AF36E3CB6AD18179415EC467 /* Assets.xcassets */; };
+		A45D5112259C81FF8B809D7A /* FoilTranscriptQualityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268ED96A1069398E9D573385 /* FoilTranscriptQualityTests.swift */; };
 		CDF2025B3CC90DEF9172B171 /* FoilCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E66C051F406E089F849D00 /* FoilCredentialStore.swift */; };
 		D22B502FB8F13DD32544442E /* FoilIOSConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */; };
+		D44A413BDDCA7DE55C3E5A54 /* FoilTranscriptQuality.swift in Sources */ = {isa = PBXBuildFile; fileRef = 930D52E4BE65516E2E689846 /* FoilTranscriptQuality.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +58,7 @@
 
 /* Begin PBXFileReference section */
 		1CF921C0034784102049E070 /* FoilTranscriptionClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilTranscriptionClient.swift; sourceTree = "<group>"; };
+		268ED96A1069398E9D573385 /* FoilTranscriptQualityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilTranscriptQualityTests.swift; sourceTree = "<group>"; };
 		3583EEDEF91366197D5835CE /* FoilTranscriptionClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilTranscriptionClientTests.swift; sourceTree = "<group>"; };
 		58C4258EB9EC3B85F4B3132E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		59E66C051F406E089F849D00 /* FoilCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilCredentialStore.swift; sourceTree = "<group>"; };
@@ -65,6 +68,7 @@
 		77F32B52839F43D4C35AEE48 /* AudioCaptureController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureController.swift; sourceTree = "<group>"; };
 		83AB451FE990B167DFC3C540 /* FoilIOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FoilIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilIOSConstants.swift; sourceTree = "<group>"; };
+		930D52E4BE65516E2E689846 /* FoilTranscriptQuality.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilTranscriptQuality.swift; sourceTree = "<group>"; };
 		9C3339B67E16E9D91B0D3263 /* FoilKeyboard.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoilKeyboard.entitlements; sourceTree = "<group>"; };
 		AC574AC144BA7F61AAA6B60E /* FoilKeyboardBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilKeyboardBridge.swift; sourceTree = "<group>"; };
 		AF36E3CB6AD18179415EC467 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -99,6 +103,7 @@
 			isa = PBXGroup;
 			children = (
 				3583EEDEF91366197D5835CE /* FoilTranscriptionClientTests.swift */,
+				268ED96A1069398E9D573385 /* FoilTranscriptQualityTests.swift */,
 			);
 			path = FoilIOSTests;
 			sourceTree = "<group>";
@@ -121,6 +126,7 @@
 				59E66C051F406E089F849D00 /* FoilCredentialStore.swift */,
 				F5C18A113AB57751309B185D /* FoilIOSApp.swift */,
 				1CF921C0034784102049E070 /* FoilTranscriptionClient.swift */,
+				930D52E4BE65516E2E689846 /* FoilTranscriptQuality.swift */,
 				621DDB56882D26AAEC465CB0 /* TranscriptionController.swift */,
 				278A669AC093B9EE5FD3CF6E /* Generated */,
 			);
@@ -280,6 +286,7 @@
 				589C455BA82755598BC53393 /* FoilIOSApp.swift in Sources */,
 				D22B502FB8F13DD32544442E /* FoilIOSConstants.swift in Sources */,
 				2CDF09B597678B083CCCF602 /* FoilKeyboardBridge.swift in Sources */,
+				D44A413BDDCA7DE55C3E5A54 /* FoilTranscriptQuality.swift in Sources */,
 				0487CA500F0109EBC53F8710 /* FoilTranscriptionClient.swift in Sources */,
 				0BBFCD60BD149E3F6CB6DA66 /* TranscriptionController.swift in Sources */,
 			);
@@ -289,6 +296,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A45D5112259C81FF8B809D7A /* FoilTranscriptQualityTests.swift in Sources */,
 				4AC314D95DEBA3047166C0F8 /* FoilTranscriptionClientTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

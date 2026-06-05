@@ -1,0 +1,142 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "iOS Audio Reliability v0.5"
+  slug: "ios-audio-reliability-v0.5"
+  kind: existing_plan
+  tranche: "Reject weak transcripts before keyboard insertion and preserve noisy-audio proof."
+  status: done
+  oracle:
+    signal: "Foil iOS tests prove punctuation-only/empty-ish transcripts are rejected while real speech text remains insertable."
+    cadence: "after Worker and final audit"
+    final_proof: "Failing-then-passing tests, simulator build/test proof, secret scan, and receipt against the v0.4 punctuation-only failure mode."
+  intake:
+    original_request: "Ok do this next."
+    interpreted_outcome: "Implement the proposed v0.5 weak transcript gating slice."
+    input_shape: existing_plan
+    audience: "Foil owner/developer and early iPhone TestFlight testers"
+    authority: approved
+    proof_type: test
+    completion_proof: "A provider response like `.` cannot produce a keyboard-ready transcript, while real text still can."
+    likely_misfire: "Treating noisy audio as solved with documentation while the app still accepts punctuation-only transcript output."
+    blind_spots_considered:
+      - "ASR can produce punctuation, empty strings, or tiny non-speech fragments."
+      - "Over-aggressive gating could reject valid short utterances such as `OK` or `Number 3`."
+      - "The keyboard must not be offered stale text after a weak transcript failure."
+      - "Physical audio quality still needs a better fixture after this app-level guard."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: queued
+    url: "http://goalbuddy.localhost:41737/ios-audio-reliability-v0-5/"
+    command: "npx goalbuddy board docs/goals/ios-audio-reliability-v0.5"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Use TDD to add transcript-quality gating for empty-ish/punctuation-only transcripts."
+    inputs:
+      - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+      - "FoiliOS/FoilIOSTests/**"
+      - "docs/goals/ios-real-dictation-v0.4/state.yaml"
+    constraints:
+      - "Failing test first."
+      - "Do not reject normal short speech with letters/digits."
+      - "Do not expose provider keys or private transcripts."
+    expected_output:
+      - "Focused tests fail, then pass with minimal production code."
+      - "TranscriptionController rejects weak transcripts as No speech detected."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Added transcript-quality gating with TDD so empty, whitespace-only, and punctuation-only provider output is treated as no speech rather than becoming keyboard-insertable."
+      changed_files:
+        - "FoiliOS/FoilIOSApp/FoilTranscriptQuality.swift"
+        - "FoiliOS/FoilIOSApp/TranscriptionController.swift"
+        - "FoiliOS/FoilIOSTests/FoilTranscriptQualityTests.swift"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-audio-reliability-v0.5/goal.md"
+        - "docs/goals/ios-audio-reliability-v0.5/state.yaml"
+      red:
+        command: "XcodeBuildMCP test_sim -only-testing:FoilIOSTests/FoilTranscriptQualityTests"
+        result: "Failed because FoilTranscriptQuality was missing from scope after xcodegen included the new test file."
+      green:
+        - "Focused FoilTranscriptQualityTests passed 2/2."
+        - "Full FoilIOSTests passed 4/4."
+        - "FoilIOS simulator build succeeded with no warnings/errors."
+      behavior:
+        rejects:
+          - "empty string"
+          - "whitespace-only transcript"
+          - "."
+          - "...?!"
+          - " - "
+        accepts:
+          - "OK"
+          - "Number 3"
+          - "Violet cactus number one"
+      implementation: "TranscriptionController now gates provider output through FoilTranscriptQuality.isAcceptable before calling bridge.complete; rejected output keeps the existing No speech detected failure/retry path."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Final audit against the v0.4 punctuation-only failure mode."
+    inputs:
+      - "T001 receipt"
+      - "git diff"
+    constraints:
+      - "Do not claim physical audio quality is solved."
+    expected_output:
+      - "Receipt with claim, failure modes, evidence, and residual risk."
+    receipt:
+      result: done
+      task_id: T002
+      summary: "Final audit passed. The v0.4 punctuation-only failure mode is now covered by tests and by TranscriptionController's completion gate."
+      claim: "A Groq response like `.` cannot produce a keyboard-ready Foil transcript, while short real speech still can."
+      strongest_failure_modes:
+        - failure: "The new tests might not have been part of the generated Xcode project."
+          ruled_out_by: "Initial focused test run reported 0 tests before regeneration; after xcodegen, the same focused run failed on missing FoilTranscriptQuality, proving the new tests were included."
+        - failure: "The app might still complete punctuation-only transcripts."
+          ruled_out_by: "FoilTranscriptQualityTests reject `.`, `...?!`, whitespace-only, empty, and ` - `, and TranscriptionController now uses that gate before bridge.complete."
+        - failure: "The guard could be too aggressive and block useful short dictation."
+          ruled_out_by: "Tests accept `OK`, `Number 3`, and `Violet cactus number one`."
+        - failure: "Project integration could fail even if focused tests pass."
+          ruled_out_by: "Full FoilIOSTests passed 4/4 and FoilIOS simulator build succeeded with no warnings/errors."
+      verification:
+        - "XcodeBuildMCP focused FoilTranscriptQualityTests: red then green."
+        - "XcodeBuildMCP full FoilIOSTests: pass, 4/4."
+        - "XcodeBuildMCP FoilIOS simulator build: pass, no warnings/errors."
+      residual_risk:
+        - "This is an app-level weak transcript guard, not a fix for physical audio capture quality."
+        - "Very short alphanumeric noise such as `a` would still pass; a future slice can tune confidence/length heuristics if live evidence shows that is necessary."
+      full_outcome_complete: true
