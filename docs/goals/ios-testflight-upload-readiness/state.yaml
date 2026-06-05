@@ -1,0 +1,287 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS TestFlight Upload Readiness"
+  slug: "ios-testflight-upload-readiness"
+  kind: specific
+  tranche: "Prove or precisely block App Store Connect/TestFlight validation or upload for the current Foil iOS IPA."
+  status: done
+  oracle:
+    signal: "App Store Connect validation/upload succeeds with sanitized receipt, or fails with an exact credential/account/tooling/app-record blocker."
+    cadence: "after Scout, Judge, upload/validation attempt, and final audit"
+    final_proof: "PR/issue/receipt with altool/export/artifact commands, credential availability checks without secret values, upload/validation output or exact blocker, and residual-risk audit."
+  intake:
+    original_request: "Continue unattended GoalBuddy planning, investigation, testing, PR-ing for the iOS effort."
+    interpreted_outcome: "After archive/export metadata proof, investigate actual TestFlight/App Store Connect upload readiness."
+    input_shape: specific
+    audience: "Foil owner/developer preparing internal TestFlight."
+    authority: approved
+    proof_type: artifact
+    completion_proof: "Validation/upload succeeds, or the precise blocker and next human action are recorded."
+    likely_misfire: "Calling the app TestFlight-ready because an IPA exported locally, without proving App Store Connect validation/upload or recording why it cannot happen."
+    blind_spots_considered:
+      - "altool needs username/password or API key/issuer credentials."
+      - "Credentials may exist in keychain/private key files but must not be printed."
+      - "The exported IPA may need to be regenerated because /tmp artifacts are ephemeral."
+      - "Transporter app may be missing even if altool is present."
+      - "The App Store Connect app record or provider may not exist or may require human account action."
+      - "Uploading a build is a side effect; Judge must approve it explicitly."
+    existing_plan_facts:
+      - "PR #230 proved exportable IPA metadata: app and keyboard version 0.1.0 build 1."
+      - "PR #231 added the physical automation runbook."
+      - "No open PRs were present before this board."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-testflight-upload-readiness/"
+    command: "npx goalbuddy board docs/goals/ios-testflight-upload-readiness"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: high
+    objective: "Map App Store Connect upload tooling, artifact, credential, provider, and app-record readiness without printing secrets."
+    inputs:
+      - "Current branch/status."
+      - "docs/goals/ios-testflight-archive-readiness/state.yaml"
+      - "FoiliOS project/export settings."
+      - "Local altool/iTMSTransporter availability."
+      - "Presence-only App Store Connect credential checks."
+      - "Current IPA/archive artifact paths or need to regenerate."
+    constraints:
+      - "Read-only unless regenerating temporary archive/export artifacts is explicitly required by Judge later."
+      - "Do not print secret values, JWTs, passwords, p8 contents, or keychain data."
+      - "Do not upload."
+    expected_output:
+      - "Tooling availability."
+      - "Credential presence/absence without values."
+      - "Artifact presence/absence."
+      - "Provider/app-record check possibilities."
+      - "Recommended Judge decision: validate, upload, regenerate artifact, or blocked."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped local App Store Connect/TestFlight upload readiness without printing secrets. Xcode altool is available, but standalone Transporter is not installed. The prior exported IPA artifact is not present under /tmp. No App Store Connect-like environment variables, known keychain item names, or AuthKey_*.p8 files were found. An unauthenticated altool provider listing fails with the expected missing-authentication error."
+      evidence:
+        - "git status showed branch codex/ios-testflight-upload-readiness at 28d9abd tracking origin/codex/ios-keyboard-prototype."
+        - "xcrun altool --help reported altool Version 26.40.1 and documented --upload-app, --validate-app, --list-providers, JWT API key, p8 file, username/password, and @keychain auth options."
+        - "xcrun iTMSTransporter -help reported that iTMSTransporter is now part of Transporter and asked to install Transporter from the Mac App Store."
+        - "find /tmp for *.ipa, *.xcarchive, ExportOptions.plist, and DistributionSummary.plist returned no persisted artifacts."
+        - "Environment variable name scan found no ASC, APP_STORE, APPLE, ITMS, ALTOOL, or API_PRIVATE_KEYS_DIR variables."
+        - "Presence-only keychain checks for AC_PASSWORD, APP_STORE_CONNECT_API_KEY, APP_STORE_CONNECT_KEY, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD, FASTLANE_PASSWORD, and altool all reported absent."
+        - "Presence-only AuthKey_*.p8 checks under ./private_keys, ~/private_keys, ~/.private_keys, ~/.appstoreconnect/private_keys, and API_PRIVATE_KEYS_DIR found no files."
+        - "xcrun altool --list-providers failed with AuthenticationFailure: Either JWT (--api-issuer and --api-key) or username and app password (--username, --app-password and --provider-public-id) authentication is required."
+      tooling:
+        altool: "present"
+        altool_version: "26.40.1"
+        transporter_app: "not found under /Applications"
+        iTMSTransporter: "stub tells user to install Transporter"
+      artifacts:
+        prior_ipa_in_tmp: "missing"
+        prior_archive_in_tmp: "missing"
+      credentials:
+        app_store_connect_env_vars: "absent"
+        known_keychain_items: "absent"
+        authkey_p8_files: "absent"
+      recommendation:
+        decision: "blocked_for_upload"
+        reason: "There is no available App Store Connect authentication material and no current IPA artifact; validation/upload cannot be attempted responsibly."
+        next_worker_slice: "Add a durable TestFlight upload runbook/blocker note with exact credential options, regeneration command, validation command, upload command, and current missing-auth evidence."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose whether to validate, upload, regenerate artifact, or stop with blocker."
+    inputs:
+      - "T001 receipt."
+      - "docs/acceptance-evidence.md"
+    constraints:
+      - "Read-only."
+      - "Reject upload unless credentials and artifact are present and the side effect is acceptable."
+      - "Prefer validation before upload when possible."
+    expected_output:
+      - "decision: validate | upload | regenerate_artifact | blocked"
+      - "allowed_files"
+      - "commands"
+      - "stop_if"
+    receipt:
+      result: done
+      task_id: T002
+      decision: blocked
+      chosen_slice: "Do not validate or upload yet; document exact upload-readiness blocker and next commands."
+      rationale:
+        - "T001 found no App Store Connect authentication material in environment, known keychain item names, or AuthKey_*.p8 locations."
+        - "altool itself reports that JWT or username/app-password authentication is required for provider/app operations."
+        - "The prior IPA artifact is not currently present under /tmp, so a future upload attempt must regenerate archive/export first."
+        - "Uploading to App Store Connect is an external side effect and must not be attempted with missing credentials or guessed provider/app state."
+      allowed_files:
+        - "docs/ios-testflight-upload-runbook.md"
+        - "docs/goals/ios-testflight-upload-readiness/**"
+        - "docs/goals/ios-unattended-testflight-conveyor/**"
+      verify:
+        - "Document exact credential options without secret values."
+        - "Document archive/export regeneration commands from prior successful board."
+        - "Document altool validation/upload commands as templates requiring credentials."
+        - "Run git diff --check over touched files."
+        - "Run secret/private-string scan over touched files."
+      stop_if:
+        - "The runbook would need actual secret values."
+        - "Validation/upload is accidentally attempted."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Execute the Judge-approved upload-readiness step and open/update PR or issue receipt."
+    allowed_files:
+      - "docs/goals/ios-testflight-upload-readiness/**"
+      - "docs/goals/ios-unattended-testflight-conveyor/**"
+      - "docs/**"
+      - "FoiliOS/**"
+    verify:
+      - "Run Judge-selected validation/upload/regeneration commands."
+      - "Run git diff --check over touched files."
+      - "Run secret/private-string scan over touched files."
+      - "Open PR or issue update if files change or a durable blocker must be recorded."
+    stop_if:
+      - "Credential/account/provider/app-record state requires user input."
+      - "A command would print secrets."
+      - "Upload would create an unintended external build."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Added a TestFlight upload runbook that preserves the exact blocker from Scout and gives the next operator the regenerate, validate, and upload commands for either App Store Connect API key auth or Apple ID app-password auth. No validation/upload was attempted because credentials were absent."
+      changed_files:
+        - "docs/ios-testflight-upload-runbook.md"
+        - "docs/goals/ios-testflight-upload-readiness/state.yaml"
+      implementation:
+        - "Documented current upload-readiness state and missing authentication."
+        - "Documented required API key and Apple ID app-password authentication options."
+        - "Documented archive/export regeneration commands from the successful archive-readiness board."
+        - "Documented IPA metadata verification commands."
+        - "Documented altool validate/upload command templates."
+        - "Documented the exact current blocker and next human action."
+      commands:
+        - cmd: "git diff --check -- docs/ios-testflight-upload-runbook.md docs/goals/ios-testflight-upload-readiness docs/goals/ios-unattended-testflight-conveyor"
+          status: pass
+        - cmd: "rg secret/private-string scan over upload runbook and GoalBuddy files"
+          status: pass
+        - cmd: "GoalBuddy check-goal-state for ios-testflight-upload-readiness"
+          status: pass
+      evidence:
+        - "Runbook includes no credential values, p8 contents, passwords, or JWTs."
+        - "Runbook records missing env vars, known keychain items, AuthKey_*.p8 files, and altool authentication failure."
+        - "Runbook distinguishes local archive/export from actual validation/upload."
+      residual_risk:
+        - "A future upload still requires user-provided App Store Connect credentials and likely provider/app-record confirmation."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit against TestFlight upload-readiness oracle."
+    inputs:
+      - "All receipts."
+      - "Command output."
+      - "PR/issue links."
+      - "Current git/GitHub status."
+    constraints:
+      - "Do not implement."
+      - "Reject completion if only local archive/export proof exists."
+      - "Reject completion if secrets are recorded."
+    expected_output:
+      - "complete | blocked | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode and evidence."
+      - "Residual risks and next action."
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "Final audit accepts the upload-readiness board as complete via precise blocker. This machine can build/export the app from the previous board, and altool is present, but App Store Connect validation/upload cannot be attempted responsibly because no authentication material or persisted IPA artifact is currently available. The runbook records the exact commands and next human action."
+      blocker:
+        type: "missing_app_store_connect_auth"
+        exact_condition:
+          - "No App Store Connect-like environment variables were present."
+          - "Known keychain item names checked by presence only were absent."
+          - "No AuthKey_*.p8 files were found in standard altool search locations."
+          - "altool --list-providers failed with missing JWT or username/app-password authentication."
+          - "The previous /tmp IPA/archive artifacts were absent and must be regenerated before upload."
+      strongest_realistic_failure_mode:
+        claim: "We might call the app TestFlight-ready because local export worked, while App Store Connect validation/upload is actually impossible from this machine."
+        evidence_that_rules_it_out:
+          - "T001 directly checked altool, Transporter, env vars, keychain item presence, p8 search locations, artifact paths, and unauthenticated provider listing."
+          - "T003 added docs/ios-testflight-upload-runbook.md with validation/upload templates and the exact current missing-auth blocker."
+          - "No upload or validation claim is made."
+      verification:
+        - cmd: "xcrun altool --help"
+          status: pass
+        - cmd: "xcrun iTMSTransporter -help"
+          status: pass
+          note: "Reported Transporter app needs installation."
+        - cmd: "find /tmp for *.ipa/*.xcarchive/export artifacts"
+          status: pass
+          note: "No persisted artifacts found."
+        - cmd: "presence-only environment/keychain/AuthKey_*.p8 checks"
+          status: pass
+        - cmd: "xcrun altool --list-providers"
+          status: pass
+          note: "Failed with expected missing-authentication error."
+        - cmd: "git diff --check over touched files"
+          status: pass
+        - cmd: "secret/private-string scan over touched files"
+          status: pass
+        - cmd: "GoalBuddy check-goal-state"
+          status: pass
+      residual_risks:
+        - "Actual App Store Connect validation/upload remains blocked until the user provides API key/issuer/private key or Apple ID app-password/provider details."
+        - "A future upload should regenerate the IPA first because /tmp artifacts are ephemeral."
+
+checks:
+  dirty_fingerprint: "Created after PR #231 merged physical automation runbook into codex/ios-keyboard-prototype."
+  last_verification:
+    result: done
+    task: T999
+    commands:
+      - cmd: "xcrun altool --help"
+        status: pass
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-testflight-upload-readiness/state.yaml"
+        status: pass
