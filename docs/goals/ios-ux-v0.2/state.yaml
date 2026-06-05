@@ -7,7 +7,7 @@ goal:
   slug: "ios-ux-v0.2"
   kind: existing_plan
   tranche: "Plan and implement the next small product UX layer over the proven iOS TestFlight keyboard prototype."
-  status: active
+  status: done
   oracle:
     signal: "A tester can use the containing app and keyboard without knowing about the mailbox test harness, and physical-device smokes prove the updated UX."
     cadence: "after Scout/Judge/Worker packages"
@@ -54,7 +54,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-ux-v0-2/"
     command: "npx goalbuddy board docs/goals/ios-ux-v0.2"
 
-active_task: T005
+active_task: null
 
 tasks:
   - id: T001
@@ -309,7 +309,7 @@ tasks:
   - id: T005
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Recover iPhone-preview CoreDevice/WDA control, install or update build 5, and run the physical Foil app/keyboard insertion smoke."
     allowed_files:
@@ -328,11 +328,83 @@ tasks:
       - "Phone remains in CoreDevice tunnelState=connecting after user replug/unlock or equivalent recovery."
       - "Installing build 5 would require deleting user data."
       - "Insertion smoke would expose private content."
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Recovered iPhone-preview CoreDevice/WDA control, installed build 0.1.0 (5), visually inspected the v0.2 guided dictation console on-device, inserted a sterile transcript through Foil Keyboard into Notes, and proved the App Group snapshot reset to idle."
+      changed_files:
+        - "docs/goals/ios-ux-v0.2/state.yaml"
+        - "docs/goals/ios-ux-v0.2/notes/visual/build5-guided-dictation-device.png"
+        - "docs/goals/ios-ux-v0.2/notes/visual/build5-notes-insert-reset.png"
+      recovery:
+        - "Initial T005 check still showed iPhone-preview paired/wired/booted but tunnelState=connecting and WDA unavailable."
+        - "Cleared stale devicectl clients left from the prior blocked run."
+        - "Ran devicectl manage pair; state still reported connecting."
+        - "Restarted the host CoreDeviceService XPC process; tunnel moved from connecting to disconnected."
+        - "Ran devicectl manage pair again; device returned to available (paired)."
+      install_and_launch:
+        - "WDA started successfully and reported http://192.168.1.40:8100 ready."
+        - "Before install, devicectl app metadata showed Foil iOS 0.1.0 bundle version 4."
+        - "Installed /tmp/FoilIOS-Build5.xcarchive/Products/Applications/Foil iOS.app with devicectl."
+        - "After install, devicectl app metadata showed Foil iOS 0.1.0 bundle version 5."
+        - "Launched com.neonwatty.FoilIOS with devicectl."
+      physical_ux_evidence:
+        - "WDA source for build 5 showed dictation-console, Ready to dictate, Start a new recording from Foil, and primary-record-dictation-button."
+        - "Device screenshot saved at docs/goals/ios-ux-v0.2/notes/visual/build5-guided-dictation-device.png."
+        - "Launching Foil with payload URL foilios://complete changed the v0.2 console to Transcript ready and message Fake transcript ready."
+      keyboard_insertion_evidence:
+        - "Created a fresh Notes note."
+        - "Foil Keyboard showed Transcript Ready, Fake transcript ready, enabled foil-keyboard-insert-latest, enabled Clear latest, and Dictate in Foil."
+        - "Tapped foil-keyboard-insert-latest."
+        - "Notes TextView value became Foil keyboard shell."
+        - "Foil Keyboard reset to Ready with disabled No transcript and disabled Clear."
+        - "Device screenshot saved at docs/goals/ios-ux-v0.2/notes/visual/build5-notes-insert-reset.png."
+        - "Copied canonical App Group snapshot Library/foil-keyboard-snapshot.json back from group.com.neonwatty.FoilIOS; it showed phase idle and message Ready with no transcript field."
+      artifacts:
+        guided_console_screenshot: "docs/goals/ios-ux-v0.2/notes/visual/build5-guided-dictation-device.png"
+        notes_insert_screenshot: "docs/goals/ios-ux-v0.2/notes/visual/build5-notes-insert-reset.png"
+        copied_app_group_snapshot: "/tmp/foil-t005-appgroup/foil-keyboard-snapshot.json"
+      commands:
+        - cmd: "pkill CoreDeviceService XPC process, then devicectl manage pair"
+          status: pass
+        - cmd: "xcodebuild WebDriverAgentRunner-nodebug test"
+          status: pass
+        - cmd: "xcrun devicectl device install app /tmp/FoilIOS-Build5.xcarchive/Products/Applications/Foil iOS.app"
+          status: pass
+        - cmd: "xcrun devicectl device info apps"
+          status: pass
+        - cmd: "xcrun devicectl device process launch com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "WDA source and screenshot for Foil iOS guided console"
+          status: pass
+        - cmd: "xcrun devicectl device process launch --payload-url foilios://complete com.neonwatty.FoilIOS"
+          status: pass
+        - cmd: "WDA create fresh Notes note and tap foil-keyboard-insert-latest"
+          status: pass
+        - cmd: "xcrun devicectl device copy from App Group snapshot"
+          status: pass
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Audit whether the UX v0.2 tranche is complete."
-    receipt: null
+    receipt:
+      result: done
+      decision: complete
+      full_outcome_complete: true
+      summary: "The iOS UX v0.2 tranche is complete. Build 5 is valid and attached in TestFlight, installed on iPhone-preview, shows the guided dictation UX on-device, preserves the keyboard insertion path, and resets shared state after insertion."
+      strongest_realistic_failure_modes:
+        - failure_mode: "Build 5 might be valid in App Store Connect but not actually installed on the physical phone."
+          ruled_out_by: "devicectl showed Foil iOS 0.1.0 bundle version 4 before install, devicectl install succeeded from the build-5 archive, and final app metadata showed Foil iOS 0.1.0 bundle version 5."
+        - failure_mode: "The v0.2 guided console might only work in the simulator."
+          ruled_out_by: "WDA source on iPhone-preview showed dictation-console, Ready to dictate, Start a new recording from Foil, and primary-record-dictation-button; screenshot build5-guided-dictation-device.png was captured from the physical device."
+        - failure_mode: "The updated keyboard wording/UI might break the custom keyboard insertion path."
+          ruled_out_by: "Foil Keyboard on iPhone-preview showed Transcript Ready and enabled foil-keyboard-insert-latest; tapping it inserted Foil keyboard shell into a fresh Notes note."
+        - failure_mode: "The keyboard might appear reset while canonical App Group state still contains stale transcript data."
+          ruled_out_by: "After insertion, Foil Keyboard showed Ready/No transcript/Clear disabled, and the copied canonical App Group snapshot showed phase idle and message Ready with no transcript field."
+        - failure_mode: "The previous CoreDevice tunnel blocker might still make physical automation unreliable."
+          ruled_out_by: "Host-side CoreDeviceService restart plus devicectl manage pair recovered WDA, devicectl install, devicectl launch, app metadata, WDA screenshots, and App Group copy-from in the same run."
+      residual_risk:
+        - "Build 5 was installed directly from the archive for physical proof after being uploaded and attached in TestFlight; this proves the same build metadata and extension behavior, but it is not a TestFlight-app UI update click proof."
