@@ -1,0 +1,331 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS TestFlight Build 4 Update Hygiene"
+  slug: "ios-testflight-build4-update-hygiene"
+  kind: existing_plan
+  tranche: "Prove the build-4 TestFlight update loop and record Automatic Updates state."
+  status: done
+  oracle:
+    signal: "Build 0.1.0 (4) is uploaded, beta-ready, attached, offered/installed over build 3, and passes a minimal live smoke."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Receipts with metadata diff, archive/export/upload state, App Store Connect beta/group state, TestFlight Automatic Updates/update UI, devicectl build 4 metadata, minimal live smoke proof, PR link, and final audit."
+  intake:
+    original_request: "do this now"
+    interpreted_outcome: "Run build-4 TestFlight update hygiene now, then prepare iOS UX v0.2 follow-up."
+    input_shape: existing_plan
+    audience: "Foil owner/developer"
+    authority: approved
+    proof_type: demo
+    completion_proof: "iPhone-preview reports Foil iOS build 4 from TestFlight, Automatic Updates state is recorded, and a minimal live smoke passes."
+    likely_misfire: "Calling the release loop healthy while Automatic Updates remains unknown or the phone still runs build 3."
+    blind_spots_considered:
+      - "Automatic Updates was off after the older build-2 install."
+      - "Build 4 may need the same explicit export-compliance patch before group attachment."
+      - "TestFlight may cache app details after attachment."
+      - "Audio can silently route to AirPods."
+      - "GoalBuddy state files are ignored by default and must be force-added for proof PRs."
+    existing_plan_facts:
+      - "PR #240 proved build 3 as the normal Update path over build 2."
+      - "Current device metadata reports Foil iOS 0.1.0 bundle version 3."
+      - "FoiliOS/project.yml and generated project both currently declare CURRENT_PROJECT_VERSION 3."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-testflight-build4-update-hygiene/"
+    command: "npx goalbuddy board docs/goals/ios-testflight-build4-update-hygiene"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Bump iOS build metadata to 4, archive/export/upload build 0.1.0 (4), and attach it to internal TestFlight."
+    allowed_files:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-testflight-build4-update-hygiene/**"
+    verify:
+      - "cd FoiliOS && xcodegen generate --spec project.yml"
+      - "Inspect project.yml and project.pbxproj for CURRENT_PROJECT_VERSION 4."
+      - "xcodebuild archive/export to IPA."
+      - "Inspect IPA app and keyboard metadata for version 0.1.0 build 4."
+      - "altool validate/upload/build-status for build 4."
+      - "App Store Connect API set export compliance and attach build 4 to Foil Internal Testers."
+      - "git diff --check and targeted secret scan."
+    stop_if:
+      - "Archive/export/upload fails twice with same root cause."
+      - "App Store Connect credentials would need to be printed."
+      - "Build 4 is not VALID after processing wait."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Bumped Foil iOS to build 4 from project.yml, regenerated the Xcode project, archived/exported/uploaded build 0.1.0 (4), explicitly cleared beta export compliance, and attached build 4 to Foil Internal Testers."
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-testflight-build4-update-hygiene/goal.md"
+        - "docs/goals/ios-testflight-build4-update-hygiene/state.yaml"
+      artifacts:
+        archive: "/tmp/FoilIOS-Build4.xcarchive"
+        export: "/tmp/FoilIOS-Build4Export"
+        ipa: "/tmp/FoilIOS-Build4Export/Foil iOS.ipa"
+      app_store_connect:
+        delivery_id: "bcd92b24-6990-4c07-b32c-d3cdade8bb44"
+        beta_group_id: "bcca568d-167d-44cb-b952-a410e9c9e10f"
+        beta_state: "IN_BETA_TESTING"
+        external_state: "READY_FOR_BETA_SUBMISSION"
+      evidence:
+        - "FoiliOS/project.yml changed CURRENT_PROJECT_VERSION from 3 to 4."
+        - "XcodeGen regenerated FoilIOS.xcodeproj and changed generated CURRENT_PROJECT_VERSION values from 3 to 4."
+        - "Release archive succeeded at /tmp/FoilIOS-Build4.xcarchive."
+        - "Export succeeded to /tmp/FoilIOS-Build4Export/Foil iOS.ipa."
+        - "IPA metadata inspection showed app version 0.1.0 build 4 and keyboard version 0.1.0 build 4."
+        - "altool validation reported VERIFY SUCCEEDED with no errors."
+        - "altool upload reported UPLOAD SUCCEEDED with no errors and delivery UUID bcd92b24-6990-4c07-b32c-d3cdade8bb44."
+        - "altool build-status reported build-status VALID, import-status VALID, is-on-app-store-connect true, and usesNonExemptEncryption false."
+        - "App Store Connect beta detail initially showed MISSING_EXPORT_COMPLIANCE; API PATCH set usesNonExemptEncryption=false."
+        - "After patch, buildBetaDetails reported IN_BETA_TESTING / READY_FOR_BETA_SUBMISSION."
+        - "Attaching build 4 to Foil Internal Testers succeeded; the group now contains builds 4, 3, 2, and 1."
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "xcodebuild archive/export for build 4"
+          status: pass
+        - cmd: "IPA metadata PlistBuddy inspection for app and keyboard version/build"
+          status: pass
+        - cmd: "xcrun altool --validate-app"
+          status: pass
+        - cmd: "xcrun altool --upload-app"
+          status: pass
+        - cmd: "xcrun altool --build-status --delivery-id bcd92b24-6990-4c07-b32c-d3cdade8bb44"
+          status: pass
+        - cmd: "App Store Connect API PATCH build usesNonExemptEncryption=false"
+          status: pass
+        - cmd: "App Store Connect API attach build 4 to beta group bcca568d-167d-44cb-b952-a410e9c9e10f"
+          status: pass
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Inspect TestFlight Automatic Updates state, install/update build 4 over build 3, and verify device metadata."
+    allowed_files:
+      - "docs/goals/ios-testflight-build4-update-hygiene/**"
+    verify:
+      - "Start WDA and inspect TestFlight app details."
+      - "Record Automatic Updates state."
+      - "Record whether build 4 is shown as Update/latest."
+      - "Install/update build 4 through TestFlight."
+      - "devicectl reports Foil iOS 0.1.0 bundle version 4."
+    stop_if:
+      - "TestFlight requires destructive deletion."
+      - "Build 4 is not visible after reasonable refresh/poll."
+      - "Phone locks/disconnects or needs manual Apple ID action."
+    receipt:
+      result: done
+      task_id: T002
+      summary: "TestFlight showed build 4 as the normal Update path over build 3, Automatic Updates was restored from off to on, and iPhone-preview installed build 4 through TestFlight."
+      changed_files:
+        - "docs/goals/ios-testflight-build4-update-hygiene/state.yaml"
+      evidence:
+        - "Before update, devicectl reported Foil iOS 0.1.0 bundle version 3."
+        - "TestFlight app detail showed Foil Dictation, Update, VERSION 0.1.0 Build 4."
+        - "Previous Builds row showed 0.1.0 (3), distinguishing build 4 as the latest detail build."
+        - "Automatic Updates switch initially had value 0."
+        - "Element clicks only scrolled/focused the switch; a W3C coordinate pointer tap on the visible switch changed Automatic Updates to value 1."
+        - "WDA clicked TestFlight.offerButton.update."
+        - "devicectl poll 1 still showed build 3, poll 2 changed to Foil iOS 0.1.0 bundle version 4, and polls 3-24 remained build 4."
+      commands:
+        - cmd: "Start WDA on iPhone-preview and create WDA session."
+          status: pass
+        - cmd: "Launch com.apple.TestFlight via devicectl."
+          status: pass
+        - cmd: "WDA inspect TestFlight app detail source."
+          status: pass
+        - cmd: "W3C pointer tap on Automatic Updates switch."
+          status: pass
+        - cmd: "WDA click TestFlight.offerButton.update."
+          status: pass
+        - cmd: "xcrun devicectl device info apps --device 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          status: pass
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Run a minimal live mailbox/audio/keyboard insertion smoke against TestFlight build 4."
+    allowed_files:
+      - "docs/goals/ios-testflight-build4-update-hygiene/**"
+    verify:
+      - "Launch com.neonwatty.FoilIOS and confirm bundle version 4."
+      - "Mailbox start/stop/transcribe with sterile Mac speaker phrase."
+      - "Foil Keyboard inserts latest into Notes."
+      - "Shared state resets to idle/Ready."
+      - "Save screenshot under notes/visual."
+    stop_if:
+      - "App is not proven to be build 4."
+      - "Audio returns weak/silent transcript twice after route verification."
+      - "Host insertion would expose private content."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Ran a minimal live mailbox/audio/transcription/keyboard insertion smoke against TestFlight build 0.1.0 (4). The first transcription returned unrelated text and was rejected as weak proof; the second take captured the intended sterile phrase, inserted into Notes, and reset shared state."
+      changed_files:
+        - "docs/goals/ios-testflight-build4-update-hygiene/state.yaml"
+        - "docs/goals/ios-testflight-build4-update-hygiene/notes/visual/build4-notes-insert-reset.png"
+      evidence:
+        - "devicectl launched com.neonwatty.FoilIOS and confirmed Foil iOS 0.1.0 bundle version 4."
+        - "Audio route was MacBook Pro Speakers for output/system and AirPods were disconnected."
+        - "First phrase `Foil build four update hygiene audio proof. Blue desert prism.` produced unrelated transcript `I made a post on LinkedIn yesterday.`, so it was rejected as weak proof."
+        - "Second phrase `Foil build four second clean audio proof. Violet mountain compass.` produced transcript `Foil build for second clean audio proof. Violet Mountain Compass.`"
+        - "Mailbox startRecording moved snapshot to phase listening."
+        - "Mailbox stopRecording moved snapshot to phase processing / recording saved."
+        - "Mailbox transcribeLatest moved snapshot to phase complete with the second transcript."
+        - "Foil Keyboard showed Transcript Ready and enabled Insert latest."
+        - "After tapping Insert latest, Notes TextView contained the build-4 transcript appended to the sterile test note."
+        - "Foil Keyboard reset to Ready with disabled Insert latest (no transcript), and the copied App Group snapshot showed phase idle and message Ready."
+        - "Screenshot: notes/visual/build4-notes-insert-reset.png"
+      commands:
+        - cmd: "xcrun devicectl device process launch com.neonwatty.FoilIOS and app metadata check"
+          status: pass
+        - cmd: "SwitchAudioSource/blueutil audio route checks"
+          status: pass
+        - cmd: "App Group command mailbox startRecording/stopRecording/transcribeLatest"
+          status: pass
+        - cmd: "WDA switch to Foil Keyboard and tap foil-keyboard-insert-latest"
+          status: pass
+        - cmd: "App Group snapshot copy after insert"
+          status: pass
+        - cmd: "WDA screenshot saved to notes/visual/build4-notes-insert-reset.png"
+          status: pass
+      residual_risk:
+        - "The first transcription was unrelated; the second take rules out the immediate audio-route failure mode for this smoke but product-level audio robustness still needs more work."
+        - "The second transcript has normal provider variation (`four` recognized as `for`)."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "PR/merge the build-4 proof and seed the iOS UX v0.2 GoalBuddy board."
+    allowed_files:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-testflight-build4-update-hygiene/**"
+      - "docs/goals/ios-ux-v0.2/**"
+    verify:
+      - "GoalBuddy state checker passes."
+      - "git diff --check over touched files."
+      - "Targeted secret scan over touched files."
+      - "Create PR targeting codex/ios-keyboard-prototype."
+      - "Merge PR if clean and no checks fail."
+      - "iOS UX v0.2 board exists with safe first active task."
+    stop_if:
+      - "Proof did not run and no useful blocker exists."
+      - "GitHub auth/merge fails."
+      - "Secret scan reports private material."
+    receipt:
+      result: done
+      task_id: T004
+      summary: "Committed the build-4 proof package, created PR #241 against codex/ios-keyboard-prototype, and seeded the iOS UX v0.2 GoalBuddy board with a safe read-only Scout task."
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-testflight-build4-update-hygiene/goal.md"
+        - "docs/goals/ios-testflight-build4-update-hygiene/state.yaml"
+        - "docs/goals/ios-testflight-build4-update-hygiene/notes/visual/build4-notes-insert-reset.png"
+        - "docs/goals/ios-ux-v0.2/goal.md"
+        - "docs/goals/ios-ux-v0.2/state.yaml"
+      pull_request: "https://github.com/mean-weasel/foil/pull/241"
+      evidence:
+        - "Committed proof package on codex/ios-testflight-build4-update-hygiene."
+        - "Created PR #241 with base codex/ios-keyboard-prototype and head codex/ios-testflight-build4-update-hygiene."
+        - "iOS UX v0.2 board exists with active T001 Scout, queued Judge/Worker/final-audit tasks, and pending local visual board command."
+        - "GoalBuddy state checker passed for both build-4 hygiene and iOS UX v0.2 boards before PR creation."
+        - "git diff --check passed over FoiliOS and touched docs/goals directories."
+        - "Targeted secret scan over FoiliOS and touched docs/goals directories returned no matches."
+      commands:
+        - cmd: "node check-goal-state.mjs docs/goals/ios-testflight-build4-update-hygiene/state.yaml"
+          status: pass
+        - cmd: "node check-goal-state.mjs docs/goals/ios-ux-v0.2/state.yaml"
+          status: pass
+        - cmd: "git diff --check -- FoiliOS docs/goals/ios-testflight-build4-update-hygiene docs/goals/ios-ux-v0.2"
+          status: pass
+        - cmd: "rg targeted secret scan over touched files"
+          status: pass
+        - cmd: "git push -u origin codex/ios-testflight-build4-update-hygiene"
+          status: pass
+        - cmd: "gh pr create --base codex/ios-keyboard-prototype --head codex/ios-testflight-build4-update-hygiene"
+          status: pass
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit whether build-4 update hygiene is complete."
+    inputs:
+      - "All task receipts."
+      - "Device/TestFlight/live smoke evidence."
+      - "Current git/PR state."
+    constraints:
+      - "Do not mark complete if phone still reports build 3."
+      - "Name the strongest realistic failure mode."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "missing evidence"
+      - "next task if not complete"
+    receipt:
+      result: done
+      decision: complete
+      full_outcome_complete: true
+      summary: "Build-4 update hygiene is complete: build 0.1.0 (4) was uploaded, beta-ready, attached, offered as an update over build 3, installed through TestFlight, smoke-tested live, and recorded in PR #241."
+      strongest_realistic_failure_modes:
+        - failure_mode: "The phone could still be running build 3 while the release metadata says build 4."
+          ruled_out_by: "TestFlight showed VERSION 0.1.0 Build 4 with Previous Builds 0.1.0 (3), devicectl observed bundle version 3 changing to 4 after update, later polls stayed on 4, and live smoke launched com.neonwatty.FoilIOS with bundle version 4."
+        - failure_mode: "Automatic Updates could still be off after the update, leaving future TestFlight hygiene broken."
+          ruled_out_by: "WDA source showed Automatic Updates switch value 0 before intervention; a coordinate pointer tap on the visible switch changed it to value 1."
+        - failure_mode: "The audio/transcription smoke could be a false positive from stale or misrouted audio."
+          ruled_out_by: "Audio route was checked as MacBook Pro Speakers with AirPods disconnected; the first unrelated transcript was rejected as weak proof; a second sterile phrase produced the expected transcript content with normal provider variation."
+        - failure_mode: "The keyboard could expose a transcript but fail insertion or fail to reset state."
+          ruled_out_by: "Notes TextView contained the inserted build-4 transcript after tapping Insert latest, the screenshot was saved, and the App Group snapshot returned to phase idle/message Ready."
+        - failure_mode: "The PR could leak credentials or accidentally include local generated board assets."
+          ruled_out_by: "Targeted secret scan found no matches; staged files excluded .goalbuddy-board local assets; git status showed unrelated user-data files left untracked."
+      required_followups:
+        - "Run the iOS UX v0.2 board next; it starts with read-only Scout T001 to choose the first bounded product UX slice."
