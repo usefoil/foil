@@ -1,0 +1,201 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "iOS UX v0.6 Product Loop"
+  slug: "ios-ux-v0.6-product-loop"
+  kind: existing_plan
+  tranche: "Make the iOS record-return-insert loop feel like a product."
+  status: done
+  oracle:
+    signal: "Tests and screenshots prove the app and keyboard guide testers through record in Foil -> create transcript -> return to keyboard -> insert/retry/reset."
+    cadence: "after Worker and final audit"
+    final_proof: "Red/green tests, simulator build/test, UX screenshots or physical smoke, secret scan, and PR merge receipt."
+  intake:
+    original_request: "Do this."
+    interpreted_outcome: "Implement the proposed iOS UX v0.6 product-loop tranche."
+    input_shape: existing_plan
+    audience: "Foil owner/developer and early iPhone TestFlight testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "The prototype branch has clearer product-loop UI and proof that the loop still builds/tests."
+    likely_misfire: "Changing styling without clarifying where users record, where they return, and how no-speech/failure recovery works."
+    blind_spots_considered:
+      - "Keyboard extensions cannot record directly; the app must be explicit about the handoff."
+      - "Too much setup/diagnostic text can obscure the primary loop."
+      - "No-speech and failed states must be recoverable from both app and keyboard."
+      - "Screenshots may expose private phone content and must be sterile/sanitized."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: queued
+    url: "http://goalbuddy.localhost:41737/ios-ux-v0-6-product-loop/"
+    command: "npx goalbuddy board docs/goals/ios-ux-v0.6-product-loop"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Use TDD to define product-loop presentation states, then wire the app and keyboard UI to the clearer loop."
+    inputs:
+      - "FoiliOS/FoilIOSApp/ContentView.swift"
+      - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+      - "FoiliOS/Shared/**"
+      - "FoiliOS/FoilIOSTests/**"
+    constraints:
+      - "Failing test first for presentation mapping."
+      - "Keep diagnostics available but secondary."
+      - "Do not expose private transcript text in diagnostics."
+    expected_output:
+      - "Tested presentation model for ready/recording/saved/complete/failed states."
+      - "Containing app and keyboard copy guide record-return-insert-retry/reset."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Added a tested shared product-loop presenter and wired it into the containing app and keyboard so the primary flow reads as record in Foil, return to keyboard, insert latest, or recover."
+      changed_files:
+        - "FoiliOS/Shared/FoilDictationLoopPresenter.swift"
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "FoiliOS/FoilIOSTests/FoilDictationLoopPresentationTests.swift"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      red:
+        command: "XcodeBuildMCP test_sim -only-testing:FoilIOSTests/FoilDictationLoopPresentationTests"
+        result: "Failed with missing FoilDictationLoopPresenter and related product-loop action symbols."
+      green:
+        - "Focused FoilDictationLoopPresentationTests passed 5/5."
+        - "Full FoilIOSTests passed 9/9."
+        - "FoilIOS simulator build succeeded with no warnings/errors."
+      evidence:
+        - "App ready state now tests title Record in Foil, primary action record, and detail containing Return to your keyboard."
+        - "App complete state now tests title Ready for keyboard and detail containing Return to the text field and Insert latest."
+        - "App failure state with a saved recording tests title Try again and retry transcript action."
+        - "Keyboard idle state now tests Ready to dictate, No transcript yet, Dictate in Foil, and copy explaining record in the app."
+        - "Keyboard failure state now tests Try again in Foil, Record again in Foil, and Open Foil recovery copy."
+        - "Simulator runtime snapshot found Record in Foil and the detail Record here. Return to your keyboard when the transcript is ready."
+      artifacts:
+        - "docs/goals/ios-ux-v0.6-product-loop/notes/visual/v06-simulator-record-in-foil.jpg"
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Verify with simulator tests/build and, if feasible, TestFlight/physical screenshots on iPhone-preview."
+    inputs:
+      - "T001 implementation"
+      - "iPhone-preview"
+    constraints:
+      - "Do not block code merge solely on TestFlight if Apple/device state becomes unavailable; record exact blocker."
+      - "Sanitize screenshots."
+    expected_output:
+      - "Simulator proof and physical or blocked proof receipt."
+    receipt:
+      result: blocked_physical_smoke
+      task_id: T002
+      summary: "Verified simulator tests/build and shipped build 7 to TestFlight, but physical iPhone screenshots/install proof are blocked by repeated WebDriverAgent automation-mode initialization timeouts."
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      simulator_evidence:
+        - "XcodeBuildMCP full FoilIOSTests passed 9/9 after build 7 metadata bump."
+        - "XcodeBuildMCP FoilIOS simulator build succeeded with no warnings/errors."
+        - "XcodeBuildMCP simulator runtime snapshot found Record in Foil, primary-record-dictation-button, and detail Record here. Return to your keyboard when the transcript is ready."
+        - "Simulator screenshot saved to docs/goals/ios-ux-v0.6-product-loop/notes/visual/v06-simulator-record-in-foil.jpg."
+      testflight_evidence:
+        - "FoiliOS/project.yml and generated project.pbxproj set CURRENT_PROJECT_VERSION 7."
+        - "Release archive succeeded at /tmp/FoilIOS-Build7.xcarchive."
+        - "Export succeeded to /tmp/FoilIOS-Build7Export/Foil iOS.ipa."
+        - "IPA metadata showed app version 0.1.0 build 7 and keyboard version 0.1.0 build 7."
+        - "altool validation reported VERIFY SUCCEEDED."
+        - "altool upload reported UPLOAD SUCCEEDED with delivery UUID de6ab6e4-3b52-4e71-8d04-1df569e7aa84."
+        - "altool build-status reported VALID, APP_STORE_ELIGIBLE, and on App Store Connect."
+        - "ASC API PATCH set usesNonExemptEncryption=false; beta detail then reported READY_FOR_BETA_TESTING / READY_FOR_BETA_SUBMISSION."
+        - "ASC beta group attach returned HTTP 204; relationship verification reported contains_build_7 true."
+      physical_blocker:
+        - "Before install attempt, devicectl reported iPhone-preview Foil iOS 0.1.0 bundle version 6."
+        - "xcrun devicectl device info lockState reported passcodeRequired false and unlockedSinceBoot true."
+        - "Two WebDriverAgent launches failed with Timed out while enabling automation mode before exposing a WDA endpoint."
+        - "After blocked attempts, devicectl still reported Foil iOS 0.1.0 bundle version 6."
+      residual_risk:
+        - "Build 7 is ready in TestFlight but not installed on iPhone-preview in this run."
+        - "No physical v0.6 keyboard/app screenshot was captured because the UI automation channel was unavailable."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Final audit against product-loop confusion and prepare PR/merge handoff."
+    inputs:
+      - "Task receipts"
+      - "git diff"
+    constraints:
+      - "Do not claim audio quality or arbitrary app compatibility improvements."
+    expected_output:
+      - "Claim, strongest failure modes, evidence, residual risk, PR link, merge result."
+    receipt:
+      result: done_with_physical_blocker
+      task_id: T999
+      claim: "iOS UX v0.6 product-loop presentation is implemented, tested, simulator-proven, and build 7 is uploaded/attached in TestFlight; physical iPhone install/screenshot proof is not claimed because WDA automation mode timed out and the device still reported build 6."
+      strongest_failure_modes:
+        - failure_mode: "The UI could look cleaner while still failing to explain the record -> return -> insert loop."
+          ruled_out_by:
+            - "FoilDictationLoopPresentationTests prove ready/complete/failure app copy and actions, including Record in Foil, Ready for keyboard, Return to the text field, Insert latest, Try again, and retry transcript."
+            - "Simulator runtime snapshot found Record in Foil, primary-record-dictation-button, and Record here. Return to your keyboard when the transcript is ready."
+        - failure_mode: "The keyboard could still strand testers in a no-transcript state without guiding recovery."
+          ruled_out_by:
+            - "Keyboard presenter tests prove Ready to dictate, No transcript yet, Dictate in Foil, record in the app guidance, Try again in Foil, Record again in Foil, and Open Foil recovery copy."
+        - failure_mode: "The UX change could regress the iOS build or tests."
+          ruled_out_by:
+            - "Focused FoilDictationLoopPresentationTests passed 5/5 after red failure."
+            - "Full FoilIOSTests passed 9/9 after the build 7 metadata bump."
+            - "Fresh closeout XcodeBuildMCP FoilIOSTests run passed 9/9 with 0 failures, 0 skips, and no warnings/errors."
+            - "FoilIOS simulator build succeeded with no warnings/errors."
+            - "Fresh closeout XcodeBuildMCP simulator build succeeded with no warnings/errors."
+        - failure_mode: "The TestFlight candidate might not actually be build 7 or might not be attached to testers."
+          ruled_out_by:
+            - "IPA metadata showed app and keyboard app-extension build 7."
+            - "altool validation and upload succeeded; altool build-status reported VALID and APP_STORE_ELIGIBLE."
+            - "ASC beta details reported READY_FOR_BETA_TESTING / READY_FOR_BETA_SUBMISSION after setting usesNonExemptEncryption=false."
+            - "Beta group relationship verification reported contains_build_7 true."
+        - failure_mode: "Secrets or private release credentials could have been committed."
+          ruled_out_by:
+            - "Secret-pattern scan over FoiliOS and docs/goals/ios-ux-v0.6-product-loop returned no matches."
+        - failure_mode: "The board or diff could be malformed at handoff."
+          ruled_out_by:
+            - "git diff --check exited clean."
+            - "npx goalbuddy board /Users/neonwatty/Desktop/foil/docs/goals/ios-ux-v0.6-product-loop registered the board successfully."
+      residual_risk:
+        - "Build 7 was not physically installed during this run; iPhone-preview still reported Foil iOS bundle version 6 after two WDA attempts failed with Timed out while enabling automation mode."
+        - "No new claim is made about audio quality, arbitrary target-app insertion compatibility, or physical keyboard UX beyond the existing TestFlight availability and simulator proof."
+      artifacts:
+        - "docs/goals/ios-ux-v0.6-product-loop/notes/visual/v06-simulator-record-in-foil.jpg"
+        - "/Users/neonwatty/Library/Developer/XcodeBuildMCP/workspaces/foil-fc4876127f01/logs/test_sim_2026-06-05T21-38-54-520Z_pid32553_13df4c1d.log"
+        - "/Users/neonwatty/Library/Developer/XcodeBuildMCP/workspaces/foil-fc4876127f01/logs/build_sim_2026-06-05T21-39-02-394Z_pid32553_918b73df.log"
