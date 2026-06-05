@@ -1,0 +1,404 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS Unattended TestFlight Conveyor"
+  slug: "ios-unattended-testflight-conveyor"
+  kind: specific
+  tranche: "Run several controlled GoalBuddy cycles for the next Foil iOS TestFlight slices while the user is away."
+  status: active
+  oracle:
+    signal: "Each conveyor slice ends with a scoped branch/PR, proof receipts, simulator and physical iPhone evidence where applicable, no committed secrets/private content, and a final audit that names residual risk."
+    cadence: "after each Scout/Judge/Worker package and at each PR boundary"
+    final_proof: "A queue of completed or blocked follow-on boards/PRs with issue/PR links, board receipts, test commands, physical-device evidence, secret scan, and exact blockers."
+  intake:
+    original_request: "I want to walk away and work on another project - can i leave several more rounds of goalbuddy prep planning, investigation, testing, pr-ing, etc., to you for a few hours?"
+    interpreted_outcome: "Autonomously continue the Foil iOS effort through multiple GoalBuddy-planned investigation, testing, implementation, and PR cycles."
+    input_shape: specific
+    audience: "Foil owner/developer and early TestFlight iPhone testers"
+    authority: approved
+    proof_type: demo
+    completion_proof: "Several prioritized iOS follow-on slices are completed or truthfully blocked with durable GoalBuddy receipts, PRs/issues, and verification evidence."
+    likely_misfire: "Spending hours on planning or cosmetic churn while the actual TestFlight blockers, physical target-app matrix, PR handoff, and release proof remain unresolved."
+    blind_spots_considered:
+      - "The phone may lock, disconnect, or lose WDA/tunnel reachability."
+      - "Messages needs a safe test fixture; private threads are not acceptable evidence."
+      - "Archive/TestFlight work may require Apple account state unavailable to Codex."
+      - "Live provider tests must not leak keys or transcript bodies."
+      - "PRs must target the iOS integration branch, not main."
+      - "Generated Xcode project changes and Xcode user-data churn must be separated."
+      - "GoalBuddy prep and execution boundaries must remain explicit."
+    existing_plan_facts:
+      - "PR #229 completed the previous iOS TestFlight onboarding/failure-recovery board."
+      - "The preview iPhone has previously been controlled through WDA/tunnel after setup."
+      - "Physical proof already exists for Safari, Notes, Reminders, secure-field rejection, live transcription, live insertion, and missing-key recovery."
+      - "Messages remains the main target-app matrix gap."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-unattended-testflight-conveyor/"
+    command: "npx goalbuddy board docs/goals/ios-unattended-testflight-conveyor"
+
+active_task: T006
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: high
+    objective: "Map the current iOS branch/PR/board/device state and identify the next safest high-value slice for unattended work."
+    inputs:
+      - "Current git branch/status/log and open PRs."
+      - "docs/goals/ios-testflight-onboarding-failure-recovery/state.yaml"
+      - "docs/acceptance-evidence.md"
+      - "FoiliOS project files and generated signing/version metadata."
+      - "Physical iPhone/WDA/tunnel availability if reachable."
+    constraints:
+      - "Read-only."
+      - "Do not print or copy API key values."
+      - "Do not preserve raw accessibility trees from private apps."
+      - "Prefer exact branch names, PR numbers, commands, device IDs, and blockers."
+    expected_output:
+      - "Current branch/head/upstream and dirty-state summary."
+      - "PR #229 state and whether a new branch should start from it or from codex/ios-keyboard-prototype."
+      - "Physical-device automation state."
+      - "Ranked next slices with proof needed and stop conditions."
+      - "Recommended next active Judge or Worker task."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped the starting state for the unattended conveyor. PR #229 is open, draft, merge-clean, and targets codex/ios-keyboard-prototype. The current branch is codex/ios-testflight-onboarding-recovery at 6afbba2 with the new conveyor board untracked plus pre-existing unrelated Xcode xcuserdata and marketing-plan files. Two physical devices are connected, including iPhone-preview, but WDA is not currently listening on localhost:8100. The generated app Info.plist reports CFBundleShortVersionString 1.0 while project settings declare MARKETING_VERSION 0.1.0, and no ExportOptions, xcarchive, or ipa artifact exists under FoiliOS."
+      evidence:
+        - "git status --short --branch and git log --oneline -5 showed codex/ios-testflight-onboarding-recovery at 6afbba2 with only the new conveyor board and pre-existing unrelated untracked files."
+        - "gh pr view 229 reported base codex/ios-keyboard-prototype, head codex/ios-testflight-onboarding-recovery, draft true, state OPEN, mergeStateStatus CLEAN."
+        - "xcrun devicectl list devices showed iPhone-preview and iPhone-prod connected."
+        - "curl --max-time 2 http://127.0.0.1:8100/status failed to connect, so WDA is not currently listening locally."
+        - "PlistBuddy reported FoilIOSApp CFBundleShortVersionString 1.0 and CFBundleVersion 1; rg/project.yml showed MARKETING_VERSION 0.1.0 and CURRENT_PROJECT_VERSION 1."
+        - "find FoiliOS for ExportOptions*.plist, *.xcarchive, and *.ipa returned no artifacts."
+      branch:
+        current: "codex/ios-testflight-onboarding-recovery"
+        head: "6afbba2"
+        upstream: "origin/codex/ios-testflight-onboarding-recovery"
+        dirty_state:
+          - "Untracked docs/goals/ios-unattended-testflight-conveyor/ from this prep."
+          - "Pre-existing untracked FoiliOS/FoilIOS.xcodeproj/project.xcworkspace/xcuserdata/."
+          - "Pre-existing untracked FoiliOS/FoilIOS.xcodeproj/xcuserdata/."
+          - "Pre-existing unrelated docs/superpowers/plans/2026-06-03-foil-marketing-landing-page.md."
+      pull_requests:
+        - number: 229
+          url: "https://github.com/mean-weasel/foil/pull/229"
+          base: "codex/ios-keyboard-prototype"
+          head: "codex/ios-testflight-onboarding-recovery"
+          draft: true
+          state: open
+          merge_state: clean
+      device_state:
+        connected_devices:
+          - "iPhone-preview: connected, iPhone 11, identifier 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          - "iPhone-prod: connected, iPhone 16e, identifier D7045658-5C05-5166-B20F-1E01DEC05DB1"
+        wda_localhost_8100: "not listening"
+      release_metadata:
+        project_marketing_version: "0.1.0"
+        project_current_project_version: "1"
+        generated_app_short_version: "1.0"
+        generated_app_bundle_version: "1"
+        keyboard_requests_open_access: true
+        export_artifacts_found: false
+      ranked_next_slices:
+        - rank: 1
+          name: "Land PR #229 into codex/ios-keyboard-prototype or explicitly keep it draft"
+          reason: "The previous board is complete and the PR is merge-clean; future branches should not stack indefinitely on an unmerged recovery branch unless a Judge names why."
+          proof_needed:
+            - "GoalBuddy board #229 final audit receipt."
+            - "PR target/base check."
+            - "Secret scan/diff check already recorded or refreshed."
+            - "gh pr merge or exact blocker."
+        - rank: 2
+          name: "TestFlight archive/version metadata readiness"
+          reason: "Direct Scout evidence shows generated CFBundleShortVersionString 1.0 diverges from MARKETING_VERSION 0.1.0, and no archive/export artifact is present."
+          proof_needed:
+            - "Inspect and fix project.yml/generated plist values if needed."
+            - "xcodegen regeneration if applicable."
+            - "Device or generic iOS archive command."
+            - "Export/metadata proof or exact Apple-account blocker."
+        - rank: 3
+          name: "Physical automation recovery/runbook"
+          reason: "Devices are connected but WDA is down; repeated future physical matrices need a safer repeatable recovery script or doc."
+          proof_needed:
+            - "WDA restore command works or fails with exact log."
+            - "No raw private accessibility trees committed."
+            - "Runbook or script smoke."
+        - rank: 4
+          name: "Messages target-app fixture"
+          reason: "Still the only target-app matrix gap, but not safe while the user is away unless an existing dedicated test thread can be proven without private content."
+          proof_needed:
+            - "Dedicated safe self/test thread only, or issue/blocker."
+      recommendation: "Activate T002 Judge to decide whether to first land PR #229 or create a narrow TestFlight archive/version-readiness PR. Do not start Messages testing while the user is away unless a safe fixture is proven."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose the next unattended slice and reject work that lacks a proof path."
+    inputs:
+      - "T001 receipt."
+      - "Prior iOS board receipts."
+      - "docs/acceptance-evidence.md"
+    constraints:
+      - "Read-only."
+      - "Prefer the largest reversible slice that can end in a PR and proof."
+      - "Reject Messages testing unless a safe fixture exists or can be created without private content."
+      - "Reject TestFlight upload claims without archive/export/App Store Connect proof."
+    expected_output:
+      - "decision: proceed | blocked | split"
+      - "chosen_slice"
+      - "allowed_files"
+      - "verify commands"
+      - "stop_if"
+      - "next active Worker task or follow-on board."
+    receipt:
+      result: done
+      task_id: T002
+      decision: proceed
+      chosen_slice: "Land PR #229 into codex/ios-keyboard-prototype before stacking new iOS work."
+      rationale:
+        - "PR #229 is already backed by the prior completed board's simulator and physical iPhone proof."
+        - "PR #229 is merge-clean, targets codex/ios-keyboard-prototype, and has no reported checks."
+        - "Starting more implementation on top of an unmerged recovery branch would create a muddy stack and make later PR review harder."
+        - "The TestFlight version/archive issue is the next implementation slice, but it should start from the updated iOS integration branch after #229 lands."
+      allowed_files:
+        - "docs/goals/ios-unattended-testflight-conveyor/**"
+      verify:
+        - "Re-run GoalBuddy checker for this conveyor board."
+        - "Refresh PR #229 target/merge state."
+        - "Confirm no checks are failing or record no checks reported."
+        - "Run git diff --check over touched board files."
+        - "Mark PR #229 ready only if still clean."
+        - "Merge PR #229 into codex/ios-keyboard-prototype without deleting the branch."
+        - "Fetch/verify codex/ios-keyboard-prototype contains the merge."
+      stop_if:
+        - "PR #229 is no longer clean."
+        - "GitHub auth/merge permissions fail."
+        - "A new failing check appears."
+        - "The PR target is not codex/ios-keyboard-prototype."
+      next_after_success: "Create the next branch from updated codex/ios-keyboard-prototype for TestFlight archive/version metadata readiness."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Execute the first Judge-approved slice, including branch, implementation, verification, receipt, and PR handoff."
+    allowed_files:
+      - "docs/goals/ios-unattended-testflight-conveyor/**"
+      - "docs/goals/**"
+      - "FoiliOS/**"
+      - "docs/**"
+      - ".github/**"
+    verify:
+      - "Run the exact Judge-selected commands."
+      - "Run secret/private-string scan over touched files."
+      - "Run git diff --check over touched files."
+      - "Open or update a PR targeting the approved iOS integration branch."
+      - "Record physical-device proof or exact blocker."
+    stop_if:
+      - "Phone unavailable, locked, disconnected, or WDA/tunnel cannot be restored."
+      - "Signing/App Store/Apple account state requires user action."
+      - "A live key is needed and no safe local source is available."
+      - "The slice would require private Messages content."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Landed PR #229 into codex/ios-keyboard-prototype. The PR was marked ready for review, merged by GitHub, and origin/codex/ios-keyboard-prototype now contains merge commit b68c511. The remote head branch disappeared during merge, but the local branch and local conveyor board remain available."
+      changed_files:
+        - "docs/goals/ios-unattended-testflight-conveyor/state.yaml"
+      pull_request:
+        number: 229
+        url: "https://github.com/mean-weasel/foil/pull/229"
+        final_state: merged
+        merged_at: "2026-06-05T02:30:45Z"
+        merge_commit: "b68c511bfe72db228f990419a2ff3a01b0a5c8d8"
+        base: "codex/ios-keyboard-prototype"
+      commands:
+        - cmd: "GoalBuddy check-goal-state for docs/goals/ios-unattended-testflight-conveyor/state.yaml"
+          status: pass
+        - cmd: "git diff --check -- docs/goals/ios-unattended-testflight-conveyor"
+          status: pass
+        - cmd: "gh pr view 229 --json url,number,state,isDraft,baseRefName,headRefName,mergeStateStatus"
+          status: pass
+        - cmd: "gh pr checks 229 --watch=false"
+          status: pass
+          note: "No checks reported on the branch."
+        - cmd: "rg secret/private-string scan over docs/goals/ios-unattended-testflight-conveyor and FoiliOS"
+          status: pass
+        - cmd: "gh pr ready 229"
+          status: pass
+        - cmd: "gh pr merge 229 --merge"
+          status: pass
+        - cmd: "git fetch origin codex/ios-keyboard-prototype && git log --oneline -8 origin/codex/ios-keyboard-prototype"
+          status: pass
+      evidence:
+        - "gh pr view 229 after merge reported state MERGED, isDraft false, mergedAt 2026-06-05T02:30:45Z, and mergeCommit b68c511bfe72db228f990419a2ff3a01b0a5c8d8."
+        - "origin/codex/ios-keyboard-prototype log now starts with b68c511 Merge pull request #229 from mean-weasel/codex/ios-testflight-onboarding-recovery."
+      note:
+        - "A later fetch showed the remote head ref codex/ios-testflight-onboarding-recovery no longer exists, likely because GitHub deleted it during merge despite the non-delete intention."
+        - "The local branch still exists; future work should branch from origin/codex/ios-keyboard-prototype."
+      next_recommendation: "Proceed to T004 audit, then start a fresh branch/board for TestFlight archive/version metadata readiness."
+
+  - id: T004
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Audit the first slice and choose whether to continue to another board/task, create a new PR, or stop with blockers."
+    inputs:
+      - "T001-T003 receipts."
+      - "Git/GitHub status."
+      - "Verification logs."
+    constraints:
+      - "Read-only unless only updating this board receipt."
+      - "Reject completion on unverified worker claims."
+      - "Name the strongest realistic failure mode and evidence."
+    expected_output:
+      - "complete | continue | blocked"
+      - "full_outcome_complete: true | false"
+      - "next board/task if continuing"
+      - "residual risks"
+    receipt:
+      result: done
+      task_id: T004
+      decision: continue
+      full_outcome_complete: false
+      summary: "Audited the first conveyor slice. PR #229 is merged into codex/ios-keyboard-prototype with merge commit b68c511, so the previous iOS TestFlight onboarding/recovery work is now landed on the integration branch. Continue with a fresh GoalBuddy board for TestFlight archive/version metadata readiness from origin/codex/ios-keyboard-prototype."
+      evidence:
+        - "GoalBuddy checker passed after T003 receipt correction."
+        - "gh pr view 229 reported state MERGED, mergedAt 2026-06-05T02:30:45Z, base codex/ios-keyboard-prototype, mergeCommit b68c511bfe72db228f990419a2ff3a01b0a5c8d8."
+        - "git log origin/codex/ios-keyboard-prototype starts with b68c511 Merge pull request #229 from mean-weasel/codex/ios-testflight-onboarding-recovery."
+      strongest_realistic_failure_mode:
+        claim: "Continuing on the stale local recovery branch would stack future PRs on already-merged work or target the wrong base."
+        evidence_that_rules_it_out:
+          - "T004 chooses a fresh branch from origin/codex/ios-keyboard-prototype for the next slice."
+          - "T005 is limited to preparing the new TestFlight archive/version-readiness board before implementation starts."
+      next_task: "T005 prepare docs/goals/ios-testflight-archive-readiness and register the local board."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Prepare the next GoalBuddy board for TestFlight archive/version metadata readiness."
+    allowed_files:
+      - "docs/goals/ios-unattended-testflight-conveyor/**"
+      - "docs/goals/ios-testflight-archive-readiness/**"
+    verify:
+      - "Create docs/goals/ios-testflight-archive-readiness/goal.md, state.yaml, and notes/."
+      - "Register the local board."
+      - "Run GoalBuddy checker for the new board."
+      - "Do not inspect or edit product files during prep beyond facts already in T001."
+    stop_if:
+      - "GoalBuddy checker rejects the prepared board."
+      - "The next board would require Apple account credentials before Scout/Judge investigation."
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Prepared and registered the next GoalBuddy board for iOS TestFlight archive/version metadata readiness."
+      changed_files:
+        - "docs/goals/ios-unattended-testflight-conveyor/state.yaml"
+        - "docs/goals/ios-testflight-archive-readiness/goal.md"
+        - "docs/goals/ios-testflight-archive-readiness/state.yaml"
+      board:
+        slug: "ios-testflight-archive-readiness"
+        url: "http://goalbuddy.localhost:41737/ios-testflight-archive-readiness/"
+        active_task: "T001"
+      commands:
+        - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-testflight-archive-readiness/state.yaml"
+          status: pass
+        - cmd: "npx goalbuddy board docs/goals/ios-testflight-archive-readiness"
+          status: pass
+        - cmd: "git diff --check -- docs/goals/ios-unattended-testflight-conveyor docs/goals/ios-testflight-archive-readiness"
+          status: pass
+      next_recommendation: "Execute the archive-readiness board from T001 Scout."
+
+  - id: T006
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Execute docs/goals/ios-testflight-archive-readiness through at least Scout/Judge and one safe Worker slice if approved."
+    allowed_files:
+      - "docs/goals/ios-unattended-testflight-conveyor/**"
+      - "docs/goals/ios-testflight-archive-readiness/**"
+      - "FoiliOS/**"
+    verify:
+      - "Keep ios-testflight-archive-readiness checker green after each task transition."
+      - "Use a fresh branch from origin/codex/ios-keyboard-prototype before product edits."
+      - "Run the archive board's Judge-selected commands."
+      - "Open a PR or record an exact blocker."
+    stop_if:
+      - "Apple account/signing/export state requires user input."
+      - "Device lock/disconnect blocks physical proof that is actually required for the selected slice."
+      - "A live secret would be needed and no safe local source is available."
+    receipt: null
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Final conveyor audit after the unattended stretch."
+    inputs:
+      - "All receipts."
+      - "All branch/PR/issue links."
+      - "Current git/GitHub status."
+      - "Physical and simulator evidence."
+    constraints:
+      - "Do not implement."
+      - "Reject completion if any created PR targets main without explicit proof that policy changed."
+      - "Reject completion if secrets/private content were committed."
+      - "Record blockers rather than pretending they were solved."
+    expected_output:
+      - "done | blocked"
+      - "What changed."
+      - "PRs/issues created."
+      - "Strongest realistic failure mode and evidence."
+      - "Residual risks and next recommended board."
+    receipt: null
+
+checks:
+  dirty_fingerprint: "Prepared while prior iOS TestFlight board was complete on codex/ios-testflight-onboarding-recovery; unrelated Xcode xcuserdata and one unrelated marketing plan file may remain untracked."
+  last_verification:
+    result: prep
+    task: T001
+    commands:
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-update.mjs --json"
+        status: pass

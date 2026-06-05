@@ -1,0 +1,344 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Foil iOS TestFlight Archive Readiness"
+  slug: "ios-testflight-archive-readiness"
+  kind: specific
+  tranche: "Verify and fix iOS archive/version metadata enough for an internal TestFlight attempt or exact blocker."
+  status: done
+  oracle:
+    signal: "Fresh branch from codex/ios-keyboard-prototype has aligned version/build metadata in project.yml, generated plists, and built archive/export evidence, or a precise Apple/signing/export blocker."
+    cadence: "after Scout, Judge, Worker, archive/export attempt, and final audit"
+    final_proof: "PR into codex/ios-keyboard-prototype with xcodegen/build/archive commands, plist/archive metadata inspection, secret scan, diff check, issue/PR links, and residual-risk audit."
+  intake:
+    original_request: "Leave several more rounds of GoalBuddy prep planning, investigation, testing, pr-ing to Codex for a few hours."
+    interpreted_outcome: "Continue the iOS effort with a focused TestFlight archive/version readiness slice after landing PR #229."
+    input_shape: specific
+    audience: "Foil owner/developer preparing internal TestFlight."
+    authority: approved
+    proof_type: artifact
+    completion_proof: "Archive/version metadata is fixed and proved, or upload/export is blocked with exact evidence and next action."
+    likely_misfire: "Changing version strings by sight while the actual Xcode archive still exports stale or mismatched metadata."
+    blind_spots_considered:
+      - "Generated plists may be templates and archive metadata may differ from source plist inspection."
+      - "xcodegen regeneration may be required after project.yml changes."
+      - "Signing/export may require Apple account state Codex cannot satisfy."
+      - "A generic archive can prove metadata without proving App Store Connect upload."
+      - "Physical device availability is useful but not required for archive metadata."
+      - "Do not claim TestFlight upload if only local archive proof exists."
+    existing_plan_facts:
+      - "PR #229 is merged into codex/ios-keyboard-prototype."
+      - "Conveyor T001 found MARKETING_VERSION 0.1.0, generated app short version 1.0, and no archive/export artifact."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-testflight-archive-readiness/"
+    command: "npx goalbuddy board docs/goals/ios-testflight-archive-readiness"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: high
+    objective: "Map current iOS archive/version/signing/export state from the updated integration branch."
+    inputs:
+      - "origin/codex/ios-keyboard-prototype at/after merge commit b68c511."
+      - "FoiliOS/project.yml"
+      - "FoiliOS generated Info.plist and entitlements files."
+      - "Xcode schemes/build settings."
+      - "docs/acceptance-evidence.md"
+      - "Existing archive/export artifacts if any."
+    constraints:
+      - "Read-only."
+      - "Do not touch product files."
+      - "Do not print secrets or private device content."
+      - "Use exact commands and metadata values."
+    expected_output:
+      - "Branch/head/upstream and dirty-state summary."
+      - "Actual source and generated version/build metadata values."
+      - "Scheme/project/archive/export capability map."
+      - "Signing/account risks visible from local project state."
+      - "Recommended Worker slice with allowed_files, verify commands, and stop_if."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped archive/version readiness from the updated integration branch. The branch is codex/ios-testflight-archive-readiness at b68c511, tracking origin/codex/ios-keyboard-prototype. XcodeGen is installed, schemes FoilIOS and FoilKeyboard exist, Release build settings use MARKETING_VERSION 0.1.0 and CURRENT_PROJECT_VERSION 1, but both generated Info.plists hard-code CFBundleShortVersionString 1.0 and CFBundleVersion 1. No ExportOptions, xcarchive, or ipa artifacts exist under FoiliOS. Automatic signing uses team B3A6AN2HA4 and Release iphoneos provisioning is required."
+      evidence:
+        - "git status --short --branch showed codex/ios-testflight-archive-readiness tracking origin/codex/ios-keyboard-prototype at b68c511, with only goal boards plus pre-existing unrelated untracked files."
+        - "xcodebuild -list -project FoilIOS.xcodeproj reported targets FoilIOS/FoilKeyboard, configurations Debug/Release, and schemes FoilIOS/FoilKeyboard."
+        - "PlistBuddy reported app CFBundleShortVersionString 1.0, app CFBundleVersion 1, keyboard CFBundleShortVersionString 1.0, keyboard CFBundleVersion 1."
+        - "project.yml sets CURRENT_PROJECT_VERSION: 1 and MARKETING_VERSION: 0.1.0."
+        - "xcodebuild -showBuildSettings -scheme FoilIOS -configuration Release reported MARKETING_VERSION = 0.1.0, CURRENT_PROJECT_VERSION = 1, PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.FoilIOS, DEVELOPMENT_TEAM = B3A6AN2HA4, CODE_SIGN_STYLE = Automatic, PROVISIONING_PROFILE_REQUIRED = YES, SDKROOT iPhoneOS26.5, SKIP_INSTALL = NO."
+        - "xcodebuild -showBuildSettings -scheme FoilKeyboard -configuration Release reported MARKETING_VERSION = 0.1.0, CURRENT_PROJECT_VERSION = 1, PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.FoilIOS.Keyboard, DEVELOPMENT_TEAM = B3A6AN2HA4, CODE_SIGN_STYLE = Automatic, PROVISIONING_PROFILE_REQUIRED = YES, SKIP_INSTALL = YES."
+        - "find FoiliOS for ExportOptions*.plist, *.xcarchive, *.ipa, and Package.resolved returned no artifacts."
+      branch:
+        name: "codex/ios-testflight-archive-readiness"
+        head: "b68c511"
+        upstream: "origin/codex/ios-keyboard-prototype"
+      metadata:
+        project_marketing_version: "0.1.0"
+        project_build_version: "1"
+        generated_app_short_version: "1.0"
+        generated_app_build_version: "1"
+        generated_keyboard_short_version: "1.0"
+        generated_keyboard_build_version: "1"
+      signing:
+        team: "B3A6AN2HA4"
+        code_sign_style: "Automatic"
+        provisioning_profile_required: true
+        release_sdk: "iphoneos"
+      recommendation:
+        chosen_slice: "Replace hard-coded generated plist version strings with build-setting substitutions from project.yml, regenerate the Xcode project, and prove the built product or archive reports version 0.1.0 build 1."
+        allowed_files:
+          - "FoiliOS/project.yml"
+          - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+          - "FoiliOS/FoilIOSApp/Generated/Info.plist"
+          - "FoiliOS/FoilKeyboard/Generated/Info.plist"
+          - "docs/goals/ios-testflight-archive-readiness/**"
+          - "docs/goals/ios-unattended-testflight-conveyor/**"
+        verify:
+          - "xcodegen generate from FoiliOS."
+          - "PlistBuddy source generated plists show $(MARKETING_VERSION) and $(CURRENT_PROJECT_VERSION) or equivalent generated values aligned with project settings."
+          - "xcodebuild archive -project FoilIOS.xcodeproj -scheme FoilIOS -configuration Release -destination generic/platform=iOS with an explicit archivePath, allowing provisioning updates if needed."
+          - "Inspect archived app and embedded keyboard extension Info.plists for CFBundleShortVersionString 0.1.0 and CFBundleVersion 1, or record exact signing/account blocker."
+          - "git diff --check and secret/private-string scan."
+        stop_if:
+          - "Archive fails because Apple account/provisioning requires user action."
+          - "xcodegen output introduces unrelated project churn beyond version metadata."
+          - "Built product still resolves to 1.0 after the source fix."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Choose the smallest archive-readiness slice with real proof."
+    inputs:
+      - "T001 receipt."
+      - "docs/acceptance-evidence.md"
+    constraints:
+      - "Read-only."
+      - "Reject source-only version fixes without archive/build metadata proof."
+      - "Reject TestFlight upload claims without export/App Store Connect proof."
+    expected_output:
+      - "decision: proceed | blocked | split"
+      - "allowed_files"
+      - "verify commands"
+      - "stop_if"
+    receipt:
+      result: done
+      task_id: T002
+      decision: proceed
+      chosen_slice: "Align generated app and keyboard Info.plist version values with MARKETING_VERSION/CURRENT_PROJECT_VERSION and prove archive metadata."
+      rationale:
+        - "T001 found an objective mismatch: project build settings declare MARKETING_VERSION 0.1.0 while both generated Info.plists hard-code CFBundleShortVersionString 1.0."
+        - "This is narrow, release-relevant, and can be proved without private app content or Messages testing."
+        - "A source-only fix is insufficient; the Worker must inspect built product or archive metadata."
+      allowed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "FoiliOS/FoilIOSApp/Generated/Info.plist"
+        - "FoiliOS/FoilKeyboard/Generated/Info.plist"
+        - "docs/goals/ios-testflight-archive-readiness/**"
+        - "docs/goals/ios-unattended-testflight-conveyor/**"
+      verify:
+        - "From FoiliOS, run xcodegen generate after project.yml changes."
+        - "Use PlistBuddy/plutil to inspect generated source Info.plists."
+        - "Run xcodebuild archive -project FoilIOS.xcodeproj -scheme FoilIOS -configuration Release -destination generic/platform=iOS -archivePath /tmp/FoilIOS-TestFlightReadiness.xcarchive -allowProvisioningUpdates."
+        - "If archive succeeds, inspect /tmp/FoilIOS-TestFlightReadiness.xcarchive/Products/Applications/Foil iOS.app/Info.plist and the embedded FoilKeyboard appex Info.plist for CFBundleShortVersionString 0.1.0 and CFBundleVersion 1."
+        - "If archive fails on signing/provisioning/account, record the exact log path and attempt a simulator/device build sufficient to prove compiled metadata if possible."
+        - "Run git diff --check over touched files."
+        - "Run secret/private-string scan over touched files."
+        - "Open a draft PR into codex/ios-keyboard-prototype if code/project files change."
+      stop_if:
+        - "Archive/export requires Apple account or provisioning interaction that cannot be completed unattended."
+        - "xcodegen introduces unrelated project churn beyond Info.plist/version metadata."
+        - "Built product still resolves to 1.0 after the fix."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Implement the Judge-approved archive/version readiness slice and open a PR."
+    allowed_files:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      - "FoiliOS/FoilIOSApp/Generated/Info.plist"
+      - "FoiliOS/FoilKeyboard/Generated/Info.plist"
+      - "docs/goals/ios-testflight-archive-readiness/**"
+      - "docs/goals/ios-unattended-testflight-conveyor/**"
+    verify:
+      - "Run xcodegen if project.yml changes require regeneration."
+      - "Run build or archive command selected by Judge."
+      - "Inspect built product/archive Info.plist version/build metadata."
+      - "Run git diff --check over touched files."
+      - "Run secret/private-string scan over touched files."
+      - "Open PR into codex/ios-keyboard-prototype."
+    stop_if:
+      - "Xcode archive/export requires Apple account state unavailable to Codex."
+      - "Signing fails in a way that needs user account/provisioning input."
+      - "A metadata fix would require unrelated product changes."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Aligned the generated app and keyboard extension Info.plist version metadata with Xcode build settings and proved the built archive/export resolves to version 0.1.0 build 1. The change is limited to FoiliOS/project.yml plus the two generated Info.plists; xcodegen introduced no project.pbxproj churn."
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOSApp/Generated/Info.plist"
+        - "FoiliOS/FoilKeyboard/Generated/Info.plist"
+        - "docs/goals/ios-testflight-archive-readiness/state.yaml"
+      implementation:
+        - "Added CFBundleShortVersionString: $(MARKETING_VERSION) and CFBundleVersion: $(CURRENT_PROJECT_VERSION) to the app target info properties in project.yml."
+        - "Added the same build-setting substitutions to the keyboard extension target info properties in project.yml."
+        - "Ran xcodegen generate, which updated only FoilIOSApp/Generated/Info.plist and FoilKeyboard/Generated/Info.plist for version/build substitutions."
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate"
+          status: pass
+        - cmd: "PlistBuddy source generated app/keyboard Info.plists for CFBundleShortVersionString and CFBundleVersion"
+          status: pass
+        - cmd: "xcodebuild archive -project FoilIOS.xcodeproj -scheme FoilIOS -configuration Release -destination generic/platform=iOS -archivePath /tmp/FoilIOS-TestFlightReadiness.xcarchive -allowProvisioningUpdates"
+          status: pass
+        - cmd: "PlistBuddy archived app and embedded keyboard Info.plists"
+          status: pass
+        - cmd: "xcodebuild -exportArchive -archivePath /tmp/FoilIOS-TestFlightReadiness.xcarchive -exportPath /tmp/FoilIOS-TestFlightReadinessExport -exportOptionsPlist /tmp/FoilIOS-TestFlightReadiness-ExportOptions.plist -allowProvisioningUpdates"
+          status: pass
+        - cmd: "Unzip /tmp/FoilIOS-TestFlightReadinessExport/Foil iOS.ipa and inspect payload app/keyboard Info.plists"
+          status: pass
+        - cmd: "shasum -a 256 /tmp/FoilIOS-TestFlightReadinessExport/Foil iOS.ipa"
+          status: pass
+        - cmd: "git diff --check over touched FoiliOS and GoalBuddy files"
+          status: pass
+        - cmd: "rg secret/private-string scan over touched FoiliOS and GoalBuddy files"
+          status: pass
+        - cmd: "plutil -lint generated app and keyboard Info.plists"
+          status: pass
+      evidence:
+        - "Source generated plists now contain CFBundleShortVersionString $(MARKETING_VERSION) and CFBundleVersion $(CURRENT_PROJECT_VERSION) for both FoilIOSApp and FoilKeyboard."
+        - "Archive succeeded at /tmp/FoilIOS-TestFlightReadiness.xcarchive."
+        - "Archived app Info.plist reports CFBundleShortVersionString 0.1.0, CFBundleVersion 1, CFBundleIdentifier com.neonwatty.FoilIOS."
+        - "Archived keyboard Info.plist reports CFBundleShortVersionString 0.1.0, CFBundleVersion 1, CFBundleIdentifier com.neonwatty.FoilIOS.Keyboard."
+        - "Export succeeded to /tmp/FoilIOS-TestFlightReadinessExport/Foil iOS.ipa."
+        - "Exported IPA payload app Info.plist reports 0.1.0 / 1 / com.neonwatty.FoilIOS."
+        - "Exported IPA payload keyboard Info.plist reports 0.1.0 / 1 / com.neonwatty.FoilIOS.Keyboard."
+        - "DistributionSummary.plist reports Store provisioning profiles for app and keyboard, beta-reports-active true, get-task-allow false, team B3A6AN2HA4, and Cloud Managed Apple Distribution certificate."
+        - "SHA-256 for exported IPA: e237e0a133f27d19f4fcdf5132061a0178cba4a06b6fd3834fd76f8045340c3e."
+      strongest_realistic_failure_mode:
+        claim: "The source plist substitution could look right while the archived/exported IPA still carries the old 1.0 version."
+        evidence_that_rules_it_out:
+          - "Both archive payload and exported IPA payload were inspected directly and reported 0.1.0 build 1 for app and keyboard."
+      residual_risk:
+        - "This proves exportable IPA metadata, not an App Store Connect upload. Upload remains a separate human/account or altool/transporter step."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit against archive-readiness oracle."
+    inputs:
+      - "All receipts."
+      - "Build/archive/export evidence."
+      - "PR/issue links."
+      - "Current git/GitHub status."
+    constraints:
+      - "Do not implement."
+      - "Reject completion if metadata proof is source-only."
+      - "Reject TestFlight upload claims without upload proof."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode and evidence."
+      - "Residual risks."
+    receipt:
+      result: done
+      task_id: T999
+      decision: complete
+      full_outcome_complete: true
+      summary: "Final audit accepts the archive-readiness slice as complete. The stale generated Info.plist version values were replaced with Xcode build-setting substitutions, and the Release archive plus exported IPA both prove app and keyboard metadata resolve to version 0.1.0 build 1. A draft PR was opened into codex/ios-keyboard-prototype."
+      pull_request:
+        number: 230
+        url: "https://github.com/mean-weasel/foil/pull/230"
+        base: "codex/ios-keyboard-prototype"
+        head: "codex/ios-testflight-archive-readiness"
+        state: open
+        draft: true
+        merge_state: clean
+      commit:
+        sha: "dd848a0"
+        message: "Prepare iOS TestFlight archive metadata"
+      strongest_realistic_failure_mode:
+        claim: "The source plists could be fixed while the archived or exported IPA still carries version 1.0, causing the TestFlight artifact to be mislabeled."
+        evidence_that_rules_it_out:
+          - "Archived app and embedded keyboard Info.plists under /tmp/FoilIOS-TestFlightReadiness.xcarchive both report CFBundleShortVersionString 0.1.0 and CFBundleVersion 1."
+          - "Exported /tmp/FoilIOS-TestFlightReadinessExport/Foil iOS.ipa was unzipped and both payload Info.plists report version 0.1.0 build 1."
+          - "DistributionSummary.plist reports Store provisioning profiles, beta-reports-active true, get-task-allow false, and Cloud Managed Apple Distribution certificate."
+      verification:
+        - cmd: "cd FoiliOS && xcodegen generate"
+          status: pass
+        - cmd: "xcodebuild archive -project FoilIOS.xcodeproj -scheme FoilIOS -configuration Release -destination generic/platform=iOS -archivePath /tmp/FoilIOS-TestFlightReadiness.xcarchive -allowProvisioningUpdates"
+          status: pass
+        - cmd: "xcodebuild -exportArchive -archivePath /tmp/FoilIOS-TestFlightReadiness.xcarchive -exportPath /tmp/FoilIOS-TestFlightReadinessExport -exportOptionsPlist /tmp/FoilIOS-TestFlightReadiness-ExportOptions.plist -allowProvisioningUpdates"
+          status: pass
+        - cmd: "PlistBuddy source, archive, and exported IPA payload metadata inspection"
+          status: pass
+        - cmd: "plutil -lint generated app and keyboard Info.plists"
+          status: pass
+        - cmd: "git diff --check over touched files"
+          status: pass
+        - cmd: "rg secret/private-string scan over touched files"
+          status: pass
+        - cmd: "gh pr view 230"
+          status: pass
+        - cmd: "gh pr checks 230"
+          status: pass
+          note: "No checks reported."
+      exported_artifact:
+        ipa_path: "/tmp/FoilIOS-TestFlightReadinessExport/Foil iOS.ipa"
+        sha256: "e237e0a133f27d19f4fcdf5132061a0178cba4a06b6fd3834fd76f8045340c3e"
+      residual_risks:
+        - "This proves an exportable IPA, not an upload to App Store Connect/TestFlight."
+        - "The PR is still draft/open until the conveyor lands it or the user reviews it."
+
+checks:
+  dirty_fingerprint: "Created from the unattended conveyor after PR #229 merged into codex/ios-keyboard-prototype."
+  last_verification:
+    result: done
+    task: T999
+    commands:
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-unattended-testflight-conveyor/state.yaml"
+        status: pass
+      - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-testflight-archive-readiness/state.yaml"
+        status: pass
