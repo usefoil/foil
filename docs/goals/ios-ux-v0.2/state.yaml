@@ -50,17 +50,17 @@ agents:
 visual_board:
   selected: local
   local:
-    status: pending
-    url: "http://goalbuddy.localhost:41737/ios-ux-v0.2/"
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-ux-v0-2/"
     command: "npx goalbuddy board docs/goals/ios-ux-v0.2"
 
-active_task: T001
+active_task: T004
 
 tasks:
   - id: T001
     type: scout
     assignee: Scout
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Map the current iOS containing-app and keyboard UX, proven physical-device flows, rough edges, and the smallest high-value v0.2 Worker slice."
     inputs:
@@ -77,12 +77,61 @@ tasks:
       - "Current UX map."
       - "Known proven flows and known weak spots."
       - "Recommended first bounded Worker slice with allowed_files, verify, and stop_if."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Mapped the current containing-app, keyboard, shared bridge, and build-4 proof surface. The strongest near-term UX gap is not missing infrastructure; it is that the tester still has to infer the dictation lifecycle from generic setup/status rows and mailbox-like controls."
+      evidence:
+        - "Read FoiliOS/FoilIOSApp/ContentView.swift, AudioCaptureController.swift, TranscriptionController.swift, FoiliOS/FoilKeyboard/KeyboardViewController.swift, FoiliOS/Shared/FoilKeyboardBridge.swift, and build-4 GoalBuddy proof."
+        - "Confirmed existing shared phases and keyboard insertion/reset behavior are already strong enough to preserve."
+        - "Confirmed build-4 physical proof covers the architecture but not this v0.2 UI diff."
+      current_ux_map:
+        containing_app:
+          - "Top section identifies Foil iOS and shows keyboard shell readiness."
+          - "Setup rows cover keyboard installation, Full Access, microphone, provider key, keyboard health, and shared-state health."
+          - "Dictation section exposes independent Record, Stop, and Transcribe controls plus raw-ish status rows for snapshot/audio/transcription."
+          - "Handoff and Recovery sections appear from shared-state/audio/transcription conditions."
+          - "Diagnostics disclosure keeps reset/fake transcript/storage/secure-field tests available."
+        keyboard:
+          - "Vertical UIKit keyboard surface with status, message, Insert latest, Clear latest, Start/Open Foil, and Next Keyboard."
+          - "Start requests handoff, records keyboard health, and opens the containing app."
+          - "Insert latest writes the transcript through textDocumentProxy, then resets shared state."
+          - "Full Access off blocks insert/reset and opens the app for recovery."
+        shared_bridge:
+          - "Shared snapshot phases already model idle, handoffRequested, listening, processing, complete, and failed."
+          - "Bridge persists canonical App Group JSON plus UserDefaults fallback/reporting, and records keyboard Full Access health."
+      proven_flows:
+        - "Build 4 update from TestFlight over build 3 is proven."
+        - "Automatic Updates was restored to on."
+        - "Physical-device audio/transcription/keyboard insertion in Notes is proven with a second clean sterile phrase."
+      weak_spots:
+        - "Primary app flow still looks like separate engineering controls rather than one guided dictation lifecycle."
+        - "Keyboard Start is terse and can read like keyboard-local recording even though recording must happen in the containing app."
+        - "The app has enough status data to drive a product flow, but it is not yet surfaced as one clear next action."
+        - "Audio route can produce weak transcripts; proof must continue rejecting stale/unrelated output."
+      recommended_first_slice:
+        objective: "Add a guided dictation control surface in the containing app and clarify the keyboard primary action/status without changing the proven mailbox/shared-state architecture."
+        allowed_files:
+          - "FoiliOS/FoilIOSApp/ContentView.swift"
+          - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+          - "FoiliOS/project.yml"
+          - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+          - "docs/goals/ios-ux-v0.2/**"
+        verify:
+          - "XcodeGen regenerate if project.yml changes."
+          - "XcodeBuildMCP or xcodebuild simulator build succeeds."
+          - "Physical-device/devicectl smoke confirms bundle version and app launch if installed."
+          - "Keyboard insertion path remains proven in Notes or is narrowly blocked with evidence."
+          - "GoalBuddy state checker, git diff --check, targeted secret scan."
+        stop_if:
+          - "Need to redesign shared storage or transcription provider behavior."
+          - "Need files outside allowed_files."
+          - "Physical-device smoke cannot be run and no simulator/build proof exists."
 
   - id: T002
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Choose the first safe UX v0.2 Worker package from T001 evidence."
     inputs:
@@ -98,21 +147,115 @@ tasks:
       - "allowed_files"
       - "verify commands"
       - "stop_if"
-    receipt: null
+    receipt:
+      result: done
+      task_id: T002
+      decision: "Proceed with the recommended guided dictation control surface slice."
+      rationale:
+        - "It improves the real tester workflow while preserving the physical-device-proven architecture."
+        - "It is bounded to one SwiftUI view, one keyboard controller, build metadata, and board proof."
+        - "It creates a directly smokeable v0.2 artifact: app launch, guided state, keyboard handoff wording, and insert latest still working."
+      worker_objective: "Implement v0.2 guided dictation UX: a single lifecycle-focused app control surface plus clearer keyboard Start/Insert/Clear wording and accessibility identifiers."
+      allowed_files:
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-ux-v0.2/**"
+      verify:
+        - "cd FoiliOS && xcodegen generate --spec project.yml"
+        - "Build FoilIOS for iOS simulator with XcodeBuildMCP or xcodebuild."
+        - "If build metadata is bumped, inspect project.yml/project.pbxproj for new build number."
+        - "Run physical-device app/keyboard smoke when possible; otherwise record exact blocker."
+        - "GoalBuddy state checker passes."
+        - "git diff --check passes."
+        - "Targeted secret scan finds no private material."
+      stop_if:
+        - "Implementation requires changing storage/provider semantics."
+        - "Keyboard behavior regresses insertion/reset path."
+        - "Signing or device install requires user-only action."
 
   - id: T003
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: medium
-    objective: "Execute the Judge-approved first UX v0.2 implementation slice."
-    allowed_files: []
-    verify: []
+    objective: "Implement v0.2 guided dictation UX: a single lifecycle-focused app control surface plus clearer keyboard Start/Insert/Clear wording and accessibility identifiers."
+    allowed_files:
+      - "FoiliOS/FoilIOSApp/ContentView.swift"
+      - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      - "docs/goals/ios-ux-v0.2/**"
+    verify:
+      - "cd FoiliOS && xcodegen generate --spec project.yml"
+      - "Build FoilIOS for iOS simulator with XcodeBuildMCP or xcodebuild."
+      - "If build metadata is bumped, inspect project.yml/project.pbxproj for new build number."
+      - "Run physical-device app/keyboard smoke when possible; otherwise record exact blocker."
+      - "GoalBuddy state checker passes."
+      - "git diff --check passes."
+      - "Targeted secret scan finds no private material."
     stop_if:
       - "Need files outside allowed_files."
       - "UX behavior is ambiguous."
       - "Physical-device smoke cannot be run or narrowly blocked."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Implemented the first iOS UX v0.2 slice: the containing app now opens on a guided dictation lifecycle console, keyboard wording makes the app handoff clearer, and build metadata is bumped to 0.1.0 (5)."
+      changed_files:
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+        - "docs/goals/ios-ux-v0.2/state.yaml"
+        - "docs/goals/ios-ux-v0.2/notes/visual/v0.2-guided-dictation-simulator.jpg"
+      implementation:
+        - "Added a lifecycle-driven dictation console with phase title, badge, detail, primary action, and compact status rows."
+        - "Mapped real app state into user-visible stages: ready, recording, recording saved, creating transcript, transcript ready, and needs attention."
+        - "Added contextual primary action handling for record, stop, transcribe, retry, and reset."
+        - "Kept secondary Record/Stop/Transcribe controls and existing setup/recovery/diagnostics surfaces."
+        - "Changed keyboard Start button title to Dictate in Foil while preserving the existing foil-keyboard-start accessibility identifier for WDA stability."
+        - "Kept the user-facing Insert latest affordance and insertion/reset behavior intact."
+        - "Bumped CURRENT_PROJECT_VERSION from 4 to 5 through project.yml and regenerated FoilIOS.xcodeproj."
+      evidence:
+        - "XcodeGen regenerated the Xcode project successfully."
+        - "XcodeBuildMCP build_run_sim for FoilIOS succeeded twice with no diagnostics."
+        - "Simulator screenshot saved at docs/goals/ios-ux-v0.2/notes/visual/v0.2-guided-dictation-simulator.jpg."
+        - "A generic Release iOS build for device/signing succeeded with automatic provisioning and embedded keyboard validation."
+      residual_risk:
+        - "The v0.2 code has not yet been uploaded to TestFlight or physically smoke-tested through the updated keyboard extension."
+        - "The physical Notes insertion proof from build 4 still protects the architecture, but build 5 needs its own insertion proof before the overall UX tranche is complete."
+      commands:
+        - cmd: "cd FoiliOS && xcodegen generate --spec project.yml"
+          status: pass
+        - cmd: "XcodeBuildMCP build_run_sim for FoilIOS"
+          status: pass
+        - cmd: "XcodeBuildMCP simulator screenshot"
+          status: pass
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -configuration Release -destination 'generic/platform=iOS' DEVELOPMENT_TEAM=B3A6AN2HA4 CODE_SIGN_STYLE=Automatic -allowProvisioningUpdates build"
+          status: pass
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: medium
+    objective: "Package build 0.1.0 (5), get it onto iPhone-preview, and run the physical app/keyboard insertion smoke for the v0.2 UX."
+    allowed_files:
+      - "docs/goals/ios-ux-v0.2/**"
+    verify:
+      - "Archive/export/upload or otherwise install build 5 with evidence of bundle version 5."
+      - "Launch build 5 on iPhone-preview and inspect the guided dictation console if tool access permits."
+      - "Run a sterile transcript insertion smoke through Foil Keyboard in Notes."
+      - "Record screenshot(s) and App Group reset state."
+      - "GoalBuddy state checker passes."
+      - "git diff --check passes."
+      - "Targeted secret scan finds no private material."
+    stop_if:
+      - "App Store Connect or signing credentials require user-only action."
+      - "Physical phone is locked/disconnected."
+      - "Insertion smoke would expose private content."
 
   - id: T999
     type: judge
@@ -121,4 +264,3 @@ tasks:
     reasoning_hint: high
     objective: "Audit whether the UX v0.2 tranche is complete."
     receipt: null
-

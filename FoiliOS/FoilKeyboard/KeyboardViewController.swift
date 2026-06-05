@@ -49,7 +49,7 @@ final class KeyboardViewController: UIInputViewController {
         messageLabel.numberOfLines = 3
         messageLabel.accessibilityIdentifier = "foil-keyboard-message"
 
-        startButton.setTitle("Start", for: .normal)
+        startButton.setTitle("Dictate in Foil", for: .normal)
         startButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
         startButton.accessibilityIdentifier = "foil-keyboard-start"
 
@@ -120,13 +120,13 @@ final class KeyboardViewController: UIInputViewController {
         textDocumentProxy.insertText(transcript)
         bridge.reset()
         refreshState()
-        messageLabel.text = "Inserted and cleared."
+        messageLabel.text = "Inserted."
     }
 
     @objc private func resetTapped() {
         bridge.reset()
         refreshState()
-        messageLabel.text = "Cleared. Start again when ready."
+        messageLabel.text = "Cleared."
     }
 
     private func refreshState() {
@@ -140,7 +140,7 @@ final class KeyboardViewController: UIInputViewController {
         let hasRecoverableState = snapshot.phase != .idle || hasTranscript
         insertButton.isEnabled = hasTranscript && fullAccessEnabled
         resetButton.isEnabled = hasRecoverableState && fullAccessEnabled
-        startButton.setTitle(fullAccessEnabled ? "Start" : "Open Foil", for: .normal)
+        startButton.setTitle(fullAccessEnabled ? "Dictate in Foil" : "Open Foil", for: .normal)
         var insertConfiguration = insertButton.configuration ?? .filled()
         insertConfiguration.title = insertTitle(hasTranscript: hasTranscript, fullAccessEnabled: fullAccessEnabled)
         insertConfiguration.baseBackgroundColor = hasTranscript && fullAccessEnabled ? .systemBlue : .systemGray4
@@ -157,14 +157,14 @@ final class KeyboardViewController: UIInputViewController {
         if !fullAccessEnabled {
             return "Insert latest (full access off)"
         }
-        return hasTranscript ? "Insert latest" : "Insert latest (no transcript)"
+        return hasTranscript ? "Insert latest" : "No transcript"
     }
 
     private func resetTitle(hasRecoverableState: Bool, fullAccessEnabled: Bool) -> String {
         if !fullAccessEnabled {
             return "Clear latest (full access off)"
         }
-        return hasRecoverableState ? "Clear latest" : "Clear latest (ready)"
+        return hasRecoverableState ? "Clear latest" : "Clear"
     }
 
     private func openContainingApp() {
