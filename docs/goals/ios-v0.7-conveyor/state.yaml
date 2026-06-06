@@ -199,7 +199,7 @@ tasks:
         - "Foil Internal Testers build relationship includes build 7."
         - "Foil Internal Testers has one tester in INSTALLED state."
         - "Handoff blocks Messages/arbitrary-app claims and secure-field support claims."
-      pr: "pending"
+      pr: "https://github.com/mean-weasel/foil/pull/252"
 
   - id: T999
     type: judge
@@ -238,7 +238,7 @@ tasks:
         ruled_out_by:
           - "All child board tasks are marked done with receipts."
           - "Parent conveyor has active_task null and T999 done."
-          - "PR #251 is merged for the matrix closeout; this final PR carries feedback readiness and conveyor audit."
+          - "PR #251 is merged for the matrix closeout; PR #252 carries feedback readiness and conveyor audit."
       residual_blockers:
         - "Messages support remains unproven until a sterile self/test thread exists."
       next_safe_options:
