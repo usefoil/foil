@@ -1,0 +1,273 @@
+# GoalBuddy v2 state.yaml
+
+version: 2
+
+goal:
+  title: "Foil iOS Real Audio Notes Smoke"
+  slug: "ios-v0.10-real-audio-notes-smoke"
+  kind: specific
+  tranche: "Physically verify real audio -> Groq transcript -> Foil Keyboard -> Notes insertion."
+  status: done
+  oracle:
+    signal: "A preview-iPhone test proves build 8 can record/transcribe a sterile phrase and insert it into Notes through Foil Keyboard, or records the exact failing boundary."
+    cadence: "after device/provider check, audio capture, transcription, Notes insertion, recovery/reset, and final audit"
+    final_proof: "Device build metadata, provider configured proof without secrets, recording/transcription proof, Notes insertion proof, consumed/reset proof or blocker, and secret/private-content audit."
+  intake:
+    original_request: "do this"
+    interpreted_outcome: "Execute the next real-audio Notes smoke after the fake transcript keyboard insertion was proven."
+    input_shape: specific
+    audience: "Foil owner/developer"
+    authority: approved
+    proof_type: demo
+    completion_proof: "Physical iPhone-preview evidence that a real audio transcript inserts into a sterile Notes note via Foil Keyboard."
+    likely_misfire: "Reusing the fake transcript path and claiming the real audio/provider path works."
+    blind_spots_considered:
+      - "The phone may not hear the Mac-spoken phrase clearly."
+      - "Microphone permission may be missing or prompt for user action."
+      - "Groq key could be missing or invalid on device."
+      - "Provider transcript may differ slightly from the spoken phrase."
+      - "Notes must use a fresh sterile note, not an existing private note."
+      - "Keyboard insertion may work even if audio/transcription failed, so each boundary needs separate proof."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-v0-10-real-audio-notes-smoke/"
+    command: "npx goalbuddy board docs/goals/ios-v0.10-real-audio-notes-smoke"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: medium
+    objective: "Establish current physical device, app, WDA, provider, and sterile Notes readiness."
+    inputs:
+      - "iPhone-preview"
+      - "Foil iOS build 8"
+      - "Apple Notes"
+    constraints:
+      - "Do not print existing note content."
+      - "Do not print Groq key material."
+      - "Restart WDA only if not reachable."
+    expected_output:
+      - "Foil installed bundleVersion=8."
+      - "Foil app reports Groq key configured or exact missing-provider blocker."
+      - "WDA control is available."
+      - "A fresh sterile Notes note can be created."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Verified preview-phone build, WDA control, microphone/provider readiness, and clean shared-state baseline."
+      evidence:
+        - "devicectl reported Foil iOS version=0.1.0 bundleVersion=8 on iPhone-preview."
+        - "WDA was not initially reachable and was restarted successfully at http://192.168.1.40:8100."
+        - "Created WDA session for physical-device UI control."
+        - "Foil app WDA source showed Microphone allowed."
+        - "Foil app WDA source showed Groq key configured without exposing key material."
+        - "Foil app WDA source showed Full Access on, ready for dictation."
+        - "Shared state row showed Ready, no transcript."
+      note: "Fresh sterile Notes note creation is deferred to the insertion task so it is created after the real transcript is ready."
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Record the sterile phrase with the real Foil microphone path."
+    inputs:
+      - "T001 receipt"
+      - "Sterile phrase: foil audio smoke test"
+    constraints:
+      - "Use only the sterile phrase."
+      - "If Mac text-to-speech is used, record that it was the audio source."
+      - "Stop and record exact blocker if microphone permission requires human approval."
+    expected_output:
+      - "Foil app shows a completed recording or a precise microphone/recording blocker."
+    receipt:
+      result: done
+      task_id: T002
+      summary: "Recorded the sterile phrase through the real Foil microphone path on iPhone-preview."
+      spoken_phrase: "foil audio smoke test"
+      audio_source: "macOS text-to-speech via `say -v Samantha` while Foil recorded on the physical phone."
+      evidence:
+        - "Clicked primary-record-dictation-button through WDA."
+        - "Played the sterile phrase 'foil audio smoke test' with macOS text-to-speech."
+        - "Clicked stop-recording-button through WDA."
+        - "Foil WDA source after stop showed Recording saved."
+        - "Foil WDA source showed Recording saved. Tap Transcribe in Foil."
+        - "transcribe-latest-button was enabled."
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Transcribe the latest recording through the configured provider."
+    inputs:
+      - "T002 receipt"
+      - "Configured provider"
+    constraints:
+      - "Do not expose provider key."
+      - "Accept minor transcription variance if it clearly corresponds to the sterile phrase."
+      - "Record exact error boundary if provider/transcript quality fails."
+    expected_output:
+      - "Foil app shows transcript ready for keyboard, with safe transcript text or a precise provider blocker."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Transcribed the real recording through the configured Groq provider path."
+      expected_phrase: "foil audio smoke test"
+      evidence:
+        - "Clicked transcribe-latest-button through WDA."
+        - "Foil WDA source showed Ready for keyboard."
+        - "Foil WDA source showed Groq transcript ready. Switch back and tap Insert latest."
+        - "Shared state row showed Transcript pending."
+        - "Foil diagnostics storage summary showed verified Transcript Ready has transcript."
+        - "Foil diagnostics intentionally showed Transcript body hidden, so transcript text was verified through Notes insertion rather than app diagnostics."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Insert the real transcript into a fresh sterile Notes note through Foil Keyboard."
+    inputs:
+      - "T003 receipt"
+      - "Apple Notes"
+    constraints:
+      - "Use a fresh note."
+      - "Do not test Messages."
+      - "Verify Notes text view value after insertion."
+    expected_output:
+      - "Notes text view contains the provider transcript or a close sterile-phrase equivalent."
+      - "Foil Keyboard transitions to consumed/no-transcript state."
+    receipt:
+      result: done
+      task_id: T004
+      summary: "Inserted a real provider transcript into a fresh sterile Notes note through Foil Keyboard, with one audio-quality retry."
+      expected_phrase: "foil audio smoke test"
+      inserted_transcript: "Foil audio smoke test. Foil audio smoke test. Foil audio smoke test."
+      evidence:
+        - "First insertion proved the real path but produced a non-matching transcript: 'Yeah, and you might be a real odd horse ground position.'"
+        - "Treated the first insertion as an audio pickup/recognition failure, not final success."
+        - "Retried with louder, slower, repeated sterile phrase using macOS text-to-speech."
+        - "Created a fresh Notes note after the retry transcript was ready."
+        - "Before retry insertion, fresh Notes editor was blank and Foil Keyboard showed Transcript ready with Insert latest enabled."
+        - "After tapping Insert latest, Notes text view value was 'Foil audio smoke test. Foil audio smoke test. Foil audio smoke test.'"
+        - "After retry insertion, Foil Keyboard showed No transcript yet disabled and Dictate in Foil available."
+      privacy: "Only sterile test-note values were quoted; no private Notes, Messages, or third-party app content was used."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Verify consumed/reset recovery after real transcript insertion."
+    inputs:
+      - "T004 receipt"
+      - "Foil app"
+      - "Foil Keyboard"
+    constraints:
+      - "Do not destroy unrelated app data."
+      - "Use only Foil reset/recovery controls."
+    expected_output:
+      - "App and keyboard agree Ready/no transcript after insertion/reset, or exact blocker."
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Verified consumed/reset recovery after the successful real transcript insertion."
+      evidence:
+        - "After successful insertion, Foil app showed Full Access on, ready for dictation."
+        - "Foil app shared-state row showed Ready, no transcript."
+        - "Tapped the Foil app Reset shared state control."
+        - "Foil app reported Storage reset: file ok, defaults written, verified Ready no transcript."
+        - "Returning to Notes showed the fresh note still contained 'Foil audio smoke test. Foil audio smoke test. Foil audio smoke test.'"
+        - "Foil Keyboard in Notes showed Ready to dictate, No transcript yet disabled, Clear disabled, and Dictate in Foil available."
+      conclusion: "The real transcript was consumed after insertion and reset did not resurrect stale text."
+
+  - id: T006
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Patch any narrow issue discovered by the real-audio smoke."
+    inputs:
+      - "T002-T005 receipts"
+    constraints:
+      - "Only patch if the failure is local, narrow, and understood."
+      - "No broad UX redesign."
+    expected_output:
+      - "Small fix PR with verification, or no-code receipt explaining why no patch was needed."
+    receipt:
+      result: done
+      task_id: T006
+      summary: "No product patch was needed from this real-audio smoke."
+      evidence:
+        - "Real recording succeeded on the second audio-quality attempt."
+        - "Groq provider transcription succeeded."
+        - "Foil Keyboard inserted the provider transcript into Notes."
+        - "Consumed/reset state was correct after insertion."
+      note: "The first attempt produced an unrelated transcript, which appears to be an acoustic pickup/recognition issue rather than an app bug because the louder/slower retry transcribed the sterile phrase correctly."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit: decide whether real audio Notes insertion is genuinely proven."
+    inputs:
+      - "All receipts"
+      - "Device/app metadata"
+      - "Notes insertion evidence"
+      - "Any PR evidence"
+    constraints:
+      - "Reject completion if fake transcript path is used as substitute proof."
+      - "Reject completion if no physical Notes insertion was observed."
+      - "Reject completion if private content or credentials leaked."
+    expected_output:
+      - "complete | blocked with exact next action"
+    receipt:
+      result: complete
+      task_id: T999
+      summary: "Final audit accepted the real audio -> Groq transcript -> Foil Keyboard -> Notes insertion smoke for build 8."
+      strongest_failure_mode: "The smoke could falsely pass by using the fake transcript path, by inserting a transcript that did not correspond to the spoken phrase, by using an old/non-sterile note, by leaving stale transcript state available for reinsertion, or by running against build 7."
+      evidence:
+        - "devicectl reported Foil iOS version=0.1.0 bundleVersion=8."
+        - "Foil app showed Microphone allowed, Groq key configured, Full Access on, ready for dictation, and Ready, no transcript without exposing secrets."
+        - "Real microphone recording used macOS text-to-speech speaking only the sterile phrase."
+        - "First attempt proved the real path but produced a non-matching transcript, so it was rejected as final proof."
+        - "Retry used louder, slower, repeated sterile phrase and produced a provider transcript matching the phrase."
+        - "Fresh Notes note after retry was blank before insertion and Foil Keyboard showed Transcript ready with Insert latest enabled."
+        - "After tapping Insert latest, Notes text view value was 'Foil audio smoke test. Foil audio smoke test. Foil audio smoke test.'"
+        - "After insertion/reset, Foil app showed Ready, no transcript and Foil Keyboard showed No transcript yet disabled."
+        - "No fake transcript diagnostics path was used as final proof."
+        - "No Messages, private Notes, or third-party app content was used."
+        - "No code patch was required."
+        - "YAML parse passed for docs/goals/ios-v0.10-real-audio-notes-smoke/state.yaml."
+        - "npx goalbuddy board docs/goals/ios-v0.10-real-audio-notes-smoke registered the board with the local hub."
+        - "git diff --check passed."
+        - "Secret scan over the build-8 FoiliOS tree and this goal board found no App Store key ids, issuer ids, JWTs, private key blocks, Groq/OpenAI-style API keys, or bearer tokens."
+      pr: "https://github.com/mean-weasel/foil/pull/258"
