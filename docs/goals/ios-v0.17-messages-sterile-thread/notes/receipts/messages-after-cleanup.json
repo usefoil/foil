@@ -1,0 +1,26 @@
+{
+  "appGroup": {},
+  "checks": [
+    {
+      "identifier": "foil-keyboard-root",
+      "kind": "requireIdentifier",
+      "passed": true,
+      "present": true
+    },
+    {
+      "kind": "forbidAccessibleText",
+      "passed": true,
+      "present": false,
+      "textLength": 19,
+      "textSha256": "f698b7a670a73cf9"
+    }
+  ],
+  "passed": true,
+  "schema": "foil.iosPhysicalWdaEvidence.v1",
+  "source": {
+    "file": "FoilIOS-v017-messages-after-cleanup-source.json",
+    "nodeCount": 137,
+    "sha256": "ea5c76389c7cb6175b46ea65617a3b1268ec380306619177e13a866866f2f07e"
+  },
+  "target": "messages-after-cleanup"
+}

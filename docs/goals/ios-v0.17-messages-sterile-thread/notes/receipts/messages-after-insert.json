@@ -1,0 +1,44 @@
+{
+  "appGroup": {
+    "snapshot": {
+      "file": "foil-keyboard-snapshot-after-insert.json",
+      "hasTranscript": false,
+      "messageHash": "5fa7aac5375c5815",
+      "phase": "idle",
+      "sha256": "302896e5cb6860dfcf76238356dfe24e23b6c26fae20002389d52d27a22e4d14"
+    }
+  },
+  "checks": [
+    {
+      "identifier": "foil-keyboard-root",
+      "kind": "requireIdentifier",
+      "passed": true,
+      "present": true
+    },
+    {
+      "attribute": "enabled",
+      "expected": "false",
+      "identifier": "foil-keyboard-insert-latest",
+      "kind": "expectIdentifierState",
+      "observed": [
+        "false"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "requireValueText",
+      "passed": true,
+      "present": true,
+      "textLength": 19,
+      "textSha256": "f698b7a670a73cf9"
+    }
+  ],
+  "passed": true,
+  "schema": "foil.iosPhysicalWdaEvidence.v1",
+  "source": {
+    "file": "FoilIOS-v017-messages-after-insert-source.json",
+    "nodeCount": 134,
+    "sha256": "03eb3496efd734fff8ce76333504fbbc2a0045d1036b6ad0c081af7169d9c27c"
+  },
+  "target": "messages-after-insert"
+}
