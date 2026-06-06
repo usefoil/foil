@@ -116,9 +116,12 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     @objc private func insertTapped() {
-        guard let transcript = latestSnapshot.transcript, !transcript.isEmpty else { return }
+        guard let transcript = bridge.consumeTranscriptForInsertion() else {
+            refreshState()
+            messageLabel.text = "No transcript yet."
+            return
+        }
         textDocumentProxy.insertText(transcript)
-        bridge.reset()
         refreshState()
         messageLabel.text = "Inserted."
     }
