@@ -31,6 +31,10 @@ struct ContentView: View {
 
                     dictationConsole
 
+                    if let transcriptReviewPresentation {
+                        transcriptReviewPanel(transcriptReviewPresentation)
+                    }
+
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Keyboard setup")
                             .font(.headline)
@@ -125,8 +129,9 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             statusRow(storageReportSummary, systemImage: "externaldrive")
                                 .accessibilityIdentifier("keyboard-storage-report-summary")
-                            if snapshot.transcript?.isEmpty == false {
-                                statusRow("Transcript body hidden", systemImage: "text.quote")
+                            if transcriptReviewPresentation != nil {
+                                statusRow("Transcript visible in review", systemImage: "text.quote")
+                                    .accessibilityIdentifier("diagnostics-transcript-review-visible")
                             }
                             if let lastRecordingURL = audioCapture.lastRecordingURL {
                                 statusRow(lastRecordingURL.lastPathComponent, systemImage: "waveform.path")
@@ -243,6 +248,63 @@ struct ContentView: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("dictation-console")
+    }
+
+    private func transcriptReviewPanel(_ presentation: FoilTranscriptReviewPresentation) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Review transcript", systemImage: "text.quote")
+                .font(.headline)
+
+            Text(presentation.guidance)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("transcript-review-guidance")
+
+            Text(presentation.transcript)
+                .font(.body)
+                .textSelection(.enabled)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.background, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(.secondary.opacity(0.24))
+                )
+                .accessibilityIdentifier("transcript-review-body")
+
+            VStack(alignment: .leading, spacing: 10) {
+                Button {
+                    retryRecordingFromTranscriptReview()
+                } label: {
+                    Label(presentation.retryTitle, systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!presentation.canRetryRecording || audioCapture.isRecording)
+                .accessibilityIdentifier("transcript-review-retry-recording-button")
+
+                Button {
+                    bridge.reset()
+                    refresh()
+                } label: {
+                    Label(presentation.resetTitle, systemImage: "arrow.counterclockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("transcript-review-reset-button")
+            }
+            .controlSize(.large)
+            .labelStyle(.titleAndIcon)
+            .buttonBorderShape(.roundedRectangle(radius: 8))
+        }
+        .padding(14)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.28))
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("transcript-review-panel")
     }
 
     @ViewBuilder
@@ -393,6 +455,12 @@ struct ContentView: View {
         }
     }
 
+    private func retryRecordingFromTranscriptReview() {
+        bridge.reset()
+        refresh()
+        Task { await audioCapture.startRecording() }
+    }
+
     private func saveProviderKey() {
         do {
             try transcription.saveGroqAPIKey(providerKeyEntry)
@@ -503,6 +571,13 @@ struct ContentView: View {
             hasSavedRecording: audioCapture.lastRecordingURL != nil,
             isTranscribing: transcription.status == "Transcribing",
             recoveryMessage: recoveryMessage
+        )
+    }
+
+    private var transcriptReviewPresentation: FoilTranscriptReviewPresentation? {
+        FoilDictationLoopPresenter.transcriptReviewPresentation(
+            snapshot: snapshot,
+            hasSavedRecording: audioCapture.lastRecordingURL != nil
         )
     }
 

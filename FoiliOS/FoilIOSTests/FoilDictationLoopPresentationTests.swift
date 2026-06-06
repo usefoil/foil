@@ -36,6 +36,33 @@ final class FoilDictationLoopPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.detail.contains("Insert latest"))
     }
 
+    func testTranscriptReviewShowsBodyAndRetryOptionsWhenTranscriptIsReady() {
+        let presentation = FoilDictationLoopPresenter.transcriptReviewPresentation(
+            snapshot: FoilKeyboardSnapshot(
+                phase: .complete,
+                transcript: "Foil audio smoke test.",
+                message: "Groq transcript ready.",
+                updatedAt: Date()
+            ),
+            hasSavedRecording: true
+        )
+
+        XCTAssertEqual(presentation?.transcript, "Foil audio smoke test.")
+        XCTAssertEqual(presentation?.guidance, "Review before inserting. If this looks wrong, retry the recording or reset and record again.")
+        XCTAssertEqual(presentation?.retryTitle, "Retry recording")
+        XCTAssertEqual(presentation?.resetTitle, "Reset and record again")
+        XCTAssertTrue(presentation?.canRetryRecording == true)
+    }
+
+    func testTranscriptReviewIsHiddenWhenNoTranscriptIsReady() {
+        let presentation = FoilDictationLoopPresenter.transcriptReviewPresentation(
+            snapshot: .initial,
+            hasSavedRecording: false
+        )
+
+        XCTAssertNil(presentation)
+    }
+
     func testAppFailureStateOffersRetryWhenRecordingExists() {
         let presentation = FoilDictationLoopPresenter.appPresentation(
             snapshot: FoilKeyboardSnapshot(
