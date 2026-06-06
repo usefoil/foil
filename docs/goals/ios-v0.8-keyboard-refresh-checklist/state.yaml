@@ -87,6 +87,7 @@ tasks:
         - "Unverified checklist: open a safe text field, switch to Foil Keyboard, return to Foil and recheck health."
         - "Stale checklist: tap target field, switch away/back to Foil Keyboard, return if Insert latest still looks stale."
         - "Fresh enabled health returns no recovery steps."
+      pr: "https://github.com/mean-weasel/foil/pull/255"
 
   - id: T002
     type: worker
