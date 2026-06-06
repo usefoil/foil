@@ -53,7 +53,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-target-app-insertion-matrix-v0-7/"
     command: "npx goalbuddy board docs/goals/ios-target-app-insertion-matrix-v0.7"
 
-active_task: T003
+active_task: T004
 
 tasks:
   - id: T001
@@ -141,7 +141,7 @@ tasks:
   - id: T003
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Run secure-field rejection proof with a sterile password-field fixture."
     inputs:
@@ -151,12 +151,51 @@ tasks:
       - "Prove Foil Keyboard absence or no insertion as expected."
     expected_output:
       - "Secure-field row proof."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Ran secure-field rejection proof in the sterile Safari fixture. With a transcript staged in the App Group, focusing a password field showed native secure keyboard controls and no Foil Keyboard insert control; the staged transcript remained untouched afterward."
+      fixture_change:
+        file: "docs/goals/ios-target-app-insertion-matrix-v0.7/notes/fixture/index.html"
+        summary: "Added a sterile password field labelled Foil sterile secure field and a secure length counter."
+      staged_state_before:
+        copy_command: "xcrun devicectl device copy from --device 5320F5AD-2A71-50AC-94FE-207B544B6247 --domain-type appGroupDataContainer --domain-identifier group.com.neonwatty.FoilIOS --source Library/foil-keyboard-snapshot.json --destination /tmp/foil-secure-before-snapshot.json"
+        phase: "complete"
+        message: "Fake transcript ready"
+        hasTranscript: true
+        transcriptLength: 19
+      commands:
+        - cmd: "WDA launch Foil iOS and tap complete-fake-transcript-button"
+          status: pass
+        - cmd: "python3 -m http.server 8945 --bind 0.0.0.0"
+          status: pass
+        - cmd: "WDA launch/navigate Safari to http://192.168.1.34:8945/"
+          status: pass
+        - cmd: "WDA tap Foil sterile secure field"
+          status: pass
+        - cmd: "WDA source after focus"
+          status: pass
+        - cmd: "WDA find accessibility id foil-keyboard-insert-latest"
+          status: pass_no_such_element
+        - cmd: "devicectl copy App Group Library/foil-keyboard-snapshot.json after secure focus"
+          status: pass
+      evidence:
+        - "After tapping the secure field, WDA source showed Foil sterile secure field and secure length: 0."
+        - "After tapping the secure field, WDA source showed native secure keyboard indicators: Passwords, shift, delete, space, and return."
+        - "After tapping the secure field, WDA source did not show foil-keyboard-root, Transcript ready, or foil-keyboard-insert-latest."
+        - "Explicit WDA lookup for accessibility id foil-keyboard-insert-latest returned no such element."
+        - "Copied App Group snapshot after secure focus still had phase complete, message Fake transcript ready, hasTranscript true, transcriptLength 19."
+      artifacts:
+        - "docs/goals/ios-target-app-insertion-matrix-v0.7/notes/visual/secure-field-native-keyboard.png"
+      residual_risk:
+        - "Secure-field rejection is proven in Safari/local fixture only."
+        - "Notes and Reminders sterile insertion rows remain unproven."
+        - "Messages remains queued only if a safe self/test thread exists."
 
   - id: T004
     type: worker
     assignee: Worker
-    status: queued
+    status: active
     reasoning_hint: medium
     objective: "If a safe Messages self/test thread exists, run Messages insertion; otherwise record the exact blocker and setup need."
     inputs:
