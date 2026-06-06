@@ -7,7 +7,7 @@ goal:
   slug: "ios-v0.7-conveyor"
   kind: existing_plan
   tranche: "Coordinate the next several iOS GoalBuddy boards through physical proof, useful dictation, insertion coverage, and TestFlight feedback readiness."
-  status: active
+  status: done
   oracle:
     signal: "Each child board either lands a verified PR into codex/ios-keyboard-prototype or records an exact blocker with the next safe task queued."
     cadence: "after each child-board closeout"
@@ -54,7 +54,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-v0-7-conveyor/"
     command: "npx goalbuddy board docs/goals/ios-v0.7-conveyor"
 
-active_task: T005
+active_task: null
 
 tasks:
   - id: T001
@@ -166,7 +166,7 @@ tasks:
       task_id: T004
       summary: "Closed the v0.7 target-app insertion matrix child board with an honest partial result. Fresh v0.7 evidence proves sterile Safari/local fixture insertion and secure-field expected rejection. Messages is exactly blocked because no safe self/test thread exists. Notes/Reminders retain prior physical proof from earlier boards but were not rerun in v0.7."
       child_board: "docs/goals/ios-target-app-insertion-matrix-v0.7/goal.md"
-      pr: "pending"
+      pr: "https://github.com/mean-weasel/foil/pull/251"
       evidence:
         - "T002 Safari/local fixture receipt: Foil Keyboard insert button appeared, Insert latest mutated the sterile field, and App Group reset to idle/no transcript."
         - "T003 secure-field receipt: native secure keyboard appeared, no Foil Keyboard insert control existed, and the staged transcript remained pending."
@@ -179,7 +179,7 @@ tasks:
   - id: T005
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Run docs/goals/ios-testflight-feedback-readiness-v0.7 to prepare the next external-tester loop."
     inputs:
@@ -188,12 +188,23 @@ tasks:
       - "Do not ship another TestFlight build unless release notes, proof, and blocker status are truthful."
     expected_output:
       - "Release/feedback readiness receipt and PR."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Ran the TestFlight feedback readiness child board. Build 7 is valid in App Store Connect, attached to Foil Internal Testers, and the tester handoff now states exactly what is proven, what is clunky, how to recover, and what privacy-safe feedback to send."
+      child_board: "docs/goals/ios-testflight-feedback-readiness-v0.7/goal.md"
+      artifact: "docs/ios-testflight-feedback-v0.7.md"
+      evidence:
+        - "ASC build list: builds 1-7 valid, not expired, export compliance false."
+        - "Foil Internal Testers build relationship includes build 7."
+        - "Foil Internal Testers has one tester in INSTALLED state."
+        - "Handoff blocks Messages/arbitrary-app claims and secure-field support claims."
+      pr: "https://github.com/mean-weasel/foil/pull/252"
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Final conveyor audit against board sprawl, missing proof, unmerged PRs, and residual blockers."
     inputs:
@@ -205,4 +216,31 @@ tasks:
       - "Reject completion if a physical proof claim is simulator-only."
     expected_output:
       - "Conveyor complete | blocked with exact next action."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T999
+      summary: "Final v0.7 conveyor audit passed. Each child board now has receipt-backed proof or an exact blocker, and all PR-backed slices are merged or represented in this final feedback PR. The remaining blocker is intentional and privacy-based: Messages needs a sterile self/test thread before testing."
+      child_boards:
+        - board: "ios-build7-physical-smoke"
+          result: "done"
+          proof: "iPhone-preview reports Foil iOS 0.1.0 build 7 and app/WDA/App Group proof passed."
+        - board: "ios-useful-dictation-quality-proof"
+          result: "done"
+          proof: "Known sterile phrase recorded/transcribed and made keyboard-ready."
+        - board: "ios-target-app-insertion-matrix-v0.7"
+          result: "partial_with_blocker"
+          proof: "Safari fixture insertion and secure-field rejection freshly proven; Messages blocked without sterile thread."
+        - board: "ios-testflight-feedback-readiness-v0.7"
+          result: "done"
+          proof: "Build 7 ASC/internal tester state collected and handoff artifact created."
+      strongest_failure_mode:
+        claim: "The conveyor could complete while hiding a queued child board or unmerged PR."
+        ruled_out_by:
+          - "All child board tasks are marked done with receipts."
+          - "Parent conveyor has active_task null and T999 done."
+          - "PR #251 is merged for the matrix closeout; PR #252 carries feedback readiness and conveyor audit."
+      residual_blockers:
+        - "Messages support remains unproven until a sterile self/test thread exists."
+      next_safe_options:
+        - "Create a Messages sterile-thread board."
+        - "Start a polish board for keyboard refresh/full-access onboarding friction."

@@ -7,7 +7,7 @@ goal:
   slug: "ios-testflight-feedback-readiness-v0.7"
   kind: specific
   tranche: "Prepare the next honest TestFlight feedback loop after v0.7 proof boards."
-  status: queued
+  status: done
   oracle:
     signal: "A tester can read the handoff, install/use the right build, understand the record-return-insert loop, recover from common failures, and send useful feedback."
     cadence: "after physical/quality/matrix boards"
@@ -59,7 +59,7 @@ tasks:
   - id: T001
     type: scout
     assignee: Scout
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Collect the proof/blocker state from the v0.7 child boards and current TestFlight/App Store Connect build state."
     inputs:
@@ -74,12 +74,61 @@ tasks:
       - "Latest build and proof status."
       - "Tester-facing claims that are safe to make."
       - "Claims that must be avoided."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Collected v0.7 proof/blocker state and current TestFlight/App Store Connect state. Source and iPhone-preview install are 0.1.0 build 7. App Store Connect reports builds 1-7 valid/not expired with non-exempt encryption false. Foil Internal Testers has builds 1-7 attached, including build 7, and one tester in installed state."
+      proof_state:
+        build7_physical_smoke: "done"
+        useful_dictation_quality: "done"
+        target_app_matrix: "partial_with_messages_blocker"
+      source_metadata:
+        marketing_version: "0.1.0"
+        build: "7"
+        files:
+          - "FoiliOS/project.yml"
+          - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      device_metadata:
+        device: "iPhone-preview"
+        bundle_id: "com.neonwatty.FoilIOS"
+        installed_version: "0.1.0"
+        installed_build: "7"
+      app_store_connect:
+        query_method: "Generated short-lived JWT locally without printing token or private key; queried App Store Connect REST API."
+        latest_build:
+          id: "de6ab6e4-3b52-4e71-8d04-1df569e7aa84"
+          build: "7"
+          uploadedDate: "2026-06-05T14:32:10-07:00"
+          processingState: "VALID"
+          expired: false
+          usesNonExemptEncryption: false
+        valid_builds_attached_to_foil_internal_testers:
+          - "7"
+          - "6"
+          - "5"
+          - "4"
+          - "3"
+          - "2"
+          - "1"
+        beta_group:
+          name: "Foil Internal Testers"
+          id: "bcca568d-167d-44cb-b952-a410e9c9e10f"
+          feedbackEnabled: true
+          isInternalGroup: true
+          tester_state: "INSTALLED"
+      safe_claims:
+        - "Build 7 is the current internal feedback target."
+        - "Physical iPhone-preview proof covers launch, useful dictation, Safari fixture insertion, and secure-field rejection."
+        - "Full Access and keyboard refresh friction are known parts of the prototype."
+      unsafe_claims:
+        - "Do not claim Messages support."
+        - "Do not claim arbitrary-app support."
+        - "Do not claim secure-field support."
 
   - id: T002
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Draft/update the tester handoff: what to install, how to enable keyboard/full access, how to record/return/insert, how to reset, and what feedback to send."
     inputs:
@@ -92,12 +141,22 @@ tasks:
     expected_output:
       - "Issue/update or docs handoff."
       - "Feedback checklist."
-    receipt: null
+    receipt:
+      result: done
+      task_id: T002
+      summary: "Created a concise internal TestFlight feedback handoff with install/setup steps, proven scope, known gaps, recovery steps, feedback checklist, and privacy boundaries."
+      artifact: "docs/ios-testflight-feedback-v0.7.md"
+      includes:
+        - "Build 7 target and current proof state."
+        - "Keyboard setup and Allow Full Access instructions."
+        - "Record/return/insert tester flow."
+        - "Recovery steps for keyboard refresh, disabled insert, Full Access off, stale state, and retry."
+        - "Feedback checklist that avoids private transcript text and Messages screenshots."
 
   - id: T003
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Decide and, if justified, prepare/upload the next TestFlight build with exact export-compliance and beta-group proof."
     inputs:
@@ -109,12 +168,23 @@ tasks:
     expected_output:
       - "Build decision."
       - "Upload/attach proof or no-upload rationale."
-    receipt: null
+    receipt:
+      result: no_upload_needed
+      task_id: T003
+      summary: "Did not upload a new build from this board because App Store Connect already has build 7 valid, not expired, export-compliance cleared, and attached to Foil Internal Testers. The board changed only feedback docs/receipts, not iOS product code."
+      decision: "Use existing build 7 for internal feedback."
+      evidence:
+        - "App Store Connect REST build list returned build 7 processingState VALID, expired false, usesNonExemptEncryption false."
+        - "Foil Internal Testers build relationship includes build 7."
+        - "Foil Internal Testers tester query returned one tester in INSTALLED state."
+        - "No product code or build metadata changed in this board."
+      next_upload_condition:
+        - "Upload a new build only after iOS product code changes or after a release decision that intentionally supersedes build 7."
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Audit the TestFlight feedback handoff against actual proof and blockers."
     inputs:
@@ -128,4 +198,19 @@ tasks:
       - "complete | blocked"
       - "safe tester claims"
       - "next post-v0.7 board recommendation"
-    receipt: null
+    receipt:
+      result: done
+      task_id: T999
+      summary: "Audited the TestFlight feedback handoff against the actual proof and blocker state. The handoff is safe for internal feedback because it names build 7, preserves Full Access/keyboard refresh friction, blocks Messages claims, and asks for privacy-safe feedback only."
+      strongest_failure_mode:
+        claim: "The handoff might tell testers Foil works broadly on iPhone even though Messages and arbitrary app coverage are not proven."
+        ruled_out_by:
+          - "docs/ios-testflight-feedback-v0.7.md explicitly says Messages is not tested and arbitrary-app support is an unsafe claim."
+          - "The matrix board T999 receipt labels Notes/Reminders as prior proof only and Messages as blocked."
+          - "Feedback prompts ask for target app/field type and recovery outcome, not private transcript contents."
+      safe_tester_claims:
+        - "Build 7 is the internal feedback target."
+        - "The core app-to-keyboard dictation loop is ready for internal feedback."
+        - "Full Access and keyboard switching/reset friction are expected prototype risks."
+      next_post_v0_7_board_recommendation:
+        - "Either create a sterile Messages fixture/thread board, or start a polish board for reducing keyboard refresh and Full Access onboarding friction."
