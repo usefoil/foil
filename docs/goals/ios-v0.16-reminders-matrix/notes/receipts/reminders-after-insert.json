@@ -1,0 +1,44 @@
+{
+  "appGroup": {
+    "snapshot": {
+      "file": "foil-keyboard-snapshot-after-insert.json",
+      "hasTranscript": false,
+      "messageHash": "5fa7aac5375c5815",
+      "phase": "idle",
+      "sha256": "2d3fb9cc7a3762e00940f444f2ccdea0c29be2acbbad9ad8e1867d965f6c8286"
+    }
+  },
+  "checks": [
+    {
+      "identifier": "foil-keyboard-root",
+      "kind": "requireIdentifier",
+      "passed": true,
+      "present": true
+    },
+    {
+      "attribute": "enabled",
+      "expected": "false",
+      "identifier": "foil-keyboard-insert-latest",
+      "kind": "expectIdentifierState",
+      "observed": [
+        "false"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "requireValueText",
+      "passed": true,
+      "present": true,
+      "textLength": 19,
+      "textSha256": "f698b7a670a73cf9"
+    }
+  ],
+  "passed": true,
+  "schema": "foil.iosPhysicalWdaEvidence.v1",
+  "source": {
+    "file": "FoilIOS-v016-reminders-after-insert-source.json",
+    "nodeCount": 205,
+    "sha256": "1f62eca48298b8dc182bd3dc579ee4a00029a0ad7216832d64e5931564b6a687"
+  },
+  "target": "reminders-after-insert"
+}
