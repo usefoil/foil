@@ -18,14 +18,20 @@
       font-weight: 700;
       margin-bottom: 10px;
     }
-    textarea {
+    textarea,
+    input {
       border: 2px solid #2563eb;
       border-radius: 8px;
       box-sizing: border-box;
       font: inherit;
+      margin-bottom: 18px;
       min-height: 180px;
       padding: 12px;
       width: 100%;
+    }
+    input {
+      border-color: #dc2626;
+      min-height: 52px;
     }
     output {
       display: block;
@@ -38,14 +44,18 @@
 <body>
   <label for="foil-target">Foil sterile target</label>
   <textarea id="foil-target" aria-label="Foil sterile target" autofocus></textarea>
+  <label for="foil-secure-target">Foil sterile secure field</label>
+  <input id="foil-secure-target" aria-label="Foil sterile secure field" type="password" autocomplete="off">
   <output id="foil-output">length: 0</output>
   <script>
     const target = document.getElementById("foil-target");
+    const secureTarget = document.getElementById("foil-secure-target");
     const output = document.getElementById("foil-output");
     const update = () => {
-      output.textContent = `length: ${target.value.length}; value: ${target.value}`;
+      output.textContent = `length: ${target.value.length}; value: ${target.value}; secure length: ${secureTarget.value.length}`;
     };
     target.addEventListener("input", update);
+    secureTarget.addEventListener("input", update);
     target.focus();
     update();
   </script>
