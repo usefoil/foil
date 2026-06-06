@@ -84,7 +84,33 @@ struct FoilKeyboardHealthPresentation: Equatable {
     var recoverySteps: [String]
 }
 
+struct FoilTranscriptReviewPresentation: Equatable {
+    var transcript: String
+    var guidance: String
+    var retryTitle: String
+    var resetTitle: String
+    var canRetryRecording: Bool
+}
+
 enum FoilDictationLoopPresenter {
+    static func transcriptReviewPresentation(
+        snapshot: FoilKeyboardSnapshot,
+        hasSavedRecording: Bool
+    ) -> FoilTranscriptReviewPresentation? {
+        guard let transcript = snapshot.transcript?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !transcript.isEmpty else {
+            return nil
+        }
+
+        return FoilTranscriptReviewPresentation(
+            transcript: transcript,
+            guidance: "Review before inserting. If this looks wrong, retry the recording or reset and record again.",
+            retryTitle: "Retry recording",
+            resetTitle: "Reset and record again",
+            canRetryRecording: hasSavedRecording
+        )
+    }
+
     static func keyboardHealthPresentation(
         report: FoilKeyboardHealthReport,
         now: Date = Date(),
