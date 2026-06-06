@@ -1,0 +1,155 @@
+# GoalBuddy v2 state.yaml
+
+version: 2
+
+goal:
+  title: "Foil iOS v0.8 Keyboard Refresh Checklist"
+  slug: "ios-v0.8-keyboard-refresh-checklist"
+  kind: specific
+  tranche: "Add an explicit in-app checklist for keyboard refresh and Full Access recovery."
+  status: done
+  oracle:
+    signal: "Recovery checklist steps are deterministic, tested, and visible in the app only for unverified, Full Access-off, or stale keyboard health states."
+    cadence: "after implementation and simulator verification"
+    final_proof: "Focused tests, full simulator tests, launch smoke, board receipt, secret scan, and merged PR."
+  intake:
+    original_request: "continue"
+    interpreted_outcome: "Continue the next v0.8 follow-up by adding a keyboard refresh checklist."
+    input_shape: specific
+    audience: "Foil owner/developer and internal TestFlight testers"
+    authority: approved
+    proof_type: test
+    completion_proof: "A merged PR adds tested checklist steps and app rendering for keyboard recovery states."
+    likely_misfire: "Adding more copy that is not state-driven, not tested, or always visible even when the keyboard is healthy."
+    blind_spots_considered:
+      - "Checklist should not crowd healthy states."
+      - "Full Access off should have different steps than stale keyboard check-in."
+      - "The app cannot deep-link directly to every Keyboard settings subpage reliably."
+      - "Messages remains a separate privacy-gated board."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-v0-8-keyboard-refresh-checklist/"
+    command: "npx goalbuddy board docs/goals/ios-v0.8-keyboard-refresh-checklist"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Implement a deterministic keyboard recovery checklist and render it in the app recovery surface."
+    inputs:
+      - "docs/goals/ios-v0.8-keyboard-friction/state.yaml"
+      - "FoiliOS/Shared/FoilDictationLoopPresenter.swift"
+      - "FoiliOS/FoilIOSApp/ContentView.swift"
+      - "FoiliOS/FoilIOSTests/FoilDictationLoopPresentationTests.swift"
+    constraints:
+      - "Do not add broad settings deep links unless they are safe and testable."
+      - "Do not change build metadata."
+    expected_output:
+      - "Presenter checklist steps."
+      - "App UI rendering for checklist steps."
+      - "Focused tests."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Added deterministic recovery checklist steps to FoilKeyboardHealthPresentation and rendered them in the app Recovery panel when keyboard health is unverified, Full Access is off, or the keyboard check-in is stale. Healthy fresh keyboard states have no checklist steps."
+      changed_files:
+        - "FoiliOS/Shared/FoilDictationLoopPresenter.swift"
+        - "FoiliOS/FoilIOSApp/ContentView.swift"
+        - "FoiliOS/FoilIOSTests/FoilDictationLoopPresentationTests.swift"
+      behavior:
+        - "Full Access off checklist: open Keyboard settings, enable Allow Full Access, return to target field and cycle back to Foil Keyboard."
+        - "Unverified checklist: open a safe text field, switch to Foil Keyboard, return to Foil and recheck health."
+        - "Stale checklist: tap target field, switch away/back to Foil Keyboard, return if Insert latest still looks stale."
+        - "Fresh enabled health returns no recovery steps."
+      pr: "https://github.com/mean-weasel/foil/pull/255"
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Verify the checklist slice with focused/full simulator tests and launch smoke."
+    inputs:
+      - "T001 receipt"
+    constraints:
+      - "Use XcodeBuildMCP when available."
+      - "Physical proof is optional unless the app UI claim cannot be proved in simulator."
+    expected_output:
+      - "Verification receipt."
+    receipt:
+      result: done
+      task_id: T002
+      summary: "Verified the checklist slice with XcodeBuildMCP focused tests, full simulator tests, and simulator launch smoke."
+      evidence:
+        focused_tests:
+          command: "XcodeBuildMCP test_sim -only-testing:FoilIOSTests/FoilDictationLoopPresentationTests"
+          result: "passed 10/10"
+          xcresult: "/Users/neonwatty/Library/Developer/XcodeBuildMCP/workspaces/foil-fc4876127f01/result-bundles/test_sim_2026-06-06T01-30-58-525Z_pid44084_a6570e91.xcresult"
+        full_tests:
+          command: "XcodeBuildMCP test_sim"
+          result: "passed 14/14"
+          xcresult: "/Users/neonwatty/Library/Developer/XcodeBuildMCP/workspaces/foil-fc4876127f01/result-bundles/test_sim_2026-06-06T01-31-09-110Z_pid44084_513a1f0d.xcresult"
+        launch_smoke:
+          command: "XcodeBuildMCP build_run_sim"
+          result: "succeeded"
+          appPath: "/Users/neonwatty/Library/Developer/XcodeBuildMCP/workspaces/foil-fc4876127f01/DerivedData/FoilIOS-dadbcdc5bb02/Build/Products/Debug-iphonesimulator/Foil iOS.app"
+      physical_device_decision:
+        status: "not run"
+        rationale: "The change is deterministic presentation/UI rendering. Physical keyboard lifecycle proof should follow a build bump or a target-app lifecycle slice."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit against the checklist oracle and acceptance evidence burden of proof."
+    inputs:
+      - "All receipts"
+      - "PR state"
+    constraints:
+      - "Reject completion if checklist appears in healthy states."
+      - "Reject completion if private/unsupported app claims are added."
+    expected_output:
+      - "complete | blocked"
+      - "next recommendation"
+    receipt:
+      result: done
+      task_id: T999
+      summary: "Final audit passed. Checklist steps are state-driven, tested, rendered only when recovery steps exist, and do not imply Messages, secure-field, or arbitrary-app support."
+      strongest_failure_mode:
+        claim: "The checklist could appear during healthy states or be untested state-specific copy."
+        ruled_out_by:
+          - "Tests assert unverified, Full Access off, stale enabled, and fresh enabled checklist behavior."
+          - "Fresh enabled health asserts recoverySteps is empty."
+          - "Full simulator test target and launch smoke passed with no warnings/errors."
+      residual_risk:
+        - "No physical device lifecycle proof for keyboard refresh yet."
+        - "No TestFlight build bump/upload yet for this new product code."
+      next_recommendation:
+        - "Decide whether to bump/upload the next TestFlight build so internal testers receive the v0.8 recovery improvements."

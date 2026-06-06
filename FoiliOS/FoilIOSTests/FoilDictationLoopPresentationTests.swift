@@ -104,6 +104,8 @@ final class FoilDictationLoopPresentationTests: XCTestCase {
 
         XCTAssertTrue(presentation.detail.contains("Open Foil Keyboard"))
         XCTAssertEqual(presentation.recoveryMessage, presentation.detail)
+        XCTAssertEqual(presentation.recoverySteps.count, 3)
+        XCTAssertTrue(presentation.recoverySteps[1].contains("Switch to Foil Keyboard"))
     }
 
     func testKeyboardHealthPresentationPrioritizesFullAccessOff() {
@@ -123,6 +125,8 @@ final class FoilDictationLoopPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.detail.contains("Allow Full Access is off"))
         XCTAssertTrue(presentation.detail.contains("reopen Foil Keyboard"))
         XCTAssertEqual(presentation.recoveryMessage, presentation.detail)
+        XCTAssertEqual(presentation.recoverySteps.count, 3)
+        XCTAssertTrue(presentation.recoverySteps[1].contains("enable Allow Full Access"))
     }
 
     func testKeyboardHealthPresentationDetectsStaleEnabledKeyboard() {
@@ -143,6 +147,8 @@ final class FoilDictationLoopPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.detail.contains("not checked in recently"))
         XCTAssertTrue(presentation.detail.contains("cycle back"))
         XCTAssertEqual(presentation.recoveryMessage, presentation.detail)
+        XCTAssertEqual(presentation.recoverySteps.count, 3)
+        XCTAssertTrue(presentation.recoverySteps[1].contains("Switch away"))
     }
 
     func testKeyboardHealthPresentationKeepsFreshEnabledStateQuiet() {
@@ -162,5 +168,6 @@ final class FoilDictationLoopPresentationTests: XCTestCase {
 
         XCTAssertEqual(presentation.detail, "Full Access on, transcript waiting in keyboard.")
         XCTAssertNil(presentation.recoveryMessage)
+        XCTAssertTrue(presentation.recoverySteps.isEmpty)
     }
 }

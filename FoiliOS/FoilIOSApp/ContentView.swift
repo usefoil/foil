@@ -93,6 +93,7 @@ struct ContentView: View {
                                 .font(.headline)
                             statusRow(recoveryMessage, systemImage: "exclamationmark.arrow.triangle.2.circlepath")
                                 .font(.callout)
+                            keyboardRecoveryChecklist
 
                             LazyVGrid(columns: actionColumns, alignment: .leading, spacing: 10) {
                                 if canRetryTranscription {
@@ -342,6 +343,21 @@ struct ContentView: View {
         }
         .buttonStyle(.bordered)
         .accessibilityIdentifier("reset-keyboard-state-button")
+    }
+
+    @ViewBuilder
+    private var keyboardRecoveryChecklist: some View {
+        let steps = keyboardHealthPresentation.recoverySteps
+        if !steps.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(steps, id: \.self) { step in
+                    Label(step, systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityIdentifier("keyboard-recovery-checklist")
+        }
     }
 
     private func refresh() {
