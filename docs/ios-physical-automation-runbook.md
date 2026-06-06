@@ -138,6 +138,35 @@ Receipts should record sanitized state such as phase, message category,
 `hasTranscript`, and whether the keyboard returned to idle/no transcript. Avoid
 recording transcript bodies.
 
+## Sanitized WDA Evidence Helper
+
+After a target-app probe, save WDA source to a local artifact path and convert it
+to a sanitized receipt. The helper reports source hashes, accessibility
+identifier presence, private-text hashes, and value-attribute counts without
+printing transcript or host-app text.
+
+```bash
+curl -sS http://127.0.0.1:8100/session/$WDA_SESSION_ID/source \
+  > /tmp/foil-ios-notes-after-insert.json
+
+scripts/ios-physical-wda-evidence.py \
+  --source /tmp/foil-ios-notes-after-insert.json \
+  --target notes \
+  --expect-value-count "$STERILE_PHRASE=1" \
+  --require-identifier foil-keyboard-root \
+  --expect-identifier-state foil-keyboard-insert-latest.enabled=false \
+  --write-json /tmp/foil-ios-notes-after-insert-receipt.json
+```
+
+Use `--require-identifier foil-keyboard-insert-latest` before insertion when the
+row needs to prove Insert latest is available, and
+`--expect-identifier-state foil-keyboard-insert-latest.enabled=false` after
+insertion to prove the button is no longer actionable. Use
+`--forbid-identifier foil-keyboard-root` for secure-field rejection rows where
+iOS should replace custom keyboards with the native secure keyboard. The command
+exits non-zero when any expectation fails, so future GoalBuddy boards can treat
+the receipt as a real gate instead of a narrative note.
+
 ## Safe Target-App Evidence
 
 Use sterile contexts only:
