@@ -406,6 +406,10 @@ struct ContentView: View {
     }
 
     private var recoveryMessage: String? {
+        if keyboardHealth.fullAccessState == .disabled,
+           let keyboardRecovery = keyboardHealthPresentation.recoveryMessage {
+            return keyboardRecovery
+        }
         if snapshot.transcript?.isEmpty == false {
             return "Transcript waiting. Insert it once from Foil Keyboard, or reset shared state."
         }
@@ -417,6 +421,9 @@ struct ContentView: View {
         }
         if snapshot.phase == .failed {
             return snapshot.message
+        }
+        if let keyboardRecovery = keyboardHealthPresentation.recoveryMessage {
+            return keyboardRecovery
         }
         return nil
     }
@@ -456,14 +463,11 @@ struct ContentView: View {
     }
 
     private var keyboardHealthSummary: String {
-        switch keyboardHealth.fullAccessState {
-        case .unverified:
-            "Open Foil Keyboard in a text field to verify"
-        case .disabled:
-            "Last verified by keyboard: Full Access off"
-        case .enabled:
-            keyboardHealth.snapshotHasTranscript ? "Last verified by keyboard: Full Access on, transcript waiting" : "Last verified by keyboard: Full Access on, ready for dictation"
-        }
+        keyboardHealthPresentation.detail
+    }
+
+    private var keyboardHealthPresentation: FoilKeyboardHealthPresentation {
+        FoilDictationLoopPresenter.keyboardHealthPresentation(report: keyboardHealth)
     }
 
     private var storageHealthSummary: String {
