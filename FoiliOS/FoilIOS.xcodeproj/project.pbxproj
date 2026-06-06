@@ -24,6 +24,7 @@
 		A25968F91F0AFD1352EA240C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AF36E3CB6AD18179415EC467 /* Assets.xcassets */; };
 		A45D5112259C81FF8B809D7A /* FoilTranscriptQualityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268ED96A1069398E9D573385 /* FoilTranscriptQualityTests.swift */; };
 		CDF2025B3CC90DEF9172B171 /* FoilCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E66C051F406E089F849D00 /* FoilCredentialStore.swift */; };
+		CEF221C874A713CB0AF6B31F /* FoilKeyboardBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80A5EC71E0768BC7DCDB9C6 /* FoilKeyboardBridgeTests.swift */; };
 		D22B502FB8F13DD32544442E /* FoilIOSConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904D81DB3B8F85BDD2BCA0C1 /* FoilIOSConstants.swift */; };
 		D44A413BDDCA7DE55C3E5A54 /* FoilTranscriptQuality.swift in Sources */ = {isa = PBXBuildFile; fileRef = 930D52E4BE65516E2E689846 /* FoilTranscriptQuality.swift */; };
 /* End PBXBuildFile section */
@@ -81,6 +82,7 @@
 		B86DEA8B1FAC1A8288373D21 /* FoilIOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FoilIOS.entitlements; sourceTree = "<group>"; };
 		B8DED6D0B2DB4D4A56CBCC4C /* KeyboardViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardViewController.swift; sourceTree = "<group>"; };
 		BD61F96F53F4913F25FECC39 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E80A5EC71E0768BC7DCDB9C6 /* FoilKeyboardBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilKeyboardBridgeTests.swift; sourceTree = "<group>"; };
 		F5C18A113AB57751309B185D /* FoilIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilIOSApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -108,6 +110,7 @@
 			isa = PBXGroup;
 			children = (
 				243E8B108679282C050F860F /* FoilDictationLoopPresentationTests.swift */,
+				E80A5EC71E0768BC7DCDB9C6 /* FoilKeyboardBridgeTests.swift */,
 				3583EEDEF91366197D5835CE /* FoilTranscriptionClientTests.swift */,
 				268ED96A1069398E9D573385 /* FoilTranscriptQualityTests.swift */,
 			);
@@ -305,6 +308,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4AAE3B322F4DAB161951B0DC /* FoilDictationLoopPresentationTests.swift in Sources */,
+				CEF221C874A713CB0AF6B31F /* FoilKeyboardBridgeTests.swift in Sources */,
 				A45D5112259C81FF8B809D7A /* FoilTranscriptQualityTests.swift in Sources */,
 				4AC314D95DEBA3047166C0F8 /* FoilTranscriptionClientTests.swift in Sources */,
 			);
@@ -372,7 +376,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = B3A6AN2HA4;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -433,7 +437,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 10;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = B3A6AN2HA4;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

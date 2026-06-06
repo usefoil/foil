@@ -294,6 +294,26 @@ struct FoilKeyboardBridge {
         )
     }
 
+    func consumeTranscriptForInsertion() -> String? {
+        let snapshot = load()
+        let transcript = snapshot.transcript?.trimmingCharacters(in: .whitespacesAndNewlines)
+        persist(.initial, operation: "insert")
+        let currentHealth = keyboardHealthReport()
+        saveKeyboardHealthReport(
+            FoilKeyboardHealthReport(
+                fullAccessState: currentHealth.fullAccessState,
+                snapshotPhase: .idle,
+                snapshotHasTranscript: false,
+                message: currentHealth.fullAccessState == .enabled ? "Foil Keyboard verified" : currentHealth.message,
+                updatedAt: Date()
+            )
+        )
+        guard let transcript, !transcript.isEmpty else {
+            return nil
+        }
+        return transcript
+    }
+
     func reset() {
         persist(.initial, operation: "reset")
         let currentHealth = keyboardHealthReport()
