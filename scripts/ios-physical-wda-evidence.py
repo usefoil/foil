@@ -70,6 +70,15 @@ def value_contains(nodes: list[dict[str, str]], text: str) -> bool:
     return value_count(nodes, text) > 0
 
 
+def accessible_text_contains(nodes: list[dict[str, str]], text: str) -> bool:
+    needle = text.casefold()
+    return any(
+        needle in node.get(attribute, "").casefold()
+        for node in nodes
+        for attribute in ("name", "label", "value")
+    )
+
+
 def parse_expected_count(raw: str) -> tuple[str, int]:
     text, separator, count_text = raw.rpartition("=")
     if not separator or not text:
@@ -200,6 +209,32 @@ def build_receipt(args: argparse.Namespace) -> tuple[dict[str, Any], bool]:
             },
         )
 
+    for text in args.require_text:
+        present = accessible_text_contains(nodes, text)
+        add_check(
+            checks,
+            {
+                "kind": "requireAccessibleText",
+                "textSha256": short_hash(text),
+                "textLength": len(text),
+                "present": present,
+                "passed": present,
+            },
+        )
+
+    for text in args.forbid_text:
+        present = accessible_text_contains(nodes, text)
+        add_check(
+            checks,
+            {
+                "kind": "forbidAccessibleText",
+                "textSha256": short_hash(text),
+                "textLength": len(text),
+                "present": present,
+                "passed": not present,
+            },
+        )
+
     for text, expected in args.expect_value_count:
         actual = value_count(nodes, text)
         add_check(
@@ -277,6 +312,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="append",
         default=[],
         help="Private text that must be absent from value attributes; output is hashed.",
+    )
+    parser.add_argument(
+        "--require-text",
+        action="append",
+        default=[],
+        help="Private text that must appear in name, label, or value attributes; output is hashed.",
+    )
+    parser.add_argument(
+        "--forbid-text",
+        action="append",
+        default=[],
+        help="Private text that must be absent from name, label, and value attributes; output is hashed.",
     )
     parser.add_argument(
         "--expect-value-count",
