@@ -1,0 +1,54 @@
+{
+  "appGroup": {
+    "snapshot": {
+      "file": "foil-keyboard-snapshot.json",
+      "hasTranscript": true,
+      "messageHash": "3315539b45db4644",
+      "phase": "complete",
+      "sha256": "cb6bb6f1b7dffdf9cee202bbbd4751aa4cfcb1a6d69823c5c33f667d283bf9b1",
+      "transcriptHash": "f698b7a670a73cf9"
+    }
+  },
+  "checks": [
+    {
+      "identifier": "Foil sterile secure field",
+      "kind": "requireIdentifier",
+      "passed": true,
+      "present": true
+    },
+    {
+      "identifier": "foil-keyboard-root",
+      "kind": "forbidIdentifier",
+      "passed": true,
+      "present": false
+    },
+    {
+      "identifier": "foil-keyboard-insert-latest",
+      "kind": "forbidIdentifier",
+      "passed": true,
+      "present": false
+    },
+    {
+      "kind": "requireAccessibleText",
+      "passed": true,
+      "present": true,
+      "textLength": 16,
+      "textSha256": "41316e1f3cda28d0"
+    },
+    {
+      "kind": "forbidAccessibleText",
+      "passed": true,
+      "present": false,
+      "textLength": 17,
+      "textSha256": "041dff774bf51d64"
+    }
+  ],
+  "passed": true,
+  "schema": "foil.iosPhysicalWdaEvidence.v1",
+  "source": {
+    "file": "FoilIOS-v015-safari-secure-focused-source.json",
+    "nodeCount": 195,
+    "sha256": "d9c8d9216babc9bad1f9de998ad87e2a2d38c9c17666cb20b94c0cabf3b016c5"
+  },
+  "target": "safari-secure-field-rejection"
+}

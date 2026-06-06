@@ -163,9 +163,11 @@ row needs to prove Insert latest is available, and
 `--expect-identifier-state foil-keyboard-insert-latest.enabled=false` after
 insertion to prove the button is no longer actionable. Use
 `--forbid-identifier foil-keyboard-root` for secure-field rejection rows where
-iOS should replace custom keyboards with the native secure keyboard. The command
-exits non-zero when any expectation fails, so future GoalBuddy boards can treat
-the receipt as a real gate instead of a narrative note.
+iOS should replace custom keyboards with the native secure keyboard, plus
+`--require-text "secure length: 0"` and `--forbid-text "secure length: 19"` when
+using the sterile Safari fixture. The command exits non-zero when any
+expectation fails, so future GoalBuddy boards can treat the receipt as a real
+gate instead of a narrative note.
 
 ## Safe Target-App Evidence
 
