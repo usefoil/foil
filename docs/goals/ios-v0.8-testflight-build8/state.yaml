@@ -1,0 +1,222 @@
+# GoalBuddy v2 state.yaml
+
+version: 2
+
+goal:
+  title: "Foil iOS v0.8 TestFlight Build 8"
+  slug: "ios-v0.8-testflight-build8"
+  kind: specific
+  tranche: "Upload and smoke-test build 8 with v0.8 keyboard recovery improvements."
+  status: done
+  oracle:
+    signal: "Source, IPA, App Store Connect, TestFlight/internal group, and iPhone-preview install/smoke evidence all agree on build 8, or the remaining blocker is exact."
+    cadence: "after build, upload, ASC readiness, install, smoke, and PR merge"
+    final_proof: "Version diffs, tests, IPA metadata, altool/ASC status, group attachment, device install metadata, sanitized smoke evidence, secret scan, and merged PR."
+  intake:
+    original_request: "do all of these"
+    interpreted_outcome: "Execute the recommended v0.8 build-8 TestFlight release and preview-iPhone smoke."
+    input_shape: specific
+    audience: "Foil owner/developer and internal TestFlight testers"
+    authority: approved
+    proof_type: release
+    completion_proof: "Build 8 is uploaded/attached and either installed/smoked on iPhone-preview or precisely blocked."
+    likely_misfire: "Uploading a build without proving that app, keyboard extension, App Store Connect, and device metadata all agree on build 8."
+    blind_spots_considered:
+      - "TestFlight processing can lag after upload."
+      - "Build may validate but not attach to internal testers."
+      - "Device may remain on build 7 if TestFlight update is unavailable or not accepted."
+      - "Physical smoke must avoid private target apps and Messages."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-v0-8-testflight-build8/"
+    command: "npx goalbuddy board docs/goals/ios-v0.8-testflight-build8"
+
+active_task: null
+
+tasks:
+  - id: T001
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Bump iOS build metadata from 7 to 8 and regenerate the Xcode project."
+    inputs:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+    constraints:
+      - "Keep marketing version 0.1.0."
+      - "Do not touch unrelated Xcode user data."
+    expected_output:
+      - "Source/project metadata show build 8."
+    receipt:
+      result: done
+      task_id: T001
+      summary: "Bumped Foil iOS build metadata from 7 to 8 in project.yml and regenerated FoilIOS.xcodeproj with xcodegen."
+      changed_files:
+        - "FoiliOS/project.yml"
+        - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      evidence:
+        - "FoiliOS/project.yml shows CURRENT_PROJECT_VERSION: 8 and MARKETING_VERSION: 0.1.0."
+        - "FoilIOS.xcodeproj/project.pbxproj shows CURRENT_PROJECT_VERSION = 8 for Debug and Release build configurations."
+        - "Diff only changed CURRENT_PROJECT_VERSION from 7 to 8."
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Run simulator tests for build 8 source."
+    inputs:
+      - "T001 receipt"
+    constraints:
+      - "Use XcodeBuildMCP simulator tests when available."
+    expected_output:
+      - "Focused/full simulator test proof."
+    receipt:
+      result: done
+      task_id: T002
+      summary: "Ran XcodeBuildMCP simulator tests for build-8 source."
+      evidence:
+        command: "XcodeBuildMCP test_sim"
+        result: "passed 14/14"
+        warnings: 0
+        errors: 0
+        xcresult: "/Users/neonwatty/Library/Developer/XcodeBuildMCP/workspaces/foil-fc4876127f01/result-bundles/test_sim_2026-06-06T01-48-37-029Z_pid51557_cc2a8bf2.xcresult"
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Archive/export build 8 and inspect IPA metadata for app and keyboard extension."
+    inputs:
+      - "T001/T002 receipts"
+      - "docs/ios-testflight-upload-runbook.md"
+    constraints:
+      - "Regenerate /tmp artifacts."
+      - "Reject upload if IPA metadata is not app and keyboard version 0.1.0 build 8."
+    expected_output:
+      - "IPA metadata proof."
+    receipt:
+      result: done
+      task_id: T003
+      summary: "Archived and exported build 8, then unpacked the IPA to verify app and keyboard extension metadata before upload."
+      artifacts:
+        archive: "/tmp/FoilIOS-Build8.xcarchive"
+        export_path: "/tmp/FoilIOS-Build8Export"
+        ipa: "/tmp/FoilIOS-Build8Export/Foil iOS.ipa"
+      evidence:
+        - "xcodebuild archive completed with ** ARCHIVE SUCCEEDED **."
+        - "xcodebuild -exportArchive completed with ** EXPORT SUCCEEDED **."
+        - "IPA app Info.plist: CFBundleShortVersionString=0.1.0, CFBundleVersion=8."
+        - "IPA keyboard appex Info.plist: CFBundleShortVersionString=0.1.0, CFBundleVersion=8."
+        - "IPA contains AppIcon metadata, AppIcon60x60@2x.png, iPad icon asset, and Assets.car."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Validate/upload build 8 to App Store Connect, clear export compliance, and attach it to Foil Internal Testers."
+    inputs:
+      - "T003 receipt"
+      - "Local App Store Connect API key configuration"
+    constraints:
+      - "Do not print JWT/private key material."
+      - "Do not commit App Store Connect credentials."
+    expected_output:
+      - "Build 8 VALID / not expired / usesNonExemptEncryption false / attached to internal group."
+    receipt:
+      result: done
+      task_id: T004
+      summary: "Validated and uploaded the build-8 IPA, cleared export compliance in App Store Connect, and attached build 8 to Foil Internal Testers."
+      evidence:
+        - "altool validation: VERIFY SUCCEEDED with no errors."
+        - "altool upload: UPLOAD SUCCEEDED with no errors; delivery UUID b94de15f-5dcc-4872-b643-02dccf093549."
+        - "altool build status: build-status=VALID, import-status=VALID, is-on-app-store-connect=true, expired=false."
+        - "App Store Connect REST after compliance patch: version=8, processingState=VALID, expired=false, usesNonExemptEncryption=false."
+        - "Foil Internal Testers relationship attach returned HTTP 204."
+        - "Foil Internal Testers build list includes build 8 with processing=VALID, expired=false, encryption=false."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: high
+    objective: "Install/update build 8 on iPhone-preview through TestFlight if available, then smoke safe app/recovery states."
+    inputs:
+      - "T004 receipt"
+      - "iPhone-preview"
+    constraints:
+      - "No private target app content."
+      - "No Messages testing."
+      - "Record exact blocker if TestFlight/device action requires human input."
+    expected_output:
+      - "Device metadata build 8 and sanitized smoke proof, or exact blocker."
+    receipt:
+      result: done
+      task_id: T005
+      summary: "Installed Foil Dictation build 8 on iPhone-preview through TestFlight and smoked safe Foil app setup/recovery surfaces."
+      evidence:
+        - "Before TestFlight install, devicectl reported Foil iOS version=0.1.0 bundleVersion=7."
+        - "TestFlight accessibility source showed Foil Dictation 0.1.0 (8) with an Install button."
+        - "Confirmed TestFlight replacement prompt for the already-installed app and tapped Install."
+        - "After install, devicectl reported Foil iOS version=0.1.0 bundleVersion=8."
+        - "Launched com.neonwatty.FoilIOS on iPhone-preview."
+        - "WDA source for Foil app showed setup copy: Keyboard setup, Add Foil Keyboard, Allow Full Access, and Full Access rationale."
+        - "After scrolling within Foil, WDA source showed Keyboard health stale copy, Shared state, Handoff, Recovery, Transcript waiting, and visible recovery checklist rows."
+        - "Smoke stayed inside TestFlight and Foil app surfaces; no Messages or third-party target app content was exercised."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit and PR/merge receipt for build 8."
+    inputs:
+      - "All receipts"
+      - "git status"
+      - "PR state"
+    constraints:
+      - "Reject completion if any metadata layer still shows build 7 for the release claim."
+      - "Reject completion if private content or secrets leaked."
+    expected_output:
+      - "complete | blocked with exact next action"
+    receipt:
+      result: complete
+      task_id: T999
+      summary: "Final audit accepted the build-8 release claim and prepared a PR to merge the release receipts into the prototype branch."
+      strongest_failure_mode: "A release could look complete locally while either the keyboard extension stayed on build 7, the TestFlight group stayed on build 7, or secrets leaked into the board."
+      evidence:
+        - "Simulator tests passed 14/14 via XcodeBuildMCP before archive/export."
+        - "IPA metadata disproved app/keyboard version skew: app and keyboard appex both report 0.1.0 build 8."
+        - "App Store Connect group proof disproved tester attachment drift: Foil Internal Testers includes build 8 with processing=VALID, expired=false, encryption=false."
+        - "Device proof disproved stale local install: devicectl reported Foil iOS bundleVersion=8 after TestFlight installation."
+        - "Physical smoke stayed inside TestFlight and Foil app surfaces, avoiding private target app content and Messages."
+        - "YAML parse passed for docs/goals/ios-v0.8-testflight-build8/state.yaml."
+        - "npx goalbuddy board docs/goals/ios-v0.8-testflight-build8 registered the board with the local hub."
+        - "git diff --check passed."
+        - "Secret scan over FoiliOS, the build-8 board, and the TestFlight runbook found no App Store key ids, issuer ids, JWTs, private key blocks, Groq/OpenAI-style API keys, or bearer tokens."
+      pr: "https://github.com/mean-weasel/foil/pull/256"
