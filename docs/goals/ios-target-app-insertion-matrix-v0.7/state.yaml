@@ -7,7 +7,7 @@ goal:
   slug: "ios-target-app-insertion-matrix-v0.7"
   kind: specific
   tranche: "Expand privacy-safe physical insertion coverage across target apps."
-  status: active
+  status: done
   oracle:
     signal: "Each target row has sanitized WDA/App Group proof of insertion or expected rejection."
     cadence: "after each matrix row group"
@@ -53,7 +53,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-target-app-insertion-matrix-v0-7/"
     command: "npx goalbuddy board docs/goals/ios-target-app-insertion-matrix-v0.7"
 
-active_task: T004
+active_task: null
 
 tasks:
   - id: T001
@@ -195,7 +195,7 @@ tasks:
   - id: T004
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "If a safe Messages self/test thread exists, run Messages insertion; otherwise record the exact blocker and setup need."
     inputs:
@@ -205,12 +205,28 @@ tasks:
       - "No screenshot/tree commits from Messages unless sterile."
     expected_output:
       - "Messages pass or blocker receipt."
-    receipt: null
+    receipt:
+      result: blocked
+      task_id: T004
+      summary: "Recorded Messages as blocked instead of launching or inspecting Messages. No dedicated safe self/test thread exists in the repo receipts, and the physical automation runbook explicitly keeps Messages out of scope until the operator provides one."
+      evidence:
+        - "docs/ios-physical-automation-runbook.md says Messages remains out of scope until a dedicated safe self/test thread exists."
+        - "docs/goals/ios-keyboard-state-and-target-matrix/notes/T005-host-app-matrix.md records Messages skipped because no safe thread was provided."
+        - "docs/goals/ios-keyboard-onboarding-full-access-ux/state.yaml records Messages untested pending a safe self/test thread."
+        - "GitHub issue #216 comments repeatedly preserve the same blocker: do not claim Messages support without a safe self/test thread."
+      not_attempted:
+        - "Did not launch Messages."
+        - "Did not inspect or save Messages WDA source."
+        - "Did not commit private screenshots, phone numbers, contacts, or message text."
+      setup_needed:
+        - "Operator creates or opens a sterile self/test Messages thread with no private surrounding content."
+        - "Operator confirms that screenshots/source from that specific thread may be sanitized and committed."
+        - "Then rerun the Messages row with a staged safe transcript and post-insert App Group reset proof."
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Audit matrix completeness and reject overbroad insertion claims."
     inputs:
@@ -222,4 +238,33 @@ tasks:
     expected_output:
       - "complete | partial | blocked"
       - "matrix summary"
-    receipt: null
+    receipt:
+      result: partial_with_blocker
+      task_id: T999
+      summary: "Audited the v0.7 target-app insertion matrix. Fresh v0.7 evidence proves sterile Safari fixture insertion and secure-field rejection. Messages is exactly blocked by missing sterile thread. Notes/Reminders have prior physical proof in earlier boards but were not freshly rerun in this v0.7 board, so this audit rejects any arbitrary-app or Messages support claim."
+      matrix:
+        - app: "Safari/local textarea fixture"
+          status: pass
+          evidence: "T002 receipt and visual artifacts show insert mutation plus App Group reset."
+        - app: "Safari/local secure password field"
+          status: expected_rejection_pass
+          evidence: "T003 receipt and secure-field screenshot show native secure keyboard, no Foil insert button, and pending transcript preserved."
+        - app: "Messages"
+          status: blocked
+          evidence: "T004 blocker receipt; no safe self/test thread."
+        - app: "Notes"
+          status: prior_proof_not_rerun
+          evidence: "Earlier physical matrix receipts prove Notes, but v0.7 did not rerun it."
+        - app: "Reminders"
+          status: prior_proof_not_rerun
+          evidence: "Earlier physical matrix receipts prove Reminders, but v0.7 did not rerun it."
+      strongest_failure_mode:
+        claim: "A tester handoff might overclaim that arbitrary target apps or Messages are supported because several rows exist across multiple boards."
+        ruled_out_by:
+          - "This audit records Messages as blocked, not skipped silently."
+          - "This audit labels Notes/Reminders as prior proof, not fresh v0.7 reruns."
+          - "This audit labels secure fields as expected rejection, not support."
+      artifacts:
+        - "docs/goals/ios-target-app-insertion-matrix-v0.7/notes/T999-matrix-audit.md"
+      next_safe_action:
+        - "Carry this exact claim boundary into the TestFlight feedback readiness board."

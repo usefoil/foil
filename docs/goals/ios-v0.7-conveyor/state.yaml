@@ -54,7 +54,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-v0-7-conveyor/"
     command: "npx goalbuddy board docs/goals/ios-v0.7-conveyor"
 
-active_task: T004
+active_task: T005
 
 tasks:
   - id: T001
@@ -151,7 +151,7 @@ tasks:
   - id: T004
     type: worker
     assignee: Worker
-    status: active
+    status: done
     reasoning_hint: high
     objective: "Run docs/goals/ios-target-app-insertion-matrix-v0.7 for sanitized cross-app insertion coverage."
     inputs:
@@ -161,12 +161,25 @@ tasks:
       - "Secure fields must prove custom keyboard absence or no insertion."
     expected_output:
       - "Matrix receipt with sanitized physical evidence."
-    receipt: null
+    receipt:
+      result: done_partial_with_blocker
+      task_id: T004
+      summary: "Closed the v0.7 target-app insertion matrix child board with an honest partial result. Fresh v0.7 evidence proves sterile Safari/local fixture insertion and secure-field expected rejection. Messages is exactly blocked because no safe self/test thread exists. Notes/Reminders retain prior physical proof from earlier boards but were not rerun in v0.7."
+      child_board: "docs/goals/ios-target-app-insertion-matrix-v0.7/goal.md"
+      pr: "pending"
+      evidence:
+        - "T002 Safari/local fixture receipt: Foil Keyboard insert button appeared, Insert latest mutated the sterile field, and App Group reset to idle/no transcript."
+        - "T003 secure-field receipt: native secure keyboard appeared, no Foil Keyboard insert control existed, and the staged transcript remained pending."
+        - "T004 Messages receipt: no safe self/test thread exists; Messages was not launched or inspected."
+        - "T999 audit note: docs/goals/ios-target-app-insertion-matrix-v0.7/notes/T999-matrix-audit.md."
+      residual_risk:
+        - "Do not claim Messages support until a sterile thread is created and approved."
+        - "Do not claim fresh v0.7 Notes/Reminders reruns; cite prior physical matrix proof only."
 
   - id: T005
     type: worker
     assignee: Worker
-    status: queued
+    status: active
     reasoning_hint: medium
     objective: "Run docs/goals/ios-testflight-feedback-readiness-v0.7 to prepare the next external-tester loop."
     inputs:
