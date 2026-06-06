@@ -78,7 +78,37 @@ struct FoilKeyboardLoopPresentation: Equatable {
     var startTitle: String
 }
 
+struct FoilKeyboardHealthPresentation: Equatable {
+    var detail: String
+    var recoveryMessage: String?
+}
+
 enum FoilDictationLoopPresenter {
+    static func keyboardHealthPresentation(
+        report: FoilKeyboardHealthReport,
+        now: Date = Date(),
+        staleAfter: TimeInterval = 120
+    ) -> FoilKeyboardHealthPresentation {
+        switch report.fullAccessState {
+        case .disabled:
+            let message = "Allow Full Access is off. Enable it in Keyboard settings, then reopen Foil Keyboard."
+            return FoilKeyboardHealthPresentation(detail: message, recoveryMessage: message)
+        case .unverified:
+            let message = "Open Foil Keyboard in a text field to verify Full Access."
+            return FoilKeyboardHealthPresentation(detail: message, recoveryMessage: message)
+        case .enabled:
+            if now.timeIntervalSince(report.updatedAt) > staleAfter {
+                let message = "Foil Keyboard has not checked in recently. Tap the target field and cycle back to Foil Keyboard."
+                return FoilKeyboardHealthPresentation(detail: message, recoveryMessage: message)
+            }
+
+            let detail = report.snapshotHasTranscript
+                ? "Full Access on, transcript waiting in keyboard."
+                : "Full Access on, ready for dictation."
+            return FoilKeyboardHealthPresentation(detail: detail, recoveryMessage: nil)
+        }
+    }
+
     static func appPresentation(
         snapshot: FoilKeyboardSnapshot,
         isRecording: Bool,
@@ -158,7 +188,7 @@ enum FoilDictationLoopPresenter {
         guard fullAccessEnabled else {
             return FoilKeyboardLoopPresentation(
                 status: "Open Foil",
-                message: "Allow Full Access in Settings, then return here to insert dictation.",
+                message: "Allow Full Access in Settings, then cycle back to Foil Keyboard.",
                 insertTitle: "Insert unavailable",
                 clearTitle: "Clear unavailable",
                 startTitle: "Open Foil"
