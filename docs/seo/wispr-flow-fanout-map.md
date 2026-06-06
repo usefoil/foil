@@ -27,6 +27,11 @@ Do not position Foil as:
 - A cure-all for every macOS paste target.
 - An enterprise compliance product.
 
+## Related Research
+
+- `docs/research/dictation-competitor-dissatisfaction-2026-06-06.md`
+- `docs/product/dictation-dissatisfaction-product-implications.md`
+
 ## Keyword Clusters
 
 ### Pillar Intent
