@@ -81,6 +81,7 @@ struct FoilKeyboardLoopPresentation: Equatable {
 struct FoilKeyboardHealthPresentation: Equatable {
     var detail: String
     var recoveryMessage: String?
+    var recoverySteps: [String]
 }
 
 enum FoilDictationLoopPresenter {
@@ -92,20 +93,44 @@ enum FoilDictationLoopPresenter {
         switch report.fullAccessState {
         case .disabled:
             let message = "Allow Full Access is off. Enable it in Keyboard settings, then reopen Foil Keyboard."
-            return FoilKeyboardHealthPresentation(detail: message, recoveryMessage: message)
+            return FoilKeyboardHealthPresentation(
+                detail: message,
+                recoveryMessage: message,
+                recoverySteps: [
+                    "Open Settings > General > Keyboard > Keyboards.",
+                    "Select Foil Keyboard and enable Allow Full Access.",
+                    "Return to the target field and cycle back to Foil Keyboard."
+                ]
+            )
         case .unverified:
             let message = "Open Foil Keyboard in a text field to verify Full Access."
-            return FoilKeyboardHealthPresentation(detail: message, recoveryMessage: message)
+            return FoilKeyboardHealthPresentation(
+                detail: message,
+                recoveryMessage: message,
+                recoverySteps: [
+                    "Open a safe text field.",
+                    "Switch to Foil Keyboard.",
+                    "Return to Foil and check Keyboard health again."
+                ]
+            )
         case .enabled:
             if now.timeIntervalSince(report.updatedAt) > staleAfter {
                 let message = "Foil Keyboard has not checked in recently. Tap the target field and cycle back to Foil Keyboard."
-                return FoilKeyboardHealthPresentation(detail: message, recoveryMessage: message)
+                return FoilKeyboardHealthPresentation(
+                    detail: message,
+                    recoveryMessage: message,
+                    recoverySteps: [
+                        "Tap the target text field.",
+                        "Switch away from Foil Keyboard, then back.",
+                        "Return here if Insert latest still looks stale."
+                    ]
+                )
             }
 
             let detail = report.snapshotHasTranscript
                 ? "Full Access on, transcript waiting in keyboard."
                 : "Full Access on, ready for dictation."
-            return FoilKeyboardHealthPresentation(detail: detail, recoveryMessage: nil)
+            return FoilKeyboardHealthPresentation(detail: detail, recoveryMessage: nil, recoverySteps: [])
         }
     }
 
