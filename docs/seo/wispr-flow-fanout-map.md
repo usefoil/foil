@@ -123,6 +123,23 @@ Target keywords:
 - superwhisper alternative mac
 - mac dictation app comparison
 
+### Superwhisper Alternative For Mac
+
+Potential slug: `/blog/superwhisper-alternative-for-mac/`
+
+Angle: narrower Superwhisper-intent page for Mac users who respect local-first
+dictation but want a smaller workflow, visible provider routing, optional
+cleanup, and recoverable paste behavior.
+
+Target keywords:
+
+- superwhisper alternative
+- superwhisper alternative mac
+- superwhisper alternative free
+- superwhisper lifetime alternative
+- superwhisper vs foil
+- local dictation app mac
+
 ### Best Local Dictation Apps For Mac
 
 Potential slug: `/blog/best-local-dictation-apps-mac/`

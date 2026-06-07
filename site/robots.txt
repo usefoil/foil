@@ -1,5 +1,4 @@
 User-agent: *
 Allow: /
 
-# CI smoke: site-only changes should skip app E2E.
 Sitemap: https://mean-weasel.github.io/foil/sitemap.xml
