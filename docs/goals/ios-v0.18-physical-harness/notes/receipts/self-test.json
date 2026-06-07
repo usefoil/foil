@@ -1,0 +1,56 @@
+{
+  "checks": [
+    {
+      "name": "evidence-helper-passes-good-expectations",
+      "passed": true
+    },
+    {
+      "name": "evidence-helper-fails-bad-count",
+      "passed": true
+    },
+    {
+      "name": "summaries-omit-raw-transcript",
+      "passed": true
+    },
+    {
+      "name": "complete-summary-has-transcript-hash",
+      "passed": true
+    },
+    {
+      "name": "idle-summary-has-no-transcript",
+      "passed": true
+    }
+  ],
+  "completeSummary": {
+    "file": "complete.json",
+    "hasTranscript": true,
+    "messageHash": "3315539b45db4644",
+    "phase": "complete",
+    "sha256": "7ac0000c40b504ff2f81d774346f9bdc561fee3237bd600bd95bbc414e164b21",
+    "transcriptHash": "fda66a0739898b7a",
+    "transcriptLength": 29
+  },
+  "failingHelper": {
+    "returncode": 1,
+    "stderrBytes": 0,
+    "stderrSha256": null,
+    "stdoutBytes": 453,
+    "stdoutSha256": "e8bdc4e84f1691d7"
+  },
+  "idleSummary": {
+    "file": "idle.json",
+    "hasTranscript": false,
+    "messageHash": "5fa7aac5375c5815",
+    "phase": "idle",
+    "sha256": "4d1c3eaa6d65eba2694f58f178f323fc0bd234df59f2b06a1266ab9cc29235b9"
+  },
+  "passed": true,
+  "passingHelper": {
+    "returncode": 0,
+    "stderrBytes": 0,
+    "stderrSha256": null,
+    "stdoutBytes": 811,
+    "stdoutSha256": "37ad493ceef10e08"
+  },
+  "schema": "foil.iosPhysicalHarness.selfTest.v1"
+}

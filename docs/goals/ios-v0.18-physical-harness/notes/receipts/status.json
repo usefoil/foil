@@ -1,0 +1,25 @@
+{
+  "device": {
+    "devicectlReturncode": 0,
+    "identifier": "5320F5AD-2A71-50AC-94FE-207B544B6247",
+    "name": "iPhone-preview",
+    "summary": {
+      "looksAvailable": true,
+      "present": true,
+      "rawLineSha256": "0628112e1234a5a0"
+    }
+  },
+  "iproxy": {
+    "path": "/opt/homebrew/bin/iproxy",
+    "present": true
+  },
+  "schema": "foil.iosPhysicalHarness.status.v1",
+  "wda": {
+    "projectPresent": true,
+    "ready": false,
+    "status": {
+      "error": "URLError"
+    },
+    "url": "http://127.0.0.1:8100"
+  }
+}

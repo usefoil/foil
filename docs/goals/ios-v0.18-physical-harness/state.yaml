@@ -5,7 +5,7 @@ goal:
   slug: "ios-v0.18-physical-harness"
   kind: existing_plan
   tranche: "Turn the proven physical iPhone WDA/App Group procedures into a repeatable privacy-safe harness."
-  status: active
+  status: done
   oracle:
     signal: "A repo-native harness can stage/reset sterile transcripts, create current-app WDA sessions without relaunching sensitive apps, collect sanitized receipts, and prove via tests or physical receipts that no raw host-app content is committed."
     cadence: "after Scout, after Judge approval, after Worker implementation, and at final audit"
@@ -60,13 +60,13 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-v0-18-physical-harness/"
     command: "npx goalbuddy board docs/goals/ios-v0.18-physical-harness"
 
-active_task: T001
+active_task: null
 
 tasks:
   - id: T001
     type: scout
     assignee: Scout
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Map the existing physical WDA/App Group evidence path and propose the smallest privacy-safe harness interface."
     inputs:
@@ -85,11 +85,38 @@ tasks:
       - "Privacy and cleanup requirements."
       - "Fixture/self-test strategy."
       - "Candidate Worker slice with allowed_files and verify commands."
+    receipt:
+      result: done
+      note: "notes/T001-scout.md"
+      summary: "Mapped the existing physical WDA/App Group evidence path. Device is visible, WDA is currently down, WDA project and iproxy are present, and the missing layer is a privacy-safe orchestration harness around status, current-app sessions, App Group stage/reset/summary, sanitized receipts, and fixture self-tests."
+      evidence:
+        - "xcrun devicectl list devices reports iPhone-preview available (paired) with identifier 5320F5AD-2A71-50AC-94FE-207B544B6247."
+        - "curl http://127.0.0.1:8100/status cannot connect, so WDA is currently down."
+        - "The Appium WebDriverAgent project exists."
+        - "iproxy is installed at /opt/homebrew/bin/iproxy."
+        - "v0.15-v0.17 receipts demonstrate sanitized identifier, exact-once, secure-field rejection, App Group, and cleanup proof shapes."
+      candidate_worker:
+        objective: "Implement scripts/ios-physical-harness.py with status, wda-command, current-app session, delete-session, fetch-source, stage-transcript, reset-transcript, app-group-summary, receipt, and self-test subcommands; update the runbook; and record fixture plus physical-safe status proof."
+        allowed_files:
+          - "scripts/ios-physical-harness.py"
+          - "scripts/ios-physical-wda-evidence.py"
+          - "docs/ios-physical-automation-runbook.md"
+          - "docs/goals/ios-v0.18-physical-harness/**"
+        verify:
+          - "python3 -m py_compile scripts/ios-physical-wda-evidence.py"
+          - "python3 -m py_compile scripts/ios-physical-harness.py"
+          - "scripts/ios-physical-harness.py --help"
+          - "scripts/ios-physical-harness.py status"
+          - "scripts/ios-physical-harness.py wda-command"
+          - "scripts/ios-physical-harness.py self-test"
+          - "GoalBuddy state checker"
+          - "git diff --check"
+          - "Targeted raw-content and secret scan over touched files"
 
   - id: T002
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Choose the first implementation slice for the physical harness."
     inputs:
@@ -105,11 +132,38 @@ tasks:
       - "allowed_files"
       - "verify commands"
       - "stop_if conditions"
+    receipt:
+      result: done
+      decision: approved
+      note: "notes/T002-judge.md"
+      summary: "Approved one vertical harness slice: add a repo-native physical harness around status, WDA command/session lifecycle, canonical App Group stage/reset/summary, sanitized receipt generation, fixture self-test, and runbook updates."
+      full_outcome_complete: false
+      worker_task: T003
+      allowed_files:
+        - "scripts/ios-physical-harness.py"
+        - "scripts/ios-physical-wda-evidence.py"
+        - "docs/ios-physical-automation-runbook.md"
+        - "docs/goals/ios-v0.18-physical-harness/**"
+      verify:
+        - "python3 -m py_compile scripts/ios-physical-wda-evidence.py"
+        - "python3 -m py_compile scripts/ios-physical-harness.py"
+        - "scripts/ios-physical-harness.py --help"
+        - "scripts/ios-physical-harness.py status"
+        - "scripts/ios-physical-harness.py wda-command"
+        - "scripts/ios-physical-harness.py self-test"
+        - "GoalBuddy state checker"
+        - "git diff --check"
+        - "Targeted secret/raw-content scan over touched files"
+      stop_if:
+        - "The physical phone requires unlock, installation, or user action."
+        - "A command would print credentials, host-app content, raw WDA source, or transcript bodies."
+        - "Product behavior changes are needed outside the approved harness scope."
+        - "The harness cannot prove the existing evidence helper fails closed on a bad expectation."
 
   - id: T003
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Implement the approved harness slice, docs, fixture checks, and optional physical proof receipt."
     allowed_files:
@@ -127,11 +181,62 @@ tasks:
       - "The physical phone requires unlock/install/user action."
       - "A command would print credentials or private host-app content."
       - "The harness needs product behavior changes outside the approved files."
+    receipt:
+      result: done
+      note: "notes/T003-worker.md"
+      summary: "Implemented scripts/ios-physical-harness.py, updated the physical automation runbook, recorded fixture self-test proof, recorded physical-safe status proof, and physically exercised App Group stage/reset through the canonical Library/foil-keyboard-snapshot.json path."
+      changed_files:
+        - "scripts/ios-physical-harness.py"
+        - "docs/ios-physical-automation-runbook.md"
+        - "docs/goals/ios-v0.18-physical-harness/notes/T003-worker.md"
+        - "docs/goals/ios-v0.18-physical-harness/notes/receipts/status.json"
+        - "docs/goals/ios-v0.18-physical-harness/notes/receipts/self-test.json"
+        - "docs/goals/ios-v0.18-physical-harness/notes/receipts/app-group-stage.json"
+        - "docs/goals/ios-v0.18-physical-harness/notes/receipts/app-group-reset.json"
+        - "docs/goals/ios-v0.18-physical-harness/notes/receipts/live-session.json"
+        - "docs/goals/ios-v0.18-physical-harness/notes/receipts/live-fetch-source.json"
+        - "docs/goals/ios-v0.18-physical-harness/notes/receipts/live-delete-session.json"
+        - "docs/goals/ios-v0.18-physical-harness/state.yaml"
+      evidence:
+        - "py_compile passed for the existing evidence helper and new harness."
+        - "Harness --help listed status, wda-command, session, delete-session, fetch-source, stage-transcript, reset-transcript, app-group-summary, receipt, and self-test."
+        - "status receipt proves iPhone-preview visible, WDA project present, iproxy present, and WDA currently down."
+        - "self-test receipt proves good fixture passes, bad count fails, and summaries omit raw transcript text."
+        - "stage receipt proves canonical App Group write/readback phase complete and hasTranscript true."
+        - "reset receipt proves canonical App Group write/readback phase idle and hasTranscript false."
+        - "live session receipt proves current-app WDA session creation with bundleIdProvided false."
+        - "live fetch-source receipt proves WDA source is written to an explicit temporary file with printedRawSource false."
+        - "live delete-session receipt proves the WDA session was deleted."
+      commands:
+        - cmd: "python3 -m py_compile scripts/ios-physical-wda-evidence.py scripts/ios-physical-harness.py"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py --help"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py status"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py wda-command"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py self-test"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py stage-transcript --transcript-file /tmp/foil-harness-transcript"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py reset-transcript"
+          status: pass
+        - cmd: "xcodebuild ... WebDriverAgentRunner-nodebug ... test"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py session --wda-url http://192.168.1.40:8100"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py fetch-source --wda-url http://192.168.1.40:8100 SESSION_ID --output /tmp/foil-harness-live/source.json"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py delete-session --wda-url http://192.168.1.40:8100 SESSION_ID"
+          status: pass
+      residual_risk:
+        - "Live fetch-source necessarily wrote raw WDA source to a temporary /tmp file, then the run deleted that temporary directory. The committed receipt contains only sanitized metadata and printedRawSource false."
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Final audit: try to disprove that the harness is privacy-safe and repeatable."
     inputs:
@@ -144,3 +249,52 @@ tasks:
       - "full_outcome_complete: true | false"
       - "Strongest realistic failure mode"
       - "Evidence that rules it out or exact follow-up"
+    receipt:
+      result: done
+      decision: complete
+      note: "notes/T999-final-audit.md"
+      full_outcome_complete: true
+      summary: "Final audit proved the harness satisfies every v0.18 oracle requirement: readiness checks, WDA command, current-app session, source fetch without raw output, canonical App Group stage/reset/readback, evidence-helper receipt wrapping, cleanup, and private-content/secret scans."
+      strongest_realistic_failure_mode: "The harness appears privacy-safe while committing raw host-app source, Messages text, transcript bodies, or credentials into docs/receipts."
+      evidence:
+        - "All receipt JSON files parsed and expected booleans/states matched."
+        - "self-test passed and proved the evidence helper fails closed on a bad count."
+        - "live-session receipt records bundleIdProvided false."
+        - "live-fetch-source receipt records printedRawSource false and byte/hash metadata only."
+        - "live-delete-session receipt records deleted true."
+        - "app-group-reset receipt records phase idle and hasTranscript false after the stage proof."
+        - "pgrep cleanup check found no running WDA/xcodebuild/devicectl diagnostic process."
+        - "raw-content scan found no physical transcript phrase, wrapper phrase, TranscriptCollectionView, observed WDA timestamp text, raw XML markers, or value attributes in committed v0.18 docs; the only MobileSMS hit is the intentional privacy warning."
+        - "secret scan found no credential patterns in touched files."
+        - "git diff --check passed."
+      commands:
+        - cmd: "python3 -m py_compile scripts/ios-physical-wda-evidence.py scripts/ios-physical-harness.py"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py --help"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py status"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py wda-command"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py self-test"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py receipt ..."
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py stage-transcript --transcript-file ..."
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py reset-transcript"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py session --wda-url http://192.168.1.40:8100"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py fetch-source --wda-url http://192.168.1.40:8100 ..."
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py delete-session --wda-url http://192.168.1.40:8100 ..."
+          status: pass
+        - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-v0.18-physical-harness/state.yaml"
+          status: pass
+        - cmd: "git diff --check"
+          status: pass
+        - cmd: "targeted raw-content and secret scans"
+          status: pass
+      residual_risk:
+        - "Future target-app boards still need to choose sterile screens and expectations before committing target-specific sanitized WDA receipts."
