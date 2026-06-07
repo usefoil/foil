@@ -11,12 +11,29 @@ permissions:
   contents: read
 
 jobs:
+  detect-changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      app_ci: ${{ steps.detect.outputs.app_ci }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect app-impacting changes
+        id: detect
+        run: bash .github/scripts/app-ci-required.sh
+
   e2e-tests:
     name: Live OpenAI API Tests
     runs-on: macos-15
     timeout-minutes: 15
+    needs: [detect-changes]
     # Don't run on forks (no access to secrets)
-    if: github.repository == 'mean-weasel/foil'
+    if: github.repository == 'mean-weasel/foil' && needs.detect-changes.outputs.app_ci == 'true'
 
     steps:
       - name: Checkout code

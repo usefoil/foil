@@ -19,34 +19,17 @@ jobs:
     name: Detect Changed Paths
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: github.event_name == 'pull_request'
     outputs:
-      code: ${{ steps.filter.outputs.code }}
+      code: ${{ steps.detect.outputs.app_ci }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          token: ''
-          base: ${{ github.event.pull_request.base.ref }}
-          filters: |
-            code:
-              - 'Foil/**'
-              - 'FoilTests/**'
-              - 'FoilUITests/**'
-              - 'Foil.xcodeproj/**'
-              - 'project.yml'
-              - '.github/**'
-              - 'ExportOptions.plist'
-              - 'Makefile'
-              - 'package.json'
-              - 'package-lock.json'
-              - 'scripts/**'
-              - 'docs/release-*.md'
+      - name: Detect app-impacting changes
+        id: detect
+        run: bash .github/scripts/app-ci-required.sh
 
   build:
     name: Build
@@ -55,8 +38,7 @@ jobs:
     needs: [detect-changes]
     if: >-
       always() && !cancelled() &&
-      (github.event_name != 'pull_request' ||
-       needs.detect-changes.outputs.code == 'true')
+      needs.detect-changes.outputs.code == 'true'
 
     steps:
       - name: Checkout code
@@ -84,8 +66,7 @@ jobs:
     needs: [detect-changes]
     if: >-
       always() && !cancelled() &&
-      (github.event_name != 'pull_request' ||
-       needs.detect-changes.outputs.code == 'true')
+      needs.detect-changes.outputs.code == 'true'
 
     steps:
       - name: Checkout code
@@ -236,8 +217,7 @@ jobs:
     needs: [detect-changes]
     if: >-
       always() && !cancelled() &&
-      (github.event_name != 'pull_request' ||
-       needs.detect-changes.outputs.code == 'true')
+      needs.detect-changes.outputs.code == 'true'
 
     steps:
       - name: Checkout code

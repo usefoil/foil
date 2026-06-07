@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-      - "gh-readonly-queue/main/**"
   workflow_dispatch:
 
 permissions:
@@ -17,10 +16,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  detect-changes:
+    name: Detect Changed Paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      app_ci: ${{ steps.detect.outputs.app_ci }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect app-impacting changes
+        id: detect
+        run: bash .github/scripts/app-ci-required.sh
+
   e2e:
     name: Live Groq transcription on local Mac
     runs-on: [self-hosted, macOS, ARM64, trusted-macos-e2e, e2e, gui, browser]
     timeout-minutes: 45
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.app_ci == 'true'
     steps:
       - name: Host proof
         run: |
