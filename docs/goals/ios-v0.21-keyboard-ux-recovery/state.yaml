@@ -60,13 +60,13 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-v0-21-keyboard-ux-recovery/"
     command: "npx goalbuddy board docs/goals/ios-v0.21-keyboard-ux-recovery"
 
-active_task: T001
+active_task: T004
 
 tasks:
   - id: T001
     type: scout
     assignee: Scout
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Map keyboard UI/state handling and identify the highest-value recovery/status hardening slice."
     inputs:
@@ -82,11 +82,36 @@ tasks:
       - "Known stale/refresh failure modes."
       - "Existing and missing tests."
       - "Candidate Worker slice with allowed_files and verify commands."
+    receipt:
+      result: done
+      note: "notes/T001-scout.md"
+      summary: "Mapped the keyboard/App Group state path. The highest-risk gap is that presentation treats only complete snapshots as insertable, but KeyboardViewController and consumeTranscriptForInsertion trust any non-empty transcript regardless of phase."
+      evidence:
+        - "FoilDictationLoopPresenter.keyboardPresentation only shows Transcript ready for phase complete with transcript."
+        - "KeyboardViewController.refreshState enables Insert latest for any non-empty transcript."
+        - "FoilKeyboardBridge.consumeTranscriptForInsertion returns any non-empty transcript, regardless of phase."
+        - "Existing tests cover exact-once complete insertion and keyboard copy, but not non-complete snapshots with leftover transcript."
+      candidate_worker:
+        objective: "Add a shared insertability rule requiring phase complete plus non-empty transcript, use it for both UI enablement and consumption, and add tests proving stale/non-complete leftover transcript states cannot insert."
+        allowed_files:
+          - "FoiliOS/Shared/FoilKeyboardBridge.swift"
+          - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+          - "FoiliOS/Shared/FoilDictationLoopPresenter.swift"
+          - "FoiliOS/FoilIOSTests/FoilKeyboardBridgeTests.swift"
+          - "FoiliOS/FoilIOSTests/FoilDictationLoopPresentationTests.swift"
+          - "docs/goals/ios-v0.21-keyboard-ux-recovery/**"
+        verify:
+          - "FoilKeyboardBridgeTests"
+          - "FoilDictationLoopPresentationTests"
+          - "GoalBuddy state checker"
+          - "Physical sterile receipt proving enabled/disabled/exact-once behavior"
+          - "Targeted secret/raw-content scan"
+          - "git diff --check"
 
   - id: T002
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Approve the first keyboard UX recovery implementation slice."
     inputs:
@@ -101,11 +126,17 @@ tasks:
       - "allowed_files"
       - "verify commands"
       - "stop_if conditions"
+    receipt:
+      result: done
+      decision: approved
+      note: "notes/T002-judge.md"
+      summary: "Approved a focused state-safety slice: one shared insertability rule requiring complete phase plus non-empty transcript, used by bridge consumption and keyboard button enablement."
+      worker_objective: "Prevent stale/non-complete leftover transcripts from being inserted while preserving exact-once complete insertion and reset recovery."
 
   - id: T003
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Implement the approved keyboard recovery/status slice and verify it with tests and at least one physical sterile receipt."
     allowed_files:
@@ -121,6 +152,61 @@ tasks:
       - "A desired recovery behavior is blocked by iOS keyboard extension limits."
       - "The phone needs unlock/install/user action."
       - "The slice requires a full onboarding redesign."
+    receipt:
+      result: done
+      note: "notes/T003-worker.md"
+      summary: "Implemented the shared insertableTranscript rule, wired it into keyboard insertion and button enablement, and proved stale/non-complete leftover transcripts do not insert in focused simulator tests."
+      changed_files:
+        - "FoiliOS/Shared/FoilKeyboardBridge.swift"
+        - "FoiliOS/FoilKeyboard/KeyboardViewController.swift"
+        - "FoiliOS/FoilIOSTests/FoilKeyboardBridgeTests.swift"
+        - "FoiliOS/FoilIOSTests/FoilDictationLoopPresentationTests.swift"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/T002-judge.md"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/T003-worker.md"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/state.yaml"
+      commands:
+        - cmd: "xcodebuild test -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=3078C4C7-E3E0-448A-B6AB-8AFE7A39F440' -only-testing:FoilIOSTests/FoilKeyboardBridgeTests -only-testing:FoilIOSTests/FoilDictationLoopPresentationTests"
+          status: pass
+          evidence: "17 selected tests, 0 failures"
+        - cmd: "node /Users/neonwatty/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/ios-v0.21-keyboard-ux-recovery/state.yaml"
+          status: pass
+          evidence: "Passed before adding the T003 receipt; rerun required after receipt normalization."
+        - cmd: "git diff --check"
+          status: pass
+          evidence: "No whitespace errors."
+        - cmd: "targeted rg scan over touched files for common secrets/private-content markers"
+          status: pass
+          evidence: "Only hit was the intentional privacy stop phrase in T002."
+        - cmd: "xcodebuild WebDriverAgentRunner-nodebug on iPhone-preview"
+          status: pass
+          outcome: blocked
+          evidence: "Timed out while enabling automation mode, then prompted for Password."
+      verification:
+        focused_tests: "passed: 17 selected tests, 0 failures"
+        goalbuddy_check: "passed before T003 receipt"
+        diff_check: "passed"
+        scan: "passed with one intentional privacy-stop phrase in T002 note"
+      physical_receipt:
+        outcome: blocked
+        reason: "WDA startup on iPhone-preview timed out while enabling automation mode, then prompted for Password."
+        next_step: "Unblock WDA automation mode, then run the sterile stale-state and exact-once physical receipt."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: active
+    reasoning_hint: high
+    objective: "Collect the physical sterile receipt for v0.21 once WDA automation mode is available."
+    allowed_files:
+      - "docs/goals/ios-v0.21-keyboard-ux-recovery/**"
+    verify:
+      - "Install or confirm current branch build on iPhone-preview."
+      - "Stage a stale non-complete snapshot with leftover transcript and prove Insert latest is disabled/unavailable in a sterile input."
+      - "Stage a complete snapshot and prove exact-once insertion plus App Group idle cleanup."
+      - "Do not commit raw WDA source, screenshots, private content, or credentials."
+    stop_if:
+      - "WDA is not ready because automation mode, trust, unlock, or password-gated setup needs operator action."
+      - "The only reachable host-app surface exposes private content."
 
   - id: T999
     type: judge

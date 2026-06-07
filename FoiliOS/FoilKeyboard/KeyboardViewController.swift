@@ -144,14 +144,15 @@ final class KeyboardViewController: UIInputViewController {
         statusLabel.text = presentation.status
         messageLabel.text = presentation.message
         let hasTranscript = snapshot.transcript?.isEmpty == false
+        let hasInsertableTranscript = snapshot.insertableTranscript != nil
         let hasRecoverableState = snapshot.phase != .idle || hasTranscript
-        insertButton.isEnabled = hasTranscript && fullAccessEnabled
+        insertButton.isEnabled = hasInsertableTranscript && fullAccessEnabled
         resetButton.isEnabled = hasRecoverableState && fullAccessEnabled
         startButton.setTitle(presentation.startTitle, for: .normal)
         var insertConfiguration = insertButton.configuration ?? .filled()
         insertConfiguration.title = presentation.insertTitle
-        insertConfiguration.baseBackgroundColor = hasTranscript && fullAccessEnabled ? .systemBlue : .systemGray4
-        insertConfiguration.baseForegroundColor = hasTranscript && fullAccessEnabled ? .white : .secondaryLabel
+        insertConfiguration.baseBackgroundColor = hasInsertableTranscript && fullAccessEnabled ? .systemBlue : .systemGray4
+        insertConfiguration.baseForegroundColor = hasInsertableTranscript && fullAccessEnabled ? .white : .secondaryLabel
         insertButton.configuration = insertConfiguration
 
         var resetConfiguration = resetButton.configuration ?? .gray()

@@ -111,6 +111,51 @@ final class FoilDictationLoopPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.message.contains("Open Foil"))
     }
 
+    func testKeyboardNonCompleteLeftoverTranscriptDoesNotAdvertiseInsertLatest() {
+        let snapshots = [
+            FoilKeyboardSnapshot(
+                phase: .idle,
+                transcript: "leftover transcript",
+                message: "Ready",
+                updatedAt: Date()
+            ),
+            FoilKeyboardSnapshot(
+                phase: .handoffRequested,
+                transcript: "leftover transcript",
+                message: "Foil is opening.",
+                updatedAt: Date()
+            ),
+            FoilKeyboardSnapshot(
+                phase: .listening,
+                transcript: "leftover transcript",
+                message: "Recording.",
+                updatedAt: Date()
+            ),
+            FoilKeyboardSnapshot(
+                phase: .processing,
+                transcript: "leftover transcript",
+                message: "Transcribing.",
+                updatedAt: Date()
+            ),
+            FoilKeyboardSnapshot(
+                phase: .failed,
+                transcript: "leftover transcript",
+                message: "No speech detected.",
+                updatedAt: Date()
+            )
+        ]
+
+        for snapshot in snapshots {
+            let presentation = FoilDictationLoopPresenter.keyboardPresentation(
+                snapshot: snapshot,
+                fullAccessEnabled: true
+            )
+
+            XCTAssertNotEqual(presentation.insertTitle, "Insert latest", "Expected \(snapshot.phase.rawValue) to be non-insertable.")
+            XCTAssertFalse(presentation.status.contains("Transcript ready"), "Expected \(snapshot.phase.rawValue) not to present a ready transcript.")
+        }
+    }
+
     func testKeyboardFullAccessOffTellsUserToEnableAndCycleBack() {
         let presentation = FoilDictationLoopPresenter.keyboardPresentation(
             snapshot: .initial,

@@ -32,6 +32,13 @@ struct FoilKeyboardSnapshot: Codable, Equatable {
     var message: String
     var updatedAt: Date
 
+    var insertableTranscript: String? {
+        guard phase == .complete else { return nil }
+        let trimmedTranscript = transcript?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trimmedTranscript, !trimmedTranscript.isEmpty else { return nil }
+        return trimmedTranscript
+    }
+
     static var initial: FoilKeyboardSnapshot {
         FoilKeyboardSnapshot(
             phase: .idle,
@@ -296,7 +303,7 @@ struct FoilKeyboardBridge {
 
     func consumeTranscriptForInsertion() -> String? {
         let snapshot = load()
-        let transcript = snapshot.transcript?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let transcript = snapshot.insertableTranscript
         persist(.initial, operation: "insert")
         let currentHealth = keyboardHealthReport()
         saveKeyboardHealthReport(
@@ -308,9 +315,6 @@ struct FoilKeyboardBridge {
                 updatedAt: Date()
             )
         )
-        guard let transcript, !transcript.isEmpty else {
-            return nil
-        }
         return transcript
     }
 
