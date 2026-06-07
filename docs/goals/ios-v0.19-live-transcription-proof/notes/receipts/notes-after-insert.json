@@ -1,0 +1,37 @@
+{
+  "appGroup": {},
+  "checks": [
+    {
+      "identifier": "foil-keyboard-root",
+      "kind": "requireIdentifier",
+      "passed": true,
+      "present": true
+    },
+    {
+      "attribute": "enabled",
+      "expected": "false",
+      "identifier": "foil-keyboard-insert-latest",
+      "kind": "expectIdentifierState",
+      "observed": [
+        "false"
+      ],
+      "passed": true
+    },
+    {
+      "actual": 3,
+      "expected": 3,
+      "kind": "expectValueTextCount",
+      "passed": true,
+      "textLength": 21,
+      "textSha256": "43d523eea86dc604"
+    }
+  ],
+  "passed": true,
+  "schema": "foil.iosPhysicalWdaEvidence.v1",
+  "source": {
+    "file": "source-after.json",
+    "nodeCount": 131,
+    "sha256": "790d82559bac7634a347a9ddc12204b431793a2a3ef3925ae9608d74498c1470"
+  },
+  "target": "notes-live-after-insert"
+}
