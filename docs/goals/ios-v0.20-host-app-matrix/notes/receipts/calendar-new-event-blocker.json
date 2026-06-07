@@ -1,0 +1,9 @@
+{
+  "schema": "foil.iosHostAppMatrix.blocker.v1",
+  "target": "calendar-new-event-title",
+  "status": "blocked",
+  "reason": "No verified sterile deep link or automation path to a blank new-event title field was available. Opening Calendar normally could expose private calendar titles before a blank event sheet is focused.",
+  "privacyBoundary": "No Calendar UI source, screenshots, event titles, account names, or calendar lists were fetched, inspected, printed, or committed.",
+  "stopCondition": "A target exposes private content before a sterile blank field is focused.",
+  "nextSafeAttempt": "Use operator setup to open a blank unsaved event sheet with the title field focused, or add a sterile in-app/calendar fixture before rerunning this row."
+}
