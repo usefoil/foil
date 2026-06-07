@@ -5,7 +5,7 @@ goal:
   slug: "ios-v0.21-keyboard-ux-recovery"
   kind: existing_plan
   tranche: "Reduce custom-keyboard friction by hardening transcript status, recovery, stale-state handling, and exact-once UI behavior."
-  status: active
+  status: blocked
   oracle:
     signal: "Keyboard UI and state tests plus a physical receipt prove status is accurate, stale/malformed state is safe, Insert latest is exact-once, and the operator has a clear recovery path for iOS keyboard refresh friction."
     cadence: "after Scout, after Worker implementation, after simulator tests, after physical receipt, and at final audit"
@@ -60,7 +60,7 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-v0-21-keyboard-ux-recovery/"
     command: "npx goalbuddy board docs/goals/ios-v0.21-keyboard-ux-recovery"
 
-active_task: T004
+active_task: null
 
 tasks:
   - id: T001
@@ -194,7 +194,7 @@ tasks:
   - id: T004
     type: worker
     assignee: Worker
-    status: active
+    status: blocked
     reasoning_hint: high
     objective: "Collect the physical sterile receipt for v0.21 once WDA automation mode is available."
     allowed_files:
@@ -250,6 +250,23 @@ tasks:
       remaining:
         - "Need WDA or equivalent safe UI automation to inspect/tap physical keyboard in a sterile target."
         - "Need stale non-complete physical keyboard UI proof and complete exact-once insertion proof."
+    receipt:
+      result: blocked
+      task_id: T004
+      note: "notes/T004-blocker.md"
+      summary: "Physical branch install and App Group complete/stale/idle fixture proof passed, but WDA cannot collect the required physical keyboard UI receipt because macOS Developer Tools security is disabled. WDA times out enabling automation mode and prompts for Password before exposing an endpoint."
+      completed:
+        - "Built and installed current v0.21 branch on iPhone-preview as Foil iOS 0.1.0 build 10."
+        - "Confirmed iPhone-preview is paired, unlocked-since-boot, Developer Mode enabled, wired, and CoreDevice tunnel connected."
+        - "Proved App Group initial idle, complete fixture readback, stale processing fixture readback, and final idle cleanup with sanitized hash-only receipts."
+      blocked_on:
+        - "`/usr/sbin/DevToolsSecurity -status` reports Developer mode is currently disabled."
+        - "WDA runner launches but times out enabling automation mode, then prompts for Password."
+        - "`pymobiledevice3 developer wda status` cannot connect to the WDA service port."
+      next_human_action: "Run /usr/sbin/DevToolsSecurity -enable on the Mac and enter the admin password, then resume T004."
+      remaining:
+        - "Physical stale non-complete keyboard UI proof."
+        - "Physical complete exact-once insertion and App Group cleanup proof."
 
   - id: T999
     type: judge
