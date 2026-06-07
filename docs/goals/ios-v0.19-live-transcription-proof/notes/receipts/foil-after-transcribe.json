@@ -1,0 +1,23 @@
+{
+  "bytes": 25493,
+  "checks": [
+    {
+      "name": "ready for keyboard",
+      "present": true
+    },
+    {
+      "name": "groq ready",
+      "present": true
+    },
+    {
+      "name": "review body",
+      "present": true
+    },
+    {
+      "name": "shared transcript pending",
+      "present": true
+    }
+  ],
+  "schema": "foil.iosLiveAppSourceSummary.v1",
+  "sha256": "bd1d7e394fc038182bc18330a494b4ee4e1cf78244153ae4006e0caa4bd67209"
+}

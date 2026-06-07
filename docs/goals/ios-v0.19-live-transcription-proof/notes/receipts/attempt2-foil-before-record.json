@@ -1,0 +1,15 @@
+{
+  "bytes": 22495,
+  "checks": [
+    {
+      "name": "grid record button",
+      "present": true
+    },
+    {
+      "name": "provider configured",
+      "present": true
+    }
+  ],
+  "schema": "foil.iosLiveAppSourceSummary.v1",
+  "sha256": "b91abbd6606412f3f3bac572c59f16601717bbf5c46a8f55f243b8df862ac0e1"
+}

@@ -5,7 +5,7 @@ goal:
   slug: "ios-v0.19-live-transcription-proof"
   kind: existing_plan
   tranche: "Prove the physical iPhone live audio-to-keyboard insertion path with a sterile phrase."
-  status: active
+  status: done
   oracle:
     signal: "A physical iPhone proof shows Foil iOS records audio, transcribes through the configured test provider, makes the transcript available to Foil Keyboard, inserts it exactly once, and clears App Group state."
     cadence: "after Scout, after live run, after any fix, and at final audit"
@@ -60,13 +60,13 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-v0-19-live-transcription-proof/"
     command: "npx goalbuddy board docs/goals/ios-v0.19-live-transcription-proof"
 
-active_task: T001
+active_task: null
 
 tasks:
   - id: T001
     type: scout
     assignee: Scout
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Map the live transcription proof path and identify how to prove the transcript was provider-produced, not test-staged."
     inputs:
@@ -83,11 +83,37 @@ tasks:
       - "Host target recommendation."
       - "Evidence needed to distinguish live transcript from fake staging."
       - "Candidate Worker slice with allowed_files and verify commands."
+    receipt:
+      result: done
+      note: "notes/T001-scout.md"
+      summary: "Mapped the build-10 live proof path. Device has Foil iOS 0.1.0 (10), App Group is idle/no transcript, WDA is available at the phone URL, Foil app reports microphone allowed and Groq key configured without exposing key material, and Notes is the safest sterile target."
+      evidence:
+        - "devicectl app metadata reports Foil iOS version 0.1.0 bundle version 10."
+        - "scripts/ios-physical-harness.py app-group-summary reports phase idle and hasTranscript false."
+        - "WDA started and advertised http://192.168.1.40:8100."
+        - "Foil app source inspection confirmed Microphone allowed, Groq key configured, Ready/no transcript, start-recording-button, and transcribe-latest-button."
+        - "Shell environment checks showed no GROQ_API_KEY or FOIL_IOS_GROQ_API_KEY value present."
+      candidate_worker:
+        objective: "Run one physical live transcription proof on build 10 using Foil app record/stop/transcribe controls, macOS text-to-speech for a repeated sterile phrase, Foil Keyboard insertion into a fresh Notes note, and v0.18 harness receipts for sanitized state/source proof."
+        allowed_files:
+          - "docs/goals/ios-v0.19-live-transcription-proof/**"
+          - "scripts/**"
+          - "FoiliOS/**"
+        verify:
+          - "scripts/ios-physical-harness.py status --wda-url http://192.168.1.40:8100"
+          - "App Group summary before recording is idle/no transcript."
+          - "WDA source/fetch receipts show Foil app recording/transcription state changes without committing raw source."
+          - "App Group summary after transcription is complete/hasTranscript with hash and length only."
+          - "WDA sanitized receipts prove Foil Keyboard pre/post insert state in Notes."
+          - "App Group reset/cleanup receipt is idle/no transcript."
+          - "GoalBuddy state checker"
+          - "git diff --check"
+          - "Targeted secret/raw-content scan over touched files."
 
   - id: T002
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Approve the live proof slice and any narrowly scoped fixes needed before running it."
     inputs:
@@ -102,11 +128,40 @@ tasks:
       - "allowed_files"
       - "verify commands"
       - "stop_if conditions"
+    receipt:
+      result: done
+      decision: approved
+      note: "notes/T002-judge.md"
+      summary: "Approved one physical build-10 live proof slice: record and transcribe a repeated sterile phrase through Foil app controls, prove the App Group complete snapshot appears after app Transcribe rather than direct staging, insert through Foil Keyboard into a fresh Notes note, and record sanitized pre/post/cleanup receipts."
+      full_outcome_complete: false
+      worker_task: T003
+      allowed_files:
+        - "docs/goals/ios-v0.19-live-transcription-proof/**"
+        - "scripts/**"
+        - "FoiliOS/**"
+      verify:
+        - "scripts/ios-physical-harness.py status --wda-url http://192.168.1.40:8100"
+        - "App Group summary before recording is idle/no transcript."
+        - "WDA source/fetch metadata proves app control path without committing raw source."
+        - "App Group summary after app Transcribe is complete/hasTranscript with transcript hash/length only."
+        - "Sanitized WDA receipts prove Foil Keyboard pre-insert Insert latest enabled."
+        - "Sanitized WDA receipts prove post-insert Notes contains the expected sterile transcript exactly once or a clearly equivalent repeated transcript."
+        - "Sanitized cleanup/App Group receipt proves idle/no transcript afterward."
+        - "GoalBuddy state checker"
+        - "git diff --check"
+        - "Targeted secret/raw-content scan over touched files"
+      stop_if:
+        - "The phone locks, disconnects, or requires user approval."
+        - "Provider key is missing or would need to be printed."
+        - "Microphone permission requires manual action."
+        - "Audio cannot produce a recognizable sterile transcript after two attempts."
+        - "Notes exposes private content that cannot be isolated."
+        - "Raw WDA source, screenshots, or private content would need to be committed."
 
   - id: T003
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Run the approved live transcription proof, fixing only approved blockers and recording sanitized receipts."
     allowed_files:
@@ -126,11 +181,54 @@ tasks:
       - "Provider credentials are missing or would need to be exposed."
       - "Audio cannot be routed/recorded after two documented attempts."
       - "A host app contains private content that cannot be isolated."
+    receipt:
+      result: done
+      note: "notes/T003-worker.md"
+      summary: "Ran the physical build-10 live transcription proof. Attempt 1 exposed an audio-routing issue; after switching macOS output to MacBook Pro Speakers and disconnecting AirPods, attempt 2 recorded/transcribed the repeated sterile phrase, surfaced a complete App Group transcript, inserted it through Foil Keyboard into Notes exactly three times, and returned App Group state to idle/no transcript."
+      changed_files:
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/T003-worker.md"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/status-live.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/app-group-before-attempt2.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/attempt2-foil-before-record.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/attempt2-foil-after-record-start.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/attempt2-foil-after-record-stop.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/attempt2-foil-after-transcribe.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/attempt2-app-group-after-transcribe.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/notes-before-insert.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/notes-after-insert.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/app-group-after-insert.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/notes/receipts/app-group-cleanup.json"
+        - "docs/goals/ios-v0.19-live-transcription-proof/state.yaml"
+      evidence:
+        - "WDA reachable at http://192.168.1.40:8100."
+        - "Attempt 2 App Group baseline was phase idle and hasTranscript false."
+        - "Foil app source summaries proved record, recording, recording saved, transcribe, and Groq transcript ready states."
+        - "Attempt 2 complete App Group summary recorded phase complete, hasTranscript true, transcriptHash, and transcriptLength 68."
+        - "Notes pre-insert receipt passed with Foil Keyboard root present, Insert latest present, and Insert latest enabled true."
+        - "Notes post-insert receipt passed with Insert latest enabled false and expected sterile phrase count 3."
+        - "Post-insert and final cleanup App Group receipts both recorded phase idle and hasTranscript false."
+      commands:
+        - cmd: "scripts/ios-physical-harness.py status --wda-url http://192.168.1.40:8100"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py reset-transcript"
+          status: pass
+        - cmd: "WDA click start-recording-button, play sterile phrase with say, click stop-recording-button, click transcribe-latest-button"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py app-group-summary"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py receipt --target notes-live-before-insert ..."
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py receipt --target notes-live-after-insert --expect-value-count 'Foil audio smoke test=3' ..."
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py reset-transcript"
+          status: pass
+      residual_risk:
+        - "Notes already had a sterile editor with Foil Keyboard visible, so the run did not need to create a new note via the New Note button. Pre/post receipts still prove the target editor and sterile phrase count."
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Final audit: try to disprove that the proof used a real live transcription."
     inputs:
@@ -143,3 +241,25 @@ tasks:
       - "full_outcome_complete: true | false"
       - "Strongest realistic failure mode"
       - "Evidence that rules it out or exact follow-up"
+    receipt:
+      result: done
+      decision: complete
+      note: "notes/T999-final-audit.md"
+      full_outcome_complete: true
+      summary: "Final audit accepted the v0.19 live proof: build 10 on iPhone-preview recorded a sterile phrase through Foil iOS, produced a provider-backed App Group transcript after app Transcribe, enabled Foil Keyboard Insert latest, inserted the transcript exactly once into a sterile Notes editor, and consumed cleanup back to idle/no transcript."
+      strongest_failure_mode: "A test-staged or stale App Group transcript could be mistaken for a live provider-produced transcript."
+      evidence:
+        - "app-group-before-attempt2.json proves reset/readback phase idle before the successful attempt."
+        - "attempt2 Foil app receipts prove the app control path moved through record, recording, saved recording, transcribe, and ready-for-keyboard states."
+        - "attempt2-app-group-after-transcribe.json proves phase complete, hasTranscript true, transcriptHash, and transcriptLength 68 after app Transcribe."
+        - "notes-before-insert.json proves Foil Keyboard root and Insert latest enabled true in Notes."
+        - "notes-after-insert.json proves Insert latest enabled false and sterile phrase count 3."
+        - "app-group-after-insert.json and app-group-cleanup.json prove phase idle after insertion and final reset/readback."
+      verification:
+        - "GoalBuddy state checker"
+        - "Receipt assertion script over baseline, complete transcript, keyboard pre/post, exact phrase count, and cleanup receipts"
+        - "Targeted secret scan"
+        - "Targeted raw WDA/private host-app scan"
+        - "git diff --check"
+      residual_risk:
+        - "Notes already had a sterile editor with Foil Keyboard visible, so this board did not prove creating a new Notes note. That is outside the v0.19 oracle."

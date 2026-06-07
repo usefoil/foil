@@ -1,0 +1,19 @@
+{
+  "bytes": 22223,
+  "checks": [
+    {
+      "name": "transcribe button",
+      "present": true
+    },
+    {
+      "name": "recording saved",
+      "present": true
+    },
+    {
+      "name": "tap transcribe",
+      "present": true
+    }
+  ],
+  "schema": "foil.iosLiveAppSourceSummary.v1",
+  "sha256": "0eba14fd525f0df8807ba32940f0d9a6b77c811b5d5abe0157e97927cd77d025"
+}

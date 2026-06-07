@@ -1,0 +1,15 @@
+{
+  "bytes": 23079,
+  "checks": [
+    {
+      "name": "stop button",
+      "present": true
+    },
+    {
+      "name": "recording state",
+      "present": true
+    }
+  ],
+  "schema": "foil.iosLiveAppSourceSummary.v1",
+  "sha256": "c520acfd39f0f79815d189030fafc885aaa638738c45298ce57cca97fdeac101"
+}
