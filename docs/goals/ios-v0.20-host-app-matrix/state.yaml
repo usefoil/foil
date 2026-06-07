@@ -5,7 +5,7 @@ goal:
   slug: "ios-v0.20-host-app-matrix"
   kind: existing_plan
   tranche: "Broaden physical keyboard insertion coverage to additional sterile host-app targets."
-  status: active
+  status: done
   oracle:
     signal: "At least three additional sterile host-app rows have sanitized pass/block/fail receipts proving readiness, exact-once insertion or expected rejection, App Group cleanup, and no raw private data leakage."
     cadence: "after row selection, after each row, and at final audit"
@@ -61,13 +61,13 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/ios-v0-20-host-app-matrix/"
     command: "npx goalbuddy board docs/goals/ios-v0.20-host-app-matrix"
 
-active_task: T001
+active_task: null
 
 tasks:
   - id: T001
     type: scout
     assignee: Scout
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Select three to five privacy-safe host-app rows and define row-specific setup, proof, cleanup, and stop conditions."
     inputs:
@@ -83,11 +83,48 @@ tasks:
       - "Rows rejected for privacy or setup risk."
       - "Per-row setup and cleanup steps."
       - "Candidate Worker slice with allowed_files and verify commands."
+    receipt:
+      result: done
+      note: "notes/T001-scout.md"
+      summary: "Selected a privacy-safe first slice: Safari local single-line input, Mail blank compose draft, Calendar blank new-event title, with Foil secure-field rejection as fallback if Mail or Calendar cannot reach a sterile surface."
+      evidence:
+        - "Harness status reports iPhone-preview present/available, iproxy present, WDA project present, and WDA currently not running."
+        - "v0.15 already covers Safari textarea and Safari secure password rejection."
+        - "v0.16 already covers Reminders new draft insertion and cleanup."
+        - "v0.17 already covers Messages only after operator-provided sterile thread focus."
+        - "v0.19 already covers live transcript insertion into Notes."
+      recommended_rows:
+        - "Safari local web form single-line input"
+        - "Mail blank compose draft body or subject"
+        - "Calendar blank new-event title"
+        - "Fallback: Foil iOS secure-field rejection harness"
+      rejected_rows:
+        - "Messages navigation/new recipient: private contact/thread risk."
+        - "Files browse/search: private filename/folder risk and weak cleanup semantics."
+        - "Third-party chat: requires operator-provided sterile input surface."
+      candidate_worker:
+        objective: "Execute three receipt-backed matrix rows: Safari local single-line input, Mail blank compose draft if a sterile surface is reachable, Calendar blank new-event title if a sterile surface is reachable, with Foil secure-field rejection as fallback for any privacy-blocked row."
+        allowed_files:
+          - "docs/ios-keyboard-host-app-matrix.md"
+          - "docs/goals/ios-v0.20-host-app-matrix/**"
+          - "scripts/**"
+        verify:
+          - "GoalBuddy state checker"
+          - "scripts/ios-physical-harness.py status"
+          - "Pre-insert keyboard receipt, post-insert exact field proof, and App Group cleanup receipt for each pass row"
+          - "Sanitized blocker receipt/note for each privacy-blocked row"
+          - "Targeted secret/raw-content scans"
+          - "git diff --check"
+        stop_if:
+          - "The phone locks, disconnects, or requires operator action."
+          - "A selected app exposes private content before a sterile draft/new-item surface is focused."
+          - "A row would send mail, save calendar events, send messages, or mutate private user data."
+          - "Raw WDA source or screenshots would need to be committed."
 
   - id: T002
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Approve a bounded host-app matrix slice."
     inputs:
@@ -102,11 +139,35 @@ tasks:
       - "allowed_files"
       - "verify commands"
       - "stop_if conditions"
+    receipt:
+      result: done
+      decision: approved
+      note: "notes/T002-judge.md"
+      summary: "Approved a four-row host-app matrix slice: Safari local single-line input, Mail blank compose draft, Calendar blank new-event title, and Foil iOS secure-field rejection. Mail/Calendar may record privacy blocks if sterile surfaces cannot be reached safely."
+      full_outcome_complete: false
+      worker_task: T003
+      allowed_files:
+        - "docs/ios-keyboard-host-app-matrix.md"
+        - "docs/goals/ios-v0.20-host-app-matrix/**"
+        - "scripts/**"
+      verify:
+        - "GoalBuddy state checker"
+        - "scripts/ios-physical-harness.py status"
+        - "scripts/ios-physical-harness.py self-test"
+        - "Row-specific receipts for at least three additional targets"
+        - "git diff --check"
+        - "Targeted secret scan"
+        - "Targeted raw-content scan over touched v0.20 docs/receipts"
+      stop_if:
+        - "The phone locks, disconnects, or requires operator action."
+        - "A row would send mail, save a calendar event, send a message, or mutate private user data."
+        - "A target exposes private content before a sterile blank field is focused."
+        - "Raw WDA source, screenshots, or private content would need to be committed."
 
   - id: T003
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Execute the approved matrix rows and commit sanitized receipts and matrix documentation."
     allowed_files:
@@ -123,11 +184,64 @@ tasks:
       - "A selected app exposes private content."
       - "The phone needs unlock/install/user action."
       - "A row requires sending external content."
+    receipt:
+      result: done
+      note: "notes/T003-worker.md"
+      summary: "Executed the approved four-row matrix slice. Safari local single-line input passed with exact value-count and App Group cleanup receipts; Mail compose blocked because the Mail bundle was unavailable through sterile mailto; Calendar blocked before launch because no sterile blank event path was available; Foil secure rejection blocked because Diagnostics could not be expanded through WDA, with App Group cleanup proven."
+      changed_files:
+        - "docs/ios-keyboard-host-app-matrix.md"
+        - "docs/goals/ios-v0.20-host-app-matrix/notes/T003-worker.md"
+        - "docs/goals/ios-v0.20-host-app-matrix/notes/fixture/index.html"
+        - "docs/goals/ios-v0.20-host-app-matrix/notes/receipts/*.json"
+        - "docs/goals/ios-v0.20-host-app-matrix/state.yaml"
+      row_outcomes:
+        - row: "Safari local single-line input"
+          outcome: pass
+          receipts:
+            - "notes/receipts/safari-single-stage.json"
+            - "notes/receipts/safari-single-before-insert.json"
+            - "notes/receipts/safari-single-after-insert.json"
+            - "notes/receipts/safari-single-app-group-after-insert.json"
+            - "notes/receipts/safari-single-cleanup.json"
+        - row: "Mail blank compose draft"
+          outcome: blocked
+          receipts:
+            - "notes/receipts/mail-compose-blocker.json"
+        - row: "Calendar blank new-event title"
+          outcome: blocked
+          receipts:
+            - "notes/receipts/calendar-new-event-blocker.json"
+        - row: "Foil iOS secure-field rejection fallback"
+          outcome: blocked
+          receipts:
+            - "notes/receipts/foil-secure-stage.json"
+            - "notes/receipts/foil-secure-blocker.json"
+            - "notes/receipts/foil-secure-cleanup.json"
+      commands:
+        - cmd: "scripts/ios-physical-harness.py self-test"
+          status: pass
+        - cmd: "scripts/ios-physical-harness.py status --wda-url http://192.168.1.40:8100"
+          status: pass
+        - cmd: "Safari single-line row: stage transcript, pre-insert receipt, Insert latest tap, post-insert receipt, App Group cleanup"
+          status: pass
+        - cmd: "Mail compose row: sterile mailto open attempt and blocker receipt"
+          status: pass
+        - cmd: "Calendar row: privacy-blocker receipt before Calendar source inspection"
+          status: pass
+        - cmd: "Foil secure fallback row: Diagnostics expansion attempts, blocker receipt, App Group cleanup"
+          status: pass
+      verification:
+        - "GoalBuddy state checker"
+        - "scripts/ios-physical-harness.py self-test"
+        - "Safari row pre/post/App Group/cleanup receipts"
+        - "Mail/Calendar/Foil secure blocker receipts"
+      residual_risk:
+        - "Only one v0.20 row is a new pass. Mail, Calendar, and Foil secure rejection are exact blockers for follow-up."
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Final audit: try to disprove the host-app matrix actually proves intended-field exact-once insertion."
     inputs:
@@ -140,3 +254,35 @@ tasks:
       - "full_outcome_complete: true | false"
       - "Strongest realistic failure mode"
       - "Evidence that rules it out or exact follow-up"
+    receipt:
+      result: done
+      decision: complete
+      note: "notes/T999-final-audit.md"
+      full_outcome_complete: true
+      summary: "Final audit accepted v0.20 as a pass/block matrix expansion: Safari local single-line input passed with exact insertion and cleanup receipts; Mail, Calendar, and Foil secure rejection were recorded as exact blockers with privacy/testability boundaries."
+      strongest_failure_mode: "The matrix could look broader than it really is by treating blocker rows as working compatibility."
+      evidence:
+        - "docs/ios-keyboard-host-app-matrix.md labels each v0.20 row pass or blocked."
+        - "safari-single-before-insert.json proves Foil Keyboard readiness before the passing Safari row."
+        - "safari-single-after-insert.json proves Insert latest disabled and sterile value count exactly 1."
+        - "safari-single-app-group-after-insert.json and safari-single-cleanup.json prove App Group idle cleanup."
+        - "mail-compose-blocker.json records unavailable Mail bundle through sterile mailto without Mail source inspection."
+        - "calendar-new-event-blocker.json records the privacy stop before Calendar source inspection."
+        - "foil-secure-stage.json records the pending transcript setup; foil-secure-blocker.json records Diagnostics expansion blocker; foil-secure-cleanup.json proves idle cleanup."
+      commands:
+        - cmd: "GoalBuddy state checker"
+          status: pass
+        - cmd: "Receipt assertion script"
+          status: pass
+        - cmd: "JSON receipt parse check"
+          status: pass
+        - cmd: "Targeted secret scan"
+          status: pass
+        - cmd: "Targeted raw-content scan"
+          status: pass
+        - cmd: "git diff --check"
+          status: pass
+        - cmd: "ps cleanup check for WDA/server processes"
+          status: pass
+      residual_risk:
+        - "Only one v0.20 row is a new insertion pass; Mail, Calendar, and Foil secure rejection are precise blockers for follow-up."

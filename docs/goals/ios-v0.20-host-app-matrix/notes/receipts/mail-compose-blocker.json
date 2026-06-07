@@ -1,0 +1,17 @@
+{
+  "schema": "foil.iosHostAppMatrix.blocker.v1",
+  "target": "mail-compose-draft",
+  "status": "blocked",
+  "reason": "Mail compose could not be opened through a sterile mailto URL; WDA reported the Mail app bundle was not found.",
+  "privacyBoundary": "No Mail inbox, account list, message body, contacts, or raw Mail source was inspected or committed.",
+  "wda": {
+    "error": "unknown error",
+    "messageHash": "f2971feafe424016",
+    "messageContainsMobileMailNotFound": true
+  },
+  "sourceProbe": {
+    "printedRawSource": false,
+    "composeMarkersPresent": false,
+    "sourceSha256": "719e27e12e4b3f392753bb927f86fa1d4818f97252c0524a563f3ab083184efe"
+  }
+}

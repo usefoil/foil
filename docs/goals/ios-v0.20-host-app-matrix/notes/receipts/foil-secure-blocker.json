@@ -1,0 +1,19 @@
+{
+  "schema": "foil.iosHostAppMatrix.blocker.v1",
+  "target": "foil-secure-rejection",
+  "status": "blocked",
+  "reason": "Foil iOS launched, but the Diagnostics disclosure containing secure-rejection-field did not expand via WDA element click or W3C coordinate tap, so the secure field could not be focused for a rejection receipt in this run.",
+  "privacyBoundary": "Foil app source is first-party; no host-app private content was inspected. No raw WDA source was committed.",
+  "evidence": {
+    "beforeSourceSha256": "8141266ffb3332d856357666489f4d633c3e85e8d5a227cd80fb535024b63c0f",
+    "diagnosticsOpenSourceSha256": "24954cff5b81015a37ad2b5bc58f160e4af384747a28f78cbf221b488b0f8c27",
+    "secureIdentifierPresentAfterAttempts": false,
+    "diagnosticsStillCollapsed": true,
+    "tapMethodsAttempted": [
+      "element click on Diagnostics",
+      "W3C pointer actions at disclosure chevron"
+    ]
+  },
+  "cleanup": "foil-secure-cleanup.json proves App Group reset/readback returned idle after the blocked attempt.",
+  "nextSafeAttempt": "Add a first-party deep link or accessibility action to open Diagnostics/focus secure-rejection-field, then rerun the rejection row."
+}
