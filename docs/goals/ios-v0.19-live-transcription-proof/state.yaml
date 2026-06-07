@@ -1,0 +1,145 @@
+version: 2
+
+goal:
+  title: "Foil iOS v0.19 Live Transcription Proof"
+  slug: "ios-v0.19-live-transcription-proof"
+  kind: existing_plan
+  tranche: "Prove the physical iPhone live audio-to-keyboard insertion path with a sterile phrase."
+  status: active
+  oracle:
+    signal: "A physical iPhone proof shows Foil iOS records audio, transcribes through the configured test provider, makes the transcript available to Foil Keyboard, inserts it exactly once, and clears App Group state."
+    cadence: "after Scout, after live run, after any fix, and at final audit"
+    final_proof: "Sanitized receipts showing installed build, provider-safe live transcript hash/length, keyboard pre/post state, exact-once insertion into a sterile target, cleanup state, and final audit."
+  intake:
+    original_request: "plan out the next 5 goalbuddy prep boards"
+    interpreted_outcome: "After harness automation, prove a real live transcription path rather than direct transcript staging."
+    input_shape: existing_plan
+    audience: "Foil owner/developer validating iPhone viability"
+    authority: approved
+    proof_type: demo
+    completion_proof: "Physical receipts distinguish live provider-produced transcript from test-staged transcript and prove exact-once keyboard insertion."
+    likely_misfire: "Passing by writing a fake transcript into the App Group and calling it live transcription."
+    blind_spots_considered:
+      - "Provider keys must stay on the machine and out of logs."
+      - "Audio routing can make a live proof falsely fail or falsely pass with stale state."
+      - "The keyboard may insert a prior transcript if cleanup is incomplete."
+      - "A host app may transform dictated text."
+    existing_plan_facts:
+      - "Earlier boards proved direct App Group staging and exact-once insertion."
+      - "The user approved using the Groq API key from this machine for testing."
+      - "v0.18 should provide reusable WDA/App Group proof helpers."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-v0-19-live-transcription-proof/"
+    command: "npx goalbuddy board docs/goals/ios-v0.19-live-transcription-proof"
+
+active_task: T001
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: active
+    reasoning_hint: medium
+    objective: "Map the live transcription proof path and identify how to prove the transcript was provider-produced, not test-staged."
+    inputs:
+      - "Foil iOS app/keyboard provider and command-mailbox code"
+      - "v0.18 harness receipts and scripts"
+      - "Existing TestFlight/debug build metadata"
+    constraints:
+      - "Read-only."
+      - "Do not print API keys or private transcript content."
+      - "Do not inspect private host-app data."
+    expected_output:
+      - "Recommended sterile phrase strategy."
+      - "Provider/config readiness checks."
+      - "Host target recommendation."
+      - "Evidence needed to distinguish live transcript from fake staging."
+      - "Candidate Worker slice with allowed_files and verify commands."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Approve the live proof slice and any narrowly scoped fixes needed before running it."
+    inputs:
+      - "T001 receipt"
+      - "Goal oracle"
+    constraints:
+      - "Reject proofs based only on direct App Group staging."
+      - "Require cleanup and exact-once evidence."
+    expected_output:
+      - "approved | revise | blocked"
+      - "Exact Worker objective"
+      - "allowed_files"
+      - "verify commands"
+      - "stop_if conditions"
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: high
+    objective: "Run the approved live transcription proof, fixing only approved blockers and recording sanitized receipts."
+    allowed_files:
+      - "FoiliOS/**"
+      - "scripts/**"
+      - "docs/ios-physical-automation-runbook.md"
+      - "docs/goals/ios-v0.19-live-transcription-proof/**"
+    verify:
+      - "Relevant Swift tests for any touched Foil iOS files"
+      - "Harness receipt proving live transcript phase/hash/length before insertion"
+      - "Harness receipt proving exact-once insertion"
+      - "Harness receipt proving idle/no transcript cleanup"
+      - "git diff --check"
+      - "Targeted secret scan over touched files"
+    stop_if:
+      - "The phone needs unlock/install/user action."
+      - "Provider credentials are missing or would need to be exposed."
+      - "Audio cannot be routed/recorded after two documented attempts."
+      - "A host app contains private content that cannot be isolated."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Final audit: try to disprove that the proof used a real live transcription."
+    inputs:
+      - "All receipts"
+      - "Git diff"
+      - "Goal oracle"
+    constraints:
+      - "Treat stale App Group state and fake staging as the primary failure mode."
+    expected_output:
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode"
+      - "Evidence that rules it out or exact follow-up"

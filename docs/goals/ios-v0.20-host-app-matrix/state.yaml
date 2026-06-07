@@ -1,0 +1,142 @@
+version: 2
+
+goal:
+  title: "Foil iOS v0.20 Host App Matrix"
+  slug: "ios-v0.20-host-app-matrix"
+  kind: existing_plan
+  tranche: "Broaden physical keyboard insertion coverage to additional sterile host-app targets."
+  status: active
+  oracle:
+    signal: "At least three additional sterile host-app rows have sanitized pass/block/fail receipts proving readiness, exact-once insertion or expected rejection, App Group cleanup, and no raw private data leakage."
+    cadence: "after row selection, after each row, and at final audit"
+    final_proof: "Committed matrix doc, per-row receipts, cleanup proof, privacy scan, and final audit mapping every row to the oracle."
+  intake:
+    original_request: "plan out the next 5 goalbuddy prep boards"
+    interpreted_outcome: "After the live proof, broaden host-app compatibility evidence beyond the initial rows."
+    input_shape: existing_plan
+    audience: "Foil owner/developer deciding whether the keyboard approach is viable"
+    authority: approved
+    proof_type: demo
+    completion_proof: "A receipt-backed compatibility matrix covers three new sterile targets or records exact external blockers."
+    likely_misfire: "Checking that text exists somewhere while failing to prove the intended host app and field received exactly one insertion."
+    blind_spots_considered:
+      - "Third-party apps and private accounts may expose user data."
+      - "Some rows may require operator setup or app installation."
+      - "Secure fields should reject third-party keyboards."
+      - "Host apps may auto-correct, format, or preserve drafts."
+    existing_plan_facts:
+      - "v0.15 proved Safari textarea and secure password rejection."
+      - "v0.16 proved Reminders draft insertion."
+      - "v0.17 proved a sterile Messages draft row."
+      - "v0.18 should make row execution more repeatable."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-v0-20-host-app-matrix/"
+    command: "npx goalbuddy board docs/goals/ios-v0.20-host-app-matrix"
+
+active_task: T001
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: active
+    reasoning_hint: medium
+    objective: "Select three to five privacy-safe host-app rows and define row-specific setup, proof, cleanup, and stop conditions."
+    inputs:
+      - "v0.15-v0.17 receipts"
+      - "v0.18 harness"
+      - "Available apps on iPhone-preview, without inspecting private content"
+    constraints:
+      - "Read-only."
+      - "Do not open private account surfaces unless already sterile and operator-provided."
+      - "Prefer built-in apps and local web fixtures."
+    expected_output:
+      - "Recommended rows."
+      - "Rows rejected for privacy or setup risk."
+      - "Per-row setup and cleanup steps."
+      - "Candidate Worker slice with allowed_files and verify commands."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: medium
+    objective: "Approve a bounded host-app matrix slice."
+    inputs:
+      - "T001 receipt"
+      - "Goal oracle"
+    constraints:
+      - "Reject rows requiring private content inspection."
+      - "Require exact-once and cleanup evidence for each row."
+    expected_output:
+      - "approved | revise | blocked"
+      - "Exact Worker objective"
+      - "allowed_files"
+      - "verify commands"
+      - "stop_if conditions"
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: high
+    objective: "Execute the approved matrix rows and commit sanitized receipts and matrix documentation."
+    allowed_files:
+      - "docs/ios-keyboard-host-app-matrix.md"
+      - "scripts/**"
+      - "docs/goals/ios-v0.20-host-app-matrix/**"
+    verify:
+      - "Harness row receipts for each selected target"
+      - "Cleanup receipt for each selected target"
+      - "Expected secure-field rejection receipt where selected"
+      - "git diff --check"
+      - "Targeted raw-content and secret scan over touched files"
+    stop_if:
+      - "A selected app exposes private content."
+      - "The phone needs unlock/install/user action."
+      - "A row requires sending external content."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Final audit: try to disprove the host-app matrix actually proves intended-field exact-once insertion."
+    inputs:
+      - "All row receipts"
+      - "Matrix doc"
+      - "Goal oracle"
+    constraints:
+      - "Do not accept clipboard-only evidence."
+    expected_output:
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode"
+      - "Evidence that rules it out or exact follow-up"

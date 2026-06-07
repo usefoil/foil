@@ -1,0 +1,151 @@
+version: 2
+
+goal:
+  title: "Foil iOS v0.22 TestFlight Release Proof"
+  slug: "ios-v0.22-testflight-release-proof"
+  kind: existing_plan
+  tranche: "Ship the next TestFlight build after v0.18-v0.21 and prove it on the preview iPhone."
+  status: active
+  oracle:
+    signal: "A new TestFlight build containing the completed tranche is uploaded, attached, installed on iPhone-preview, confirmed by device metadata, and passes a physical live transcription plus keyboard insertion smoke."
+    cadence: "after release readiness Scout, after upload, after install, after physical smoke, and at final audit"
+    final_proof: "Build metadata diff, archive/export/upload receipts, App Store Connect/TestFlight state, device installed-build metadata, physical smoke receipts, secret/raw-content scan, PR link, and final audit."
+  intake:
+    original_request: "plan out the next 5 goalbuddy prep boards"
+    interpreted_outcome: "End the next conveyor with a release-style TestFlight proof of the completed iOS tranche."
+    input_shape: existing_plan
+    audience: "Foil owner/developer installing and dogfooding the iPhone preview"
+    authority: approved
+    proof_type: demo
+    completion_proof: "The preview phone runs the new TestFlight build and passes the core live smoke on that exact build."
+    likely_misfire: "Uploading a build but proving a debug-installed or stale TestFlight build."
+    blind_spots_considered:
+      - "App Store Connect export compliance may need explicit patching."
+      - "TestFlight may lag or show cached build metadata."
+      - "Automatic Updates state can affect install expectations."
+      - "A physical smoke can pass against stale App Group state if cleanup is weak."
+      - "Credentials and provider keys must never be logged or committed."
+    existing_plan_facts:
+      - "Earlier TestFlight boards proved builds 2 through 10 with upload/install loops."
+      - "The v0.18-v0.21 boards should produce the code/docs and receipts that make a new build worthwhile."
+      - "The preview iPhone and App Store Connect API key setup have already been used successfully."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-v0-22-testflight-release-proof/"
+    command: "npx goalbuddy board docs/goals/ios-v0.22-testflight-release-proof"
+
+active_task: T001
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: active
+    reasoning_hint: medium
+    objective: "Assess whether v0.18-v0.21 are ready to package and identify the exact next build number and release proof path."
+    inputs:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/project.pbxproj"
+      - "v0.18-v0.21 receipts"
+      - "Existing TestFlight release docs and receipts"
+    constraints:
+      - "Read-only."
+      - "Do not print App Store Connect credentials."
+      - "Do not upload until Judge approves readiness."
+    expected_output:
+      - "Current build/version metadata."
+      - "Completed tranche PRs and missing release blockers."
+      - "Next build number recommendation."
+      - "Archive/export/upload/install proof plan."
+      - "Candidate Worker slice with allowed_files and verify commands."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Decide whether to release the next TestFlight build or require one blocker fix first."
+    inputs:
+      - "T001 receipt"
+      - "Goal oracle"
+    constraints:
+      - "Reject release if v0.18-v0.21 receipts do not prove their oracles."
+      - "Require device-installed-build metadata for final smoke."
+    expected_output:
+      - "release approved | fix first | blocked"
+      - "Exact Worker objective"
+      - "allowed_files"
+      - "verify commands"
+      - "stop_if conditions"
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: high
+    objective: "Produce, upload, attach, install, and physically smoke-test the approved TestFlight build."
+    allowed_files:
+      - "FoiliOS/project.yml"
+      - "FoiliOS/FoilIOS.xcodeproj/**"
+      - "docs/goals/ios-v0.22-testflight-release-proof/**"
+    verify:
+      - "cd FoiliOS && xcodegen generate --spec project.yml"
+      - "xcodebuild archive/export for the approved build"
+      - "IPA metadata inspection for app and keyboard version/build"
+      - "altool validate/upload/build-status"
+      - "App Store Connect export-compliance and beta-group attachment checks"
+      - "TestFlight install/update on iPhone-preview"
+      - "devicectl installed app metadata confirms the new build"
+      - "Physical live transcription and exact-once insertion smoke"
+      - "git diff --check"
+      - "Targeted secret/raw-content scan over touched files"
+    stop_if:
+      - "Credentials are missing or would need to be printed."
+      - "The phone needs unlock/install/user action."
+      - "Build processing remains unavailable after a reasonable documented wait."
+      - "The installed build metadata does not match the uploaded build."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Final audit: try to disprove that the physical smoke ran against the new TestFlight build."
+    inputs:
+      - "Release receipts"
+      - "Device metadata"
+      - "Physical smoke receipts"
+      - "Goal oracle"
+    constraints:
+      - "Treat stale/debug build proof as the strongest failure mode."
+    expected_output:
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode"
+      - "Evidence that rules it out or exact follow-up"

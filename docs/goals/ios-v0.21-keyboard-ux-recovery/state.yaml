@@ -1,0 +1,140 @@
+version: 2
+
+goal:
+  title: "Foil iOS v0.21 Keyboard UX Recovery"
+  slug: "ios-v0.21-keyboard-ux-recovery"
+  kind: existing_plan
+  tranche: "Reduce custom-keyboard friction by hardening transcript status, recovery, stale-state handling, and exact-once UI behavior."
+  status: active
+  oracle:
+    signal: "Keyboard UI and state tests plus a physical receipt prove status is accurate, stale/malformed state is safe, Insert latest is exact-once, and the operator has a clear recovery path for iOS keyboard refresh friction."
+    cadence: "after Scout, after Worker implementation, after simulator tests, after physical receipt, and at final audit"
+    final_proof: "Swift tests, simulator/physical receipts, stale-state fixture proof, no-private-content scan, and final audit."
+  intake:
+    original_request: "plan out the next 5 goalbuddy prep boards"
+    interpreted_outcome: "After compatibility proof, harden the user-facing keyboard recovery loop exposed by testing."
+    input_shape: existing_plan
+    audience: "Foil iPhone users and the owner dogfooding the keyboard"
+    authority: approved
+    proof_type: test
+    completion_proof: "Keyboard UI/state tests and physical receipts prove the recovery/status behavior under normal, consumed, stale, and malformed states."
+    likely_misfire: "Making the keyboard look nicer without proving stale-state and exact-once correctness."
+    blind_spots_considered:
+      - "iOS sometimes requires switching keyboards away/back before extension state refreshes."
+      - "Keyboard extensions have limited process lifetime and sandbox access."
+      - "Malformed App Group JSON could enable bad UI state."
+      - "Physical behavior can differ from simulator tests."
+    existing_plan_facts:
+      - "v0.13 hardened exact-once consume semantics."
+      - "v0.15-v0.17 physical rows revealed keyboard refresh friction."
+      - "v0.18-v0.20 should provide harness and matrix receipts."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/ios-v0-21-keyboard-ux-recovery/"
+    command: "npx goalbuddy board docs/goals/ios-v0.21-keyboard-ux-recovery"
+
+active_task: T001
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: active
+    reasoning_hint: medium
+    objective: "Map keyboard UI/state handling and identify the highest-value recovery/status hardening slice."
+    inputs:
+      - "Foil iOS keyboard extension code"
+      - "FoilKeyboardBridge tests"
+      - "v0.13-v0.20 receipts"
+    constraints:
+      - "Read-only."
+      - "Do not redesign onboarding."
+      - "Separate real iOS limitations from fixable app/keyboard state handling."
+    expected_output:
+      - "Current state model and UI states."
+      - "Known stale/refresh failure modes."
+      - "Existing and missing tests."
+      - "Candidate Worker slice with allowed_files and verify commands."
+
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: medium
+    objective: "Approve the first keyboard UX recovery implementation slice."
+    inputs:
+      - "T001 receipt"
+      - "Goal oracle"
+    constraints:
+      - "Reject cosmetic-only work."
+      - "Require stale/malformed/exact-once proof."
+    expected_output:
+      - "approved | revise | blocked"
+      - "Exact Worker objective"
+      - "allowed_files"
+      - "verify commands"
+      - "stop_if conditions"
+
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: high
+    objective: "Implement the approved keyboard recovery/status slice and verify it with tests and at least one physical sterile receipt."
+    allowed_files:
+      - "FoiliOS/**"
+      - "docs/goals/ios-v0.21-keyboard-ux-recovery/**"
+    verify:
+      - "Relevant Swift unit tests for keyboard bridge/state"
+      - "Relevant simulator UI or host-app tests if available"
+      - "Physical receipt proving enabled/disabled/exact-once behavior"
+      - "git diff --check"
+      - "Targeted secret/raw-content scan over touched files"
+    stop_if:
+      - "A desired recovery behavior is blocked by iOS keyboard extension limits."
+      - "The phone needs unlock/install/user action."
+      - "The slice requires a full onboarding redesign."
+
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Final audit: try to disprove that the keyboard UI state matches the underlying transcript state."
+    inputs:
+      - "Tests"
+      - "Physical receipt"
+      - "Goal oracle"
+    constraints:
+      - "Treat stale or malformed App Group state as the strongest failure mode."
+    expected_output:
+      - "full_outcome_complete: true | false"
+      - "Strongest realistic failure mode"
+      - "Evidence that rules it out or exact follow-up"
