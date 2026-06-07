@@ -28,6 +28,28 @@ warning.
 The `Custom OpenAI-compatible` preset remains available for other local or hosted
 servers that expose the same `/v1/audio/transcriptions` shape.
 
+## Portable Fixture App E2E
+
+Use this when you want a deterministic Mac app-level transcription regression
+test on a fresh development machine without a microphone, cloud API key, or
+local Whisper model:
+
+```sh
+make test-fixture-transcription-e2e
+```
+
+This command starts a local OpenAI-compatible fixture server, launches Foil via
+XCUITest with `--e2e-transcribe`, feeds `Foil/e2e-test-audio.wav` through the
+same recording-controller path used by the app E2E hook, and verifies both:
+
+- the transcript result contains at least 8 of the 9 expected words
+- the fixture server received a multipart request containing a WAV file, model,
+  authorization header, and response format
+
+This is not a Whisper accuracy test. It proves the app pipeline and request
+contract are intact. Use `make test-local-transcription-e2e` when you also need
+proof against a real local OpenAI-compatible Whisper server.
+
 ## Verified Starter Models
 
 These are the source-verified model options currently exposed by the in-app
