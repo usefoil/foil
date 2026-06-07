@@ -207,6 +207,49 @@ tasks:
     stop_if:
       - "WDA is not ready because automation mode, trust, unlock, or password-gated setup needs operator action."
       - "The only reachable host-app surface exposes private content."
+    progress_receipt:
+      status: partial
+      note: "notes/T004-progress.md"
+      summary: "Built and installed the current v0.21 branch on iPhone-preview as Foil iOS 0.1.0 build 10, proved App Group complete/stale/idle fixture copy-readback with sanitized hashes, and retried WDA. WDA again timed out enabling automation mode and prompted for Password before exposing an endpoint."
+      commands:
+        - cmd: "xcrun devicectl device info lockState --device 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          status: pass
+          evidence: "passcodeRequired=false; unlockedSinceBoot=true"
+        - cmd: "xcrun devicectl device info details --device 5320F5AD-2A71-50AC-94FE-207B544B6247"
+          status: pass
+          evidence: "Developer Mode enabled; wired transport; tunnelState connected; hardware UDID 00008030-001A0C980A33C02E"
+        - cmd: "xcodebuild WebDriverAgentRunner-nodebug against iPhone-preview"
+          status: pass
+          outcome: blocked
+          evidence: "Runner printed Running tests, then Timed out while enabling automation mode, then prompted for Password; no endpoint became reachable."
+        - cmd: "xcodebuild -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -configuration Debug -destination 'id=00008030-001A0C980A33C02E' -derivedDataPath /tmp/foil-ios-v021-physical-derived -allowProvisioningUpdates build"
+          status: pass
+          evidence: "BUILD SUCCEEDED"
+        - cmd: "xcrun devicectl device install app --device 5320F5AD-2A71-50AC-94FE-207B544B6247 '/tmp/foil-ios-v021-physical-derived/Build/Products/Debug-iphoneos/Foil iOS.app'"
+          status: pass
+          evidence: "Installed com.neonwatty.FoilIOS"
+        - cmd: "xcrun devicectl device info apps --device 5320F5AD-2A71-50AC-94FE-207B544B6247 | rg -i 'Foil iOS|com.neonwatty.FoilIOS|bundleVersion|shortVersion|version' -C 5"
+          status: pass
+          evidence: "Foil iOS version 0.1.0, bundle version 10"
+        - cmd: "scripts/ios-physical-harness.py app-group-summary"
+          status: pass
+          evidence: "Initial App Group summary was phase idle, hasTranscript false."
+        - cmd: "scripts/ios-physical-harness.py stage-transcript --transcript '<sterile text>' --message 'v0.21 complete fixture'"
+          status: pass
+          evidence: "Readback summary phase complete, hasTranscript true, transcriptLength 36, transcript hash only."
+        - cmd: "manual structured JSON App Group copy/readback for processing + stale sterile transcript"
+          status: pass
+          evidence: "Readback summary phase processing, hasTranscript true, transcriptLength 33, transcript hash only."
+        - cmd: "scripts/ios-physical-harness.py reset-transcript"
+          status: pass
+          evidence: "Readback summary phase idle, hasTranscript false."
+        - cmd: "pymobiledevice3 developer wda status"
+          status: pass
+          outcome: blocked
+          evidence: "Both user-local and /opt/prcard installs failed with Failed to connect to service port."
+      remaining:
+        - "Need WDA or equivalent safe UI automation to inspect/tap physical keyboard in a sterile target."
+        - "Need stale non-complete physical keyboard UI proof and complete exact-once insertion proof."
 
   - id: T999
     type: judge
