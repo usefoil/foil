@@ -1,0 +1,36 @@
+{
+  "appGroup": {},
+  "checks": [
+    {
+      "identifier": "foil-keyboard-root",
+      "kind": "requireIdentifier",
+      "passed": true,
+      "present": true
+    },
+    {
+      "attribute": "enabled",
+      "expected": "false",
+      "identifier": "foil-keyboard-insert-latest",
+      "kind": "expectIdentifierState",
+      "observed": [
+        "false"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "forbidAccessibleText",
+      "passed": true,
+      "present": false,
+      "textLength": 16,
+      "textSha256": "a81424781fd1e8b2"
+    }
+  ],
+  "passed": true,
+  "schema": "foil.iosPhysicalWdaEvidence.v1",
+  "source": {
+    "file": "foil-ios-v021-malformed-keyboard-source.json",
+    "nodeCount": 154,
+    "sha256": "b9d0d712d5c7c460c624577fc8c4ef9753ce83916e24115af07e5e9162bf73b9"
+  },
+  "target": "safari-v021-malformed-keyboard"
+}
