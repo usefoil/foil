@@ -1,0 +1,36 @@
+{
+  "appGroup": {},
+  "checks": [
+    {
+      "identifier": "foil-keyboard-root",
+      "kind": "requireIdentifier",
+      "passed": true,
+      "present": true
+    },
+    {
+      "attribute": "enabled",
+      "expected": "false",
+      "identifier": "foil-keyboard-insert-latest",
+      "kind": "expectIdentifierState",
+      "observed": [
+        "false"
+      ],
+      "passed": true
+    },
+    {
+      "kind": "forbidAccessibleText",
+      "passed": true,
+      "present": false,
+      "textLength": 16,
+      "textSha256": "a81424781fd1e8b2"
+    }
+  ],
+  "passed": true,
+  "schema": "foil.iosPhysicalWdaEvidence.v1",
+  "source": {
+    "file": "foil-ios-v021-stale-keyboard-source.json",
+    "nodeCount": 153,
+    "sha256": "5a116d4eae1f75b99d9a521b03df809cbcd22c57c65adb5bd27423c0e4a15356"
+  },
+  "target": "safari-v021-stale-keyboard"
+}

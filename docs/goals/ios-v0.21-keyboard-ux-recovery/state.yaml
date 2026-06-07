@@ -5,7 +5,7 @@ goal:
   slug: "ios-v0.21-keyboard-ux-recovery"
   kind: existing_plan
   tranche: "Reduce custom-keyboard friction by hardening transcript status, recovery, stale-state handling, and exact-once UI behavior."
-  status: blocked
+  status: done
   oracle:
     signal: "Keyboard UI and state tests plus a physical receipt prove status is accurate, stale/malformed state is safe, Insert latest is exact-once, and the operator has a clear recovery path for iOS keyboard refresh friction."
     cadence: "after Scout, after Worker implementation, after simulator tests, after physical receipt, and at final audit"
@@ -194,7 +194,7 @@ tasks:
   - id: T004
     type: worker
     assignee: Worker
-    status: blocked
+    status: done
     reasoning_hint: high
     objective: "Collect the physical sterile receipt for v0.21 once WDA automation mode is available."
     allowed_files:
@@ -251,27 +251,61 @@ tasks:
         - "Need WDA or equivalent safe UI automation to inspect/tap physical keyboard in a sterile target."
         - "Need stale non-complete physical keyboard UI proof and complete exact-once insertion proof."
     receipt:
-      result: blocked
-      task_id: T004
-      note: "notes/T004-blocker.md"
-      summary: "Physical branch install and App Group complete/stale/idle fixture proof passed, but WDA cannot collect the required physical keyboard UI receipt because macOS Developer Tools security is disabled. WDA times out enabling automation mode and prompts for Password before exposing an endpoint."
-      completed:
-        - "Built and installed current v0.21 branch on iPhone-preview as Foil iOS 0.1.0 build 10."
-        - "Confirmed iPhone-preview is paired, unlocked-since-boot, Developer Mode enabled, wired, and CoreDevice tunnel connected."
-        - "Proved App Group initial idle, complete fixture readback, stale processing fixture readback, and final idle cleanup with sanitized hash-only receipts."
-      blocked_on:
-        - "`/usr/sbin/DevToolsSecurity -status` reports Developer mode is currently disabled."
-        - "WDA runner launches but times out enabling automation mode, then prompts for Password."
-        - "`pymobiledevice3 developer wda status` cannot connect to the WDA service port."
-      next_human_action: "Run /usr/sbin/DevToolsSecurity -enable on the Mac and enter the admin password, then resume T004."
-      remaining:
-        - "Physical stale non-complete keyboard UI proof."
-        - "Physical complete exact-once insertion and App Group cleanup proof."
+      result: done
+      note: "notes/T004-worker.md"
+      summary: "After DevToolsSecurity was enabled, WDA became reachable and collected sterile physical keyboard receipts proving stale non-complete snapshots are disabled, complete snapshots enable Insert latest, insertion is exact-once, App Group cleanup returns to idle, and malformed JSON stays safe."
+      changed_files:
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/state.yaml"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/T004-worker.md"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/fixture/index.html"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/status-wda-after-devtools.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/safari-ready.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/stale-stage.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/stale-keyboard.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/complete-stage.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/complete-before-insert.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/after-insert.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/after-insert-app-group.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/malformed-stage.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/malformed-keyboard.json"
+        - "docs/goals/ios-v0.21-keyboard-ux-recovery/notes/receipts/final-reset.json"
+      commands:
+        - cmd: "/usr/sbin/DevToolsSecurity -status"
+          status: pass
+          evidence: "Developer mode is currently enabled."
+        - cmd: "scripts/ios-physical-harness.py status --wda-url http://192.168.1.40:8100"
+          status: pass
+          evidence: "Physical phone visible and WDA ready."
+        - cmd: "WDA Safari navigation to local sterile fixture"
+          status: pass
+          evidence: "safari-ready.json proves the sterile fixture and target field were present."
+        - cmd: "stage stale processing snapshot with leftover transcript and inspect Foil Keyboard"
+          status: pass
+          evidence: "stale-stage.json plus stale-keyboard.json: phase processing with transcript hash only, Insert latest disabled, no Transcript ready."
+        - cmd: "stage complete snapshot, inspect before insert, tap Insert latest, inspect after insert and App Group"
+          status: pass
+          evidence: "complete-before-insert.json, after-insert.json, and after-insert-app-group.json: enabled before tap, exactly one sterile value occurrence after tap, disabled after tap, App Group idle."
+        - cmd: "stage malformed App Group JSON and inspect Foil Keyboard"
+          status: pass
+          evidence: "malformed-stage.json plus malformed-keyboard.json: malformed bytes read back, Insert latest disabled, no Transcript ready."
+        - cmd: "scripts/ios-physical-harness.py reset-transcript"
+          status: pass
+          evidence: "final-reset.json: App Group idle with no transcript."
+        - cmd: "xcodebuild test -project FoiliOS/FoilIOS.xcodeproj -scheme FoilIOS -destination 'id=3078C4C7-E3E0-448A-B6AB-8AFE7A39F440' -only-testing:FoilIOSTests/FoilKeyboardBridgeTests -only-testing:FoilIOSTests/FoilDictationLoopPresentationTests"
+          status: pass
+          evidence: "17 selected tests, 0 failures."
+      strongest_failure_modes:
+        - failure: "Stale leftover transcript inserts anyway."
+          evidence: "stale-stage.json and stale-keyboard.json prove a processing snapshot with transcript leaves Insert latest disabled and no Transcript ready status."
+        - failure: "Complete transcript inserts more than once or remains reusable."
+          evidence: "complete-before-insert.json, after-insert.json, and after-insert-app-group.json prove enabled-before, exactly-one occurrence after tap, disabled-after, and idle cleanup."
+        - failure: "Malformed App Group JSON enables insertion."
+          evidence: "malformed-stage.json and malformed-keyboard.json prove malformed bytes were present and the keyboard stayed disabled."
 
   - id: T999
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Final audit: try to disprove that the keyboard UI state matches the underlying transcript state."
     inputs:
@@ -284,3 +318,16 @@ tasks:
       - "full_outcome_complete: true | false"
       - "Strongest realistic failure mode"
       - "Evidence that rules it out or exact follow-up"
+    receipt:
+      result: done
+      decision: complete
+      note: "notes/T999-final-audit.md"
+      full_outcome_complete: true
+      summary: "The v0.21 slice is complete: shared insertability tests plus physical WDA receipts disprove stale, malformed, duplicate, and post-insert reuse failure modes in a sterile target."
+      strongest_realistic_failure_mode: "The keyboard could appear ready from stale or corrupted App Group data and insert bad text into the host app."
+      evidence:
+        - "stale-stage.json plus stale-keyboard.json: non-complete processing snapshot with transcript hash only kept Insert latest disabled and no Transcript ready status."
+        - "malformed-stage.json plus malformed-keyboard.json: malformed bytes were read back and the keyboard stayed disabled with no ready status."
+        - "complete-before-insert.json plus after-insert.json plus after-insert-app-group.json: complete state enabled insertion, inserted exactly once, disabled after tap, and cleared the App Group to idle."
+        - "Focused Swift tests passed: 17 selected FoilKeyboardBridgeTests and FoilDictationLoopPresentationTests, 0 failures."
+      residual_risk: "Broader app-specific keyboard refresh behavior remains future app-matrix work; this board proves the stale/malformed/exact-once state-safety slice."

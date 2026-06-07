@@ -1,0 +1,27 @@
+{
+  "appGroup": {},
+  "checks": [
+    {
+      "kind": "requireAccessibleText",
+      "passed": true,
+      "present": true,
+      "textLength": 26,
+      "textSha256": "9509c8197d3b10cb"
+    },
+    {
+      "kind": "requireAccessibleText",
+      "passed": true,
+      "present": true,
+      "textLength": 18,
+      "textSha256": "937b5cdcae1e1754"
+    }
+  ],
+  "passed": true,
+  "schema": "foil.iosPhysicalWdaEvidence.v1",
+  "source": {
+    "file": "foil-ios-v021-safari-ready-source.json",
+    "nodeCount": 98,
+    "sha256": "52fd72a578d4f5709532731021cc1dd5935fcc9ddae0d49ddd4144a9f8c56674"
+  },
+  "target": "safari-v021-ready"
+}
