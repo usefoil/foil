@@ -843,7 +843,7 @@ final class FoilUITests: XCTestCase {
             throw XCTSkip("GROQ_API_KEY not in keychain — skipping E2E transcription test")
         }
 
-        let resultPath = "/tmp/foil-e2e-result.txt"
+        let resultPath = env["E2E_RESULT_PATH"] ?? "/tmp/foil-e2e-result.txt"
         try? FileManager.default.removeItem(atPath: resultPath)
 
         var environment = ["E2E_API_KEY": apiKey]
@@ -860,6 +860,7 @@ final class FoilUITests: XCTestCase {
         if let wavPath = env["E2E_WAV_PATH"], !wavPath.isEmpty {
             environment["E2E_WAV_PATH"] = wavPath
         }
+        environment["E2E_RESULT_PATH"] = resultPath
 
         launchApp(arguments: [
             "--ui-testing",
