@@ -45,7 +45,7 @@ which tradeoff you want.
 | Cleanup/rewrite | Integrated AI writing layer | Modes and workflows can transform dictation | Optional cleanup with raw transcript fallback |
 | Failure recovery | Product-specific history and retry flows | History and local recordings | History, copy, paste, edit, export, retry, and clipboard fallback |
 | Privacy posture | Privacy Mode and retention controls, still server-processed for transcription | Local processing with local recording/history behavior to understand | Route-explicit: local when local, hosted when hosted |
-| iOS expectations | Public iOS app | Public iOS app | iOS app in progress; claims should follow verified host-app behavior |
+| iOS expectations | Public iOS app | Public iOS app | Closed iPhone preview; custom keyboard, Full Access, and verified host-app rows only |
 | Best reason to choose it | You want polished cross-platform voice writing | You want a powerful local dictation environment | You want explicit Mac provider routing and recoverability |
 
 ## Why People Compare Wispr Flow And Superwhisper
@@ -112,11 +112,11 @@ iOS is where dictation promises get tricky. Keyboard extensions, secure fields,
 host-app behavior, app switching, permissions, background capture, and state
 reset can all affect whether text lands where the user expects.
 
-Wispr Flow and Superwhisper both have public iOS apps. Foil's iOS app is in
-progress. That means Foil should not claim broad iOS coverage until the
-behavior is verified. The right bar is a host-app insertion matrix: which apps,
-which fields, which device, which iOS version, what happened, and whether the
-pending transcript was consumed after insertion.
+Wispr Flow and Superwhisper both have public iOS apps. Foil's iOS work is a
+closed iPhone preview today. It uses a custom keyboard, requires Allow Full
+Access, and should only be described through verified host-app rows: Notes,
+Safari normal text fields, and Messages fake-recipient draft insertion without
+sending. Mail is deferred, and secure fields should reject the custom keyboard.
 
 That evidence can become a product advantage. "Verified here, limited there" is
 more trustworthy than vague "works everywhere" copy.
