@@ -97,7 +97,8 @@ Observed pain:
 
 Foil context:
 
-- Foil iOS is actively in progress.
+- Foil iOS is a closed iPhone preview with a custom keyboard and Full Access
+  requirement.
 - Existing goal docs are already building the right proof base: onboarding,
   Full Access health, insertion matrices, secure-field behavior, physical-device
   receipts, and consumed/reset state.

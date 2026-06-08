@@ -111,7 +111,7 @@ and how easy it is to delete or disable retention.
 | Configuration | Deeper mode and workflow system | Smaller route, cleanup, paste, and history workflow |
 | Cleanup | Transformations and workflows | Optional cleanup with raw transcript fallback |
 | History | Local history and recordings behavior to understand | History, copy, paste, edit, export, retry, and clipboard fallback |
-| iOS | Public iOS app | iOS app in progress; public claims should follow verified host-app behavior |
+| iOS | Public iOS app | Closed iPhone preview; custom keyboard and Full Access required, with verified host-app rows only |
 
 ## When Foil Is The Better Fit
 
@@ -128,7 +128,7 @@ Foil is probably not the better fit if:
 
 - You want the most mature local-first dictation environment today.
 - You want a broad mode system for many dictation personas.
-- You need a public iOS app immediately.
+- You need a public iOS app immediately instead of a closed iPhone preview.
 - You want a lifetime commercial license rather than a beta-stage tool.
 
 ## Paste Recovery Is A Product Feature
