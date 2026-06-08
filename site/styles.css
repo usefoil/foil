@@ -674,6 +674,100 @@ kbd {
   object-fit: contain;
 }
 
+.iphone-preview {
+  background: var(--paper);
+}
+
+.iphone-preview-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.36fr) minmax(0, 0.64fr);
+  gap: clamp(28px, 6vw, 78px);
+  align-items: center;
+  max-width: var(--max);
+  margin: 0 auto;
+}
+
+.iphone-shot {
+  margin: 0;
+}
+
+.iphone-shot img {
+  display: block;
+  width: min(100%, 340px);
+  height: auto;
+  margin: 0 auto;
+  border: 1px solid rgb(110 119 116 / 32%);
+  border-radius: 8px;
+  background: white;
+  box-shadow: var(--shadow);
+}
+
+.iphone-shot figcaption {
+  max-width: 340px;
+  margin: 12px auto 0;
+  color: #344043;
+  font-size: 0.96rem;
+  font-weight: 640;
+}
+
+.iphone-copy {
+  min-width: 0;
+}
+
+.iphone-copy h3 {
+  margin: 14px 0;
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.iphone-copy p {
+  margin: 0;
+  color: #263437;
+  font-size: 1.06rem;
+}
+
+.iphone-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin: 24px 0;
+}
+
+.iphone-proof-grid article {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 14px 34px rgb(7 18 21 / 5%);
+}
+
+.iphone-proof-grid h4 {
+  margin: 0 0 12px;
+  color: var(--teal-deep);
+  font-size: 1.06rem;
+}
+
+.iphone-proof-grid ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 20px;
+  color: #263437;
+}
+
+.iphone-note {
+  padding: 18px 20px;
+  border: 1px solid rgb(15 91 82 / 22%);
+  border-radius: 8px;
+  background: rgb(15 91 82 / 7%);
+}
+
+.iphone-copy .button {
+  margin-top: 22px;
+}
+
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -1370,6 +1464,19 @@ kbd {
 
   .screenshot-stack figure {
     grid-template-columns: 1fr;
+  }
+
+  .iphone-preview-layout,
+  .iphone-proof-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .iphone-shot {
+    order: 2;
+  }
+
+  .iphone-copy {
+    order: 1;
   }
 
   .reliability-note {
