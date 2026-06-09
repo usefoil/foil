@@ -56,6 +56,7 @@ Stable names prevent Mac and iOS workers from inventing incompatible terms.
 | Route receipt object | `RouteReceipt` |
 | iOS route label | `Use my Mac` |
 | iOS fallback label | `Use an API key on this iPhone` |
+| Default Mac route selector | `mac-selected` |
 
 ## Ownership
 
@@ -158,9 +159,11 @@ Minimum contract:
 - Requests include a nonce or request ID to prevent accidental replay.
 - Logs never include raw audio, transcript text, or credentials.
 
-Implementation can choose TLS with pinned self-signed peer identity, Noise, or
-another audited local encrypted channel. The chosen implementation must be
-documented before Mac/iOS implementation begins.
+V1 implementation should use Network.framework with TLS and paired-peer
+identity verification unless the implementation PR documents a concrete reason
+to choose a different audited local encrypted channel. Mock/skeleton work may
+defer real transport, but it must preserve these security boundaries in names
+and tests.
 
 ## Capability Handshake
 
@@ -189,7 +192,7 @@ Response:
   "macAppVersion": "1.13.4",
   "routes": [
     {
-      "routeID": "localWhisper",
+      "routeID": "local-whisper-cpp",
       "displayName": "Local whisper.cpp",
       "available": true,
       "privacyClass": "local"
@@ -201,7 +204,7 @@ Response:
       "privacyClass": "cloud"
     }
   ],
-  "selectedRouteID": "localWhisper",
+  "selectedRouteID": "local-whisper-cpp",
   "maxAudioBytes": 26214400,
   "acceptedAudioFormats": ["m4a", "wav", "flac"]
 }
@@ -209,12 +212,24 @@ Response:
 
 Route IDs:
 
-- `localWhisper`
+- `local-whisper-cpp`
 - `groq`
-- `openAIWhisper`
-- `customOpenAICompatible`
+- `openai-whisper`
+- `custom-openai-compatible`
 
 These names should match route receipts and UI copy.
+
+Cleanup request selectors:
+
+- `none`
+- `mac-default`
+- `groq`
+- `custom-openai-compatible-chat`
+
+`mac-default` is only legal in requests. `RouteReceipt.cleanupRouteID` must use
+the resolved cleanup provider: `none`, `groq`, or
+`custom-openai-compatible-chat`. This keeps the receipt honest when the Mac
+default sends text to a cloud or custom cleanup endpoint.
 
 ## Transcription Request Lifecycle
 
@@ -240,11 +255,15 @@ The containing iOS app owns the request.
     "durationMilliseconds": 8400,
     "byteCount": 248112
   },
-  "requestedRouteID": "selectedOnMac",
+  "requestedRouteID": "mac-selected",
   "languageHint": "en",
-  "cleanupMode": "macDefault"
+  "cleanupRouteID": "mac-default"
 }
 ```
+
+`requestedRouteID` may be `mac-selected` or one of the route IDs returned by
+`CapabilitiesResponse.routes`. V1 iOS should use `mac-selected` by default so
+the Mac remains the source of truth for provider choice.
 
 `TranscriptionStatus`:
 
@@ -257,6 +276,38 @@ The containing iOS app owns the request.
 }
 ```
 
+`TranscriptionFailed`:
+
+```json
+{
+  "type": "TranscriptionFailed",
+  "requestID": "uuid",
+  "error": {
+    "code": "routeUnavailable",
+    "displayMessage": "Local whisper.cpp is not running on your Mac.",
+    "retryable": true
+  },
+  "routeReceipt": {
+    "routeID": "local-whisper-cpp",
+    "routeDisplayName": "Local whisper.cpp",
+    "transcriptionLocation": "pairedMac",
+    "providerLocation": "localMac",
+    "cleanupRouteID": "none",
+    "audioLeftIPhone": true,
+    "audioReachedMac": true,
+    "audioReachedCloudProvider": false,
+    "textReachedCloudProvider": false,
+    "macDeviceName": "Neon MacBook Pro",
+    "completedAt": null
+  }
+}
+```
+
+`routeReceipt` may be omitted when the failure happens before the Mac receives
+the request, such as `macUnavailable` or local network timeout. In those cases
+the iOS app synthesizes the recovery state and must not claim the Mac handled
+the audio.
+
 `TranscriptionComplete`:
 
 ```json
@@ -265,7 +316,7 @@ The containing iOS app owns the request.
   "requestID": "uuid",
   "transcript": "Example dictated text.",
   "routeReceipt": {
-    "routeID": "localWhisper",
+    "routeID": "local-whisper-cpp",
     "routeDisplayName": "Local whisper.cpp",
     "transcriptionLocation": "pairedMac",
     "providerLocation": "localMac",
@@ -293,13 +344,13 @@ Required fields:
 | `routeDisplayName` | User-facing route name |
 | `transcriptionLocation` | `pairedMac` or `thisIPhone` |
 | `providerLocation` | `localMac`, `cloudProvider`, or `customEndpoint` |
-| `cleanupRouteID` | Stable cleanup route ID or `none` |
+| `cleanupRouteID` | Resolved cleanup route ID: `none`, `groq`, or `custom-openai-compatible-chat` |
 | `audioLeftIPhone` | True when audio was sent to Mac or provider |
 | `audioReachedMac` | True when paired Mac received audio |
 | `audioReachedCloudProvider` | True when route sent audio to cloud |
 | `textReachedCloudProvider` | True when cleanup sent text to cloud |
-| `macDeviceName` | User-facing paired Mac name |
-| `completedAt` | ISO-8601 completion timestamp |
+| `macDeviceName` | User-facing paired Mac name when `transcriptionLocation=pairedMac`; otherwise `null` |
+| `completedAt` | ISO-8601 completion timestamp for success; `null` for failures before completion |
 
 Example UI copy:
 
@@ -404,4 +455,3 @@ Before public claims change:
    whisper.cpp is selected.
 5. Failure proof shows Mac unavailable and route unavailable states do not lose
    the user's visible recovery path.
-
