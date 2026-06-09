@@ -45,7 +45,7 @@ which tradeoff you want.
 | Cleanup/rewrite | Integrated AI writing layer | Modes and workflows can transform dictation | Optional cleanup with raw transcript fallback |
 | Failure recovery | Product-specific history and retry flows | History and local recordings | History, copy, paste, edit, export, retry, and clipboard fallback |
 | Privacy posture | Privacy Mode and retention controls, still server-processed for transcription | Local processing with local recording/history behavior to understand | Route-explicit: local when local, hosted when hosted |
-| iOS expectations | Public iOS app | Public iOS app | Closed iPhone preview; custom keyboard, Full Access, and verified host-app rows only |
+| iOS expectations | Public iOS app | Public iOS app | Closed iPhone preview; custom keyboard, Full Access, and build-scoped host-app proof only |
 | Best reason to choose it | You want polished cross-platform voice writing | You want a powerful local dictation environment | You want explicit Mac provider routing and recoverability |
 
 ## Why People Compare Wispr Flow And Superwhisper
@@ -114,7 +114,7 @@ reset can all affect whether text lands where the user expects.
 
 Wispr Flow and Superwhisper both have public iOS apps. Foil's iOS work is a
 closed iPhone preview today. It uses a custom keyboard, requires Allow Full
-Access, and should only be described through verified host-app rows. Build 12
+Access, and should only be described through build-scoped host-app proof. Build 12
 currently has physical onboarding proof, Safari normal-field insertion proof,
 and Safari secure-field rejection proof. Notes and Messages need sterile
 surfaces before the build 12 rows can be rerun; Messages remains draft-only,
