@@ -15,7 +15,7 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
   exit 1
 fi
 
-SOURCE_REPO="${SOURCE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/foil}}"
+SOURCE_REPO="${SOURCE_REPO:-${GITHUB_REPOSITORY:-usefoil/foil}}"
 TAP_REPO="${TAP_REPO:-mean-weasel/homebrew-foil}"
 DMG_PATH="${RUNNER_TEMP:-/tmp}/Foil-${VERSION}-macos.dmg"
 

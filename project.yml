@@ -34,7 +34,7 @@ targets:
         LSUIElement: true
         NSMicrophoneUsageDescription: "Foil needs microphone access to record audio for speech-to-text."
         NSAppleEventsUsageDescription: "Foil uses Apple Events to pause browser media in Chrome and Chromium while recording, when you enable this experimental setting."
-        SUFeedURL: "https://github.com/mean-weasel/foil/releases/latest/download/appcast.xml"
+        SUFeedURL: "https://github.com/usefoil/foil/releases/latest/download/appcast.xml"
   FoilDev:
     type: application
     platform: macOS
@@ -60,7 +60,7 @@ targets:
         LSUIElement: true
         NSMicrophoneUsageDescription: "Foil needs microphone access to record audio for speech-to-text."
         NSAppleEventsUsageDescription: "Foil uses Apple Events to pause browser media in Chrome and Chromium while recording, when you enable this experimental setting."
-        SUFeedURL: "https://github.com/mean-weasel/foil/releases/latest/download/appcast.xml"
+        SUFeedURL: "https://github.com/usefoil/foil/releases/latest/download/appcast.xml"
   FoilE2E:
     type: tool
     platform: macOS

@@ -778,7 +778,7 @@ final class FoilUITests: XCTestCase {
 
         XCTAssertTrue(waitForOpenedURL(timeout: 5), app.debugDescription)
         let openedURL = try String(contentsOf: openedURLPath, encoding: .utf8)
-        XCTAssertEqual(openedURL, "https://github.com/mean-weasel/foil#troubleshooting")
+        XCTAssertEqual(openedURL, "https://github.com/usefoil/foil#troubleshooting")
     }
 
     func testOnboardingNotShownForReturningUser() {

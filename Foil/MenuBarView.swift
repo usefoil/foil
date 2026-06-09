@@ -900,7 +900,7 @@ struct MenuBarView: View {
     }
 
     private func openTroubleshooting() {
-        let urlString = "https://github.com/mean-weasel/foil#troubleshooting"
+        let urlString = "https://github.com/usefoil/foil#troubleshooting"
         if isUITesting,
            let path = ProcessInfo.processInfo.environment["FOIL_UITEST_OPENED_URL_PATH"] {
             try? urlString.write(toFile: path, atomically: true, encoding: .utf8)

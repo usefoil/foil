@@ -7,7 +7,7 @@ APP_PATH="${APP_PATH:-/Applications/$APP_NAME.app}"
 TAP="${TAP:-mean-weasel/foil}"
 TAP_URL="${TAP_URL:-https://github.com/mean-weasel/homebrew-foil}"
 CASK="${CASK:-mean-weasel/foil/foil}"
-REPO="${REPO:-mean-weasel/foil}"
+REPO="${REPO:-usefoil/foil}"
 TEMP_APP_DIR="${TEMP_APP_DIR:-/tmp/foil-release-apps}"
 REQUIRED_COMMIT="${REQUIRED_COMMIT:-}"
 
@@ -47,7 +47,7 @@ Modes:
 Environment:
   REQUIRED_COMMIT   Optional commit that the latest release tag must contain.
   TEMP_APP_DIR      Temporary appdir for --check-cask. Default: /tmp/foil-release-apps
-  REPO              GitHub repo for release lookup. Default: mean-weasel/foil
+  REPO              GitHub repo for release lookup. Default: usefoil/foil
   CASK              Homebrew cask token. Default: mean-weasel/foil/foil
 EOF
 }

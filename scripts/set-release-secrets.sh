@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-REPO="${REPO:-mean-weasel/foil}"
+REPO="${REPO:-usefoil/foil}"
 CERT_DIR="${CERT_DIR:-$HOME/Desktop/apple-developer-certificates}"
 P12_PATH="${P12_PATH:-$CERT_DIR/DeveloperIDApplication-B3A6AN2HA4.p12}"
 ISSUER_ID_PATH="${ISSUER_ID_PATH:-$CERT_DIR/issuer_id}"
