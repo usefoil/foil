@@ -111,7 +111,7 @@ and how easy it is to delete or disable retention.
 | Configuration | Deeper mode and workflow system | Smaller route, cleanup, paste, and history workflow |
 | Cleanup | Transformations and workflows | Optional cleanup with raw transcript fallback |
 | History | Local history and recordings behavior to understand | History, copy, paste, edit, export, retry, and clipboard fallback |
-| iOS | Public iOS app | Closed iPhone preview; custom keyboard and Full Access required, with verified host-app rows only |
+| iOS | Public iOS app | Closed iPhone preview; custom keyboard and Full Access required, with build-scoped host-app proof only |
 
 ## When Foil Is The Better Fit
 
