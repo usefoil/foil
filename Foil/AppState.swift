@@ -127,6 +127,8 @@ final class AppState {
         return Bundle.main.bundleIdentifier ?? "com.neonwatty.Foil"
     }
 
+    let localPairingBridgeService = LocalPairingBridgeService()
+
     var soundEffectsEnabled: Bool = true {
         didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
     }
@@ -272,6 +274,26 @@ final class AppState {
     var otherAudioPolicyDiagnosticDescription: String {
         pauseBrowserMediaWhileRecording ? "pause supported browser media" : "unaffected"
     }
+
+    var localBridgeEnabled: Bool = false {
+        didSet {
+            Self.defaults.set(localBridgeEnabled, forKey: "localBridgeEnabled")
+            localPairingBridgeService.setEnabled(localBridgeEnabled)
+            if !localBridgeEnabled {
+                localBridgePairingState = .unpaired
+                localBridgePairingSession = nil
+                localBridgeTrustedPeer = nil
+                localBridgeLastReceipt = nil
+                localBridgeStatusMessage = "Local bridge off"
+            }
+        }
+    }
+
+    var localBridgePairingState: LocalBridgePairingState = .unpaired
+    var localBridgePairingSession: LocalBridgePairingSession?
+    var localBridgeTrustedPeer: LocalBridgeTrustedPeer?
+    var localBridgeLastReceipt: RouteReceipt?
+    var localBridgeStatusMessage = "Local bridge off"
 
     #if DEBUG
     var mockTranscriptionEnabled: Bool = false {
@@ -784,6 +806,7 @@ final class AppState {
                 "queuedPasteMode",
                 "experimentalSkyLightPasteEnabled",
                 "pauseBrowserMediaWhileRecording",
+                "localBridgeEnabled",
                 "mockTranscriptionEnabled",
                 "recordingMode",
                 "hotkeyChoice",
@@ -820,6 +843,7 @@ final class AppState {
             "queuedPasteMode": QueuedPasteMode.stepThrough.rawValue,
             "experimentalSkyLightPasteEnabled": false,
             "pauseBrowserMediaWhileRecording": false,
+            "localBridgeEnabled": false,
             "mockTranscriptionEnabled": false,
             "recordingMode": "hold",
             "hotkeyChoice": "rightCommand",
@@ -870,6 +894,9 @@ final class AppState {
         queuedPasteMode = QueuedPasteMode(rawValue: defaults.string(forKey: "queuedPasteMode") ?? "") ?? .stepThrough
         experimentalSkyLightPasteEnabled = defaults.bool(forKey: "experimentalSkyLightPasteEnabled")
         pauseBrowserMediaWhileRecording = defaults.bool(forKey: "pauseBrowserMediaWhileRecording")
+        localBridgeEnabled = defaults.bool(forKey: "localBridgeEnabled")
+        localPairingBridgeService.setEnabled(localBridgeEnabled)
+        localBridgeStatusMessage = localBridgeEnabled ? "Ready to pair" : "Local bridge off"
         #if DEBUG
         mockTranscriptionEnabled = defaults.bool(forKey: "mockTranscriptionEnabled")
         #endif
@@ -1015,6 +1042,81 @@ final class AppState {
 
     func resetCleanupConnectionTest() {
         cleanupConnectionTestState = .idle
+    }
+
+    func beginLocalBridgePairing() {
+        guard localBridgeEnabled else {
+            localBridgeStatusMessage = "Turn on Local Bridge first"
+            return
+        }
+        do {
+            let session = try localPairingBridgeService.beginPairing()
+            localBridgePairingSession = session
+            localBridgePairingState = localPairingBridgeService.pairingState
+            localBridgeStatusMessage = "Pairing code \(session.code)"
+        } catch {
+            localBridgeStatusMessage = "Pairing unavailable"
+        }
+    }
+
+    func approveFixtureLocalBridgePairing() {
+        guard localBridgeEnabled else {
+            localBridgeStatusMessage = "Turn on Local Bridge first"
+            return
+        }
+        do {
+            if localPairingBridgeService.activePairingSession == nil {
+                _ = try localPairingBridgeService.beginPairing()
+            }
+            let peer = try localPairingBridgeService.approvePairing(
+                iphonePeerID: "fixture-iphone-public-id",
+                displayName: "Fixture iPhone"
+            )
+            localBridgeTrustedPeer = peer
+            localBridgePairingState = localPairingBridgeService.pairingState
+            localBridgeStatusMessage = "Paired with \(peer.displayName)"
+        } catch {
+            localBridgeStatusMessage = "Pairing approval unavailable"
+        }
+    }
+
+    func runFixtureLocalBridgeTranscription() {
+        guard localBridgeEnabled else {
+            localBridgeStatusMessage = "Turn on Local Bridge first"
+            return
+        }
+        do {
+            if localPairingBridgeService.trustedPeer == nil {
+                approveFixtureLocalBridgePairing()
+            }
+            let request = LocalBridgeTranscriptionStart(
+                requestID: "fixture-transcription-request",
+                audio: LocalBridgeAudioDescriptor(
+                    format: selectedAudioFormat.rawValue,
+                    durationMilliseconds: 1_200,
+                    byteCount: 12_288
+                ),
+                requestedRouteID: .macSelected,
+                languageHint: selectedLanguage == .auto ? nil : selectedLanguage.rawValue,
+                cleanupRouteID: .macDefault
+            )
+            let response = try localPairingBridgeService.handleMockTranscription(
+                request,
+                appState: self,
+                macDeviceName: Host.current().localizedName ?? "This Mac"
+            )
+            switch response {
+            case .complete(let complete):
+                localBridgeLastReceipt = complete.routeReceipt
+                localBridgeStatusMessage = "Mock request complete via \(complete.routeReceipt.routeDisplayName)"
+            case .failed(let failure):
+                localBridgeLastReceipt = failure.routeReceipt
+                localBridgeStatusMessage = failure.error.displayMessage
+            }
+            localBridgePairingState = localPairingBridgeService.pairingState
+        } catch {
+            localBridgeStatusMessage = "Mock request unavailable"
+        }
     }
 
     func testSelectedProviderConnection(

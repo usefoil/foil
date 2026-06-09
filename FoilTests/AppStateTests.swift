@@ -57,6 +57,7 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "queuedPasteMode")
         UserDefaults.standard.removeObject(forKey: "experimentalSkyLightPasteEnabled")
         UserDefaults.standard.removeObject(forKey: "pauseBrowserMediaWhileRecording")
+        UserDefaults.standard.removeObject(forKey: "localBridgeEnabled")
         UserDefaults.standard.removeObject(forKey: "showLiveFeedbackHUD")
         UserDefaults.standard.removeObject(forKey: "showFloatingStatus")
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
@@ -968,6 +969,20 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         state.experimentalSkyLightPasteEnabled = true
         XCTAssertTrue(state.experimentalSkyLightPasteEnabled)
+    }
+
+    func testLocalBridgeDefaultsOffAndOnlyAdvertisesWhenEnabled() {
+        let state = AppState()
+
+        XCTAssertFalse(state.localBridgeEnabled)
+        XCTAssertFalse(state.localPairingBridgeService.isEnabled)
+        XCTAssertFalse(state.localPairingBridgeService.isAdvertising)
+
+        state.localBridgeEnabled = true
+
+        XCTAssertTrue(state.localBridgeEnabled)
+        XCTAssertTrue(state.localPairingBridgeService.isEnabled)
+        XCTAssertTrue(state.localPairingBridgeService.isAdvertising)
     }
 
     func testRecordPasteUpdatesUserFeedback() {
