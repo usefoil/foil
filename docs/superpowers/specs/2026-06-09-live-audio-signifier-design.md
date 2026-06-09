@@ -13,6 +13,15 @@ The approved product direction is:
 - Continue the capsule through the full session: processing, brief success/error, then return to idle.
 - Treat the bars as approximate input-volume feedback, not a spectral analyzer or exact waveform.
 
+## Reference Media
+
+Reference movie and extracted frames are stored in [docs/mockups/live-audio-signifier](/Users/neonwatty/Desktop/foil/docs/mockups/live-audio-signifier):
+
+- [wisprflow-visual-signifier.mov](/Users/neonwatty/Desktop/foil/docs/mockups/live-audio-signifier/wisprflow-visual-signifier.mov)
+- [reference-idle.png](/Users/neonwatty/Desktop/foil/docs/mockups/live-audio-signifier/reference-idle.png)
+- [reference-recording.png](/Users/neonwatty/Desktop/foil/docs/mockups/live-audio-signifier/reference-recording.png)
+- [reference-processing.png](/Users/neonwatty/Desktop/foil/docs/mockups/live-audio-signifier/reference-processing.png)
+
 ## Goals
 
 - Give immediate, low-attention feedback that the push-to-talk hotkey successfully opened the microphone.
