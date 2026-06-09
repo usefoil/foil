@@ -27,6 +27,26 @@ final class LocalPairingBridgeTests: XCTestCase {
         }
     }
 
+    private final class SpyTrustedPeerStore: LocalBridgeTrustedPeerStoring {
+        var savedPeer: LocalBridgeTrustedPeer?
+        private(set) var saveCalls = 0
+        private(set) var deleteCalls = 0
+
+        func loadTrustedPeer() -> LocalBridgeTrustedPeer? {
+            savedPeer
+        }
+
+        func saveTrustedPeer(_ peer: LocalBridgeTrustedPeer) throws {
+            saveCalls += 1
+            savedPeer = peer
+        }
+
+        func deleteTrustedPeer() {
+            deleteCalls += 1
+            savedPeer = nil
+        }
+    }
+
     override func setUpWithError() throws {
         clearDefaults()
         logURL = FileManager.default.temporaryDirectory
@@ -268,6 +288,72 @@ final class LocalPairingBridgeTests: XCTestCase {
         XCTAssertEqual(state.selectedAudioFormat, beforeAudioFormat)
     }
 
+    func testRunFixtureRequestDoesNotAutoApprovePairing() {
+        let state = makeState()
+        state.localBridgeEnabled = true
+
+        state.runFixtureLocalBridgeTranscription()
+
+        XCTAssertNil(state.localPairingBridgeService.trustedPeer)
+        XCTAssertNil(state.localBridgeTrustedPeer)
+        XCTAssertEqual(state.localBridgePairingState, .unpaired)
+        XCTAssertEqual(state.localBridgeStatusMessage, "Pair iPhone and approve first")
+    }
+
+    func testTrustedPeerPersistsAcrossFreshServiceAndRevokeBlocksRequests() throws {
+        let store = SpyTrustedPeerStore()
+        let firstState = makeState(trustedPeerStore: store)
+        firstState.localBridgeEnabled = true
+
+        _ = try firstState.localPairingBridgeService.beginPairing(code: "123456")
+        let peer = try firstState.localPairingBridgeService.approvePairing(
+            iphonePeerID: "fixture-iphone-public-id",
+            displayName: "Fixture iPhone",
+            now: Date(timeIntervalSince1970: 0)
+        )
+
+        XCTAssertEqual(store.savedPeer, peer)
+        XCTAssertEqual(store.saveCalls, 1)
+
+        let secondState = makeState(trustedPeerStore: store)
+        secondState.localBridgeEnabled = true
+
+        XCTAssertEqual(secondState.localPairingBridgeService.trustedPeer, peer)
+        XCTAssertEqual(secondState.localPairingBridgeService.pairingState, .paired)
+
+        let request = LocalBridgeTranscriptionStart(
+            requestID: "persisted-peer-request",
+            audio: LocalBridgeAudioDescriptor(format: "m4a", durationMilliseconds: 1_200, byteCount: 12_288),
+            requestedRouteID: .macSelected,
+            cleanupRouteID: .macDefault
+        )
+
+        let response = try secondState.localPairingBridgeService.handleMockTranscription(
+            request,
+            appState: secondState,
+            macDeviceName: "Test Mac",
+            now: Date(timeIntervalSince1970: 0)
+        )
+        guard case .complete(let complete) = response else {
+            return XCTFail("Expected persisted trusted peer to allow the mock request")
+        }
+        XCTAssertEqual(complete.requestID, "persisted-peer-request")
+
+        secondState.localPairingBridgeService.revokePairing()
+
+        XCTAssertNil(store.savedPeer)
+        XCTAssertEqual(store.deleteCalls, 1)
+        XCTAssertEqual(secondState.localPairingBridgeService.pairingState, .revoked)
+        XCTAssertThrowsError(try secondState.localPairingBridgeService.handleMockTranscription(
+            request,
+            appState: secondState,
+            macDeviceName: "Test Mac",
+            now: Date(timeIntervalSince1970: 0)
+        )) { error in
+            XCTAssertEqual(error as? LocalPairingBridgeServiceError, .pairingRequired)
+        }
+    }
+
     func testBridgeLogsRedactTranscriptAudioAndCredentials() throws {
         let state = makeState()
         state.localBridgeEnabled = true
@@ -336,9 +422,15 @@ final class LocalPairingBridgeTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupProvider")
     }
 
-    private func makeState(transport: SpyBridgeTransport? = nil) -> AppState {
+    private func makeState(
+        transport: SpyBridgeTransport? = nil,
+        trustedPeerStore: SpyTrustedPeerStore? = nil
+    ) -> AppState {
         let bridgeTransport = transport ?? SpyBridgeTransport()
-        return AppState(localPairingBridgeService: LocalPairingBridgeService(transport: bridgeTransport))
+        return AppState(localPairingBridgeService: LocalPairingBridgeService(
+            transport: bridgeTransport,
+            trustedPeerStore: trustedPeerStore ?? SpyTrustedPeerStore()
+        ))
     }
 
     private func jsonObject<T: Encodable>(from value: T) throws -> [String: Any] {

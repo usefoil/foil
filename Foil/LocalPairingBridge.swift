@@ -145,6 +145,26 @@ struct LocalBridgeTrustedPeer: Codable, Equatable {
     let pairedAt: String
 }
 
+protocol LocalBridgeTrustedPeerStoring {
+    func loadTrustedPeer() -> LocalBridgeTrustedPeer?
+    func saveTrustedPeer(_ peer: LocalBridgeTrustedPeer) throws
+    func deleteTrustedPeer()
+}
+
+struct KeychainLocalBridgeTrustedPeerStore: LocalBridgeTrustedPeerStoring {
+    func loadTrustedPeer() -> LocalBridgeTrustedPeer? {
+        KeychainHelper.readLocalBridgeTrustedPeer()
+    }
+
+    func saveTrustedPeer(_ peer: LocalBridgeTrustedPeer) throws {
+        try KeychainHelper.saveLocalBridgeTrustedPeer(peer)
+    }
+
+    func deleteTrustedPeer() {
+        KeychainHelper.deleteLocalBridgeTrustedPeer()
+    }
+}
+
 struct LocalBridgeCapabilitiesRequest: Codable, Equatable {
     let type: String
     let `protocol`: String
@@ -276,13 +296,18 @@ final class LocalPairingBridgeService {
     private(set) var trustedPeer: LocalBridgeTrustedPeer?
     private(set) var transportErrorMessage: String?
     private let transport: LocalBridgeTransporting
+    private let trustedPeerStore: LocalBridgeTrustedPeerStoring
 
     var isAdvertising: Bool { transport.isAdvertising }
     var isListening: Bool { transport.isListening }
     var lastAdvertisement: LocalBridgeAdvertisement? { transport.lastAdvertisement }
 
-    init(transport: LocalBridgeTransporting? = nil) {
+    init(
+        transport: LocalBridgeTransporting? = nil,
+        trustedPeerStore: LocalBridgeTrustedPeerStoring? = nil
+    ) {
         self.transport = transport ?? NetworkLocalBridgeTransport()
+        self.trustedPeerStore = trustedPeerStore ?? KeychainLocalBridgeTrustedPeerStore()
     }
 
     func setEnabled(_ enabled: Bool, appState: AppState? = nil, deviceName: String = "This Mac") {
@@ -290,6 +315,7 @@ final class LocalPairingBridgeService {
         isEnabled = enabled
         if enabled {
             transportErrorMessage = nil
+            restoreTrustedPeer()
             if let appState {
                 do {
                     try transport.start(advertisement: advertisement(deviceName: deviceName, appState: appState))
@@ -361,7 +387,9 @@ final class LocalPairingBridgeService {
             displayName: displayName,
             pairedAt: Self.isoString(from: now)
         )
+        try trustedPeerStore.saveTrustedPeer(peer)
         trustedPeer = peer
+        activePairingSession = nil
         pairingState = .paired
         DiagnosticLog.write("LocalBridge: pairing approved peer=\(displayName)")
         return peer
@@ -370,6 +398,7 @@ final class LocalPairingBridgeService {
     func revokePairing() {
         activePairingSession = nil
         trustedPeer = nil
+        trustedPeerStore.deleteTrustedPeer()
         pairingState = isEnabled ? .revoked : .unpaired
         DiagnosticLog.write("LocalBridge: pairing revoked")
     }
@@ -588,5 +617,10 @@ final class LocalPairingBridgeService {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: date)
+    }
+
+    private func restoreTrustedPeer() {
+        trustedPeer = trustedPeerStore.loadTrustedPeer()
+        pairingState = trustedPeer == nil ? .unpaired : .paired
     }
 }

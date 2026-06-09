@@ -21,6 +21,7 @@ final class KeychainHelperTests: XCTestCase {
         KeychainHelper.delete(for: .openAI)
         KeychainHelper.delete(for: .openAICompatible)
         KeychainHelper.deleteCleanupApiKey(for: .customOpenAICompatibleChat)
+        KeychainHelper.deleteLocalBridgeTrustedPeer()
         KeychainHelper.storageDirectoryOverride = nil
         KeychainHelper.serviceOverride = nil
         KeychainHelper.accountOverride = nil
@@ -124,6 +125,35 @@ final class KeychainHelperTests: XCTestCase {
         XCTAssertEqual(KeychainHelper.readApiKey(for: .groq), "groq-key")
         XCTAssertEqual(KeychainHelper.readApiKey(for: .openAICompatible), "transcription-key")
         XCTAssertEqual(KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat), "cleanup-key")
+    }
+
+    func testLocalBridgeTrustedPeerRoundTripsAndDeletesFromKeychain() throws {
+        let peer = LocalBridgeTrustedPeer(
+            peerID: "fixture-iphone-public-id",
+            displayName: "Fixture iPhone",
+            pairedAt: "1970-01-01T00:00:00.000Z"
+        )
+
+        try KeychainHelper.saveLocalBridgeTrustedPeer(peer)
+
+        XCTAssertEqual(KeychainHelper.readLocalBridgeTrustedPeer(), peer)
+
+        KeychainHelper.deleteLocalBridgeTrustedPeer()
+
+        XCTAssertNil(KeychainHelper.readLocalBridgeTrustedPeer())
+    }
+
+    func testLocalBridgeTrustedPeerDoesNotOverwriteProviderKeys() throws {
+        let peer = LocalBridgeTrustedPeer(
+            peerID: "fixture-iphone-public-id",
+            displayName: "Fixture iPhone",
+            pairedAt: "1970-01-01T00:00:00.000Z"
+        )
+        try KeychainHelper.save(apiKey: "groq-key", for: .groq)
+        try KeychainHelper.saveLocalBridgeTrustedPeer(peer)
+
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .groq), "groq-key")
+        XCTAssertEqual(KeychainHelper.readLocalBridgeTrustedPeer(), peer)
     }
 
     func testLegacyPlaintextMigrationOnlyAppliesToGroqProvider() throws {

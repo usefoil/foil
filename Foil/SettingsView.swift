@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 struct SettingsView: View {
@@ -63,6 +64,7 @@ struct SettingsView: View {
         static let pairIPhoneTitle = "Pair iPhone"
         static let approveFixtureIPhoneTitle = "Approve fixture iPhone"
         static let runMockBridgeRequestTitle = "Run mock request"
+        static let revokeIPhoneTitle = "Revoke iPhone"
     }
 
     enum RecordingCopy {
@@ -938,8 +940,14 @@ struct SettingsView: View {
                     Button(ExperimentalCopy.approveFixtureIPhoneTitle) {
                         appState.approveFixtureLocalBridgePairing()
                     }
-                    .disabled(!appState.localBridgeEnabled)
+                    .disabled(!appState.localBridgeEnabled || appState.localBridgePairingSession == nil)
                     .accessibilityIdentifier("settings.localBridgeApproveFixtureButton")
+
+                    Button(ExperimentalCopy.revokeIPhoneTitle, role: .destructive) {
+                        appState.revokeLocalBridgePairing()
+                    }
+                    .disabled(!appState.localBridgeEnabled || appState.localBridgeTrustedPeer == nil)
+                    .accessibilityIdentifier("settings.localBridgeRevokeButton")
 
                     Button(ExperimentalCopy.runMockBridgeRequestTitle) {
                         appState.runFixtureLocalBridgeTranscription()
@@ -956,6 +964,36 @@ struct SettingsView: View {
                 if let session = appState.localBridgePairingSession {
                     LabeledContent("Code", value: session.code)
                         .accessibilityIdentifier("settings.localBridgePairingCode")
+                    LabeledContent("Candidate", value: "Fixture iPhone")
+                        .accessibilityIdentifier("settings.localBridgePairingCandidate")
+                }
+
+                if let payload = appState.localBridgePairingPayloadText {
+                    HStack(alignment: .top, spacing: 12) {
+                        if let qrCode = Self.qrCodeImage(from: payload) {
+                            Image(nsImage: qrCode)
+                                .interpolation(.none)
+                                .resizable()
+                                .frame(width: 96, height: 96)
+                                .accessibilityIdentifier("settings.localBridgePairingQRCode")
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Pairing payload")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(payload)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .accessibilityIdentifier("settings.localBridgePairingPayload")
+                }
+
+                if let trustedPeer = appState.localBridgeTrustedPeer {
+                    LabeledContent("Trusted iPhone", value: trustedPeer.displayName)
+                        .accessibilityIdentifier("settings.localBridgeTrustedPeer")
                 }
 
                 if let receipt = appState.localBridgeLastReceipt {
@@ -974,6 +1012,19 @@ struct SettingsView: View {
             #endif
         }
         .formStyle(.grouped)
+    }
+
+    private static func qrCodeImage(from payload: String) -> NSImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.setValue(Data(payload.utf8), forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let outputImage = filter.outputImage else { return nil }
+
+        let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+        let representation = NSCIImageRep(ciImage: scaledImage)
+        let image = NSImage(size: representation.size)
+        image.addRepresentation(representation)
+        return image
     }
 
     private var retentionBinding: Binding<Int> {
