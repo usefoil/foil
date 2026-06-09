@@ -289,6 +289,82 @@ enum LocalPairingBridgeServiceError: Error, Equatable {
 }
 
 @MainActor
+protocol LocalBridgeTranscriptionRouting {
+    func response(
+        for start: LocalBridgeTranscriptionStart,
+        appState: AppState,
+        macDeviceName: String,
+        now: Date
+    ) -> LocalBridgeTranscriptionResponse
+}
+
+struct FixtureLocalBridgeTranscriptionRouter: LocalBridgeTranscriptionRouting {
+    func response(
+        for start: LocalBridgeTranscriptionStart,
+        appState: AppState,
+        macDeviceName: String,
+        now: Date
+    ) -> LocalBridgeTranscriptionResponse {
+        guard LocalPairingBridgeService.isRequestedRouteAvailable(start.requestedRouteID, appState: appState) else {
+            let receipt = LocalPairingBridgeService.routeReceipt(
+                requestedRouteID: start.requestedRouteID,
+                requestedCleanupRouteID: start.cleanupRouteID,
+                appState: appState,
+                macDeviceName: macDeviceName,
+                completedAt: nil,
+                audioReachedProvider: false,
+                textReachedCleanupProvider: false
+            )
+            return .failed(LocalBridgeTranscriptionFailed(
+                type: "TranscriptionFailed",
+                requestID: start.requestID,
+                error: LocalBridgeFailureDetail(
+                    code: .routeUnavailable,
+                    displayMessage: "\(receipt.routeDisplayName) is not selected on this Mac.",
+                    retryable: true
+                ),
+                routeReceipt: receipt
+            ))
+        }
+        guard LocalPairingBridgeService.isSelectedRouteConfigured(appState: appState) else {
+            let receipt = LocalPairingBridgeService.routeReceipt(
+                requestedRouteID: start.requestedRouteID,
+                requestedCleanupRouteID: start.cleanupRouteID,
+                appState: appState,
+                macDeviceName: macDeviceName,
+                completedAt: nil,
+                audioReachedProvider: false,
+                textReachedCleanupProvider: false
+            )
+            return .failed(LocalBridgeTranscriptionFailed(
+                type: "TranscriptionFailed",
+                requestID: start.requestID,
+                error: LocalBridgeFailureDetail(
+                    code: .noTranscriptionRoute,
+                    displayMessage: "Selected Mac transcription route is not ready.",
+                    retryable: true
+                ),
+                routeReceipt: receipt
+            ))
+        }
+
+        let receipt = LocalPairingBridgeService.routeReceipt(
+            requestedRouteID: start.requestedRouteID,
+            requestedCleanupRouteID: start.cleanupRouteID,
+            appState: appState,
+            macDeviceName: macDeviceName,
+            completedAt: LocalPairingBridgeService.isoString(from: now)
+        )
+        return .complete(LocalBridgeTranscriptionComplete(
+            type: "TranscriptionComplete",
+            requestID: start.requestID,
+            transcript: "Mock local bridge transcription",
+            routeReceipt: receipt
+        ))
+    }
+}
+
+@MainActor
 final class LocalPairingBridgeService {
     private(set) var isEnabled = false
     private(set) var pairingState: LocalBridgePairingState = .unpaired
@@ -297,6 +373,7 @@ final class LocalPairingBridgeService {
     private(set) var transportErrorMessage: String?
     private let transport: LocalBridgeTransporting
     private let trustedPeerStore: LocalBridgeTrustedPeerStoring
+    private let transcriptionRouter: LocalBridgeTranscriptionRouting
 
     var isAdvertising: Bool { transport.isAdvertising }
     var isListening: Bool { transport.isListening }
@@ -304,10 +381,12 @@ final class LocalPairingBridgeService {
 
     init(
         transport: LocalBridgeTransporting? = nil,
-        trustedPeerStore: LocalBridgeTrustedPeerStoring? = nil
+        trustedPeerStore: LocalBridgeTrustedPeerStoring? = nil,
+        transcriptionRouter: LocalBridgeTranscriptionRouting? = nil
     ) {
         self.transport = transport ?? NetworkLocalBridgeTransport()
         self.trustedPeerStore = trustedPeerStore ?? KeychainLocalBridgeTrustedPeerStore()
+        self.transcriptionRouter = transcriptionRouter ?? FixtureLocalBridgeTranscriptionRouter()
     }
 
     func setEnabled(_ enabled: Bool, appState: AppState? = nil, deviceName: String = "This Mac") {
@@ -456,22 +535,18 @@ final class LocalPairingBridgeService {
             throw LocalPairingBridgeServiceError.audioTooLarge
         }
 
-        let receipt = Self.routeReceipt(
-            requestedRouteID: start.requestedRouteID,
-            requestedCleanupRouteID: start.cleanupRouteID,
-            appState: appState,
-            macDeviceName: macDeviceName,
-            completedAt: Self.isoString(from: now)
-        )
+        let response = transcriptionRouter.response(for: start, appState: appState, macDeviceName: macDeviceName, now: now)
+        let receipt: RouteReceipt?
+        switch response {
+        case .complete(let complete):
+            receipt = complete.routeReceipt
+        case .failed(let failure):
+            receipt = failure.routeReceipt
+        }
         DiagnosticLog.write(
-            "LocalBridge: mock transcription requestID=\(start.requestID) route=\(receipt.routeID.rawValue) bytes=\(start.audio.byteCount) durationMs=\(start.audio.durationMilliseconds)"
+            "LocalBridge: mock transcription requestID=\(start.requestID) route=\(receipt?.routeID.rawValue ?? "none") bytes=\(start.audio.byteCount) durationMs=\(start.audio.durationMilliseconds)"
         )
-        return .complete(LocalBridgeTranscriptionComplete(
-            type: "TranscriptionComplete",
-            requestID: start.requestID,
-            transcript: "Mock local bridge transcription",
-            routeReceipt: receipt
-        ))
+        return response
     }
 
     static func routeReceipt(
@@ -479,7 +554,9 @@ final class LocalPairingBridgeService {
         requestedCleanupRouteID: LocalBridgeCleanupRouteID = .macDefault,
         appState: AppState,
         macDeviceName: String,
-        completedAt: String?
+        completedAt: String?,
+        audioReachedProvider: Bool = true,
+        textReachedCleanupProvider: Bool = true
     ) -> RouteReceipt {
         let routeID = resolvedRouteID(requestedRouteID, appState: appState)
         let cleanupRouteID = resolvedCleanupRouteID(requestedCleanupRouteID, appState: appState)
@@ -492,8 +569,8 @@ final class LocalPairingBridgeService {
             cleanupRouteID: cleanupRouteID,
             audioLeftIPhone: true,
             audioReachedMac: true,
-            audioReachedCloudProvider: providerLocation == .cloudProvider,
-            textReachedCloudProvider: cleanupRouteID == .groq,
+            audioReachedCloudProvider: audioReachedProvider && providerLocation == .cloudProvider,
+            textReachedCloudProvider: textReachedCleanupProvider && cleanupRouteID == .groq,
             macDeviceName: macDeviceName,
             completedAt: completedAt
         )
@@ -525,6 +602,22 @@ final class LocalPairingBridgeService {
         case .customOpenAICompatible:
             "Custom OpenAI-compatible"
         }
+    }
+
+    static func isRequestedRouteAvailable(_ requestedRouteID: LocalBridgeRouteID, appState: AppState) -> Bool {
+        let selectedRouteID = routeID(for: appState.selectedTranscriptionProviderPresetID)
+        return requestedRouteID == .macSelected || requestedRouteID == selectedRouteID
+    }
+
+    static func isSelectedRouteConfigured(appState: AppState) -> Bool {
+        if appState.selectedTranscriptionProviderPresetID == .customOpenAICompatible,
+           appState.customTranscriptionBaseURLValue == nil {
+            return false
+        }
+        if appState.selectedTranscriptionProvider.requiresAPIKey {
+            return appState.apiKeyState == .ready
+        }
+        return true
     }
 
     private static func resolvedRouteID(_ requestedRouteID: LocalBridgeRouteID, appState: AppState) -> LocalBridgeRouteID {
@@ -613,7 +706,7 @@ final class LocalPairingBridgeService {
         UUID().uuidString.replacingOccurrences(of: "-", with: "")
     }
 
-    private static func isoString(from date: Date) -> String {
+    static func isoString(from date: Date) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter.string(from: date)

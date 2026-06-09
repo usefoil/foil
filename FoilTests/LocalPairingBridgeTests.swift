@@ -234,6 +234,165 @@ final class LocalPairingBridgeTests: XCTestCase {
         XCTAssertFalse(receiptJSON.values.contains { "\($0)" == "mac-default" })
     }
 
+    func testUnavailableRequestedRouteFailsWithHonestReceipt() throws {
+        let state = makeState()
+        state.localBridgeEnabled = true
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.transcriptCleanupProviderID = .groq
+        _ = try state.localPairingBridgeService.beginPairing(code: "123456")
+        _ = try state.localPairingBridgeService.approvePairing(
+            iphonePeerID: "fixture-iphone-public-id",
+            displayName: "Fixture iPhone"
+        )
+
+        let request = LocalBridgeTranscriptionStart(
+            requestID: "unavailable-route-request",
+            audio: LocalBridgeAudioDescriptor(format: "m4a", durationMilliseconds: 1_000, byteCount: 8_192),
+            requestedRouteID: .groq,
+            cleanupRouteID: .macDefault
+        )
+
+        let response = try state.localPairingBridgeService.handleMockTranscription(
+            request,
+            appState: state,
+            macDeviceName: "Test Mac",
+            now: Date(timeIntervalSince1970: 0)
+        )
+
+        guard case .failed(let failure) = response else {
+            return XCTFail("Expected unavailable route failure")
+        }
+        XCTAssertEqual(failure.type, "TranscriptionFailed")
+        XCTAssertEqual(failure.requestID, "unavailable-route-request")
+        XCTAssertEqual(failure.error.code, .routeUnavailable)
+        XCTAssertTrue(failure.error.retryable)
+
+        let receipt = try XCTUnwrap(failure.routeReceipt)
+        XCTAssertEqual(receipt.routeID, .groq)
+        XCTAssertEqual(receipt.providerLocation, .cloudProvider)
+        XCTAssertEqual(receipt.cleanupRouteID, .groq)
+        XCTAssertTrue(receipt.audioLeftIPhone)
+        XCTAssertTrue(receipt.audioReachedMac)
+        XCTAssertFalse(receipt.audioReachedCloudProvider)
+        XCTAssertFalse(receipt.textReachedCloudProvider)
+        XCTAssertNil(receipt.completedAt)
+    }
+
+    func testSelectedCloudRouteReceiptMarksAudioAndCleanupCloudUse() throws {
+        let state = makeState()
+        state.localBridgeEnabled = true
+        state.selectedTranscriptionProviderPresetID = .groq
+        state.apiKeyState = .ready
+        state.transcriptCleanupProviderID = .groq
+        _ = try state.localPairingBridgeService.beginPairing(code: "123456")
+        _ = try state.localPairingBridgeService.approvePairing(
+            iphonePeerID: "fixture-iphone-public-id",
+            displayName: "Fixture iPhone"
+        )
+
+        let request = LocalBridgeTranscriptionStart(
+            requestID: "selected-cloud-request",
+            audio: LocalBridgeAudioDescriptor(format: "m4a", durationMilliseconds: 1_000, byteCount: 8_192),
+            requestedRouteID: .macSelected,
+            cleanupRouteID: .macDefault
+        )
+
+        let response = try state.localPairingBridgeService.handleMockTranscription(
+            request,
+            appState: state,
+            macDeviceName: "Test Mac",
+            now: Date(timeIntervalSince1970: 0)
+        )
+
+        guard case .complete(let complete) = response else {
+            return XCTFail("Expected selected route success")
+        }
+        XCTAssertEqual(complete.routeReceipt.routeID, .groq)
+        XCTAssertEqual(complete.routeReceipt.providerLocation, .cloudProvider)
+        XCTAssertEqual(complete.routeReceipt.cleanupRouteID, .groq)
+        XCTAssertTrue(complete.routeReceipt.audioReachedCloudProvider)
+        XCTAssertTrue(complete.routeReceipt.textReachedCloudProvider)
+        XCTAssertNotNil(complete.routeReceipt.completedAt)
+    }
+
+    func testSelectedCloudRouteRequiresReadyApiKeyState() throws {
+        let state = makeState()
+        state.localBridgeEnabled = true
+        state.selectedTranscriptionProviderPresetID = .groq
+        state.apiKeyState = .needsAction("Add Groq API key")
+        state.transcriptCleanupProviderID = .groq
+        _ = try state.localPairingBridgeService.beginPairing(code: "123456")
+        _ = try state.localPairingBridgeService.approvePairing(
+            iphonePeerID: "fixture-iphone-public-id",
+            displayName: "Fixture iPhone"
+        )
+
+        let request = LocalBridgeTranscriptionStart(
+            requestID: "selected-cloud-unconfigured-request",
+            audio: LocalBridgeAudioDescriptor(format: "m4a", durationMilliseconds: 1_000, byteCount: 8_192),
+            requestedRouteID: .macSelected,
+            cleanupRouteID: .macDefault
+        )
+
+        let response = try state.localPairingBridgeService.handleMockTranscription(
+            request,
+            appState: state,
+            macDeviceName: "Test Mac",
+            now: Date(timeIntervalSince1970: 0)
+        )
+
+        guard case .failed(let failure) = response else {
+            return XCTFail("Expected unconfigured selected route failure")
+        }
+        XCTAssertEqual(failure.error.code, .noTranscriptionRoute)
+        XCTAssertTrue(failure.error.retryable)
+        let receipt = try XCTUnwrap(failure.routeReceipt)
+        XCTAssertEqual(receipt.routeID, .groq)
+        XCTAssertEqual(receipt.providerLocation, .cloudProvider)
+        XCTAssertEqual(receipt.cleanupRouteID, .groq)
+        XCTAssertFalse(receipt.audioReachedCloudProvider)
+        XCTAssertFalse(receipt.textReachedCloudProvider)
+        XCTAssertNil(receipt.completedAt)
+    }
+
+    func testSelectedCustomRouteReceiptKeepsCustomSeparateFromCloud() throws {
+        let state = makeState()
+        state.localBridgeEnabled = true
+        state.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+        state.customTranscriptionBaseURL = "http://localhost:9000/v1"
+        state.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        state.customTranscriptCleanupBaseURL = "http://localhost:11434/v1"
+        _ = try state.localPairingBridgeService.beginPairing(code: "123456")
+        _ = try state.localPairingBridgeService.approvePairing(
+            iphonePeerID: "fixture-iphone-public-id",
+            displayName: "Fixture iPhone"
+        )
+
+        let request = LocalBridgeTranscriptionStart(
+            requestID: "selected-custom-request",
+            audio: LocalBridgeAudioDescriptor(format: "m4a", durationMilliseconds: 1_000, byteCount: 8_192),
+            requestedRouteID: .macSelected,
+            cleanupRouteID: .macDefault
+        )
+
+        let response = try state.localPairingBridgeService.handleMockTranscription(
+            request,
+            appState: state,
+            macDeviceName: "Test Mac",
+            now: Date(timeIntervalSince1970: 0)
+        )
+
+        guard case .complete(let complete) = response else {
+            return XCTFail("Expected selected route success")
+        }
+        XCTAssertEqual(complete.routeReceipt.routeID, .customOpenAICompatible)
+        XCTAssertEqual(complete.routeReceipt.providerLocation, .customEndpoint)
+        XCTAssertEqual(complete.routeReceipt.cleanupRouteID, .customOpenAICompatibleChat)
+        XCTAssertFalse(complete.routeReceipt.audioReachedCloudProvider)
+        XCTAssertFalse(complete.routeReceipt.textReachedCloudProvider)
+        XCTAssertNotNil(complete.routeReceipt.completedAt)
+    }
+
     func testMockTranscriptionRequiresPairingAndDoesNotMutateDictationState() throws {
         let state = makeState()
         state.localBridgeEnabled = true
@@ -304,6 +463,7 @@ final class LocalPairingBridgeTests: XCTestCase {
         let store = SpyTrustedPeerStore()
         let firstState = makeState(trustedPeerStore: store)
         firstState.localBridgeEnabled = true
+        firstState.selectedTranscriptionProviderPresetID = .localWhisperCPP
 
         _ = try firstState.localPairingBridgeService.beginPairing(code: "123456")
         let peer = try firstState.localPairingBridgeService.approvePairing(
@@ -317,6 +477,7 @@ final class LocalPairingBridgeTests: XCTestCase {
 
         let secondState = makeState(trustedPeerStore: store)
         secondState.localBridgeEnabled = true
+        secondState.selectedTranscriptionProviderPresetID = .localWhisperCPP
 
         XCTAssertEqual(secondState.localPairingBridgeService.trustedPeer, peer)
         XCTAssertEqual(secondState.localPairingBridgeService.pairingState, .paired)
