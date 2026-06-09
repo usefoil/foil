@@ -127,7 +127,11 @@ final class AppState {
         return Bundle.main.bundleIdentifier ?? "com.neonwatty.Foil"
     }
 
-    let localPairingBridgeService = LocalPairingBridgeService()
+    private static var localBridgeDeviceName: String {
+        Host.current().localizedName ?? "This Mac"
+    }
+
+    let localPairingBridgeService: LocalPairingBridgeService
 
     var soundEffectsEnabled: Bool = true {
         didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
@@ -278,7 +282,11 @@ final class AppState {
     var localBridgeEnabled: Bool = false {
         didSet {
             Self.defaults.set(localBridgeEnabled, forKey: "localBridgeEnabled")
-            localPairingBridgeService.setEnabled(localBridgeEnabled)
+            localPairingBridgeService.setEnabled(
+                localBridgeEnabled,
+                appState: self,
+                deviceName: Self.localBridgeDeviceName
+            )
             if !localBridgeEnabled {
                 localBridgePairingState = .unpaired
                 localBridgePairingSession = nil
@@ -783,7 +791,9 @@ final class AppState {
         return hasRetryableFailure ? .retry : nil
     }
 
-    init() {
+    init(localPairingBridgeService: LocalPairingBridgeService? = nil) {
+        self.localPairingBridgeService = localPairingBridgeService ?? LocalPairingBridgeService()
+
         let defaults = Self.defaults
         var persistedPresetRawValue = defaults
             .persistentDomain(forName: Self.defaultsDomainName)?["transcriptionProviderPreset"] as? String
@@ -895,7 +905,11 @@ final class AppState {
         experimentalSkyLightPasteEnabled = defaults.bool(forKey: "experimentalSkyLightPasteEnabled")
         pauseBrowserMediaWhileRecording = defaults.bool(forKey: "pauseBrowserMediaWhileRecording")
         localBridgeEnabled = defaults.bool(forKey: "localBridgeEnabled")
-        localPairingBridgeService.setEnabled(localBridgeEnabled)
+        self.localPairingBridgeService.setEnabled(
+            localBridgeEnabled,
+            appState: self,
+            deviceName: Self.localBridgeDeviceName
+        )
         localBridgeStatusMessage = localBridgeEnabled ? "Ready to pair" : "Local bridge off"
         #if DEBUG
         mockTranscriptionEnabled = defaults.bool(forKey: "mockTranscriptionEnabled")

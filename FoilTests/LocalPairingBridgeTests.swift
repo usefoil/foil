@@ -5,6 +5,28 @@ import XCTest
 final class LocalPairingBridgeTests: XCTestCase {
     private var logURL: URL!
 
+    private final class SpyBridgeTransport: LocalBridgeTransporting {
+        private(set) var isAdvertising = false
+        private(set) var isListening = false
+        private(set) var lastAdvertisement: LocalBridgeAdvertisement?
+        private(set) var startCalls = 0
+        private(set) var stopCalls = 0
+
+        func start(advertisement: LocalBridgeAdvertisement) throws {
+            startCalls += 1
+            lastAdvertisement = advertisement
+            isAdvertising = true
+            isListening = true
+        }
+
+        func stop() {
+            stopCalls += 1
+            lastAdvertisement = nil
+            isAdvertising = false
+            isListening = false
+        }
+    }
+
     override func setUpWithError() throws {
         clearDefaults()
         logURL = FileManager.default.temporaryDirectory
@@ -24,19 +46,43 @@ final class LocalPairingBridgeTests: XCTestCase {
     }
 
     func testBridgeIsOffByDefaultAndDoesNotAdvertise() {
-        let state = AppState()
+        let state = makeState()
         let service = state.localPairingBridgeService
 
         XCTAssertFalse(state.localBridgeEnabled)
         XCTAssertFalse(service.isEnabled)
         XCTAssertFalse(service.isAdvertising)
+        XCTAssertFalse(service.isListening)
         XCTAssertThrowsError(try service.beginPairing()) { error in
             XCTAssertEqual(error as? LocalPairingBridgeServiceError, .disabled)
         }
     }
 
+    func testTransportStartsOnlyWhenEnabledAndStopsWhenDisabled() {
+        let transport = SpyBridgeTransport()
+        let state = makeState(transport: transport)
+
+        XCTAssertFalse(transport.isAdvertising)
+        XCTAssertFalse(transport.isListening)
+        XCTAssertEqual(transport.startCalls, 0)
+
+        state.localBridgeEnabled = true
+
+        XCTAssertTrue(state.localPairingBridgeService.isAdvertising)
+        XCTAssertTrue(state.localPairingBridgeService.isListening)
+        XCTAssertEqual(transport.startCalls, 1)
+        XCTAssertEqual(transport.lastAdvertisement?.bonjourType, "_foil-bridge._tcp.local")
+
+        state.localBridgeEnabled = false
+
+        XCTAssertFalse(state.localPairingBridgeService.isAdvertising)
+        XCTAssertFalse(state.localPairingBridgeService.isListening)
+        XCTAssertEqual(transport.stopCalls, 1)
+        XCTAssertNil(transport.lastAdvertisement)
+    }
+
     func testPairingSessionUsesContractShapeWhenEnabled() throws {
-        let state = AppState()
+        let state = makeState()
         state.localBridgeEnabled = true
 
         let session = try state.localPairingBridgeService.beginPairing(
@@ -58,7 +104,7 @@ final class LocalPairingBridgeTests: XCTestCase {
     }
 
     func testCapabilitiesHandshakeUsesSelectedMacRouteAndNoCredentialOffer() throws {
-        let state = AppState()
+        let state = makeState()
         state.localBridgeEnabled = true
         state.selectedTranscriptionProviderPresetID = .localWhisperCPP
 
@@ -71,6 +117,18 @@ final class LocalPairingBridgeTests: XCTestCase {
         XCTAssertEqual(advertisement.txt["version"], "1")
         XCTAssertEqual(advertisement.txt["supportsLocalTranscription"], "true")
         XCTAssertEqual(advertisement.txt["supportsCredentialOffer"], "false")
+        XCTAssertEqual(Set(advertisement.txt.keys), Set([
+            "protocol",
+            "version",
+            "deviceName",
+            "supportsLocalTranscription",
+            "supportsCloudTranscription",
+            "supportsCredentialOffer"
+        ]))
+        XCTAssertFalse(advertisement.txt.keys.contains("apiKey"))
+        XCTAssertFalse(advertisement.txt.keys.contains("transcript"))
+        XCTAssertFalse(advertisement.txt.keys.contains("audioData"))
+        XCTAssertFalse(advertisement.txt.keys.contains("credentialIdentifier"))
 
         let response = try state.localPairingBridgeService.capabilities(
             for: LocalBridgeCapabilitiesRequest(iosAppVersion: "0.1.0", requestID: "request-1"),
@@ -121,7 +179,7 @@ final class LocalPairingBridgeTests: XCTestCase {
     }
 
     func testCapabilityAndReceiptJSONUseContractKeysAndValues() throws {
-        let state = AppState()
+        let state = makeState()
         state.localBridgeEnabled = true
         state.selectedTranscriptionProviderPresetID = .localWhisperCPP
         state.transcriptCleanupProviderID = .none
@@ -157,7 +215,7 @@ final class LocalPairingBridgeTests: XCTestCase {
     }
 
     func testMockTranscriptionRequiresPairingAndDoesNotMutateDictationState() throws {
-        let state = AppState()
+        let state = makeState()
         state.localBridgeEnabled = true
         state.selectedTranscriptionProviderPresetID = .localWhisperCPP
         state.transcriptCleanupProviderID = .none
@@ -211,7 +269,7 @@ final class LocalPairingBridgeTests: XCTestCase {
     }
 
     func testBridgeLogsRedactTranscriptAudioAndCredentials() throws {
-        let state = AppState()
+        let state = makeState()
         state.localBridgeEnabled = true
         state.selectedTranscriptionProviderPresetID = .localWhisperCPP
         state.transcriptCleanupProviderID = .none
@@ -244,11 +302,43 @@ final class LocalPairingBridgeTests: XCTestCase {
         XCTAssertFalse(logText.contains("Fixture iPhone token"))
     }
 
+    func testTransportStartStopDoesNotMutateDictationPreferences() {
+        let state = makeState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.selectedAudioFormat = .wav
+        state.hotkeyChoice = .custom
+        state.customHotkeyKeyCode = 49
+        state.customHotkeyModifiers = 1_048_576
+        state.transcriptCleanupProviderID = .none
+
+        let beforeProvider = state.selectedTranscriptionProviderPresetID
+        let beforeAudioFormat = state.selectedAudioFormat
+        let beforeHotkeyChoice = state.hotkeyChoice
+        let beforeHotkeyKeyCode = state.customHotkeyKeyCode
+        let beforeHotkeyModifiers = state.customHotkeyModifiers
+        let beforeCleanupProvider = state.transcriptCleanupProviderID
+
+        state.localBridgeEnabled = true
+        state.localBridgeEnabled = false
+
+        XCTAssertEqual(state.selectedTranscriptionProviderPresetID, beforeProvider)
+        XCTAssertEqual(state.selectedAudioFormat, beforeAudioFormat)
+        XCTAssertEqual(state.hotkeyChoice, beforeHotkeyChoice)
+        XCTAssertEqual(state.customHotkeyKeyCode, beforeHotkeyKeyCode)
+        XCTAssertEqual(state.customHotkeyModifiers, beforeHotkeyModifiers)
+        XCTAssertEqual(state.transcriptCleanupProviderID, beforeCleanupProvider)
+    }
+
     private func clearDefaults() {
         UserDefaults.standard.removeObject(forKey: "localBridgeEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupProvider")
+    }
+
+    private func makeState(transport: SpyBridgeTransport? = nil) -> AppState {
+        let bridgeTransport = transport ?? SpyBridgeTransport()
+        return AppState(localPairingBridgeService: LocalPairingBridgeService(transport: bridgeTransport))
     }
 
     private func jsonObject<T: Encodable>(from value: T) throws -> [String: Any] {
