@@ -22,7 +22,8 @@ final class AudioRecorderTests: XCTestCase {
     /// Creates a synthetic 16kHz mono Float32 PCM buffer filled with a sine wave.
     private func makeSineBuffer(
         durationSeconds: Double = 1.0,
-        frequency: Float = 440.0
+        frequency: Float = 440.0,
+        amplitude: Float = 0.5
     ) -> AVAudioPCMBuffer {
         let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -35,9 +36,13 @@ final class AudioRecorderTests: XCTestCase {
         buffer.frameLength = frameCount
         let samples = buffer.floatChannelData![0]
         for i in 0..<Int(frameCount) {
-            samples[i] = sin(2.0 * .pi * frequency * Float(i) / 16000.0) * 0.5
+            samples[i] = sin(2.0 * .pi * frequency * Float(i) / 16000.0) * amplitude
         }
         return buffer
+    }
+
+    private func makeSilentBuffer(durationSeconds: Double = 1.0) -> AVAudioPCMBuffer {
+        makeSineBuffer(durationSeconds: durationSeconds, amplitude: 0)
     }
 
     @discardableResult
@@ -179,6 +184,23 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertNil(try recorder.stopRecording(format: .wav))
         XCTAssertNil(try recorder.stopRecording(format: .m4a))
         XCTAssertNil(try recorder.stopRecording(format: .flac))
+    }
+
+    // MARK: - Audio level metering
+
+    func testNormalizedRMSLevelTreatsSilenceAsZero() {
+        let level = AudioRecorder.normalizedRMSLevel(in: makeSilentBuffer())
+
+        XCTAssertEqual(level, 0, accuracy: 0.001)
+    }
+
+    func testNormalizedRMSLevelOrdersQuietBelowLoudInput() {
+        let quiet = AudioRecorder.normalizedRMSLevel(in: makeSineBuffer(amplitude: 0.05))
+        let loud = AudioRecorder.normalizedRMSLevel(in: makeSineBuffer(amplitude: 0.7))
+
+        XCTAssertGreaterThan(quiet, 0)
+        XCTAssertGreaterThan(loud, quiet)
+        XCTAssertEqual(loud, 1, accuracy: 0.001)
     }
 
     // MARK: - Multiple buffers
@@ -391,6 +413,21 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertEqual(decision.reason, .systemDefault)
         XCTAssertNil(decision.device)
         XCTAssertFalse(decision.shouldSetDefaultInput)
+    }
+
+    func testInputPreparationSelectsFallbackWhenSystemDefaultIsMissing() {
+        let builtIn = makeDevice(id: 20, uid: "built-in", name: "MacBook Microphone", transport: .builtIn)
+        let usb = makeDevice(id: 30, uid: "usb", name: "USB Microphone", transport: .usb)
+
+        let decision = AudioRecorder.inputPreparationDecision(
+            selectedUID: nil,
+            devices: [usb, builtIn],
+            defaultInputDeviceID: nil
+        )
+
+        XCTAssertEqual(decision.reason, .noSystemDefaultFallback)
+        XCTAssertEqual(decision.device, builtIn)
+        XCTAssertTrue(decision.shouldSetDefaultInput)
     }
 
     func testInputPreparationFallsBackCleanlyWhenOnlyBluetoothInputExists() {

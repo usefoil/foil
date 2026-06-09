@@ -195,6 +195,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
     private var settingsWindow: NSWindow?
+    private var liveAudioSignifierPanel: NSPanel?
     private var hasCompletedOnboarding: Bool {
         get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
@@ -236,9 +237,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch appState.status {
         case .recording:
             HStack(spacing: 4) {
-                Image(systemName: "waveform.circle.fill")
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(.red, .red)
+                LiveAudioLevelBars(
+                    levels: appState.audioLevelHistory,
+                    phase: .recording,
+                    barCount: 6,
+                    height: 16,
+                    tint: .red
+                )
+                .frame(width: 42, height: 16)
                 Text(appState.formattedRecordingDuration)
                     .monospacedDigit()
             }
@@ -336,6 +342,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         wireHotkeyMonitor()
         applyHotkeyConfig()
         DiagnosticLog.write("applicationDidFinishLaunching: hotkey configured")
+        showLiveAudioSignifier()
         startFloatingStatusSync()
         let shouldDisplayOnboarding = shouldShowOnboarding(isTesting: isTesting)
         if isTesting || isE2ESmoke || shouldDisplayOnboarding {
@@ -583,6 +590,55 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private final class FloatingStatusPanel: NSPanel {
         override var canBecomeKey: Bool { true }
         override var canBecomeMain: Bool { false }
+    }
+
+    private final class LiveAudioSignifierPanel: NSPanel {
+        override var canBecomeKey: Bool { false }
+        override var canBecomeMain: Bool { false }
+    }
+
+    private func showLiveAudioSignifier() {
+        let panel = liveAudioSignifierPanel ?? makeLiveAudioSignifierPanel()
+        if liveAudioSignifierPanel == nil {
+            liveAudioSignifierPanel = panel
+        }
+        positionLiveAudioSignifierPanel(panel)
+        panel.orderFrontRegardless()
+    }
+
+    private func makeLiveAudioSignifierPanel() -> NSPanel {
+        let size = NSSize(width: 160, height: 48)
+        let panel = LiveAudioSignifierPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "\(AppBrand.name) Audio Signifier"
+        panel.setAccessibilityIdentifier("liveAudioSignifier.window")
+        panel.isFloatingPanel = true
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.hidesOnDeactivate = false
+        panel.isMovableByWindowBackground = false
+        panel.contentView = NSHostingView(
+            rootView: LiveAudioSignifierView(appState: appState)
+        )
+        return panel
+    }
+
+    private func positionLiveAudioSignifierPanel(_ panel: NSPanel) {
+        guard let visibleFrame = NSScreen.main?.visibleFrame else { return }
+        let margin: CGFloat = 18
+        let size = panel.frame.size
+        let origin = NSPoint(
+            x: visibleFrame.midX - (size.width / 2),
+            y: visibleFrame.minY + margin
+        )
+        panel.setFrameOrigin(origin)
     }
 
     private func startFloatingStatusSync() {
