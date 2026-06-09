@@ -66,6 +66,11 @@ final class RecordingController {
         self.prepareInputDeviceForRecording = prepareInputDeviceForRecording
         self.playStartCueBeforeRecording = playStartCueBeforeRecording
         self.startCuePreRollNanoseconds = startCuePreRollNanoseconds
+        self.audioRecorder.levelUpdateHandler = { [weak appState] level in
+            Task { @MainActor in
+                appState?.recordAudioLevel(level)
+            }
+        }
     }
 
     // MARK: - Public API

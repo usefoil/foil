@@ -194,6 +194,24 @@ final class RecordingControllerMockTests: XCTestCase {
         XCTAssertTrue(spy.didFailErrors.isEmpty)
     }
 
+    func testRecorderLevelCallbackPropagatesToAppStateOnlyWhileRecording() async throws {
+        mock.levelUpdateHandler?(0.7)
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(appState.audioLevelHistory.last, 0)
+
+        controller.startRecording()
+        mock.levelUpdateHandler?(0.7)
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        XCTAssertGreaterThan(appState.audioLevelHistory.last ?? 0, 0.69)
+
+        appState.setStatus(.idle)
+        mock.levelUpdateHandler?(0.9)
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        XCTAssertEqual(appState.audioLevelHistory.last, 0)
+    }
+
     func testStartRecordingPreparesSelectedInputDevice() {
         let selectedUID = "selected-input-\(UUID().uuidString)"
         let preparedDeviceID: AudioDeviceID = 123

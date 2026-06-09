@@ -801,7 +801,7 @@ final class FoilUITests: XCTestCase {
             "--reset-defaults",
             "--seed-setup-ready",
             "--live-microphone-smoke"
-        ], extraEnvironment: liveMicrophoneEnvironment(resultPath: resultPath))
+        ], extraEnvironment: liveMicrophoneEnvironment(resultPath: resultPath), requireControlCenter: false)
 
         let deadline = Date().addingTimeInterval(20)
         var result = ""
@@ -822,6 +822,14 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(result.contains("status=recording"), "Live microphone smoke started but did not stop. Check input-device or recorder state:\n\(result)")
         XCTAssertTrue(result.contains("status=pass"), "Live microphone smoke failed:\n\(result)")
         XCTAssertFalse(result.contains("bytes=0"), "Live microphone smoke captured no audio:\n\(result)")
+        if ProcessInfo.processInfo.environment["LIVE_MICROPHONE_APPLE_VOICE_TEXT"]?.isEmpty == false {
+            XCTAssertTrue(result.contains("apple_voice_playback=enabled"), "Apple voice playback was not enabled:\n\(result)")
+            XCTAssertGreaterThanOrEqual(
+                liveMicrophoneFloatValue(named: "level_peak", in: result),
+                0.02,
+                "Apple voice playback did not produce a captured microphone level above threshold:\n\(result)"
+            )
+        }
     }
 
     // MARK: - E2E Transcription (requires provider API key)
@@ -1449,7 +1457,18 @@ final class FoilUITests: XCTestCase {
         if let duration = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_DURATION_SECONDS"] {
             environment["LIVE_MICROPHONE_DURATION_SECONDS"] = duration
         }
+        if let appleVoiceText = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_APPLE_VOICE_TEXT"] {
+            environment["LIVE_MICROPHONE_APPLE_VOICE_TEXT"] = appleVoiceText
+        }
         return environment
+    }
+
+    private func liveMicrophoneFloatValue(named name: String, in result: String) -> Float {
+        let prefix = "\(name)="
+        guard let line = result.split(separator: "\n").first(where: { $0.hasPrefix(prefix) }) else {
+            return 0
+        }
+        return Float(line.dropFirst(prefix.count)) ?? 0
     }
 }
 

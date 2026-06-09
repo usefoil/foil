@@ -4,6 +4,8 @@ import Foundation
 
 /// Test double for AudioRecording. All state is inspectable; errors can be injected.
 final class MockAudioRecorder: AudioRecording {
+    var levelUpdateHandler: ((Float) -> Void)?
+
     // MARK: - startRecording
     var startRecordingCallCount = 0
     var startRecordingDeviceID: AudioDeviceID?
