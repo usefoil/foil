@@ -69,7 +69,7 @@ npm install --package-lock-only >/dev/null
 CHANGELOG_ENTRY="$(mktemp)"
 {
   if [ -n "$PREVIOUS_TAG" ]; then
-    printf '## [%s](https://github.com/mean-weasel/foil/compare/%s...v%s) (%s)\n\n' "$VERSION" "$PREVIOUS_TAG" "$VERSION" "$TODAY"
+    printf '## [%s](https://github.com/usefoil/foil/compare/%s...v%s) (%s)\n\n' "$VERSION" "$PREVIOUS_TAG" "$VERSION" "$TODAY"
   else
     printf '## [%s] (%s)\n\n' "$VERSION" "$TODAY"
   fi

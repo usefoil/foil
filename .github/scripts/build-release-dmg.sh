@@ -16,7 +16,7 @@ CHECKSUM_PATH="${DMG_PATH}.sha256"
 REPO_ROOT="${GITHUB_WORKSPACE:-$(pwd)}"
 DMG_BACKGROUND="$REPO_ROOT/.github/assets/dmg-background.png"
 BUILD_NUMBER="${BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-1}}"
-REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/foil}}"
+REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-usefoil/foil}}"
 
 sed -i '' "s/\$(APPLE_TEAM_ID)/$APPLE_TEAM_ID/" ExportOptions.plist
 

@@ -9,17 +9,19 @@ using. Hold your hotkey, speak, release, and Foil transcribes with Groq, Local
 whisper.cpp, or a custom OpenAI-compatible endpoint before pasting the result
 back into your current text field.
 
-![Foil ready control center](site/assets/screenshots/foil-ready-control-center.png)
+![Foil ready control center](https://raw.githubusercontent.com/usefoil/foil-web/main/assets/screenshots/foil-ready-control-center.png)
 
-The screenshot set in [`site/assets/screenshots/`](site/assets/screenshots/)
+The screenshot set in [`usefoil/foil-web`](https://github.com/usefoil/foil-web/tree/main/assets/screenshots)
 uses real Foil app windows captured from deterministic UI-testing states. It
 shows the menu control center, setup recovery, onboarding, and Transcription
 settings without live credentials or private transcript content.
 
 ## Website
 
-The static landing page lives in [`site/`](site/) and is deployed by the
-`Landing Page` GitHub Pages workflow when website files change on `main`.
+The static landing page lives in
+[`usefoil/foil-web`](https://github.com/usefoil/foil-web) so marketing,
+analytics, SEO, and web deployment work can move independently from macOS app
+release work.
 
 ## Install
 
@@ -39,7 +41,7 @@ also works. The cask checksum should match the release asset digest for the
 published DMG.
 
 **Manual DMG:** Download `Foil-VERSION-macos.dmg` from
-[Releases](https://github.com/mean-weasel/foil/releases), verify it against
+[Releases](https://github.com/usefoil/foil/releases), verify it against
 the GitHub release asset digest or matching `.sha256` checksum when one is
 published, open it, and drag Foil into Applications.
 
@@ -187,7 +189,7 @@ If the certificate files are in `~/Desktop/apple-developer-certificates`, run:
 make setup-release-secrets
 ```
 
-`make setup-release-secrets` uses `mean-weasel/foil` by default. Set `REPO`,
+`make setup-release-secrets` uses `usefoil/foil` by default. Set `REPO`,
 `CERT_DIR`, `P12_PATH`, `ISSUER_ID_PATH`, `PRIVATE_KEY_PATH`, `APPLE_TEAM_ID`,
 or `APP_STORE_CONNECT_KEY_ID` to target a different repository or certificate
 layout.
@@ -289,7 +291,7 @@ retained retry audio, and local diagnostics. API keys are stored separately in
 Keychain; use Settings → Transcription → **Change API Key** to replace them.
 
 **Updates or Homebrew:** Sparkle updates read the `appcast.xml` asset from the
-`mean-weasel/foil` GitHub releases. Homebrew installs the verified cask from
+`usefoil/foil` GitHub releases. Homebrew installs the verified cask from
 the `mean-weasel/homebrew-foil` tap; if an install fails, confirm the cask
 URL and checksum match the latest GitHub release DMG.
 

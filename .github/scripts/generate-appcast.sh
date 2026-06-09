@@ -15,7 +15,7 @@ set -euo pipefail
 : "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
 : "${RUNNER_TEMP:?RUNNER_TEMP is required}"
 
-REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/foil}}"
+REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-usefoil/foil}}"
 DMG_PATH="$RUNNER_TEMP/Foil-${VERSION}-macos.dmg"
 DMG_FILENAME="Foil-${VERSION}-macos.dmg"
 DMG_URL="https://github.com/${REPO}/releases/download/v${VERSION}/${DMG_FILENAME}"

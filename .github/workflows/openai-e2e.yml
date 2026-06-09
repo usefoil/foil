@@ -33,7 +33,7 @@ jobs:
     timeout-minutes: 15
     needs: [detect-changes]
     # Don't run on forks (no access to secrets)
-    if: github.repository == 'mean-weasel/foil' && needs.detect-changes.outputs.app_ci == 'true'
+    if: github.repository == 'usefoil/foil' && needs.detect-changes.outputs.app_ci == 'true'
 
     steps:
       - name: Checkout code

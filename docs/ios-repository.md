@@ -2,7 +2,7 @@
 
 Foil iOS now lives in its own repository:
 
-https://github.com/mean-weasel/foil-ios
+https://github.com/usefoil/foil-ios
 
 Use that repo for the native iPhone app, custom keyboard extension, TestFlight
 release work, iOS privacy artifacts, physical-device automation, and iOS

@@ -4,7 +4,7 @@ set -euo pipefail
 : "${VERSION:?VERSION is required}"
 : "${GITHUB_TOKEN:?GITHUB_TOKEN is required}"
 
-REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-mean-weasel/foil}}"
+REPO="${RELEASE_REPO:-${GITHUB_REPOSITORY:-usefoil/foil}}"
 TAG="v${VERSION}"
 NOTES_FILE="${RUNNER_TEMP:-/tmp}/Foil-${VERSION}-release-notes.md"
 

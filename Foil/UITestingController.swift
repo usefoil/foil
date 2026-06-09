@@ -865,7 +865,7 @@ final class UITestingController {
     }
 
     @objc private func openHelpForUITest() {
-        guard let url = URL(string: "https://github.com/mean-weasel/foil#troubleshooting") else {
+        guard let url = URL(string: "https://github.com/usefoil/foil#troubleshooting") else {
             return
         }
         if let path = ProcessInfo.processInfo.environment["FOIL_UITEST_OPENED_URL_PATH"],
