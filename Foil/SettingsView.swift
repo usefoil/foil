@@ -58,6 +58,11 @@ struct SettingsView: View {
         static let queuedPasteShortcutConflict = "Delivery shortcut conflicts with the custom recording shortcut."
         static let backgroundPasteTitle = "Try background paste"
         static let backgroundPasteDescription = "Uses a lower-level paste route. Leave off unless normal paste fails."
+        static let localBridgeTitle = "Foil Local Bridge"
+        static let localBridgeDescription = "Pairs an iPhone with this Mac for local bridge fixtures. No production credentials are shared."
+        static let pairIPhoneTitle = "Pair iPhone"
+        static let approveFixtureIPhoneTitle = "Approve fixture iPhone"
+        static let runMockBridgeRequestTitle = "Run mock request"
     }
 
     enum RecordingCopy {
@@ -912,6 +917,53 @@ struct SettingsView: View {
                 Text(ExperimentalCopy.backgroundPasteDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("Local Bridge") {
+                Toggle(ExperimentalCopy.localBridgeTitle, isOn: $appState.localBridgeEnabled)
+                    .accessibilityIdentifier("settings.localBridgeToggle")
+                Text(ExperimentalCopy.localBridgeDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.localBridgeDescription")
+
+                HStack {
+                    Button(ExperimentalCopy.pairIPhoneTitle) {
+                        appState.beginLocalBridgePairing()
+                    }
+                    .disabled(!appState.localBridgeEnabled)
+                    .accessibilityIdentifier("settings.localBridgePairIPhoneButton")
+
+                    Button(ExperimentalCopy.approveFixtureIPhoneTitle) {
+                        appState.approveFixtureLocalBridgePairing()
+                    }
+                    .disabled(!appState.localBridgeEnabled)
+                    .accessibilityIdentifier("settings.localBridgeApproveFixtureButton")
+
+                    Button(ExperimentalCopy.runMockBridgeRequestTitle) {
+                        appState.runFixtureLocalBridgeTranscription()
+                    }
+                    .disabled(!appState.localBridgeEnabled)
+                    .accessibilityIdentifier("settings.localBridgeMockRequestButton")
+                }
+
+                LabeledContent("State", value: appState.localBridgePairingState.rawValue)
+                    .accessibilityIdentifier("settings.localBridgePairingState")
+                LabeledContent("Status", value: appState.localBridgeStatusMessage)
+                    .accessibilityIdentifier("settings.localBridgeStatus")
+
+                if let session = appState.localBridgePairingSession {
+                    LabeledContent("Code", value: session.code)
+                        .accessibilityIdentifier("settings.localBridgePairingCode")
+                }
+
+                if let receipt = appState.localBridgeLastReceipt {
+                    LabeledContent("Route", value: receipt.routeID.rawValue)
+                        .accessibilityIdentifier("settings.localBridgeReceiptRoute")
+                    LabeledContent("Audio to cloud", value: receipt.audioReachedCloudProvider ? "yes" : "no")
+                        .accessibilityIdentifier("settings.localBridgeReceiptAudioCloud")
+                }
             }
 
             #if DEBUG
