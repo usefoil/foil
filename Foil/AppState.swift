@@ -293,6 +293,8 @@ final class AppState {
                 localBridgeTrustedPeer = nil
                 localBridgeLastReceipt = nil
                 localBridgeStatusMessage = "Local bridge off"
+            } else {
+                syncLocalBridgePresentationAfterEnable()
             }
         }
     }
@@ -302,6 +304,13 @@ final class AppState {
     var localBridgeTrustedPeer: LocalBridgeTrustedPeer?
     var localBridgeLastReceipt: RouteReceipt?
     var localBridgeStatusMessage = "Local bridge off"
+    var localBridgePairingPayloadText: String? {
+        guard let localBridgePairingSession else { return nil }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(localBridgePairingSession) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 
     #if DEBUG
     var mockTranscriptionEnabled: Bool = false {
@@ -910,7 +919,11 @@ final class AppState {
             appState: self,
             deviceName: Self.localBridgeDeviceName
         )
-        localBridgeStatusMessage = localBridgeEnabled ? "Ready to pair" : "Local bridge off"
+        if localBridgeEnabled {
+            syncLocalBridgePresentationAfterEnable()
+        } else {
+            localBridgeStatusMessage = "Local bridge off"
+        }
         #if DEBUG
         mockTranscriptionEnabled = defaults.bool(forKey: "mockTranscriptionEnabled")
         #endif
@@ -1078,20 +1091,35 @@ final class AppState {
             localBridgeStatusMessage = "Turn on Local Bridge first"
             return
         }
+        guard localPairingBridgeService.activePairingSession != nil else {
+            localBridgeStatusMessage = "Start Pair iPhone first"
+            return
+        }
         do {
-            if localPairingBridgeService.activePairingSession == nil {
-                _ = try localPairingBridgeService.beginPairing()
-            }
             let peer = try localPairingBridgeService.approvePairing(
                 iphonePeerID: "fixture-iphone-public-id",
                 displayName: "Fixture iPhone"
             )
             localBridgeTrustedPeer = peer
+            localBridgePairingSession = nil
             localBridgePairingState = localPairingBridgeService.pairingState
             localBridgeStatusMessage = "Paired with \(peer.displayName)"
         } catch {
             localBridgeStatusMessage = "Pairing approval unavailable"
         }
+    }
+
+    func revokeLocalBridgePairing() {
+        guard localBridgeEnabled else {
+            localBridgeStatusMessage = "Turn on Local Bridge first"
+            return
+        }
+        localPairingBridgeService.revokePairing()
+        localBridgePairingSession = nil
+        localBridgeTrustedPeer = nil
+        localBridgeLastReceipt = nil
+        localBridgePairingState = localPairingBridgeService.pairingState
+        localBridgeStatusMessage = "Pairing revoked"
     }
 
     func runFixtureLocalBridgeTranscription() {
@@ -1100,9 +1128,6 @@ final class AppState {
             return
         }
         do {
-            if localPairingBridgeService.trustedPeer == nil {
-                approveFixtureLocalBridgePairing()
-            }
             let request = LocalBridgeTranscriptionStart(
                 requestID: "fixture-transcription-request",
                 audio: LocalBridgeAudioDescriptor(
@@ -1128,8 +1153,20 @@ final class AppState {
                 localBridgeStatusMessage = failure.error.displayMessage
             }
             localBridgePairingState = localPairingBridgeService.pairingState
+        } catch LocalPairingBridgeServiceError.pairingRequired {
+            localBridgeStatusMessage = "Pair iPhone and approve first"
         } catch {
             localBridgeStatusMessage = "Mock request unavailable"
+        }
+    }
+
+    private func syncLocalBridgePresentationAfterEnable() {
+        localBridgePairingState = localPairingBridgeService.pairingState
+        localBridgeTrustedPeer = localPairingBridgeService.trustedPeer
+        if let peer = localBridgeTrustedPeer {
+            localBridgeStatusMessage = "Paired with \(peer.displayName)"
+        } else {
+            localBridgeStatusMessage = "Ready to pair"
         }
     }
 

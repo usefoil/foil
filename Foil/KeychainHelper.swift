@@ -4,6 +4,7 @@ import Security
 
 enum KeychainHelper {
     private static let defaultAccount = "groq-api-key"
+    private static let defaultLocalBridgeTrustedPeerAccount = "local-bridge.trusted-peer"
 
     #if DEBUG
     static var storageDirectoryOverride: URL?
@@ -42,6 +43,15 @@ enum KeychainHelper {
         let base = defaultAccount
         #endif
         return "\(base).cleanup.\(providerID.rawValue)"
+    }
+
+    private static var localBridgeTrustedPeerAccount: String {
+        #if DEBUG
+        if let accountOverride {
+            return "\(accountOverride).\(defaultLocalBridgeTrustedPeerAccount)"
+        }
+        #endif
+        return defaultLocalBridgeTrustedPeerAccount
     }
 
     private static var legacyPlaintextStorageURL: URL? {
@@ -119,6 +129,20 @@ enum KeychainHelper {
         deleteFromKeychain(account: cleanupAccount(for: providerID))
     }
 
+    static func saveLocalBridgeTrustedPeer(_ peer: LocalBridgeTrustedPeer) throws {
+        let data = try JSONEncoder().encode(peer)
+        try saveDataToKeychain(data, account: localBridgeTrustedPeerAccount)
+    }
+
+    static func readLocalBridgeTrustedPeer() -> LocalBridgeTrustedPeer? {
+        guard let data = readDataFromKeychain(account: localBridgeTrustedPeerAccount) else { return nil }
+        return try? JSONDecoder().decode(LocalBridgeTrustedPeer.self, from: data)
+    }
+
+    static func deleteLocalBridgeTrustedPeer() {
+        deleteFromKeychain(account: localBridgeTrustedPeerAccount)
+    }
+
     // MARK: - Keychain storage
 
     private static func saveToKeychain(apiKey: String, for providerID: TranscriptionProviderID = .groq) throws {
@@ -126,7 +150,10 @@ enum KeychainHelper {
     }
 
     private static func saveToKeychain(apiKey: String, account: String) throws {
-        let data = Data(apiKey.utf8)
+        try saveDataToKeychain(Data(apiKey.utf8), account: account)
+    }
+
+    private static func saveDataToKeychain(_ data: Data, account: String) throws {
         let query = baseQuery(account: account)
         let attributes: [String: Any] = [
             kSecValueData as String: data,
@@ -152,6 +179,16 @@ enum KeychainHelper {
     }
 
     private static func readFromKeychain(account: String) -> String? {
+        guard let data = readDataFromKeychain(account: account),
+              let key = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !key.isEmpty else {
+            return nil
+        }
+        return key
+    }
+
+    private static func readDataFromKeychain(account: String) -> Data? {
         var query = baseQuery(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -161,21 +198,18 @@ enum KeychainHelper {
 
         let started = Date()
         let (status, result) = copyMatching(query)
-        logKeychainRead(status: status, account: account, started: started)
+        logKeychainRead(status: status, started: started)
         guard status == errSecSuccess,
-              let data = result as? Data,
-              let key = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !key.isEmpty else {
+              let data = result as? Data else {
             return nil
         }
-        return key
+        return data
     }
 
-    private static func logKeychainRead(status: OSStatus, account: String, started: Date) {
+    private static func logKeychainRead(status: OSStatus, started: Date) {
         let elapsedMilliseconds = Int(Date().timeIntervalSince(started) * 1000)
         DiagnosticLog.write(
-            "KeychainHelper: read account=\(account) service=\(service) status=\(statusName(status)) durationMs=\(elapsedMilliseconds) interactionAllowed=false"
+            "KeychainHelper: read status=\(statusName(status)) durationMs=\(elapsedMilliseconds) interactionAllowed=false"
         )
     }
 
