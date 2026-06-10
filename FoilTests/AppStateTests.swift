@@ -21,6 +21,26 @@ final class AppStateTests: XCTestCase {
         }
     }
 
+    private final class SpyBridgeTransport: LocalBridgeTransporting {
+        private(set) var isAdvertising = false
+        private(set) var isListening = false
+        private(set) var lastAdvertisement: LocalBridgeAdvertisement?
+        private(set) var startCalls = 0
+
+        func start(advertisement: LocalBridgeAdvertisement) throws {
+            startCalls += 1
+            lastAdvertisement = advertisement
+            isAdvertising = true
+            isListening = true
+        }
+
+        func stop() {
+            lastAdvertisement = nil
+            isAdvertising = false
+            isListening = false
+        }
+    }
+
     override func setUpWithError() throws {
         clearPersistedAppStateDefaults()
         testDirectory = FileManager.default.temporaryDirectory
@@ -972,17 +992,23 @@ final class AppStateTests: XCTestCase {
     }
 
     func testLocalBridgeDefaultsOffAndOnlyAdvertisesWhenEnabled() {
-        let state = AppState()
+        let transport = SpyBridgeTransport()
+        let state = AppState(localPairingBridgeService: LocalPairingBridgeService(transport: transport))
 
         XCTAssertFalse(state.localBridgeEnabled)
         XCTAssertFalse(state.localPairingBridgeService.isEnabled)
         XCTAssertFalse(state.localPairingBridgeService.isAdvertising)
+        XCTAssertFalse(state.localPairingBridgeService.isListening)
+        XCTAssertEqual(transport.startCalls, 0)
 
         state.localBridgeEnabled = true
 
         XCTAssertTrue(state.localBridgeEnabled)
         XCTAssertTrue(state.localPairingBridgeService.isEnabled)
         XCTAssertTrue(state.localPairingBridgeService.isAdvertising)
+        XCTAssertTrue(state.localPairingBridgeService.isListening)
+        XCTAssertEqual(transport.startCalls, 1)
+        XCTAssertEqual(transport.lastAdvertisement?.bonjourType, "_foil-bridge._tcp.local")
     }
 
     func testRecordPasteUpdatesUserFeedback() {

@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 enum LocalBridgeProtocol {
     static let family = "foil.localBridge"
@@ -74,6 +75,58 @@ struct LocalBridgeAdvertisement: Codable, Equatable {
     let serviceName: String
     let bonjourType: String
     let txt: [String: String]
+}
+
+@MainActor
+protocol LocalBridgeTransporting: AnyObject {
+    var isAdvertising: Bool { get }
+    var isListening: Bool { get }
+    var lastAdvertisement: LocalBridgeAdvertisement? { get }
+
+    func start(advertisement: LocalBridgeAdvertisement) throws
+    func stop()
+}
+
+final class NetworkLocalBridgeTransport: LocalBridgeTransporting {
+    private let queue = DispatchQueue(label: "com.neonwatty.Foil.LocalBridgeTransport")
+    private var listener: NWListener?
+
+    private(set) var isAdvertising = false
+    private(set) var isListening = false
+    private(set) var lastAdvertisement: LocalBridgeAdvertisement?
+
+    func start(advertisement: LocalBridgeAdvertisement) throws {
+        stop()
+
+        let listener = try NWListener(using: .tcp, on: .any)
+        listener.service = NWListener.Service(
+            name: advertisement.serviceName,
+            type: advertisement.bonjourType,
+            txtRecord: NWTXTRecord(advertisement.txt)
+        )
+        listener.newConnectionHandler = { connection in
+            connection.cancel()
+        }
+        listener.start(queue: queue)
+
+        self.listener = listener
+        lastAdvertisement = advertisement
+        isAdvertising = true
+        isListening = true
+        DiagnosticLog.write("LocalBridge: transport started service=\(advertisement.bonjourType) txtKeys=\(Self.redactedTXTKeys(advertisement.txt))")
+    }
+
+    func stop() {
+        listener?.cancel()
+        listener = nil
+        lastAdvertisement = nil
+        isAdvertising = false
+        isListening = false
+    }
+
+    private static func redactedTXTKeys(_ txt: [String: String]) -> String {
+        txt.keys.sorted().joined(separator: ",")
+    }
 }
 
 struct LocalBridgePairingSession: Codable, Equatable {
@@ -221,15 +274,35 @@ final class LocalPairingBridgeService {
     private(set) var pairingState: LocalBridgePairingState = .unpaired
     private(set) var activePairingSession: LocalBridgePairingSession?
     private(set) var trustedPeer: LocalBridgeTrustedPeer?
+    private(set) var transportErrorMessage: String?
+    private let transport: LocalBridgeTransporting
 
-    var isAdvertising: Bool { isEnabled }
+    var isAdvertising: Bool { transport.isAdvertising }
+    var isListening: Bool { transport.isListening }
+    var lastAdvertisement: LocalBridgeAdvertisement? { transport.lastAdvertisement }
 
-    func setEnabled(_ enabled: Bool) {
+    init(transport: LocalBridgeTransporting? = nil) {
+        self.transport = transport ?? NetworkLocalBridgeTransport()
+    }
+
+    func setEnabled(_ enabled: Bool, appState: AppState? = nil, deviceName: String = "This Mac") {
         guard enabled != isEnabled else { return }
         isEnabled = enabled
         if enabled {
-            DiagnosticLog.write("LocalBridge: enabled advertising=fixture-only")
+            transportErrorMessage = nil
+            if let appState {
+                do {
+                    try transport.start(advertisement: advertisement(deviceName: deviceName, appState: appState))
+                } catch {
+                    transport.stop()
+                    transportErrorMessage = "Local bridge transport unavailable"
+                    DiagnosticLog.write("LocalBridge: transport failed error=\(String(describing: error))")
+                }
+            }
+            DiagnosticLog.write("LocalBridge: enabled advertising=\(transport.isAdvertising)")
         } else {
+            transport.stop()
+            transportErrorMessage = nil
             activePairingSession = nil
             trustedPeer = nil
             pairingState = .unpaired
