@@ -198,7 +198,7 @@ enum KeychainHelper {
 
         let started = Date()
         let (status, result) = copyMatching(query)
-        logKeychainRead(status: status, account: account, started: started)
+        logKeychainRead(status: status, started: started)
         guard status == errSecSuccess,
               let data = result as? Data else {
             return nil
@@ -206,10 +206,10 @@ enum KeychainHelper {
         return data
     }
 
-    private static func logKeychainRead(status: OSStatus, account: String, started: Date) {
+    private static func logKeychainRead(status: OSStatus, started: Date) {
         let elapsedMilliseconds = Int(Date().timeIntervalSince(started) * 1000)
         DiagnosticLog.write(
-            "KeychainHelper: read account=\(account) service=\(service) status=\(statusName(status)) durationMs=\(elapsedMilliseconds) interactionAllowed=false"
+            "KeychainHelper: read status=\(statusName(status)) durationMs=\(elapsedMilliseconds) interactionAllowed=false"
         )
     }
 
