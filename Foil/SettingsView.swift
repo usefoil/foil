@@ -86,6 +86,7 @@ struct SettingsView: View {
     var onHotkeyChanged: (() -> Void)?
     var onCopySetupReport: (() -> Void)?
     var onExportDiagnostics: (() -> Void)?
+    var onStartLocalWhisperServer: ((LocalWhisperSetupModelID) -> Void)?
 
     @Environment(\.openWindow) private var openWindow
     @State private var selectedTab: Tab
@@ -103,13 +104,15 @@ struct SettingsView: View {
         initialTab: Tab = .general,
         onHotkeyChanged: (() -> Void)? = nil,
         onCopySetupReport: (() -> Void)? = nil,
-        onExportDiagnostics: (() -> Void)? = nil
+        onExportDiagnostics: (() -> Void)? = nil,
+        onStartLocalWhisperServer: ((LocalWhisperSetupModelID) -> Void)? = nil
     ) {
         self.appState = appState
         self.history = history
         self.onHotkeyChanged = onHotkeyChanged
         self.onCopySetupReport = onCopySetupReport
         self.onExportDiagnostics = onExportDiagnostics
+        self.onStartLocalWhisperServer = onStartLocalWhisperServer
         _selectedTab = State(initialValue: initialTab)
     }
 
@@ -622,6 +625,8 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("settings.localWhisperSetupModelExplanation")
 
+            localWhisperServerControl
+
             commandBlock(
                 title: "Install whisper.cpp",
                 command: selectedLocalWhisperSetupCommands.cloneCommand,
@@ -645,6 +650,62 @@ struct SettingsView: View {
                 command: selectedLocalWhisperSetupCommands.startServerCommand,
                 identifier: "settings.localWhisperStartServerCommand"
             )
+        }
+    }
+
+    private var localWhisperServerControl: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Button {
+                    onStartLocalWhisperServer?(selectedLocalWhisperSetupModelID)
+                } label: {
+                    Label("Start server", systemImage: "play.fill")
+                }
+                .disabled(appState.localWhisperServerState.isStarting || onStartLocalWhisperServer == nil)
+                .accessibilityIdentifier("settings.localWhisperStartServerButton")
+
+                localWhisperServerStatus
+            }
+
+            Text("Starts the already-built local whisper-server with the selected downloaded model. Foil will not install, build, clone, or download files automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.localWhisperStartServerHelp")
+        }
+    }
+
+    @ViewBuilder
+    private var localWhisperServerStatus: some View {
+        switch appState.localWhisperServerState {
+        case .idle:
+            Text("Not started from Foil")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("settings.localWhisperServerStatus")
+        case .starting(let modelName):
+            ProgressView("Starting \(modelName)...")
+                .controlSize(.small)
+                .accessibilityIdentifier("settings.localWhisperServerStatus")
+        case .running(let baseURL):
+            Label("Running at \(baseURL)", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .accessibilityIdentifier("settings.localWhisperServerStatus")
+        case .alreadyRunning(let baseURL):
+            Label("Already reachable at \(baseURL)", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .accessibilityIdentifier("settings.localWhisperServerStatus")
+        case .missingBinary(let path):
+            Label("Missing whisper-server at \(path)", systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("settings.localWhisperServerStatus")
+        case .missingModel(let path):
+            Label("Missing model at \(URL(fileURLWithPath: path).lastPathComponent)", systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("settings.localWhisperServerStatus")
+        case .failed(let message):
+            Label(message, systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("settings.localWhisperServerStatus")
         }
     }
 
