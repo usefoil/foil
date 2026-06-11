@@ -468,8 +468,10 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].exists || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Audio stays on this Mac").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("API key is optional").exists
-                      || staticTextLabelOrValueContaining("local OpenAI-compatible").exists
+        XCTAssertTrue(app.staticTexts["Local Server"].exists || staticTextLabelOrValueContaining("Local Server").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(staticTextLabelOrValueContaining("Local whisper.cpp API key").exists, app.debugDescription)
+        XCTAssertFalse(elementExists(id: "settings.changeApiKeyButton", timeout: 1), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("without credentials").exists
                       || elementExists(id: "settings.localProviderHelp", timeout: 1),
                       app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Start the local whisper-server first").waitForExistence(timeout: 2), app.debugDescription)
@@ -494,6 +496,9 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].waitForExistence(timeout: 2) || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["whisper-1"].exists || staticTextContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Install whisper.cpp").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Local Server"].exists || staticTextLabelOrValueContaining("Local Server").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(staticTextLabelOrValueContaining("Local whisper.cpp API key").exists, app.debugDescription)
+        XCTAssertFalse(elementExists(id: "settings.changeApiKeyButton", timeout: 1), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.localWhisperStartServerButton", timeout: 2), app.debugDescription)
         XCTAssertTrue(providerConnectionButton().waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists, app.debugDescription)

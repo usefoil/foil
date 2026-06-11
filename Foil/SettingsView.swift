@@ -401,35 +401,36 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("settings.providerPrivacySummary")
 
-            Section("Credentials") {
-                HStack {
-                    Text("\(appState.selectedTranscriptionProvider.displayName) API key")
-                    Spacer()
-                    Label(apiKeyStatusLabel, systemImage: apiKeyStatusImage)
-                        .foregroundStyle(apiKeyStatusColor)
-                    Button("Change...") {
-                        openWindow(id: "api-key-setup")
-                    }
-                    .accessibilityIdentifier("settings.changeApiKeyButton")
-                }
-
-                if appState.selectedTranscriptionProvider.id == .openAICompatible {
-                    HStack {
-                        Button("Test connection") {
-                            Task {
-                                await appState.testSelectedProviderConnection()
-                            }
-                        }
-                        .disabled(appState.providerConnectionTestState.isRunning)
-                        .accessibilityIdentifier("settings.testProviderConnectionButton")
-
-                        providerConnectionStatus
-                    }
+            if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
+                Section("Local Server") {
+                    providerConnectionTestRow
                     Text(providerConnectionHelp)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("settings.providerConnectionHelp")
+                }
+            } else {
+                Section("Credentials") {
+                    HStack {
+                        Text("\(appState.selectedTranscriptionProvider.displayName) API key")
+                        Spacer()
+                        Label(apiKeyStatusLabel, systemImage: apiKeyStatusImage)
+                            .foregroundStyle(apiKeyStatusColor)
+                        Button("Change...") {
+                            openWindow(id: "api-key-setup")
+                        }
+                        .accessibilityIdentifier("settings.changeApiKeyButton")
+                    }
+
+                    if appState.selectedTranscriptionProvider.id == .openAICompatible {
+                        providerConnectionTestRow
+                        Text(providerConnectionHelp)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("settings.providerConnectionHelp")
+                    }
                 }
             }
 
@@ -450,7 +451,7 @@ struct SettingsView: View {
                 } else if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
                     LabeledContent("Base URL", value: "http://127.0.0.1:8080/v1")
                     LabeledContent("Model", value: "whisper-1")
-                    Text("Install whisper.cpp, download a model, then start whisper-server on 127.0.0.1:8080 with --inference-path /v1/audio/transcriptions. API key is optional; use a dummy value such as local only if your server expects one.")
+                    Text("Install whisper.cpp, download a model, then start whisper-server on 127.0.0.1:8080 with --inference-path /v1/audio/transcriptions. Foil sends this local preset without credentials.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -757,6 +758,20 @@ struct SettingsView: View {
     private var apiKeyStatusColor: Color {
         if appState.hasApiKey { return .green }
         return appState.selectedTranscriptionProvider.requiresAPIKey ? .orange : .secondary
+    }
+
+    private var providerConnectionTestRow: some View {
+        HStack {
+            Button("Test connection") {
+                Task {
+                    await appState.testSelectedProviderConnection()
+                }
+            }
+            .disabled(appState.providerConnectionTestState.isRunning)
+            .accessibilityIdentifier("settings.testProviderConnectionButton")
+
+            providerConnectionStatus
+        }
     }
 
     @ViewBuilder

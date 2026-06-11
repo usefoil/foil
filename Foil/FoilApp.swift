@@ -39,16 +39,31 @@ struct FoilApp: App {
         .menuBarExtraStyle(.window)
 
         Window("\(AppBrand.name) Setup", id: "api-key-setup") {
-            ApiKeySetupView(
-                provider: appDelegate.appState.selectedTranscriptionProvider,
-                onSaved: { [weak appDelegate] in
-                    appDelegate?.appState.refreshApiKeyState()
-                },
-                validateApiKey: { [weak appDelegate] key in
-                    guard let appDelegate else { return }
-                    try await appDelegate.validateSelectedProviderApiKey(key)
+            if appDelegate.appState.selectedProviderUsesSharedApiKey {
+                ApiKeySetupView(
+                    provider: appDelegate.appState.selectedTranscriptionProvider,
+                    onSaved: { [weak appDelegate] in
+                        appDelegate?.appState.refreshApiKeyState()
+                    },
+                    validateApiKey: { [weak appDelegate] key in
+                        guard let appDelegate else { return }
+                        try await appDelegate.validateSelectedProviderApiKey(key)
+                    }
+                )
+            } else {
+                VStack(spacing: 16) {
+                    FoilCylinderMark(size: 48)
+                    Text("Local whisper.cpp")
+                        .font(.headline)
+                    Text("This preset uses the local server configured in Settings and does not save or send credentials.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
-            )
+                .padding(24)
+                .frame(width: 380)
+                .accessibilityIdentifier("apiKeySetup.localServerMessage")
+            }
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
@@ -1020,7 +1035,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState.failSetupCheck("Add \(appState.selectedTranscriptionProvider.displayName) API key")
                 return
             }
-            let apiKey = KeychainHelper.readApiKey(for: appState.selectedTranscriptionProviderID)
+            let apiKey = appState.selectedProviderApiKey
             var setupSuccessDetail = "Ready to record"
 
             do {

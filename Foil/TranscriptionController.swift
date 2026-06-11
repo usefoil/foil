@@ -144,7 +144,7 @@ final class TranscriptionController {
         DiagnosticLog.write("TranscriptionController.retryTranscription: url=\(audioURL.lastPathComponent)")
 
         let provider = appState.selectedTranscriptionProvider
-        let apiKey = KeychainHelper.readApiKey(for: appState.selectedTranscriptionProviderID)
+        let apiKey = appState.selectedProviderApiKey
         if provider.requiresAPIKey && apiKey == nil {
             let noKeyError = NoApiKeyError()
             delegate?.transcriptionController(
@@ -197,7 +197,7 @@ final class TranscriptionController {
             DiagnosticLog.write("TranscriptionController: using E2E_API_KEY from environment")
             return envKey
         }
-        return KeychainHelper.readApiKey(for: appState.selectedTranscriptionProviderID)
+        return appState.selectedProviderApiKey
     }
 
     // MARK: - Internal helpers

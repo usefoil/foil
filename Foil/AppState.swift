@@ -366,7 +366,16 @@ final class AppState {
 
     private var isSynchronizingProviderSelection = false
 
-    var hasApiKey: Bool { KeychainHelper.readApiKey(for: selectedTranscriptionProviderID) != nil }
+    var selectedProviderUsesSharedApiKey: Bool {
+        selectedTranscriptionProviderPresetID != .localWhisperCPP
+    }
+
+    var selectedProviderApiKey: String? {
+        guard selectedProviderUsesSharedApiKey else { return nil }
+        return KeychainHelper.readApiKey(for: selectedTranscriptionProviderID)
+    }
+
+    var hasApiKey: Bool { selectedProviderApiKey != nil }
 
     var selectedTranscriptionProviderPreset: TranscriptionProviderPreset {
         switch selectedTranscriptionProviderPresetID {
@@ -732,7 +741,7 @@ final class AppState {
                 timerText: nil,
                 systemImage: "exclamationmark.triangle.fill",
                 tone: .warning,
-                primaryAction: .addKey
+                primaryAction: selectedProviderUsesSharedApiKey ? .addKey : .retry
             )
         }
         return nil
@@ -780,7 +789,10 @@ final class AppState {
     }
 
     private func apiKeySetupDetail() -> String {
-        switch apiKeyState {
+        guard selectedProviderUsesSharedApiKey else {
+            return "Check Local whisper.cpp server before recording"
+        }
+        return switch apiKeyState {
         case .unknown:
             selectedTranscriptionProvider.requiresAPIKey
                 ? "Check \(selectedTranscriptionProvider.displayName) API key before recording"
@@ -861,6 +873,9 @@ final class AppState {
             return "Check the transcription server URL in Settings, then try again"
         }
         if message.localizedCaseInsensitiveContains("api key") {
+            guard selectedProviderUsesSharedApiKey else {
+                return "Start Local whisper.cpp server and test the connection"
+            }
             return selectedTranscriptionProvider.requiresAPIKey
                 ? "Add a \(selectedTranscriptionProvider.displayName) API key to transcribe"
                 : "\(selectedTranscriptionProvider.displayName) API key is optional"
@@ -1277,7 +1292,7 @@ final class AppState {
         }
 
         providerConnectionTestState = .running
-        let key = apiKey ?? KeychainHelper.readApiKey(for: selectedTranscriptionProviderID)
+        let key = apiKey ?? selectedProviderApiKey
         do {
             let result = try await service
                 .withProvider(selectedTranscriptionProvider)
