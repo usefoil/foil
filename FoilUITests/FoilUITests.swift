@@ -121,6 +121,21 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Right Command · Pastes into current app"].exists)
     }
 
+    func testNoAudioCapturedShowsWarningInSessionStrip() {
+        launchApp(arguments: [
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-no-audio-captured"
+        ])
+
+        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        let state = waitForUITestStateSnapshot { $0.sessionTitle == "No audio captured" }
+        XCTAssertEqual(state?.sessionDetail, "Try a longer recording or check your microphone input")
+        XCTAssertTrue(app.staticTexts["No audio captured"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Try a longer recording or check your microphone input"].exists, app.debugDescription)
+    }
+
     func testMicrophoneUnknownShowsCheckAction() {
         launchApp(arguments: [
             "--ui-testing",

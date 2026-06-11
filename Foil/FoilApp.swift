@@ -1280,7 +1280,6 @@ extension AppDelegate: RecordingControllerDelegate {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStopWithNoAudio")
         browserMediaController.recordingDidEnd(reason: .noAudio)
         stopTranscribingAnimation()
-        appState.setStatus(.idle)
     }
 
     func recordingControllerDidCancel(_ controller: RecordingController) {
