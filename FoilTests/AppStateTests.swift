@@ -361,6 +361,49 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.apiKeyState, .ready)
     }
 
+    func testLocalWhisperDoesNotReadSharedOpenAICompatibleApiKey() throws {
+        try KeychainHelper.save(apiKey: "custom-compatible-key", for: .openAICompatible)
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+
+        XCTAssertFalse(state.selectedProviderUsesSharedApiKey)
+        XCTAssertNil(state.selectedProviderApiKey)
+        XCTAssertFalse(state.hasApiKey)
+
+        state.refreshApiKeyState()
+
+        XCTAssertEqual(state.apiKeyState, .ready)
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .openAICompatible), "custom-compatible-key")
+    }
+
+    func testLocalWhisperSetupPresentationUsesServerLanguageWhenApiStateIsUnknown() {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.updateAccessibilityState(isTrusted: true)
+        state.updateMicrophoneState(isReady: true)
+        state.apiKeyState = .unknown
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.detail, "Check Local whisper.cpp server before recording")
+        XCTAssertEqual(presentation.primaryAction, .retry)
+        XCTAssertFalse(presentation.detail.localizedCaseInsensitiveContains("api key"))
+    }
+
+    func testCustomOpenAICompatibleStillReadsSharedOptionalApiKey() throws {
+        try KeychainHelper.save(apiKey: "custom-compatible-key", for: .openAICompatible)
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+
+        XCTAssertTrue(state.selectedProviderUsesSharedApiKey)
+        XCTAssertEqual(state.selectedProviderApiKey, "custom-compatible-key")
+        XCTAssertTrue(state.hasApiKey)
+    }
+
     func testSetupCheckStateTransitions() {
         let state = AppState()
 
@@ -1380,6 +1423,51 @@ final class AppStateTests: XCTestCase {
 
         await state.testSelectedProviderConnection(service: service)
 
+        XCTAssertEqual(
+            state.providerConnectionTestState,
+            .succeeded("Server reachable. Model whisper-1 is available.")
+        )
+    }
+
+    func testProviderConnectionForLocalWhisperOmitsSharedOpenAICompatibleApiKey() async throws {
+        try KeychainHelper.save(apiKey: "custom-compatible-key", for: .openAICompatible)
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        let transport = StubTransport { request in
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            return (
+                Data(#"{"data":[{"id":"whisper-1"}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(transport: transport)
+
+        await state.testSelectedProviderConnection(service: service)
+
+        XCTAssertEqual(transport.requests.count, 1)
+        XCTAssertEqual(
+            state.providerConnectionTestState,
+            .succeeded("Server reachable. Model whisper-1 is available.")
+        )
+    }
+
+    func testProviderConnectionForCustomOpenAICompatibleUsesSharedOptionalApiKey() async throws {
+        try KeychainHelper.save(apiKey: "custom-compatible-key", for: .openAICompatible)
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+        state.customTranscriptionBaseURL = "http://127.0.0.1:9090/v1"
+        let transport = StubTransport { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer custom-compatible-key")
+            return (
+                Data(#"{"data":[{"id":"whisper-1"}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(transport: transport)
+
+        await state.testSelectedProviderConnection(service: service)
+
+        XCTAssertEqual(transport.requests.count, 1)
         XCTAssertEqual(
             state.providerConnectionTestState,
             .succeeded("Server reachable. Model whisper-1 is available.")

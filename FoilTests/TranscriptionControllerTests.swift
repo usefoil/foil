@@ -360,6 +360,95 @@ final class TranscriptionControllerTests: XCTestCase {
         // The important invariant: no successful transcription without an API key
     }
 
+    func testLocalWhisperTranscribeDoesNotSendSharedOpenAICompatibleApiKey() async throws {
+        try KeychainHelper.save(apiKey: "custom-compatible-key", for: .openAICompatible)
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("local transcript".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState
+        )
+        controller.delegate = spy
+
+        await controller.transcribe(audioURL: tempURL, format: .wav)
+
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "local transcript")
+        XCTAssertEqual(spy.didFailCalls.count, 0)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testLocalWhisperRetryDoesNotSendSharedOpenAICompatibleApiKey() async throws {
+        try KeychainHelper.save(apiKey: "custom-compatible-key", for: .openAICompatible)
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let record = TranscriptionRecord(
+            id: UUID(),
+            timestamp: Date(),
+            outcome: .failure(error: "previous failure", audioFileURL: tempURL)
+        )
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("retried local transcript".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState
+        )
+        controller.delegate = spy
+
+        await controller.retryTranscription(record: record)
+
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "retried local transcript")
+        XCTAssertEqual(spy.didFailCalls.count, 0)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testCustomOpenAICompatibleTranscribeStillSendsSharedOptionalApiKey() async throws {
+        try KeychainHelper.save(apiKey: "custom-compatible-key", for: .openAICompatible)
+        appState.selectedTranscriptionProviderPresetID = .customOpenAICompatible
+        appState.customTranscriptionBaseURL = "http://127.0.0.1:9090/v1"
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:9090/v1/audio/transcriptions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer custom-compatible-key")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("custom transcript".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState
+        )
+        controller.delegate = spy
+
+        await controller.transcribe(audioURL: tempURL, format: .wav)
+
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "custom transcript")
+        XCTAssertEqual(spy.didFailCalls.count, 0)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
     // MARK: - retryTranscription with missing audio file
 
     func testRetryTranscriptionWithNoAudioURLNotifiesDelegateOfFailure() async {
