@@ -69,7 +69,10 @@ struct FoilApp: App {
                 history: appDelegate.history,
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
                 onCopySetupReport: { [weak appDelegate] in appDelegate?.copySetupReportToClipboard() },
-                onExportDiagnostics: { [weak appDelegate] in appDelegate?.exportDiagnostics() }
+                onExportDiagnostics: { [weak appDelegate] in appDelegate?.exportDiagnostics() },
+                onStartLocalWhisperServer: { [weak appDelegate] modelID in
+                    appDelegate?.startLocalWhisperServer(modelID: modelID)
+                }
             )
         }
         .commands {
@@ -152,6 +155,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let soundPlayer = SoundPlayer()
     private let singleInstanceGuard: SingleInstanceGuarding
     private let setupPermissionProvider: SetupPermissionProviding
+    private let localWhisperServerController: LocalWhisperServerController
     lazy var queuedPasteQueue = QueuedPasteQueue { [weak self] text, target in
         guard let self, let pasteController = self.pasteController else {
             return .clipboardFallback
@@ -187,10 +191,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     init(
         singleInstanceGuard: SingleInstanceGuarding,
-        setupPermissionProvider: SetupPermissionProviding = SystemSetupPermissionProvider()
+        setupPermissionProvider: SetupPermissionProviding = SystemSetupPermissionProvider(),
+        localWhisperServerController: LocalWhisperServerController? = nil
     ) {
         self.singleInstanceGuard = singleInstanceGuard
         self.setupPermissionProvider = setupPermissionProvider
+        self.localWhisperServerController = localWhisperServerController ?? LocalWhisperServerController()
         self.appState = AppState()
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
             let dir = FileManager.default.temporaryDirectory
@@ -201,6 +207,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.history = TranscriptionHistory()
         }
         super.init()
+        self.localWhisperServerController.onTermination = { [weak self] in
+            guard let self else { return }
+            if case .running = self.appState.localWhisperServerState {
+                self.appState.localWhisperServerState = .failed("whisper-server exited.")
+            }
+        }
     }
     // MARK: - Menu bar label
 
@@ -371,6 +383,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DiagnosticLog.write("setupReport: copiedToClipboard bytes=\(text.utf8.count)")
     }
 
+    func startLocalWhisperServer(modelID: LocalWhisperSetupModelID) {
+        guard appState.selectedTranscriptionProviderPresetID == .localWhisperCPP else {
+            appState.localWhisperServerState = .failed("Select Local whisper.cpp before starting the local server.")
+            return
+        }
+
+        let model = LocalWhisperSetupModel.option(id: modelID)
+        let commands = LocalWhisperSetupCommands(model: model)
+        appState.localWhisperServerState = .starting(model.displayName)
+
+        Task { @MainActor in
+            let result = await localWhisperServerController.start(commands: commands)
+            switch result {
+            case .alreadyRunning(let baseURL):
+                appState.localWhisperServerState = .alreadyRunning(baseURL)
+                await appState.testSelectedProviderConnection(service: transcriptionService)
+            case .started:
+                let reachable = await localWhisperServerController.waitUntilReachable(commands: commands)
+                if reachable {
+                    appState.localWhisperServerState = .running(commands.localBaseURL)
+                    await appState.testSelectedProviderConnection(service: transcriptionService)
+                } else if localWhisperServerController.isProcessRunning {
+                    let message = "Started whisper-server, but \(commands.localBaseURL) did not become reachable within 5 seconds."
+                    appState.localWhisperServerState = .failed(message)
+                    appState.providerConnectionTestState = .failed(message)
+                } else {
+                    let message = "whisper-server exited before \(commands.localBaseURL) became reachable."
+                    appState.localWhisperServerState = .failed(message)
+                    appState.providerConnectionTestState = .failed(message)
+                }
+            case .missingBinary(let path):
+                appState.localWhisperServerState = .missingBinary(path)
+                appState.providerConnectionTestState = .failed("Missing whisper-server. Build whisper.cpp first.")
+            case .missingModel(let path):
+                appState.localWhisperServerState = .missingModel(path)
+                appState.providerConnectionTestState = .failed("Missing local model. Download \(model.displayName) first.")
+            case .failed(let message):
+                appState.localWhisperServerState = .failed(message)
+                appState.providerConnectionTestState = .failed(message)
+            }
+        }
+    }
+
     func applicationDidBecomeActive(_ notification: Notification) {
         guard !Self.isTestingProcess(), !Self.isAutomationSmokeProcess() else { return }
         refreshSetupHealth()
@@ -486,7 +541,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             initialTab: initialTab,
             onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() },
             onCopySetupReport: { [weak self] in self?.copySetupReportToClipboard() },
-            onExportDiagnostics: { [weak self] in self?.exportDiagnostics() }
+            onExportDiagnostics: { [weak self] in self?.exportDiagnostics() },
+            onStartLocalWhisperServer: { [weak self] modelID in
+                self?.startLocalWhisperServer(modelID: modelID)
+            }
         )
 
         let window = NSWindow(
@@ -603,6 +661,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         floatingStatusSyncTimer?.invalidate()
         transientSuccessAutoHideTimer?.invalidate()
         recordingController?.invalidateTimers()
+        localWhisperServerController.terminate()
     }
 
     // MARK: - Hotkey configuration

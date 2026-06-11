@@ -48,6 +48,21 @@ final class AppState {
         }
     }
 
+    enum LocalWhisperServerState: Equatable {
+        case idle
+        case starting(String)
+        case running(String)
+        case alreadyRunning(String)
+        case missingBinary(String)
+        case missingModel(String)
+        case failed(String)
+
+        var isStarting: Bool {
+            if case .starting = self { return true }
+            return false
+        }
+    }
+
     enum SessionTone: Equatable {
         case neutral
         case active
@@ -106,6 +121,7 @@ final class AppState {
     var setupCheckSuccessDetail = "Ready to record"
     var providerConnectionTestState: ProviderConnectionTestState = .idle
     var cleanupConnectionTestState: ProviderConnectionTestState = .idle
+    var localWhisperServerState: LocalWhisperServerState = .idle
 
     // MARK: - UserDefaults-backed preferences
     //

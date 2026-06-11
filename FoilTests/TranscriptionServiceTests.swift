@@ -1,3 +1,4 @@
+import Darwin
 import XCTest
 @testable import Foil
 
@@ -197,6 +198,87 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(commands.localBaseURL, "http://127.0.0.1:8080/v1")
     }
 
+    func testLocalWhisperSetupCommandsExposeExpandedProcessLaunchArguments() {
+        let model = LocalWhisperSetupModel.option(id: .baseEN)
+        let commands = LocalWhisperSetupCommands(model: model, installPath: "~/Developer/whisper.cpp")
+
+        XCTAssertEqual(
+            commands.serverBinaryURL.path,
+            "\(NSHomeDirectory())/Developer/whisper.cpp/build/bin/whisper-server"
+        )
+        XCTAssertEqual(
+            commands.modelFileURL.path,
+            "\(NSHomeDirectory())/Developer/whisper.cpp/models/ggml-base.en.bin"
+        )
+        XCTAssertEqual(commands.startServerArguments, [
+            "--host", "127.0.0.1",
+            "--port", "8080",
+            "--model", "\(NSHomeDirectory())/Developer/whisper.cpp/models/ggml-base.en.bin",
+            "--inference-path", "/v1/audio/transcriptions",
+            "--convert",
+            "--no-timestamps"
+        ])
+        XCTAssertFalse(commands.startServerArguments.joined(separator: " ").contains("~"))
+        XCTAssertEqual(commands.modelsEndpointURL.absoluteString, "http://127.0.0.1:8080/v1/models")
+    }
+
+    @MainActor
+    func testLocalWhisperServerControllerReportsAlreadyRunningBeforeCheckingFiles() async {
+        let model = LocalWhisperSetupModel.option(id: .baseEN)
+        let commands = LocalWhisperSetupCommands(model: model, installPath: "/tmp/foil-missing-whisper-\(UUID().uuidString)")
+        let controller = LocalWhisperServerController { _ in true }
+
+        let result = await controller.start(commands: commands)
+
+        XCTAssertEqual(result, .alreadyRunning("http://127.0.0.1:8080/v1"))
+    }
+
+    @MainActor
+    func testLocalWhisperServerControllerReportsMissingBinary() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let model = LocalWhisperSetupModel.option(id: .baseEN)
+        let commands = LocalWhisperSetupCommands(model: model, installPath: installURL.path)
+        let controller = LocalWhisperServerController { _ in false }
+
+        let result = await controller.start(commands: commands)
+
+        XCTAssertEqual(result, .missingBinary(commands.serverBinaryURL.path))
+    }
+
+    @MainActor
+    func testLocalWhisperServerControllerReportsMissingModel() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let model = LocalWhisperSetupModel.option(id: .smallEN)
+        let commands = LocalWhisperSetupCommands(model: model, installPath: installURL.path)
+        try Self.writeExecutableStub(at: commands.serverBinaryURL)
+        let controller = LocalWhisperServerController { _ in false }
+
+        let result = await controller.start(commands: commands)
+
+        XCTAssertEqual(result, .missingModel(commands.modelFileURL.path))
+    }
+
+    @MainActor
+    func testLocalWhisperServerControllerReportsNonExecutableBinaryAsFailedStart() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let model = LocalWhisperSetupModel.option(id: .baseEN)
+        let commands = LocalWhisperSetupCommands(model: model, installPath: installURL.path)
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: commands.serverBinaryURL)
+        try Data().write(to: commands.modelFileURL)
+        let controller = LocalWhisperServerController { _ in false }
+
+        let result = await controller.start(commands: commands)
+
+        guard case .failed(let message) = result else {
+            return XCTFail("Expected failed start, got \(result)")
+        }
+        XCTAssertTrue(message.contains("not executable"))
+        XCTAssertTrue(message.contains(commands.serverBinaryURL.path))
+    }
+
     func testLocalWhisperSetupExplanationSeparatesAPIModelFromServerModelFile() {
         let model = LocalWhisperSetupModel.option(id: .largeV3Turbo)
         let commands = LocalWhisperSetupCommands(model: model)
@@ -204,6 +286,25 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(commands.modelSelectionExplanation.contains("whisper-1"))
         XCTAssertTrue(commands.modelSelectionExplanation.contains("--model ggml-large-v3-turbo.bin"))
         XCTAssertFalse(commands.modelSelectionExplanation.contains("changes the Foil model picker"))
+    }
+
+    private static func makeTemporaryWhisperInstall() throws -> URL {
+        let installURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FoilWhisperInstall-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: installURL.appendingPathComponent("build/bin", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            at: installURL.appendingPathComponent("models", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        return installURL
+    }
+
+    private static func writeExecutableStub(at url: URL) throws {
+        try Data("#!/bin/sh\nsleep 10\n".utf8).write(to: url)
+        chmod(url.path, 0o755)
     }
 
     func testCustomPresetTrimsEmptyModelToWhisperOne() {

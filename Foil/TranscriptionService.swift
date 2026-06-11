@@ -359,12 +359,156 @@ struct LocalWhisperSetupCommands: Equatable {
         """
     }
 
+    var expandedInstallPath: String {
+        (installPath as NSString).expandingTildeInPath
+    }
+
+    var installDirectoryURL: URL {
+        URL(fileURLWithPath: expandedInstallPath, isDirectory: true)
+    }
+
+    var serverBinaryURL: URL {
+        installDirectoryURL
+            .appendingPathComponent("build", isDirectory: true)
+            .appendingPathComponent("bin", isDirectory: true)
+            .appendingPathComponent("whisper-server", isDirectory: false)
+    }
+
+    var modelFileURL: URL {
+        installDirectoryURL
+            .appendingPathComponent("models", isDirectory: true)
+            .appendingPathComponent(model.ggmlFilename, isDirectory: false)
+    }
+
+    var startServerArguments: [String] {
+        [
+            "--host", host,
+            "--port", "\(port)",
+            "--model", modelFileURL.path,
+            "--inference-path", "/v1/audio/transcriptions",
+            "--convert",
+            "--no-timestamps"
+        ]
+    }
+
     var localBaseURL: String {
         "http://\(host):\(port)/v1"
     }
 
+    var modelsEndpointURL: URL {
+        URL(string: "\(localBaseURL)/models")!
+    }
+
     var modelSelectionExplanation: String {
         "\(AppBrand.name) sends \(Self.apiCompatibilityModel) for OpenAI-compatible API shape; whisper-server uses --model \(model.ggmlFilename) as the real local model."
+    }
+}
+
+enum LocalWhisperServerStartResult: Equatable {
+    case alreadyRunning(String)
+    case started(String)
+    case missingBinary(String)
+    case missingModel(String)
+    case failed(String)
+}
+
+@MainActor
+final class LocalWhisperServerController {
+    typealias ReachabilityCheck = (URL) async -> Bool
+
+    private let fileManager: FileManager
+    private let reachabilityCheck: ReachabilityCheck
+    private var process: Process?
+    var onTermination: (() -> Void)?
+
+    init(
+        fileManager: FileManager = .default,
+        reachabilityCheck: @escaping ReachabilityCheck = LocalWhisperServerController.defaultReachabilityCheck
+    ) {
+        self.fileManager = fileManager
+        self.reachabilityCheck = reachabilityCheck
+    }
+
+    var isProcessRunning: Bool {
+        process?.isRunning == true
+    }
+
+    func start(commands: LocalWhisperSetupCommands) async -> LocalWhisperServerStartResult {
+        if await reachabilityCheck(commands.modelsEndpointURL) {
+            return .alreadyRunning(commands.localBaseURL)
+        }
+
+        guard fileManager.fileExists(atPath: commands.serverBinaryURL.path) else {
+            return .missingBinary(commands.serverBinaryURL.path)
+        }
+        guard fileManager.isExecutableFile(atPath: commands.serverBinaryURL.path) else {
+            return .failed("whisper-server is not executable at \(commands.serverBinaryURL.path). Rebuild whisper.cpp and try again.")
+        }
+        guard fileManager.fileExists(atPath: commands.modelFileURL.path) else {
+            return .missingModel(commands.modelFileURL.path)
+        }
+
+        let serverProcess = Process()
+        serverProcess.executableURL = commands.serverBinaryURL
+        serverProcess.arguments = commands.startServerArguments
+        serverProcess.currentDirectoryURL = commands.installDirectoryURL
+        serverProcess.standardOutput = Pipe()
+        serverProcess.standardError = Pipe()
+        serverProcess.terminationHandler = { [weak self, weak serverProcess] terminatedProcess in
+            Task { @MainActor in
+                guard let self, let serverProcess, self.process === serverProcess else { return }
+                self.process = nil
+                DiagnosticLog.write("localWhisperServer: terminated status=\(terminatedProcess.terminationStatus)")
+                self.onTermination?()
+            }
+        }
+
+        do {
+            try serverProcess.run()
+            process = serverProcess
+            DiagnosticLog.write("localWhisperServer: started pid=\(serverProcess.processIdentifier) binary=\(commands.serverBinaryURL.path)")
+            return .started(commands.localBaseURL)
+        } catch {
+            DiagnosticLog.write("localWhisperServer: failed error=\(error.localizedDescription)")
+            return .failed("Could not start whisper-server: \(error.localizedDescription)")
+        }
+    }
+
+    func waitUntilReachable(
+        commands: LocalWhisperSetupCommands,
+        attempts: Int = 10,
+        delayNanoseconds: UInt64 = 500_000_000
+    ) async -> Bool {
+        for attempt in 1...max(1, attempts) {
+            if await reachabilityCheck(commands.modelsEndpointURL) {
+                return true
+            }
+            if attempt < attempts {
+                try? await Task.sleep(nanoseconds: delayNanoseconds)
+            }
+        }
+        return false
+    }
+
+    func terminate() {
+        guard let process else { return }
+        if process.isRunning {
+            process.terminate()
+        }
+        self.process = nil
+    }
+
+    private static func defaultReachabilityCheck(url: URL) async -> Bool {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 0.75
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return false }
+            return http.statusCode == 200 || http.statusCode == 404 || http.statusCode == 405
+        } catch {
+            return false
+        }
     }
 }
 
