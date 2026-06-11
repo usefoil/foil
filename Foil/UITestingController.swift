@@ -241,6 +241,10 @@ final class UITestingController {
             appState.apiKeyState = .needsAction("Add Groq API key")
         }
 
+        if args.contains("--seed-no-audio-captured") {
+            appState.recordNoAudioCaptured()
+        }
+
         if args.contains("--seed-history") {
             history.clear()
             history.addSuccess(text: "Seeded transcript for UI testing.")

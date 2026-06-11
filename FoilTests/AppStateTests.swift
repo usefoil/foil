@@ -601,6 +601,45 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(presentation.tone, .warning)
     }
 
+    func testNoAudioSessionPresentationSurvivesIdleReset() {
+        let state = AppState()
+        markSetupReady(state)
+
+        state.recordNoAudioCaptured()
+        state.setStatus(.idle)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(state.status, .idle)
+        XCTAssertEqual(presentation.title, "No audio captured")
+        XCTAssertEqual(presentation.detail, "Try a longer recording or check your microphone input")
+        XCTAssertEqual(presentation.systemImage, "waveform.slash")
+        XCTAssertEqual(presentation.primaryAction, .openMicrophone)
+        XCTAssertEqual(presentation.tone, .warning)
+    }
+
+    func testSetupFailureSessionPresentationOverridesReadyState() {
+        let state = AppState()
+        markSetupReady(state)
+
+        state.failSetupCheck("Could not reach Local whisper.cpp. Start whisper-server on 127.0.0.1:8080 and try again.")
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Setup check failed")
+        XCTAssertEqual(presentation.detail, "Start whisper-server on 127.0.0.1:8080, then run setup check again")
+        XCTAssertNil(presentation.primaryAction)
+        XCTAssertEqual(presentation.tone, .warning)
+    }
+
     func testErrorSessionPresentationRoutesRetryableFailure() {
         let state = AppState()
         state.showError("Request timed out")
@@ -613,6 +652,23 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(presentation.title, "Request timed out")
         XCTAssertEqual(presentation.detail, "Audio saved · Retry transcription")
+        XCTAssertEqual(presentation.primaryAction, .retry)
+        XCTAssertEqual(presentation.tone, .warning)
+    }
+
+    func testLocalServerErrorSessionPresentationUsesRecoveryCopy() {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.showError("Cannot reach Local whisper.cpp")
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: true,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Cannot reach Local whisper.cpp")
+        XCTAssertEqual(presentation.detail, "Start whisper-server on 127.0.0.1:8080, then try again")
         XCTAssertEqual(presentation.primaryAction, .retry)
         XCTAssertEqual(presentation.tone, .warning)
     }

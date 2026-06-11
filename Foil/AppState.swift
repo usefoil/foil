@@ -600,6 +600,19 @@ final class AppState {
             if let setupPresentation = setupSessionPresentation() {
                 return setupPresentation
             }
+            if let setupFailurePresentation = setupFailureSessionPresentation() {
+                return setupFailurePresentation
+            }
+            if isNoAudioCapturedFeedback {
+                return SessionPresentation(
+                    title: noAudioCapturedTitle,
+                    detail: noAudioCapturedDetail,
+                    timerText: nil,
+                    systemImage: "waveform.slash",
+                    tone: .warning,
+                    primaryAction: .openMicrophone
+                )
+            }
             switch transientResult {
             case .pasted:
                 return SessionPresentation(
@@ -660,6 +673,18 @@ final class AppState {
         }
     }
 
+    private var noAudioCapturedTitle: String {
+        "No audio captured"
+    }
+
+    private var noAudioCapturedDetail: String {
+        "Try a longer recording or check your microphone input"
+    }
+
+    private var isNoAudioCapturedFeedback: Bool {
+        feedbackMessage == noAudioCapturedTitle
+    }
+
     private var currentTargetDetail: String {
         capturedTargetName.map { "Target: \($0)" } ?? "Target: current app"
     }
@@ -709,6 +734,47 @@ final class AppState {
                 tone: .warning,
                 primaryAction: .addKey
             )
+        }
+        return nil
+    }
+
+    private func setupFailureSessionPresentation() -> SessionPresentation? {
+        guard case .failed(let message) = setupCheckState else { return nil }
+        return SessionPresentation(
+            title: "Setup check failed",
+            detail: setupFailureDetail(for: message),
+            timerText: nil,
+            systemImage: "exclamationmark.triangle.fill",
+            tone: .warning,
+            primaryAction: setupFailureAction(for: message)
+        )
+    }
+
+    private func setupFailureDetail(for message: String) -> String {
+        if message.localizedCaseInsensitiveContains("local whisper.cpp") {
+            return "Start whisper-server on 127.0.0.1:8080, then run setup check again"
+        }
+        if message.localizedCaseInsensitiveContains("openai-compatible") {
+            return "\(message). Check the base URL, server status, and model."
+        }
+        if message.localizedCaseInsensitiveContains("api key") {
+            return "Add or update the \(selectedTranscriptionProvider.displayName) API key"
+        }
+        if message.localizedCaseInsensitiveContains("microphone") {
+            return "Allow Microphone access or choose a working input device"
+        }
+        return message
+    }
+
+    private func setupFailureAction(for message: String) -> SessionAction? {
+        if message.localizedCaseInsensitiveContains("api key") {
+            return .addKey
+        }
+        if message.localizedCaseInsensitiveContains("microphone") {
+            return .openMicrophone
+        }
+        if message.localizedCaseInsensitiveContains("accessibility") {
+            return .openAccessibility
         }
         return nil
     }
@@ -785,6 +851,15 @@ final class AppState {
     }
 
     private func errorDetail(for message: String, hasRetryableFailure: Bool) -> String {
+        if message.localizedCaseInsensitiveContains("cannot reach local whisper.cpp")
+            || message.localizedCaseInsensitiveContains("could not reach local whisper.cpp") {
+            return "Start whisper-server on 127.0.0.1:8080, then try again"
+        }
+        if message.localizedCaseInsensitiveContains("cannot reach custom openai-compatible")
+            || message.localizedCaseInsensitiveContains("could not reach custom openai-compatible")
+            || message.localizedCaseInsensitiveContains("invalid provider url") {
+            return "Check the transcription server URL in Settings, then try again"
+        }
         if message.localizedCaseInsensitiveContains("api key") {
             return selectedTranscriptionProvider.requiresAPIKey
                 ? "Add a \(selectedTranscriptionProvider.displayName) API key to transcribe"
@@ -1034,9 +1109,9 @@ final class AppState {
         status = .idle
         transcriptionStage = nil
         transientResult = nil
-        feedbackMessage = "No audio captured"
+        feedbackMessage = noAudioCapturedTitle
         lastPasteSummary = nil
-        clipboardFeedback = "Try a longer recording or check your microphone"
+        clipboardFeedback = noAudioCapturedDetail
         floatingStatusDismissed = false
         floatingStatusTransientVisible = true
     }
