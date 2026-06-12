@@ -725,14 +725,14 @@
 				CODE_SIGN_ENTITLEMENTS = Foil/Foil.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Foil/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.13.4;
+				MARKETING_VERSION = 1.13.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.Foil.Dev;
 				PRODUCT_MODULE_NAME = Foil;
 				PRODUCT_NAME = "Foil Dev";
@@ -896,14 +896,14 @@
 				CODE_SIGN_ENTITLEMENTS = Foil/Foil.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Foil/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.13.4;
+				MARKETING_VERSION = 1.13.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.Foil;
 				PRODUCT_MODULE_NAME = Foil;
 				PRODUCT_NAME = Foil;
@@ -936,14 +936,14 @@
 				CODE_SIGN_ENTITLEMENTS = Foil/Foil.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Foil/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.13.4;
+				MARKETING_VERSION = 1.13.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.Foil;
 				PRODUCT_MODULE_NAME = Foil;
 				PRODUCT_NAME = Foil;
@@ -994,14 +994,14 @@
 				CODE_SIGN_ENTITLEMENTS = Foil/Foil.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Foil/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.13.4;
+				MARKETING_VERSION = 1.13.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.neonwatty.Foil.Dev;
 				PRODUCT_MODULE_NAME = Foil;
 				PRODUCT_NAME = "Foil Dev";

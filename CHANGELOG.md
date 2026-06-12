@@ -1,3 +1,9 @@
+## [1.13.5](https://github.com/usefoil/foil/compare/v1.13.4...v1.13.5) (2026-06-12)
+
+- Fix Sparkle update signing for release DMGs so in-app updates can validate downloaded updates.
+- Add release and QA guards that require Sparkle EdDSA signatures and verify the shipped app embeds `SUPublicEDKey`.
+
+
 ## [1.13.4](https://github.com/mean-weasel/foil/compare/v1.13.3...v1.13.4) (2026-05-31)
 
 - Fixed installed-app automation smoke launches so they no longer get diverted into an already-running Foil process before diagnostics and automation handlers are configured.
