@@ -189,12 +189,13 @@ verify_app_bundle() {
     return
   fi
 
-  local bundle_id short_version build_version microphone_usage executable
+  local bundle_id short_version build_version microphone_usage executable sparkle_public_key
   bundle_id="$(plist_value CFBundleIdentifier "$plist")"
   short_version="$(plist_value CFBundleShortVersionString "$plist")"
   build_version="$(plist_value CFBundleVersion "$plist")"
   microphone_usage="$(plist_value NSMicrophoneUsageDescription "$plist")"
   executable="$(plist_value CFBundleExecutable "$plist")"
+  sparkle_public_key="$(plist_value SUPublicEDKey "$plist")"
 
   if [ "$bundle_id" = "$BUNDLE_ID" ]; then
     pass "bundle id is $bundle_id"
@@ -205,6 +206,11 @@ verify_app_bundle() {
   [ -n "$short_version" ] && pass "bundle version is $short_version" || fail "missing bundle version"
   [ -n "$build_version" ] && pass "bundle build is $build_version" || fail "missing bundle build"
   [ -n "$microphone_usage" ] && pass "NSMicrophoneUsageDescription is present" || fail "missing NSMicrophoneUsageDescription"
+  if [ -n "$sparkle_public_key" ] && printf '%s' "$sparkle_public_key" | base64 --decode | wc -c | grep -Eq '^[[:space:]]*32$'; then
+    pass "SUPublicEDKey is present and decodes to 32 bytes"
+  else
+    fail "SUPublicEDKey is missing or not a base64-encoded 32-byte key"
+  fi
 
   if [ -n "$executable" ] && [ -x "$app_path/Contents/MacOS/$executable" ]; then
     pass "bundle executable exists and is executable: $app_path/Contents/MacOS/$executable"

@@ -426,7 +426,7 @@ Release dry-run checklist:
 6. Tag the merged `main` commit:
    `git tag v1.12.2 && git push origin v1.12.2`
 7. Confirm required repository secrets exist:
-   `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_TEAM_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`.
+   `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_TEAM_ID`, `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_PRIVATE_KEY`, `SPARKLE_PUBLIC_ED_KEY`, `SPARKLE_PRIVATE_ED_KEY`.
 8. Confirm the release runner image has the configured Xcode path from `deploy.yml` or update the workflow before release.
 9. Run the `Release` workflow manually with the version number without the leading `v` and the release build number.
 10. After the workflow completes, download the release DMG and verify locally:
@@ -440,14 +440,15 @@ Homebrew/DMG verification path:
 2. Confirm the release asset digest or `Foil-VERSION-macos.dmg.sha256`, then download the DMG and compute its checksum:
    `shasum -a 256 Foil-VERSION-macos.dmg`
 3. Verify the computed checksum matches the GitHub release asset digest or `Foil-VERSION-macos.dmg.sha256`.
-4. Update the Homebrew tap cask URL to the exact release asset and the cask `sha256` to the computed value.
-5. Verify from a clean tap state:
+4. Confirm `appcast.xml` has `sparkle:edSignature` and `sparkle:length` on the DMG enclosure.
+5. Update the Homebrew tap cask URL to the exact release asset and the cask `sha256` to the computed value.
+6. Verify from a clean tap state:
    `brew untap mean-weasel/foil || true`
-6. Tap and install into a temporary app directory before touching `/Applications`:
+7. Tap and install into a temporary app directory before touching `/Applications`:
    `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
    `brew install --cask --appdir=/tmp/foil-brew-apps mean-weasel/foil/foil`
-7. Confirm the temp-installed `Foil.app` reports the expected version/build, Gatekeeper accepts it, and deep strict codesign verification passes.
-8. Record the workflow run URL, release URL, DMG checksum, cask commit, and local verification result in the release notes or QA log.
+8. Confirm the temp-installed `Foil.app` reports the expected version/build, includes `SUPublicEDKey`, Gatekeeper accepts it, and deep strict codesign verification passes.
+9. Record the workflow run URL, release URL, DMG checksum, cask commit, and local verification result in the release notes or QA log.
 
 ### Agent M: README And Docs Cleanup
 
