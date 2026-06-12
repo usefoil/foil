@@ -10,6 +10,15 @@ The `Release` workflow expects Apple signing/notarization secrets plus
 the tap token is unavailable, but `GITHUB_TOKEN` cannot push to the separate tap
 repository.
 
+Sparkle update signing also requires `SPARKLE_PUBLIC_ED_KEY` and
+`SPARKLE_PRIVATE_ED_KEY`. Generate them with Sparkle's `generate_keys` tool,
+store the private key only as a GitHub secret, and embed the matching public key
+through the release workflow. `SPARKLE_PUBLIC_ED_KEY` must be the
+base64-encoded 32-byte `SUPublicEDKey` value. The release workflow fails before
+publishing if either key is missing, if the public key is malformed, if the
+exported app does not contain the public key, or if `appcast.xml` cannot be
+verified against the signed DMG.
+
 ## Prepare a Release PR
 
 1. Write release notes in a temporary Markdown file.
@@ -39,6 +48,10 @@ Run the `Release` workflow manually with `version` set to `1.12.2` and `build` s
 
 The workflow checks out `v1.12.2`, creates the GitHub Release if it does not already exist, builds a branded drag-to-Applications DMG using `.github/assets/dmg-background.png`, notarizes it, uploads the DMG and checksum, generates `appcast.xml`, and attempts the Homebrew cask update.
 
+The generated `appcast.xml` must include `sparkle:edSignature` and
+`sparkle:length` on the DMG enclosure. Do not hand-edit the appcast after
+generation; any change requires re-signing it with Sparkle's `sign_update`.
+
 The Homebrew cask update is intentionally `continue-on-error`: a tap failure
 should not block publishing a signed, notarized GitHub release. If that step
 warns or fails, treat it as required manual follow-up before announcing the
@@ -64,9 +77,10 @@ without creating a public GitHub Release or updating Homebrew.
 The QA workflow uses the same Apple secrets as the release workflow:
 `DEVELOPER_ID_CERT_BASE64`, `DEVELOPER_ID_CERT_PASSWORD`, `APPLE_TEAM_ID`,
 `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, and
-`APP_STORE_CONNECT_PRIVATE_KEY`. It signs the exported app, creates a DMG,
-submits the DMG to Apple notarization, staples the ticket, validates with
-`stapler` and `spctl`, and uploads only workflow artifacts.
+`APP_STORE_CONNECT_PRIVATE_KEY`, plus `SPARKLE_PUBLIC_ED_KEY` so the QA app
+matches production Sparkle trust configuration. It signs the exported app,
+creates a DMG, submits the DMG to Apple notarization, staples the ticket,
+validates with `stapler` and `spctl`, and uploads only workflow artifacts.
 
 ## Required Production Setup QA
 
@@ -96,8 +110,8 @@ and permission setup gates in `docs/release-qa-log.md`.
    ```
 
    Expected result: bundle id is `com.neonwatty.Foil`, version/build match the
-   release, Gatekeeper reports `Notarized Developer ID`, and deep strict
-   codesign verification passes.
+   release, `SUPublicEDKey` is present in `Info.plist`, Gatekeeper reports
+   `Notarized Developer ID`, and deep strict codesign verification passes.
 
 2. Install or reinstall the same cask into `/Applications`, launch
    `/Applications/Foil.app`, and run:
