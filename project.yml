@@ -16,8 +16,8 @@ targets:
     settings:
       base:
         ENABLE_HARDENED_RUNTIME: YES
-        MARKETING_VERSION: "1.13.4"
-        CURRENT_PROJECT_VERSION: 39
+        MARKETING_VERSION: "1.13.5"
+        CURRENT_PROJECT_VERSION: 40
         PRODUCT_NAME: Foil
         PRODUCT_MODULE_NAME: Foil
         PRODUCT_BUNDLE_IDENTIFIER: com.neonwatty.Foil
@@ -42,8 +42,8 @@ targets:
     settings:
       base:
         ENABLE_HARDENED_RUNTIME: YES
-        MARKETING_VERSION: "1.13.4"
-        CURRENT_PROJECT_VERSION: 39
+        MARKETING_VERSION: "1.13.5"
+        CURRENT_PROJECT_VERSION: 40
         PRODUCT_NAME: "Foil Dev"
         PRODUCT_MODULE_NAME: Foil
         PRODUCT_BUNDLE_IDENTIFIER: com.neonwatty.Foil.Dev
