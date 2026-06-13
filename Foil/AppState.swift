@@ -596,8 +596,8 @@ final class AppState {
     }
 
     var shouldShowFloatingStatus: Bool {
-        // Always show during active transcription (user needs to know paste is coming)
-        if status == .transcribing {
+        // Always show during active capture/processing so users have visible in-use feedback.
+        if status == .recording || status == .transcribing {
             return !floatingStatusDismissed
         }
         // Otherwise respect user preference

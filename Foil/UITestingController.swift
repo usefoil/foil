@@ -305,6 +305,12 @@ final class UITestingController {
             appState.clipboardFeedback = "Text is on the clipboard"
         }
 
+        if args.contains("--seed-recording") {
+            appState.setStatus(.recording)
+            appState.recordingStartTime = Date()
+            appState.recordingDuration = 0
+        }
+
         if args.contains("--seed-custom-hotkey") {
             appState.hotkeyChoice = .custom
             appState.customHotkeyKeyCode = 0
