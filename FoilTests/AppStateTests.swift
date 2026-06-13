@@ -774,6 +774,12 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.shouldShowFloatingStatus)
     }
 
+    func testFloatingStatusVisibleWhileRecordingByDefault() {
+        let state = AppState()
+        state.setStatus(.recording)
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+    }
+
     func testFloatingStatusVisibleWhileTranscribingWhenEnabled() {
         let state = AppState()
         state.showFloatingStatus = true
@@ -814,10 +820,18 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.shouldShowFloatingStatus)
     }
 
-    func testFloatingStatusDisabledByPreference() {
+    func testFloatingStatusPreferenceDoesNotHideActiveRecording() {
         let state = AppState()
         state.showFloatingStatus = false
         state.setStatus(.recording)
+
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+    }
+
+    func testFloatingStatusDisabledByPreferenceForIdleTransientFeedback() {
+        let state = AppState()
+        state.showFloatingStatus = false
+        state.recordPaste(.currentApp)
 
         XCTAssertFalse(state.shouldShowFloatingStatus)
     }
