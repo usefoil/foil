@@ -112,6 +112,7 @@ final class AppState {
     var clipboardFeedback: String?
     var transientResult: TransientResult?
     var transcriptionStage: TranscriptionStage?
+    private(set) var audioLevelHistory: [Float] = Array(repeating: 0, count: 18)
     var floatingStatusTransientVisible = false
     var floatingStatusDismissed = false
     var accessibilityState: PermissionState = .unknown
@@ -1088,9 +1089,11 @@ final class AppState {
         switch newStatus {
         case .idle:
             transcriptionStage = nil
+            resetAudioLevels()
             break
         case .recording:
             transcriptionStage = nil
+            resetAudioLevels()
             floatingStatusDismissed = false
             floatingStatusTransientVisible = false
             transientResult = nil
@@ -1104,6 +1107,7 @@ final class AppState {
             feedbackMessage = "Sending audio..."
         case .error(let message):
             transcriptionStage = nil
+            resetAudioLevels()
             floatingStatusDismissed = false
             floatingStatusTransientVisible = false
             transientResult = nil
@@ -1114,6 +1118,7 @@ final class AppState {
     func showError(_ message: String) {
         status = .error(message)
         transcriptionStage = nil
+        resetAudioLevels()
         feedbackMessage = message
         transientResult = nil
         floatingStatusDismissed = false
@@ -1123,6 +1128,7 @@ final class AppState {
     func recordNoAudioCaptured() {
         status = .idle
         transcriptionStage = nil
+        resetAudioLevels()
         transientResult = nil
         feedbackMessage = noAudioCapturedTitle
         lastPasteSummary = nil
@@ -1385,6 +1391,7 @@ final class AppState {
     }
 
     func recordPaste(_ delivery: PasteDelivery) {
+        resetAudioLevels()
         lastPasteSummary = delivery.userMessage
         feedbackMessage = delivery.userMessage
         clipboardFeedback = delivery == .clipboardFallback
@@ -1412,6 +1419,7 @@ final class AppState {
         feedbackMessage = nil
         clipboardFeedback = nil
         transientResult = nil
+        resetAudioLevels()
         floatingStatusTransientVisible = false
         floatingStatusDismissed = false
     }
@@ -1426,5 +1434,20 @@ final class AppState {
             transientResult = nil
             floatingStatusTransientVisible = false
         }
+    }
+
+    func recordAudioLevel(_ level: Float) {
+        guard status == .recording else { return }
+        let boundedLevel = min(max(level.isFinite ? level : 0, 0), 1)
+        let smoothedLevel = max(boundedLevel, (audioLevelHistory.last ?? 0) * 0.72)
+        audioLevelHistory.append(smoothedLevel)
+        let maxSamples = 18
+        if audioLevelHistory.count > maxSamples {
+            audioLevelHistory.removeFirst(audioLevelHistory.count - maxSamples)
+        }
+    }
+
+    func resetAudioLevels() {
+        audioLevelHistory = Array(repeating: 0, count: 18)
     }
 }
