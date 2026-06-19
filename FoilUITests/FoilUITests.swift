@@ -429,22 +429,21 @@ final class FoilUITests: XCTestCase {
         )
         XCTAssertTrue(staticTextLabelOrValueContaining("Audio is sent to Groq for transcription").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["settings.changeApiKeyButton"].exists || app.buttons["menu.settings.changeApiKeyButton"].exists || app.buttons["Change API Key"].exists || app.buttons["Change..."].exists)
-        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists || app.staticTexts["Transcript cleanup"].exists, app.debugDescription)
-        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].exists)
-        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
     }
 
     func testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled() {
-        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-transcription"])
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup"])
         openSettingsPanel()
 
+        XCTAssertTrue(app.buttons["Cleanup"].exists, app.debugDescription)
+        XCTAssertEqual(app.buttons["Cleanup"].value as? String, "Selected")
         let toggle = app.descendants(matching: .any)["settings.cleanupFormattingToggle"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.cleanupProviderPicker", timeout: 1), app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.cleanupPromptEditor", timeout: 1), app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.preferredTermsEditor", timeout: 1), app.debugDescription)
 
-        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-transcription", "--seed-cleanup-formatting-enabled"])
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup", "--seed-cleanup-formatting-enabled"])
         openSettingsPanel()
 
         let enabledToggle = app.descendants(matching: .any)["settings.cleanupFormattingToggle"]
@@ -452,6 +451,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(String(describing: enabledToggle.value ?? ""), "1", app.debugDescription)
 
         XCTAssertTrue(elementExists(id: "settings.cleanupProviderPicker", timeout: 4), app.debugDescription)
+        XCTAssertTrue((app.popUpButtons["settings.cleanupModelPicker"].value as? String) == "Llama 3.1 8B Instant" || app.staticTexts["Llama 3.1 8B Instant"].exists, app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.cleanupPromptEditor", timeout: 4), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.resetCleanupPromptButton", timeout: 4), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.preferredTermsEditor", timeout: 4), app.debugDescription)
@@ -502,9 +502,6 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(elementExists(id: "settings.localWhisperStartServerButton", timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.localWhisperServerStatus", timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["Test connection"].exists || app.buttons["settings.testProviderConnectionButton"].exists || app.buttons["menu.settings.testProviderConnectionButton"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists || app.staticTexts["Transcript cleanup"].exists, app.debugDescription)
-        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].exists)
-        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
     }
 
     func testProviderQALocalWhisperCanBeSelectedFromDefaultSettings() {
@@ -525,9 +522,6 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(elementExists(id: "settings.changeApiKeyButton", timeout: 1), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.localWhisperStartServerButton", timeout: 2), app.debugDescription)
         XCTAssertTrue(providerConnectionButton().waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists || app.staticTexts["Transcript cleanup"].exists, app.debugDescription)
-        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].exists)
-        XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
     }
 
     func testProviderQALocalWhisperSetupHelperShowsModelCommands() {
@@ -762,6 +756,10 @@ final class FoilUITests: XCTestCase {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-general"])
         openSettingsPanel()
         XCTAssertTrue(checkBox(id: "settings.floatingStatusToggle", fallbackLabel: "Show floating status").exists)
+
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup"])
+        openSettingsPanel()
+        XCTAssertTrue(checkBox(id: "settings.cleanupFormattingToggle", fallbackLabel: "Clean up transcript formatting").exists)
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-experimental"])
         openSettingsPanel()
