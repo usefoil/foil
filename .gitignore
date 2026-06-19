@@ -6,11 +6,14 @@ DerivedData/
 # Build artifacts
 *.profraw
 .superpowers/
-docs/goals/**/.goalbuddy-board/
 
 # GoalBuddy local board state
+docs/goals/*
+!docs/goals/transcript-cleanup-formatting-handoff/
+!docs/goals/transcript-cleanup-formatting-handoff/**
 docs/goals/**/.goalbuddy-board/
 docs/goals/**/state.yaml
+!docs/goals/transcript-cleanup-formatting-handoff/state.yaml
 
 # Node (semantic-release tooling)
 node_modules/

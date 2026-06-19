@@ -1,0 +1,281 @@
+# GoalBuddy v2 state.yaml
+# Board truth lives here. goal.md is the editable charter; notes/ holds long receipts only.
+
+version: 2
+
+goal:
+  title: "Transcript Cleanup Formatting Autonomous Handoff"
+  slug: "transcript-cleanup-formatting-handoff"
+  kind: existing_plan
+  tranche: "Prepare and execute an autonomous handoff for implementing the approved transcript cleanup formatting feature."
+  status: active
+  oracle:
+    signal: "Focused tests and final audit prove optional cleanup formatting, independent cleanup routing, prompt/preferred-term assembly, raw fallback, final-text-only history, diagnostic redaction, and Settings UI behavior."
+    cadence: "after each Worker package and at final audit"
+    final_proof: "Receipts list changed files and passing commands for unit/UI tests plus a final audit mapping implementation evidence back to the approved spec."
+  intake:
+    original_request: "Prepare this plan to hand off to the MacBook Air agent so it can run autonomously with as little blocking and manual input as possible."
+    interpreted_outcome: "A durable GoalBuddy handoff and implementation plan let the MacBook Air Codex agent implement transcript cleanup formatting autonomously and produce a PR-ready branch."
+    input_shape: existing_plan
+    audience: "MacBook Air Codex agent and Foil maintainer"
+    authority: requested
+    proof_type: test
+    completion_proof: "A final audit maps receipts to the approved design spec and targeted passing tests for cleanup routing, prompt assembly, fallback, history, diagnostics, and Settings UI."
+    likely_misfire: "Only adding an editable prompt or UI toggle while leaving independent provider routing, privacy/redaction, fallback behavior, or proof incomplete."
+    blind_spots_considered:
+      - "docs/goals/ is currently ignored in this worktree, so publishing this handoff requires explicit staging or a different tracked path."
+      - "The remote machine may not have live provider API keys; mocked tests must prove the behavior."
+      - "Cleanup provider routing is privacy-sensitive and must be explicit in UI, code, and tests."
+      - "Custom prompts and preferred terms are sensitive and must not be written to diagnostics."
+    existing_plan_facts:
+      - "Approved spec: docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "Existing code already has TranscriptProcessingMode, TranscriptionController.processTranscriptOrRaw, TranscriptionService.processTranscript, cleanup provider settings, and cleanupFailed plumbing."
+      - "User approved cleanup formatting first, custom prompt per mode, preferred terms list, independent cleanup provider, raw fallback warning, and final pasted text only in history."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+  goal_pressure_requires_oracle: true
+  no_completion_on_weak_proof: true
+  slice_policy:
+    max_consecutive_tiny_tasks: 2
+    prefer_vertical_slices: true
+    judge_picks_largest_safe_slice: true
+    worker_completes_whole_slice: true
+
+agents:
+  scout: installed
+  worker: installed
+  judge: installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://goalbuddy.localhost:41737/transcript-cleanup-formatting-handoff/"
+    command: "npx goalbuddy board docs/goals/transcript-cleanup-formatting-handoff"
+
+active_task: T001
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: active
+    reasoning_hint: medium
+    objective: "Map the existing transcript cleanup architecture, tests, diagnostics, Settings UI, and approved spec into concrete implementation seams for the autonomous plan."
+    inputs:
+      - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "Foil/TranscriptProcessingMode.swift"
+      - "Foil/TranscriptionController.swift"
+      - "Foil/TranscriptionService.swift"
+      - "Foil/AppState.swift"
+      - "Foil/SettingsView.swift"
+      - "Foil/DiagnosticLog.swift"
+      - "FoilTests/TranscriptionControllerTests.swift"
+      - "FoilTests/TranscriptionServiceTests.swift"
+      - "FoilTests/AppStateTests.swift"
+      - "FoilTests/DiagnosticLogTests.swift"
+      - "FoilUITests/FoilUITests.swift"
+    constraints:
+      - "Read-only."
+      - "Do not implement product changes."
+      - "Identify exact files and test names for the first implementation plan."
+      - "Call out any uncertainty that could block the MacBook Air agent."
+    expected_output:
+      - "Implementation seam map."
+      - "Test coverage map."
+      - "Recommended implementation task sequence."
+      - "Verification commands that do not require live provider credentials."
+
+  - id: T002
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Write the detailed implementation plan from the approved spec and T001 Scout map, using the superpowers:writing-plans skill."
+    allowed_files:
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      - "docs/goals/transcript-cleanup-formatting-handoff/notes/T002-plan-notes.md"
+    inputs:
+      - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "T001 receipt"
+      - "Foil/TranscriptProcessingMode.swift"
+      - "Foil/TranscriptionController.swift"
+      - "Foil/TranscriptionService.swift"
+      - "Foil/AppState.swift"
+      - "Foil/SettingsView.swift"
+      - "Foil/DiagnosticLog.swift"
+      - "FoilTests"
+      - "FoilUITests/FoilUITests.swift"
+    constraints:
+      - "Do not implement product changes in this task."
+      - "The plan must follow the writing-plans skill header and checkbox-step format."
+      - "The plan must include exact files, test commands, and expected results."
+      - "The plan must avoid placeholders such as TBD, TODO, implement later, or similar."
+      - "The plan must be usable by a fresh MacBook Air Codex agent with minimal owner input."
+    verify:
+      - "rg -n \"TBD|TODO|FIXME|implement later|fill in details|Similar to Task\" docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "git diff --check -- docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+    stop_if:
+      - "T001 did not identify enough current-code seams to write exact file-level tasks."
+      - "The approved spec contradicts current code in a way that needs owner decision."
+    expected_output:
+      - "A complete implementation plan document."
+      - "A receipt summarizing spec coverage and any remaining risks."
+
+  - id: T003
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: medium
+    objective: "Review the implementation plan for spec coverage, autonomous executability, proof strength, and likely misfire prevention."
+    inputs:
+      - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "T001 receipt"
+      - "T002 receipt"
+    constraints:
+      - "Do not implement."
+      - "Reject the plan if it can pass while only adding a prompt field or UI toggle."
+      - "Reject the plan if diagnostics redaction, independent cleanup routing, raw fallback, or final-text-only history proof is missing."
+      - "If approved, choose the largest safe first Worker slice with allowed_files, verify commands, and stop_if conditions."
+    expected_output:
+      - "Decision: approved or revision required."
+      - "Spec coverage map."
+      - "First approved Worker package."
+      - "Any required plan edits before implementation."
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Implement the approved first slice, expected to be the core data model and prompt/preferred-term assembly with failing tests first."
+    allowed_files:
+      - "Foil/TranscriptProcessingMode.swift"
+      - "Foil/TranscriptionService.swift"
+      - "Foil/AppState.swift"
+      - "FoilTests/TranscriptionServiceTests.swift"
+      - "FoilTests/AppStateTests.swift"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+    verify:
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionServiceTests"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests"
+    stop_if:
+      - "Need files outside allowed_files."
+      - "Plan T003 selected a different first Worker package."
+      - "A required persistence migration or compatibility choice is ambiguous."
+      - "Verification fails twice for the same unexplained reason."
+    expected_output:
+      - "Tests prove default prompt, custom prompt, reset behavior, preferred terms context, and return-only instruction assembly."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Implement cleanup execution behavior: optional cleanup off path, independent cleanup provider routing, raw fallback on cleanup failure, and cleanupFailed reporting."
+    allowed_files:
+      - "Foil/TranscriptionController.swift"
+      - "Foil/TranscriptionService.swift"
+      - "Foil/AppState.swift"
+      - "FoilTests/TranscriptionControllerTests.swift"
+      - "FoilTests/TranscriptionServiceTests.swift"
+      - "FoilTests/AppStateTests.swift"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+    verify:
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionControllerTests"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionServiceTests"
+    stop_if:
+      - "Need live provider credentials."
+      - "Need to alter paste/history ownership beyond the approved spec."
+      - "Verification fails twice for the same unexplained reason."
+    expected_output:
+      - "Tests prove cleanup off sends no LLM request."
+      - "Tests prove cleanup provider is independent from transcription provider."
+      - "Tests prove cleanup failure returns raw text and cleanupFailed=true."
+
+  - id: T006
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Implement Settings UI for opt-in cleanup formatting, prompt editing/reset, preferred terms editing, and independent cleanup provider controls."
+    allowed_files:
+      - "Foil/SettingsView.swift"
+      - "Foil/AppState.swift"
+      - "FoilUITests/FoilUITests.swift"
+      - "FoilTests/AppStateTests.swift"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+    verify:
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests"
+    stop_if:
+      - "SwiftUI layout requires a broader Settings redesign."
+      - "The UI cannot expose the prompt editor accessibly after two focused attempts."
+      - "Verification fails twice for the same unexplained reason."
+    expected_output:
+      - "Settings show cleanup controls only when cleanup formatting is enabled."
+      - "UI tests or direct UI proof cover provider picker, prompt editor, reset, and preferred terms controls."
+
+  - id: T007
+    type: worker
+    assignee: Worker
+    status: queued
+    reasoning_hint: medium
+    objective: "Implement privacy and diagnostics proof: routing copy, redaction tests, and final-text-only history behavior."
+    allowed_files:
+      - "Foil/DiagnosticLog.swift"
+      - "Foil/SettingsView.swift"
+      - "Foil/TranscriptionHistory.swift"
+      - "FoilTests/DiagnosticLogTests.swift"
+      - "FoilTests/TranscriptionHistoryTests.swift"
+      - "FoilUITests/FoilUITests.swift"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+    verify:
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/DiagnosticLogTests"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionHistoryTests"
+    stop_if:
+      - "History currently cannot distinguish raw from final pasted text and needs owner decision."
+      - "Diagnostics require logging prompt/preferred-term content for debugging."
+      - "Verification fails twice for the same unexplained reason."
+    expected_output:
+      - "Tests prove diagnostics omit transcript text, cleaned text, custom prompt text, preferred terms, API keys, and bearer tokens."
+      - "Tests prove history stores only the final pasted text."
+      - "Privacy copy clearly describes audio routing versus transcript cleanup routing."
+
+  - id: T008
+    type: judge
+    assignee: Judge
+    status: queued
+    reasoning_hint: high
+    objective: "Final audit against the approved spec and goal oracle, then prepare PR handoff notes."
+    inputs:
+      - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "All task receipts"
+      - "git diff --stat"
+      - "Focused verification command outputs"
+    constraints:
+      - "Do not mark complete on happy-path tests alone."
+      - "Audit the likely misfire explicitly."
+      - "Record the strongest realistic remaining failure mode and evidence that rules it out or names it as follow-up."
+      - "If PR creation is desired, ensure the branch includes only intended implementation, spec/plan/goal docs, and no unrelated local changes."
+    verify:
+      - "git diff --check"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionControllerTests -only-testing:FoilTests/TranscriptionServiceTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests -only-testing:FoilTests/TranscriptionHistoryTests"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests"
+    expected_output:
+      - "Final audit receipt with full_outcome_complete true or blocked follow-up tasks."
+      - "PR summary and test evidence ready for maintainer review."
