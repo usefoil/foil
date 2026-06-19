@@ -116,6 +116,7 @@ enum DiagnosticLog {
             "Provider: \(appState.selectedTranscriptionProvider.displayName) (\(appState.selectedTranscriptionProvider.id.rawValue))",
             "Transcription Model: \(appState.selectedTranscriptionModel)",
             "Transcript Processing: \(appState.effectiveTranscriptProcessingMode.rawValue)",
+            "Cleanup Provider: \(appState.selectedTranscriptCleanupProvider.displayName) (\(appState.selectedTranscriptCleanupProvider.id.rawValue))",
             "Cleanup Model: \(appState.transcriptCleanupModel)",
             "Audio Format: \(appState.selectedAudioFormat.rawValue)",
             "Input Device Transport: \(effectiveInputTransportDescription(appState))",
@@ -228,6 +229,10 @@ enum DiagnosticLog {
         let replacements: [(pattern: String, template: String)] = [
             (#"(?i)(?<![A-Za-z0-9_])(api[_ -]?key\s*[=:]\s*)[^\s,;]+"#, "$1<redacted>"),
             (#"(?i)(authorization\s*:\s*bearer\s+)[A-Za-z0-9._\-]+"#, "$1<redacted>"),
+            (#"(?i)(\b(?:cleanup\s+)?prompt(?:\s*text)?\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
+            (#"(?i)(\bpreferred[_ -]?terms?\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
+            (#"(?i)(\b(?:raw|cleaned)?transcript(?:\s*text)?\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
+            (#"(?i)(\bcleaned[_ -]?text\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
             (#"gsk_[A-Za-z0-9_\-]+"#, "<redacted-api-key>"),
             (#"sk-[A-Za-z0-9_\-]{12,}"#, "<redacted-api-key>"),
             (#"(?i)(/Users/)[^/\s]+/"#, "$1<user>/")

@@ -476,20 +476,33 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Cleanup") {
-                Picker("After transcription", selection: $appState.transcriptProcessingMode) {
-                    ForEach(TranscriptProcessingMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .accessibilityIdentifier("settings.transcriptProcessingPicker")
+            Section("Transcript cleanup") {
+                Toggle("Clean up transcript formatting", isOn: cleanupFormattingEnabled)
+                    .accessibilityIdentifier("settings.cleanupFormattingToggle")
 
-                if appState.transcriptProcessingMode != .raw {
+                Text("Cleanup is off unless enabled. When enabled, transcript text is sent to the cleanup provider selected below; audio still follows the transcription provider above.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.cleanupRoutingSummary")
+
+                if cleanupFormattingEnabled.wrappedValue {
                     cleanupProviderSettings
+                    cleanupPromptSettings
+                    preferredTermsSettings
                 }
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var cleanupFormattingEnabled: Binding<Bool> {
+        Binding(
+            get: { appState.transcriptProcessingMode != .raw },
+            set: { enabled in
+                appState.transcriptProcessingMode = enabled ? .cleanUp : .raw
+            }
+        )
     }
 
     @ViewBuilder
@@ -522,11 +535,34 @@ struct SettingsView: View {
     }
 
     private var availableCleanupProviderIDs: [TranscriptCleanupProviderID] {
-        switch appState.selectedTranscriptionProviderPresetID {
-        case .groq:
-            [.groq, .none, .customOpenAICompatibleChat]
-        case .openAIWhisper, .localWhisperCPP, .customOpenAICompatible:
-            [.none, .customOpenAICompatibleChat]
+        [.groq, .none, .customOpenAICompatibleChat]
+    }
+
+    private var cleanupPromptSettings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Cleanup prompt")
+                Spacer()
+                Button("Reset") {
+                    appState.resetCustomPrompt(for: .cleanUp)
+                }
+                .accessibilityIdentifier("settings.resetCleanupPromptButton")
+            }
+
+            TextEditor(text: $appState.customCleanupPrompt)
+                .font(.body)
+                .frame(minHeight: 88)
+                .accessibilityIdentifier("settings.cleanupPromptEditor")
+        }
+    }
+
+    private var preferredTermsSettings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Preferred terms")
+            TextEditor(text: $appState.preferredTermsText)
+                .font(.body)
+                .frame(minHeight: 72)
+                .accessibilityIdentifier("settings.preferredTermsEditor")
         }
     }
 
@@ -589,13 +625,13 @@ struct SettingsView: View {
     private var providerPrivacySummary: String {
         switch appState.selectedTranscriptionProviderPresetID {
         case .groq:
-            "Audio is sent to Groq for transcription. Optional cleanup uses Groq chat models when enabled."
+            "Audio is sent to Groq for transcription. Cleanup is off unless enabled; when enabled, transcript text is sent to the cleanup provider selected below."
         case .openAIWhisper:
-            "Audio is sent to OpenAI for Whisper transcription. Cleanup is off unless you choose a separate custom chat endpoint."
+            "Audio is sent to OpenAI for Whisper transcription. Cleanup is off unless enabled; when enabled, transcript text is sent to the cleanup provider selected below."
         case .localWhisperCPP:
-            "Audio stays on this Mac when whisper.cpp is running at the local 127.0.0.1 endpoint shown below."
+            "Audio stays on this Mac when whisper.cpp is running at the local 127.0.0.1 endpoint shown below. Cleanup is off unless enabled; when enabled, transcript text is sent to the cleanup provider selected below."
         case .customOpenAICompatible:
-            "Audio is sent to the OpenAI-compatible endpoint you configure below. Use an endpoint you trust."
+            "Audio is sent to the OpenAI-compatible endpoint you configure below. Cleanup is off unless enabled; when enabled, transcript text is sent to the cleanup provider selected below."
         }
     }
 

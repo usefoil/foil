@@ -434,6 +434,30 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
     }
 
+    func testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-transcription"])
+        openSettingsPanel()
+
+        let toggle = app.descendants(matching: .any)["settings.cleanupFormattingToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "settings.cleanupProviderPicker", timeout: 1), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "settings.cleanupPromptEditor", timeout: 1), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "settings.preferredTermsEditor", timeout: 1), app.debugDescription)
+
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-transcription", "--seed-cleanup-formatting-enabled"])
+        openSettingsPanel()
+
+        let enabledToggle = app.descendants(matching: .any)["settings.cleanupFormattingToggle"]
+        XCTAssertTrue(enabledToggle.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertEqual(String(describing: enabledToggle.value ?? ""), "1", app.debugDescription)
+
+        XCTAssertTrue(elementExists(id: "settings.cleanupProviderPicker", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.cleanupPromptEditor", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.resetCleanupPromptButton", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.preferredTermsEditor", timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("transcript text is sent to the cleanup provider").waitForExistence(timeout: 2), app.debugDescription)
+    }
+
     func testProviderQAOpenAIWhisperPresetShowsCloudSettings() {
         launchForProviderQA(extraArguments: ["--seed-openai-provider"])
         openTranscriptionSettingsPanel()
@@ -478,7 +502,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(elementExists(id: "settings.localWhisperStartServerButton", timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.localWhisperServerStatus", timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["Test connection"].exists || app.buttons["settings.testProviderConnectionButton"].exists || app.buttons["menu.settings.testProviderConnectionButton"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists || app.staticTexts["Transcript cleanup"].exists, app.debugDescription)
         XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].exists)
         XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
     }
@@ -501,7 +525,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(elementExists(id: "settings.changeApiKeyButton", timeout: 1), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.localWhisperStartServerButton", timeout: 2), app.debugDescription)
         XCTAssertTrue(providerConnectionButton().waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["After transcription"].exists || app.staticTexts["Cleanup"].exists || app.staticTexts["Transcript cleanup"].exists, app.debugDescription)
         XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider."].exists)
         XCTAssertFalse(app.staticTexts["Cleanup requires a Groq-compatible chat provider. Custom transcription currently uses raw transcripts."].exists)
     }
@@ -704,6 +728,13 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.title"].exists, app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.detail"].exists, app.debugDescription)
         XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.clipboard"].exists, app.debugDescription)
+    }
+
+    func testCleanupFallbackWarningIsVisible() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-floating-status-enabled"])
+        postUITestCommand(appCommandNotification, userInfo: ["command": "seedCleanupFallbackWarning"])
+
+        XCTAssertTrue(staticTextLabelOrValueContaining("Cleanup failed; pasted raw transcript.").waitForExistence(timeout: 2), app.debugDescription)
     }
 
     func testFloatingStatusAutoHidesAfterSuccessWhenEnabled() {

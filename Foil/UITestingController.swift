@@ -284,6 +284,10 @@ final class UITestingController {
             appState.queuedPasteMode = .drain
         }
 
+        if args.contains("--seed-cleanup-formatting-enabled") {
+            appState.transcriptProcessingMode = .cleanUp
+        }
+
         if args.contains("--seed-floating-status-enabled") {
             appState.showFloatingStatus = true
         }
@@ -922,6 +926,10 @@ final class UITestingController {
             clearRecordingEvents()
         case "prepareRecordingCueAcceptance":
             prepareRecordingCueAcceptance()
+        case "seedCleanupFallbackWarning":
+            appState.feedbackMessage = "Cleanup failed; pasted raw transcript."
+            appState.floatingStatusTransientVisible = true
+            appState.setStatus(.idle)
         case "startRecording":
             onStartRecording()
         case "stopRecording":

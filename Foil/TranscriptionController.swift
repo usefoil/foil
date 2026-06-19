@@ -228,19 +228,24 @@ final class TranscriptionController {
         case .none:
             cleanupApiKey = nil
         case .groq:
-            cleanupApiKey = apiKey ?? KeychainHelper.readApiKey(for: .groq)
+            cleanupApiKey = KeychainHelper.readApiKey(for: .groq)
         case .customOpenAICompatibleChat:
             cleanupApiKey = KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat)
         }
 
         let service = service ?? transcriptionService
         appState.transcriptionStage = .cleaningTranscript
+        let cleanupRequest = TranscriptCleanupRequest(
+            rawTranscript: rawText,
+            mode: processingMode,
+            customPrompt: appState.customPrompt(for: processingMode),
+            preferredTerms: appState.preferredTerms,
+            provider: cleanupProvider
+        )
         do {
             let text = try await service.processTranscript(
-                rawText,
+                request: cleanupRequest,
                 apiKey: cleanupApiKey,
-                mode: processingMode,
-                provider: cleanupProvider
             )
             return (text, false)
         } catch {

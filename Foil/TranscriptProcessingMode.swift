@@ -12,20 +12,32 @@ enum TranscriptProcessingMode: String, CaseIterable, Identifiable {
         case .raw:
             "Raw transcript"
         case .cleanUp:
-            "Clean up"
+            "Clean up transcript formatting"
         case .rewriteClearly:
             "Rewrite clearly"
         }
     }
 
-    var promptInstruction: String {
+    var defaultPrompt: String {
         switch self {
         case .raw:
             ""
         case .cleanUp:
-            "Clean up the transcript lightly. Fix obvious speech recognition errors, punctuation, capitalization, and filler words. Preserve the speaker's meaning and wording as much as possible. Return only the cleaned text."
+            """
+            Clean up transcript formatting while preserving the speaker's meaning, facts, voice, and intent.
+            Add punctuation and capitalization.
+            Add paragraph breaks where they improve readability.
+            Turn clearly enumerated spoken points into numbered or bulleted lists.
+            Remove obvious filler and false starts only when doing so does not change meaning.
+            Preserve names, numbers, technical terms, code-like strings, URLs, and intent.
+            """
         case .rewriteClearly:
-            "Rewrite the transcript into clear, concise prose. Preserve all concrete facts, names, numbers, and intent. Do not add new information. Return only the rewritten text."
+            "Rewrite the transcript into clear, concise prose. Preserve all concrete facts, names, numbers, and intent. Do not add new information."
         }
+    }
+
+    var promptInstruction: String {
+        guard self != .raw else { return "" }
+        return defaultPrompt + "\nReturn only the final processed transcript."
     }
 }

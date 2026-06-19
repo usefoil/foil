@@ -241,6 +241,30 @@ struct TranscriptCleanupProvider: Equatable {
     }
 }
 
+struct TranscriptCleanupRequest: Equatable {
+    let rawTranscript: String
+    let mode: TranscriptProcessingMode
+    let customPrompt: String?
+    let preferredTerms: [String]
+    let provider: TranscriptCleanupProvider
+
+    var resolvedPrompt: String {
+        let trimmed = customPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? mode.defaultPrompt : trimmed
+    }
+
+    var systemInstruction: String {
+        guard mode != .raw else { return "" }
+        var parts = [resolvedPrompt]
+        if !preferredTerms.isEmpty {
+            let terms = preferredTerms.map { "- \($0)" }.joined(separator: "\n")
+            parts.append("Preferred terms to preserve or prefer when appropriate:\n\(terms)")
+        }
+        parts.append("Return only the final processed transcript.")
+        return parts.joined(separator: "\n\n")
+    }
+}
+
 enum LocalWhisperSetupModelID: String, CaseIterable, Identifiable {
     case tinyEN = "tiny.en"
     case baseEN = "base.en"
@@ -675,22 +699,34 @@ struct TranscriptionService {
         mode: TranscriptProcessingMode,
         provider cleanupProvider: TranscriptCleanupProvider
     ) async throws -> String {
-        guard mode != .raw else { return transcript }
-        guard let endpoint = cleanupProvider.chatCompletionsEndpoint else {
-            return transcript
+        try await processTranscript(
+            request: TranscriptCleanupRequest(
+                rawTranscript: transcript,
+                mode: mode,
+                customPrompt: nil,
+                preferredTerms: [],
+                provider: cleanupProvider
+            ),
+            apiKey: apiKey
+        )
+    }
+
+    func processTranscript(
+        request cleanupRequest: TranscriptCleanupRequest,
+        apiKey: String?
+    ) async throws -> String {
+        guard cleanupRequest.mode != .raw else { return cleanupRequest.rawTranscript }
+        guard let endpoint = cleanupRequest.provider.chatCompletionsEndpoint else {
+            return cleanupRequest.rawTranscript
         }
 
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         setAuthorizationHeader(apiKey: apiKey, on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try buildTranscriptProcessingBody(
-            transcript: transcript,
-            mode: mode,
-            model: cleanupProvider.model
-        )
+        request.httpBody = try Self.buildTranscriptProcessingBody(request: cleanupRequest)
 
-        DiagnosticLog.write("processTranscript: sending cleanupProvider=\(cleanupProvider.id.rawValue) mode=\(mode.rawValue) model=\(cleanupProvider.model) inputLength=\(transcript.count)")
+        DiagnosticLog.write("processTranscript: sending cleanupProvider=\(cleanupRequest.provider.id.rawValue) mode=\(cleanupRequest.mode.rawValue) model=\(cleanupRequest.provider.model) inputLength=\(cleanupRequest.rawTranscript.count)")
         let (data, response) = try await transport.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             DiagnosticLog.write("processTranscript: invalid response type")
@@ -895,11 +931,23 @@ struct TranscriptionService {
         mode: TranscriptProcessingMode,
         model: String
     ) throws -> Data {
+        try Self.buildTranscriptProcessingBody(
+            request: TranscriptCleanupRequest(
+                rawTranscript: transcript,
+                mode: mode,
+                customPrompt: nil,
+                preferredTerms: [],
+                provider: .groq(model: model)
+            )
+        )
+    }
+
+    static func buildTranscriptProcessingBody(request cleanupRequest: TranscriptCleanupRequest) throws -> Data {
         let request = ChatCompletionRequest(
-            model: model,
+            model: cleanupRequest.provider.model,
             messages: [
-                .init(role: "system", content: mode.promptInstruction),
-                .init(role: "user", content: transcript)
+                .init(role: "system", content: cleanupRequest.systemInstruction),
+                .init(role: "user", content: cleanupRequest.rawTranscript)
             ],
             temperature: 0.2,
             maxCompletionTokens: 1024
