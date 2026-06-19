@@ -28,6 +28,24 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertNil(history.records.first?.error)
     }
 
+    func testCleanupSuccessStoresOnlyFinalCleanedText() throws {
+        history.addSuccess(text: "Cleaned final text")
+
+        XCTAssertEqual(history.records.first?.text, "Cleaned final text")
+        let json = try history.exportJSON()
+        XCTAssertTrue(json.contains("Cleaned final text"))
+        XCTAssertFalse(json.contains("Raw transcript before cleanup"))
+    }
+
+    func testCleanupFallbackStoresOnlyRawFinalText() throws {
+        history.addSuccess(text: "Raw fallback text")
+
+        XCTAssertEqual(history.records.first?.text, "Raw fallback text")
+        let json = try history.exportJSON()
+        XCTAssertTrue(json.contains("Raw fallback text"))
+        XCTAssertFalse(json.contains("Failed cleaned text"))
+    }
+
     func testAddFailure() throws {
         let audioURL = testDir.appendingPathComponent("test.wav")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))

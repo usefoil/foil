@@ -40,6 +40,9 @@ final class DiagnosticLogTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupProvider")
         UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupBaseURL")
         UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupModel")
+        UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.cleanUp")
+        UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.rewriteClearly")
+        UserDefaults.standard.removeObject(forKey: "transcriptCleanupPreferredTerms")
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
@@ -64,6 +67,24 @@ final class DiagnosticLogTests: XCTestCase {
         let redacted = DiagnosticLog.redacted(text)
 
         XCTAssertEqual(redacted, text)
+    }
+
+    func testRedactedRemovesLabeledCleanupPromptTermsAndTranscriptText() {
+        let text = """
+        cleanup prompt=SECRET PROMPT SENTINEL, preferredTerms=SECRET TERM SENTINEL
+        rawTranscript=raw transcript sentinel; cleanedText=cleaned transcript sentinel
+        """
+
+        let redacted = DiagnosticLog.redacted(text)
+
+        XCTAssertFalse(redacted.contains("SECRET PROMPT SENTINEL"))
+        XCTAssertFalse(redacted.contains("SECRET TERM SENTINEL"))
+        XCTAssertFalse(redacted.contains("raw transcript sentinel"))
+        XCTAssertFalse(redacted.contains("cleaned transcript sentinel"))
+        XCTAssertTrue(redacted.contains("cleanup prompt=<redacted>"))
+        XCTAssertTrue(redacted.contains("preferredTerms=<redacted>"))
+        XCTAssertTrue(redacted.contains("rawTranscript=<redacted>"))
+        XCTAssertTrue(redacted.contains("cleanedText=<redacted>"))
     }
 
     func testRedactedMasksUserHomePath() {
@@ -161,6 +182,7 @@ final class DiagnosticLogTests: XCTestCase {
         XCTAssertTrue(export.contains("Setup Check: failed(Enable Accessibility)"))
         XCTAssertTrue(export.contains("Configuration:"))
         XCTAssertTrue(export.contains("Provider: Groq"))
+        XCTAssertTrue(export.contains("Cleanup Provider: Groq (groq)"))
         XCTAssertTrue(export.contains("Async Paste: true"))
         XCTAssertTrue(export.contains("Input Device Transport: Unknown"))
         XCTAssertTrue(export.contains("Queued Paste Delivery Shortcut: Control-Shift-V"))
@@ -245,5 +267,33 @@ final class DiagnosticLogTests: XCTestCase {
         XCTAssertTrue(report.contains("- Selected Provider: Local whisper.cpp"))
         XCTAssertTrue(report.contains("- API Key Required: no"))
         XCTAssertTrue(report.contains("- Local Model Path: Not stored by Foil; whisper.cpp model files are managed by the local server."))
+    }
+
+    @MainActor
+    func testDiagnosticsDoNotIncludeCleanupPromptPreferredTermsOrTranscriptText() {
+        let appState = AppState()
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+        appState.setCustomPrompt("SECRET PROMPT SENTINEL", for: .cleanUp)
+        appState.preferredTermsText = "SECRET TERM SENTINEL"
+
+        DiagnosticLog.write("processTranscript: cleanupProvider=custom-openai-compatible-chat mode=cleanUp model=qwen2.5:7b inputLength=29 outputLength=25 cleanupFailed=false")
+
+        let export = DiagnosticLog.exportText(appState: appState, recentLineLimit: 20)
+        let setup = DiagnosticLog.setupReportText(appState: appState, recentLineLimit: 20)
+        let combined = export + "\n" + setup
+
+        XCTAssertTrue(combined.contains("Transcript Processing: cleanUp"))
+        XCTAssertTrue(combined.contains("Cleanup Provider: Custom OpenAI-compatible chat"))
+        XCTAssertTrue(combined.contains("Cleanup Model: qwen2.5:7b"))
+        XCTAssertTrue(combined.contains("inputLength=29"))
+        XCTAssertTrue(combined.contains("outputLength=25"))
+        XCTAssertTrue(combined.contains("cleanupFailed=false"))
+        XCTAssertFalse(combined.contains("SECRET PROMPT SENTINEL"))
+        XCTAssertFalse(combined.contains("SECRET TERM SENTINEL"))
+        XCTAssertFalse(combined.contains("raw transcript sentinel"))
+        XCTAssertFalse(combined.contains("cleaned transcript sentinel"))
     }
 }

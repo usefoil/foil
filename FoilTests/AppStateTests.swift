@@ -86,6 +86,9 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupProvider")
         UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupBaseURL")
         UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupModel")
+        UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.cleanUp")
+        UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.rewriteClearly")
+        UserDefaults.standard.removeObject(forKey: "transcriptCleanupPreferredTerms")
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
@@ -545,7 +548,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(presentation.detail, "Custom OpenAI-compatible · whisper-1 · Target: current app")
     }
 
-    func testCustomProviderUsesRawEffectiveProcessingModeForPresentation() {
+    func testCustomProviderCanUseIndependentCleanupProcessingForPresentation() {
         let state = AppState()
         state.selectedTranscriptionProviderID = .openAICompatible
         state.customTranscriptionBaseURL = "http://127.0.0.1:8080/v1"
@@ -560,8 +563,8 @@ final class AppStateTests: XCTestCase {
             hasLastSuccess: false
         )
 
-        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
-        XCTAssertEqual(presentation.detail, "Custom OpenAI-compatible · whisper-1 · Target: current app")
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .cleanUp)
+        XCTAssertEqual(presentation.detail, "Custom OpenAI-compatible · cleanup next · Target: current app")
     }
 
     func testCleaningSessionPresentationShowsCleanupModel() {
@@ -578,7 +581,7 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.title, "Cleaning up")
-        XCTAssertEqual(presentation.detail, "llama-3.3-70b-versatile · Clean up · Target: current app")
+        XCTAssertEqual(presentation.detail, "llama-3.3-70b-versatile · Clean up transcript formatting · Target: current app")
         XCTAssertEqual(presentation.systemImage, "sparkles")
         XCTAssertEqual(presentation.tone, .progress)
     }
@@ -1221,6 +1224,32 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.transcriptCleanupModel, "llama-3.3-70b-versatile")
     }
 
+    func testCleanupPromptDefaultsAndReset() {
+        let state = AppState()
+
+        XCTAssertNil(state.customPrompt(for: .cleanUp))
+        XCTAssertEqual(state.resolvedPrompt(for: .cleanUp), TranscriptProcessingMode.cleanUp.defaultPrompt)
+
+        state.setCustomPrompt("Custom cleanup instructions", for: .cleanUp)
+        XCTAssertEqual(state.customPrompt(for: .cleanUp), "Custom cleanup instructions")
+        XCTAssertEqual(state.resolvedPrompt(for: .cleanUp), "Custom cleanup instructions")
+
+        state.resetCustomPrompt(for: .cleanUp)
+        XCTAssertNil(state.customPrompt(for: .cleanUp))
+        XCTAssertEqual(state.resolvedPrompt(for: .cleanUp), TranscriptProcessingMode.cleanUp.defaultPrompt)
+    }
+
+    func testPreferredTermsNormalizePersistAndReload() {
+        let state = AppState()
+        state.preferredTermsText = " Supabase \n\nVercel\nSupabase "
+
+        XCTAssertEqual(state.preferredTerms, ["Supabase", "Vercel"])
+
+        let reloaded = AppState()
+        XCTAssertEqual(reloaded.preferredTerms, ["Supabase", "Vercel"])
+        XCTAssertEqual(reloaded.preferredTermsText, "Supabase\nVercel")
+    }
+
     func testDefaultTranscriptionProviderIsGroq() {
         let state = AppState()
         let provider = state.selectedTranscriptionProvider
@@ -1335,8 +1364,9 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(state.selectedTranscriptionProvider.displayName, "Local whisper.cpp")
         XCTAssertEqual(state.selectedTranscriptionModel, "whisper-1")
-        XCTAssertFalse(state.supportsSelectedTranscriptProcessing)
-        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+        XCTAssertTrue(state.supportsSelectedTranscriptProcessing)
+        XCTAssertEqual(state.selectedTranscriptCleanupProvider.id, .groq)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .cleanUp)
     }
 
     func testPresetSwitchingClearsStaleProviderFailurePresentation() throws {
@@ -1359,18 +1389,30 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(presentation.detail, "Right Command · Paste target is the current app")
     }
 
-    func testGroqPresetRestoresGroqCleanupWhenProcessingEnabled() {
+    func testPresetSwitchingPreservesCleanupProviderWhenProcessingEnabled() {
         let state = AppState()
         state.transcriptProcessingMode = .cleanUp
         state.selectedTranscriptionProviderPresetID = .localWhisperCPP
 
-        XCTAssertEqual(state.transcriptCleanupProviderID, .none)
-        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+        XCTAssertEqual(state.transcriptCleanupProviderID, .groq)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .cleanUp)
 
-        state.selectedTranscriptionProviderPresetID = .groq
+        state.selectedTranscriptionProviderPresetID = .openAIWhisper
 
         XCTAssertEqual(state.transcriptCleanupProviderID, .groq)
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .cleanUp)
+    }
+
+    func testPresetSwitchingPreservesCleanupOffWhenProcessingEnabled() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+        state.transcriptCleanupProviderID = .none
+
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.selectedTranscriptionProviderPresetID = .groq
+
+        XCTAssertEqual(state.transcriptCleanupProviderID, .none)
+        XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
     }
 
     func testInvalidCustomCleanupBaseURLDisablesCleanupRouting() {

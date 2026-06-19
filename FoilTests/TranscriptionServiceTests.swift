@@ -475,9 +475,50 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(json?["temperature"] as? Double, 0.2)
         XCTAssertEqual(json?["max_completion_tokens"] as? Int, 1024)
         XCTAssertEqual(messages?.first?["role"], "system")
-        XCTAssertTrue(messages?.first?["content"]?.contains("Clean up the transcript lightly") == true)
+        XCTAssertTrue(messages?.first?["content"]?.contains("Clean up transcript formatting") == true)
         XCTAssertEqual(messages?.last?["role"], "user")
         XCTAssertEqual(messages?.last?["content"], "um this is teh thing")
+    }
+
+    func testCleanupFormattingRequestUsesDefaultPromptPreferredTermsAndReturnOnlyInstruction() throws {
+        let request = TranscriptCleanupRequest(
+            rawTranscript: "first item supa base second item",
+            mode: .cleanUp,
+            customPrompt: nil,
+            preferredTerms: ["Supabase", "Vercel"],
+            provider: .customOpenAICompatibleChat(
+                baseURL: URL(string: "http://127.0.0.1:11434/v1")!,
+                model: "qwen2.5:7b"
+            )
+        )
+
+        let body = try TranscriptionService.buildTranscriptProcessingBody(request: request)
+        let bodyString = String(data: body, encoding: .utf8)!
+
+        XCTAssertTrue(bodyString.contains(#""model":"qwen2.5:7b""#), bodyString)
+        XCTAssertTrue(bodyString.contains("Add punctuation and capitalization"), bodyString)
+        XCTAssertTrue(bodyString.contains("Preferred terms"), bodyString)
+        XCTAssertTrue(bodyString.contains("Supabase"), bodyString)
+        XCTAssertTrue(bodyString.contains("Vercel"), bodyString)
+        XCTAssertTrue(bodyString.contains("Return only the final processed transcript"), bodyString)
+        XCTAssertTrue(bodyString.contains("first item supa base second item"), bodyString)
+    }
+
+    func testCleanupFormattingRequestUsesCustomPromptForMode() throws {
+        let request = TranscriptCleanupRequest(
+            rawTranscript: "raw words",
+            mode: .cleanUp,
+            customPrompt: "Use short paragraphs and preserve product names.",
+            preferredTerms: [],
+            provider: .groq(model: "llama-3.3-70b-versatile")
+        )
+
+        let body = try TranscriptionService.buildTranscriptProcessingBody(request: request)
+        let bodyString = String(data: body, encoding: .utf8)!
+
+        XCTAssertTrue(bodyString.contains("Use short paragraphs and preserve product names."), bodyString)
+        XCTAssertFalse(bodyString.contains("Preferred terms"), bodyString)
+        XCTAssertTrue(bodyString.contains("Return only the final processed transcript"), bodyString)
     }
 
     // MARK: - Deterministic transport/status mapping

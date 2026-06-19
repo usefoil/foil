@@ -8,7 +8,7 @@ goal:
   slug: "transcript-cleanup-formatting-handoff"
   kind: existing_plan
   tranche: "Prepare and execute an autonomous handoff for implementing the approved transcript cleanup formatting feature."
-  status: active
+  status: done
   oracle:
     signal: "Focused tests and final audit prove optional cleanup formatting, independent cleanup routing, prompt/preferred-term assembly, raw fallback, final-text-only history, diagnostic redaction, and Settings UI behavior."
     cadence: "after each Worker package and at final audit"
@@ -64,13 +64,13 @@ visual_board:
     url: "http://goalbuddy.localhost:41737/transcript-cleanup-formatting-handoff/"
     command: "npx goalbuddy board docs/goals/transcript-cleanup-formatting-handoff"
 
-active_task: T001
+active_task: null
 
 tasks:
   - id: T001
     type: scout
     assignee: Scout
-    status: active
+    status: done
     reasoning_hint: medium
     objective: "Map the existing transcript cleanup architecture, tests, diagnostics, Settings UI, and approved spec into concrete implementation seams for the autonomous plan."
     inputs:
@@ -96,11 +96,37 @@ tasks:
       - "Test coverage map."
       - "Recommended implementation task sequence."
       - "Verification commands that do not require live provider credentials."
+    receipt:
+      result: done
+      note: "notes/T001-scout-map.md"
+      summary: "Mapped current cleanup seams: controller already orchestrates post-STT cleanup and raw fallback; service owns request body assembly; AppState persists mode/provider/model but lacks custom prompts/preferred terms; Settings has broad cleanup picker/provider controls but no v1 prompt/preferred-term surface; diagnostics need new sensitive-content omission tests."
+      evidence:
+        - "Foil/TranscriptProcessingMode.swift:3"
+        - "Foil/TranscriptionController.swift:206"
+        - "Foil/TranscriptionService.swift:893"
+        - "Foil/AppState.swift:215"
+        - "Foil/SettingsView.swift:479"
+        - "Foil/DiagnosticLog.swift:100"
+        - "Foil/FoilApp.swift:1230"
+        - "Foil/TranscriptionHistory.swift:100"
+        - "FoilTests/TranscriptionControllerTests.swift:180"
+        - "FoilTests/TranscriptionServiceTests.swift:90"
+        - "FoilTests/AppStateTests.swift:1326"
+        - "FoilTests/DiagnosticLogTests.swift:215"
+        - "FoilUITests/FoilUITests.swift:411"
+      commands:
+        - cmd: "rg -n \"transcriptProcessing|TranscriptProcessing|cleanup|Cleanup|processTranscript|preferred|prompt|history|didTranscribe|cleanupFailed|DiagnosticLog|setupReportText|exportText|providerPrivacySummary|selectedTranscriptCleanupProvider|effectiveTranscriptProcessingMode\" Foil FoilTests FoilUITests scripts docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+          status: pass
+        - cmd: "rg -n \"transcriptProcessing|cleanupProvider|Cleanup|cleanUp|rewriteClearly|customTranscriptCleanup|processTranscript|setupReport|diagnostic|history\" FoilTests/TranscriptionControllerTests.swift FoilTests/TranscriptionServiceTests.swift FoilTests/AppStateTests.swift FoilTests/DiagnosticLogTests.swift FoilTests/TranscriptionHistoryTests.swift FoilUITests/FoilUITests.swift"
+          status: pass
+      uncertainty:
+        - "The referenced superpowers:writing-plans skill is not visible as an installed Codex skill in this session; use repo plan examples if unavailable."
+        - "Judge/plan should decide whether v1 UI allows Groq cleanup outside Groq STT, since current UI restricts non-Groq STT to none/custom chat while the spec allows explicit cloud cleanup routing."
 
   - id: T002
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Write the detailed implementation plan from the approved spec and T001 Scout map, using the superpowers:writing-plans skill."
     allowed_files:
@@ -133,11 +159,27 @@ tasks:
     expected_output:
       - "A complete implementation plan document."
       - "A receipt summarizing spec coverage and any remaining risks."
+    receipt:
+      result: done
+      changed_files:
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+        - "docs/goals/transcript-cleanup-formatting-handoff/notes/T002-plan-notes.md"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "rg -n \"TBD|TODO|FIXME|implement later|fill in details|Similar to Task\" docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+          status: pass
+        - cmd: "git diff --check -- docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+          status: pass
+      summary: "Wrote a complete repo-format implementation plan with exact file scopes, failing-first test steps, focused xcodebuild commands, and expected outcomes for prompt assembly, preferred terms, independent cleanup routing, Settings UI, diagnostics redaction, final-text-only history, and final audit."
+      remaining_blockers: []
+      verification_attempts: 1
+      stopped_because: null
+      note: "notes/T002-plan-notes.md"
 
   - id: T003
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Review the implementation plan for spec coverage, autonomous executability, proof strength, and likely misfire prevention."
     inputs:
@@ -155,11 +197,198 @@ tasks:
       - "Spec coverage map."
       - "First approved Worker package."
       - "Any required plan edits before implementation."
+    receipt:
+      result: done
+      decision: rejected
+      full_outcome_complete: false
+      rationale: "The plan covers the core spec areas and prevents prompt-only/UI-only misfire, but two conditional plan instructions weaken autonomous executability for history and fallback warning proof. Require a narrow plan revision before approving implementation."
+      evidence:
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:685"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:689"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:766"
+      missing_evidence:
+        - "Exact fallback-warning test placement and app/UI-test support path."
+        - "No redundant conditional guidance after the exact final-text-only history test snippet."
+      required_board_updates:
+        - "Add a bounded Worker revision that edits only the plan and board receipt, removing conditional instructions and naming exact fallback-warning tests."
+
+  - id: T009
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Revise the implementation plan so history and cleanup-fallback warning proof steps are exact and autonomous, then re-run T002 plan checks."
+    allowed_files:
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      - "docs/goals/transcript-cleanup-formatting-handoff/notes/T009-plan-revision.md"
+    constraints:
+      - "Do not implement product changes."
+      - "Remove conditional fallback/history guidance that requires worker interpretation."
+      - "Keep the approved spec coverage intact."
+      - "Avoid placeholders such as TBD, TODO, FIXME, implement later, fill in details, or Similar to Task."
+    verify:
+      - "rg -n \"TBD|TODO|FIXME|implement later|fill in details|Similar to Task\" docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "git diff --check -- docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+    stop_if:
+      - "Plan revision needs a product decision beyond making proof steps exact."
+    expected_output:
+      - "Updated plan with exact history and fallback-warning proof steps."
+      - "Receipt with verification commands."
+    receipt:
+      result: done
+      changed_files:
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+        - "docs/goals/transcript-cleanup-formatting-handoff/notes/T009-plan-revision.md"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "rg -n \"TBD|TODO|FIXME|implement later|fill in details|Similar to Task\" docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+          status: pass
+        - cmd: "git diff --check -- docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+          status: pass
+      summary: "Removed conditional history guidance and made cleanup-fallback warning proof exact with named controller assertions, a UI-test seeding command, a focused XCUITest, and production warning copy alignment."
+      remaining_blockers: []
+      verification_attempts: 1
+      stopped_because: null
+      note: "notes/T009-plan-revision.md"
+
+  - id: T010
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Review the revised implementation plan for spec coverage, autonomous executability, proof strength, and likely misfire prevention."
+    inputs:
+      - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "T001 receipt"
+      - "T002 receipt"
+      - "T003 receipt"
+      - "T009 receipt"
+    constraints:
+      - "Do not implement."
+      - "Reject the plan if it can pass while only adding a prompt field or UI toggle."
+      - "Reject the plan if diagnostics redaction, independent cleanup routing, raw fallback, or final-text-only history proof is missing."
+      - "If approved, choose the largest safe first Worker slice with allowed_files, verify commands, and stop_if conditions."
+    expected_output:
+      - "Decision: approved or revision required."
+      - "Spec coverage map."
+      - "First approved Worker package."
+      - "Any required plan edits before implementation."
+    receipt:
+      result: done
+      decision: rejected
+      full_outcome_complete: false
+      rationale: "The revised plan is close and covers independent routing, prompt/preferred terms, fallback, history, diagnostics, and Settings UI. It still lacks an exact cleanup-off no-request test, which is an explicit spec and final-audit requirement."
+      evidence:
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:785"
+        - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md:190"
+      missing_evidence:
+        - "Exact controller test proving .raw/off mode makes zero cleanup transport requests."
+      required_board_updates:
+        - "Add a bounded Worker revision that inserts a cleanup-off no-request test into the plan and reruns plan checks."
+
+  - id: T011
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Revise the implementation plan to add exact cleanup-off no-request proof, then re-run plan checks."
+    allowed_files:
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      - "docs/goals/transcript-cleanup-formatting-handoff/notes/T011-plan-revision.md"
+    constraints:
+      - "Do not implement product changes."
+      - "Add an exact test snippet and command coverage for cleanup off sending no cleanup request."
+      - "Avoid placeholders such as TBD, TODO, FIXME, implement later, fill in details, or Similar to Task."
+    verify:
+      - "rg -n \"TBD|TODO|FIXME|implement later|fill in details|Similar to Task\" docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "git diff --check -- docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+    stop_if:
+      - "Plan revision needs a product decision beyond adding cleanup-off request-count proof."
+    expected_output:
+      - "Updated plan with exact cleanup-off no-request proof."
+      - "Receipt with verification commands."
+    receipt:
+      result: done
+      changed_files:
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+        - "docs/goals/transcript-cleanup-formatting-handoff/notes/T011-plan-revision.md"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "rg -n \"TBD|TODO|FIXME|implement later|fill in details|Similar to Task\" docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+          status: pass
+        - cmd: "git diff --check -- docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+          status: pass
+        - cmd: "rg -n \"testCleanupOffDoesNotSendCleanupRequest|cleanup off|sends no cleanup request|only-testing:FoilTests/TranscriptionControllerTests/testCleanupOff\" docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+          status: pass
+      summary: "Added exact cleanup-off no-request proof with a controller transport-count test and included it in the focused test command, closing T010's missing evidence gap."
+      remaining_blockers: []
+      verification_attempts: 1
+      stopped_because: null
+      note: "notes/T011-plan-revision.md"
+
+  - id: T012
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: medium
+    objective: "Review the twice-revised implementation plan and, if approved, activate the first implementation Worker slice."
+    inputs:
+      - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "T001 receipt"
+      - "T002 receipt"
+      - "T003 receipt"
+      - "T009 receipt"
+      - "T010 receipt"
+      - "T011 receipt"
+    constraints:
+      - "Do not implement."
+      - "Reject the plan if it can pass while only adding a prompt field or UI toggle."
+      - "Reject the plan if diagnostics redaction, independent cleanup routing, raw fallback, final-text-only history proof, cleanup-off no-request proof, or Settings UI behavior is missing."
+      - "If approved, choose the largest safe first Worker slice with allowed_files, verify commands, and stop_if conditions."
+    expected_output:
+      - "Decision: approved or revision required."
+      - "Spec coverage map."
+      - "First approved Worker package."
+      - "Any required plan edits before implementation."
+    receipt:
+      result: done
+      decision: approved
+      full_outcome_complete: false
+      rationale: "Approved. The revised plan blocks prompt-only/UI-only misfire by requiring prompt assembly, preferred terms, independent cleanup routing/key tests, cleanup-off no-request proof, raw fallback, final-text-only history, diagnostics omission/redaction, Settings UI behavior, and final spec audit."
+      evidence:
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:320"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:339"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:363"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:502"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:658"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:687"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:725"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:804"
+      first_approved_worker_package:
+        task_id: T004
+        objective: "Implement core data model and prompt/preferred-term assembly with failing tests first."
+        allowed_files:
+          - "Foil/TranscriptProcessingMode.swift"
+          - "Foil/TranscriptionService.swift"
+          - "Foil/AppState.swift"
+          - "FoilTests/TranscriptionServiceTests.swift"
+          - "FoilTests/AppStateTests.swift"
+          - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+        verify:
+          - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionServiceTests"
+          - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests"
+      missing_evidence: []
+      required_board_updates:
+        - "Activate T004."
 
   - id: T004
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Implement the approved first slice, expected to be the core data model and prompt/preferred-term assembly with failing tests first."
     allowed_files:
@@ -179,11 +408,39 @@ tasks:
       - "Verification fails twice for the same unexplained reason."
     expected_output:
       - "Tests prove default prompt, custom prompt, reset behavior, preferred terms context, and return-only instruction assembly."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/TranscriptProcessingMode.swift"
+        - "Foil/TranscriptionService.swift"
+        - "Foil/AppState.swift"
+        - "FoilTests/TranscriptionServiceTests.swift"
+        - "FoilTests/AppStateTests.swift"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionServiceTests/testCleanupFormattingRequestUsesDefaultPromptPreferredTermsAndReturnOnlyInstruction -only-testing:FoilTests/TranscriptionServiceTests/testCleanupFormattingRequestUsesCustomPromptForMode -only-testing:FoilTests/TranscriptionServiceTests/testTranscriptProcessingBodyUsesGroqChatShape -only-testing:FoilTests/AppStateTests/testCleanupPromptDefaultsAndReset -only-testing:FoilTests/AppStateTests/testPreferredTermsNormalizePersistAndReload -only-testing:FoilTests/AppStateTests/testCleaningSessionPresentationShowsCleanupModel"
+          status: pass
+          note: "Focused slice: 6 selected tests, 0 failures."
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionServiceTests"
+          status: pass
+          note: "57 tests, 0 failures."
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests"
+          status: pass
+          note: "136 tests, 0 failures."
+        - cmd: "git diff --check"
+          status: pass
+      summary: "Implemented cleanup-formatting defaults, custom per-mode prompt persistence/reset, preferred-term normalization/persistence, and cleanup request assembly that combines the resolved prompt, preferred terms, raw transcript, provider model, and return-only instruction."
+      strongest_failure_mode: "Prompt/preferred-term settings could persist incorrectly or leak malformed context into the cleanup request."
+      disproof_evidence: "AppStateTests passed all 136 tests including prompt reset and preferred-term reload coverage; TranscriptionServiceTests passed all 57 tests including default/custom prompt, preferred-term context, and return-only request body assertions."
+      failing_first_evidence: "Before implementation, focused tests failed as expected with missing TranscriptCleanupRequest/defaultPrompt/customPrompt/preferredTerms APIs."
+      remaining_blockers: []
+      verification_attempts: 1
+      stopped_because: null
 
   - id: T005
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Implement cleanup execution behavior: optional cleanup off path, independent cleanup provider routing, raw fallback on cleanup failure, and cleanupFailed reporting."
     allowed_files:
@@ -205,11 +462,42 @@ tasks:
       - "Tests prove cleanup off sends no LLM request."
       - "Tests prove cleanup provider is independent from transcription provider."
       - "Tests prove cleanup failure returns raw text and cleanupFailed=true."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/TranscriptionController.swift"
+        - "Foil/TranscriptionService.swift"
+        - "Foil/AppState.swift"
+        - "FoilTests/TranscriptionControllerTests.swift"
+        - "FoilTests/AppStateTests.swift"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionControllerTests/testCleanupOffDoesNotSendCleanupRequest -only-testing:FoilTests/TranscriptionControllerTests/testGroqCleanupUsesGroqKeyEvenWhenTranscriptionProviderIsOpenAI -only-testing:FoilTests/TranscriptionControllerTests/testCleanupRequestIncludesCustomPromptAndPreferredTermsFromAppState"
+          status: pass
+          note: "Focused T005 routing slice: 3 tests, 0 failures after implementation."
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionControllerTests"
+          status: pass
+          note: "30 tests, 0 failures."
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/TranscriptionServiceTests"
+          status: pass
+          note: "57 tests, 0 failures."
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests"
+          status: pass
+          note: "137 tests, 0 failures."
+        - cmd: "git diff --check"
+          status: pass
+      summary: "Wired controller cleanup execution through TranscriptCleanupRequest, resolved cleanup API keys by cleanup provider, preserved raw fallback with cleanupFailed=true, and made AppState keep cleanup provider selection independent from STT provider selection while preserving explicit cleanup off."
+      strongest_failure_mode: "Changing provider independence could silently send cleanup text to Groq when STT is local/custom, or use the wrong API key."
+      disproof_evidence: "Controller tests prove cleanup off sends zero requests, Groq cleanup uses the stored Groq key even when STT is OpenAI, custom cleanup requests include AppState prompt/preferred terms, and cleanup failure returns raw text with cleanupFailed=true; AppStateTests prove provider switching preserves both selected cleanup provider and cleanup off."
+      failing_first_evidence: "Before implementation, focused T005 tests failed because runtime cleanup ignored custom prompt/preferred terms and used the STT apiKey for Groq cleanup."
+      remaining_blockers: []
+      verification_attempts: 1
+      stopped_because: null
 
   - id: T006
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Implement Settings UI for opt-in cleanup formatting, prompt editing/reset, preferred terms editing, and independent cleanup provider controls."
     allowed_files:
@@ -228,11 +516,39 @@ tasks:
     expected_output:
       - "Settings show cleanup controls only when cleanup formatting is enabled."
       - "UI tests or direct UI proof cover provider picker, prompt editor, reset, and preferred terms controls."
+    receipt:
+      result: done
+      task_id: T006
+      board_path: "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      changed_files:
+        - "Foil/SettingsView.swift"
+        - "FoilUITests/FoilUITests.swift"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/AppStateTests"
+          status: pass
+        - cmd: "xcodebuild build -scheme Foil -configuration Debug -destination 'platform=macOS'"
+          status: pass
+        - cmd: "open -n DerivedData/Foil.app --args --ui-testing --reset-defaults --seed-history --settings-tab-transcription; post com.neonwatty.Foil.uiTests.openSettings; AX dump before toggle"
+          status: pass
+        - cmd: "AX press settings.cleanupFormattingToggle; AX dump after toggle"
+          status: pass
+        - cmd: "git diff --check"
+          status: pass
+      summary: "Settings now expose cleanup formatting as an opt-in toggle. Provider, prompt reset/editor, and preferred-terms editor stay hidden while cleanup is off and appear after enabling cleanup. The cleanup provider picker is independent of the transcription provider list."
+      strongest_failure_mode: "Cleanup configuration controls could render while cleanup is off, or remain inaccessible after enabling cleanup."
+      disproof_evidence: "AX dump before toggle showed settings.cleanupFormattingToggle value=0 and settings.cleanupRoutingSummary only, with no cleanup provider/prompt/preferred-term identifiers. AX press returned success and changed the toggle to value=1; the post-toggle AX dump showed settings.cleanupProviderPicker, settings.resetCleanupPromptButton, settings.cleanupPromptEditor, and settings.preferredTermsEditor."
+      verification_notes:
+        - "The focused AppStateTests suite passed earlier in T006 after the Settings implementation."
+        - "Later xcodebuild test retries for AppStateTests and FoilUITests stalled before test execution with Xcode waiting for XCTest target-runner workers to materialize; direct AX proof was used for the UI behavior."
+      remaining_blockers: []
+      verification_attempts: 3
+      stopped_because: null
 
   - id: T007
     type: worker
     assignee: Worker
-    status: queued
+    status: done
     reasoning_hint: medium
     objective: "Implement privacy and diagnostics proof: routing copy, redaction tests, and final-text-only history behavior."
     allowed_files:
@@ -254,11 +570,41 @@ tasks:
       - "Tests prove diagnostics omit transcript text, cleaned text, custom prompt text, preferred terms, API keys, and bearer tokens."
       - "Tests prove history stores only the final pasted text."
       - "Privacy copy clearly describes audio routing versus transcript cleanup routing."
+    receipt:
+      result: done
+      task_id: T007
+      board_path: "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      changed_files:
+        - "Foil/DiagnosticLog.swift"
+        - "Foil/SettingsView.swift"
+        - "FoilTests/DiagnosticLogTests.swift"
+        - "FoilTests/TranscriptionHistoryTests.swift"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "xcodebuild build -scheme Foil -configuration Debug -destination 'platform=macOS'"
+          status: pass
+        - cmd: "swiftc Foil/AppBrand.swift Foil/TranscriptionHistory.swift /tmp/t007-history-proof.swift -o /tmp/t007-history-proof && /tmp/t007-history-proof"
+          status: pass
+        - cmd: "swift - <<'SWIFT' # direct DiagnosticLog.redacted cleanup-field and bearer-token regex proof"
+          status: pass
+        - cmd: "rg -n \"Cleanup Provider:|cleanup prompt|preferredTerms|rawTranscript|cleanedText|testCleanupSuccessStoresOnlyFinalCleanedText|testCleanupFallbackStoresOnlyRawFinalText|provider selected below\" Foil/DiagnosticLog.swift Foil/SettingsView.swift FoilTests/DiagnosticLogTests.swift FoilTests/TranscriptionHistoryTests.swift"
+          status: pass
+        - cmd: "git diff --check"
+          status: pass
+      summary: "Diagnostics now include cleanup provider metadata while redacting labeled prompt, preferred-term, raw-transcript, and cleaned-text fields. Settings privacy copy separates audio routing from transcript cleanup routing. History tests document that only final cleaned or raw fallback text is stored."
+      strongest_failure_mode: "Diagnostics could leak cleanup prompt text, preferred terms, raw transcript text, cleaned text, or bearer/API secrets; history could retain raw pre-cleanup text after a successful cleanup."
+      disproof_evidence: "Direct Swift redaction proof removed prompt, preferredTerms, rawTranscript, cleanedText, and bearer sentinels. A compiled TranscriptionHistory proof persisted only 'Cleaned final text' and omitted 'Raw transcript before cleanup'. Source audit shows setup/export summaries expose only cleanup provider/model/routing metadata."
+      verification_notes:
+        - "Focused xcodebuild test for DiagnosticLogTests compiled but stalled before XCTest worker launch with 'waiting for workers to materialize', matching the earlier local Xcode harness issue."
+        - "The intended DiagnosticLogTests and TranscriptionHistoryTests were added/updated and the app target builds successfully."
+      remaining_blockers: []
+      verification_attempts: 2
+      stopped_because: null
 
   - id: T008
     type: judge
     assignee: Judge
-    status: queued
+    status: done
     reasoning_hint: high
     objective: "Final audit against the approved spec and goal oracle, then prepare PR handoff notes."
     inputs:
@@ -279,3 +625,299 @@ tasks:
     expected_output:
       - "Final audit receipt with full_outcome_complete true or blocked follow-up tasks."
       - "PR summary and test evidence ready for maintainer review."
+    receipt:
+      result: done
+      decision: not_complete
+      full_outcome_complete: false
+      rationale: "Final audit found one approved-plan product gap: cleanup fallback warning copy and UI-test seeding/proof were not implemented. The core unit suite passed, but the full UI suite verifier also did not complete cleanly because an unrelated E2E transcription smoke test failed/timed out."
+      evidence:
+        - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md:157 requires `Cleanup failed; pasted raw transcript.`"
+        - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md:704 requires fallback warning proof."
+        - "Foil/FoilApp.swift still used `Cleanup failed; raw transcript used` in retry and normal paths."
+        - "Foil/UITestingController.swift had no `seedCleanupFallbackWarning` command."
+        - "FoilUITests/FoilUITests.swift had no `testCleanupFallbackWarningIsVisible`."
+      commands:
+        - cmd: "git diff --check"
+          status: pass
+        - cmd: "ruby -rtimeout -e 'timeout=120; cmd=ARGV; pid=spawn(*cmd); begin Timeout.timeout(timeout){ Process.wait(pid); exit($?.exitstatus || 1) }; rescue Timeout::Error; Process.kill(\"INT\", pid) rescue nil; sleep 2; Process.kill(\"KILL\", pid) rescue nil; warn \"TIMEOUT after #{timeout}s\"; exit 124; end' xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -only-testing:FoilTests/TranscriptionControllerTests -only-testing:FoilTests/TranscriptionServiceTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests -only-testing:FoilTests/TranscriptionHistoryTests"
+          status: pass
+          note: "282 tests executed, 0 failures."
+        - cmd: "ruby -rtimeout -e 'timeout=180; cmd=ARGV; pid=spawn(*cmd); begin Timeout.timeout(timeout){ Process.wait(pid); exit($?.exitstatus || 1) }; rescue Timeout::Error; Process.kill(\"INT\", pid) rescue nil; sleep 2; Process.kill(\"KILL\", pid) rescue nil; warn \"TIMEOUT after #{timeout}s\"; exit 124; end' xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests"
+          status: fail
+          note: "Bounded run timed out after the suite reached testE2ETranscription; XCTest reported FoilUITests.swift:918 `E2E transcription should complete and paste within 90 seconds`."
+      missing_evidence:
+        - "Visible cleanup fallback warning uses approved copy."
+        - "UI-test command can seed the cleanup fallback warning without live transcription."
+        - "Focused XCUITest proves the fallback warning is visible."
+      spawned_tasks:
+        - T013
+
+  - id: T013
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Align cleanup fallback warning copy with the approved spec and add focused UI-test seeding/proof for the visible warning."
+    allowed_files:
+      - "Foil/FoilApp.swift"
+      - "Foil/UITestingController.swift"
+      - "FoilUITests/FoilUITests.swift"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+    inputs:
+      - "T008 final audit receipt"
+      - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+    constraints:
+      - "Keep the change limited to fallback warning copy and focused UI-test support."
+      - "Do not alter cleanup routing, persistence, diagnostics, history, or paste semantics."
+      - "Use the exact approved warning copy: `Cleanup failed; pasted raw transcript.`"
+    verify:
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -only-testing:FoilTests/TranscriptionControllerTests/testCustomChatCleanupFailureFallsBackToRaw"
+      - "git diff --check"
+    stop_if:
+      - "The existing UI-test app command path cannot expose the warning after two focused attempts."
+      - "Fixing the warning requires a broader paste or floating-status redesign."
+      - "Verification fails twice for the same unexplained reason."
+    expected_output:
+      - "Production retry and normal paths use the approved cleanup fallback warning copy."
+      - "A UI-test app command seeds the warning without live transcription."
+      - "A focused XCUITest proves the warning is visible."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/FoilApp.swift"
+        - "Foil/UITestingController.swift"
+        - "FoilUITests/FoilUITests.swift"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+          status: pass
+          note: "Executed 1 UI test, 0 failures; XCUITest found `Cleanup failed; pasted raw transcript.` after seeding the warning."
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -only-testing:FoilTests/TranscriptionControllerTests/testCustomChatCleanupFailureFallsBackToRaw"
+          status: pass
+          note: "Executed 1 controller test, 0 failures; raw fallback text and cleanupFailed flag stayed intact."
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -only-testing:FoilTests/TranscriptionControllerTests -only-testing:FoilTests/TranscriptionServiceTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests -only-testing:FoilTests/TranscriptionHistoryTests"
+          status: pass
+          note: "Executed 282 selected unit tests, 0 failures."
+        - cmd: "git diff --check"
+          status: pass
+        - cmd: "rg -n \"Cleanup failed; raw transcript used|Cleanup failed; pasted raw transcript\\.|seedCleanupFallbackWarning|testCleanupFallbackWarningIsVisible\" Foil FoilTests FoilUITests docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+          status: pass
+          note: "No production occurrences of the stale warning copy remain; approved copy appears in FoilApp, UITestingController, and focused UI test."
+      summary: "Aligned retry and normal cleanup-fallback feedback with the approved copy, added a UI-test app command to seed the warning, and added a focused XCUITest proving the warning is visible without live transcription."
+      strongest_failure_mode: "The app could set cleanupFailed=true but still show stale or invisible fallback feedback to the user."
+      disproof_evidence: "Source audit shows both FoilApp cleanupFailed paths now use `Cleanup failed; pasted raw transcript.`; the focused UI test seeds the production feedback path and XCUITest finds the exact visible copy."
+      remaining_blockers: []
+      verification_attempts: 1
+      stopped_because: null
+
+  - id: T014
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final audit after T013 against the approved spec, goal oracle, receipts, and latest verification evidence."
+    inputs:
+      - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "All task receipts through T013"
+      - "git diff --stat"
+      - "Latest focused verification command outputs"
+    constraints:
+      - "Do not mark complete on happy-path tests alone."
+      - "Audit the likely misfire explicitly."
+      - "Record the strongest realistic remaining failure mode and evidence that rules it out or names it as follow-up."
+      - "If any original spec requirement is not proven, set full_outcome_complete false and create the next bounded task."
+    verify:
+      - "git diff --check"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -only-testing:FoilTests/TranscriptionControllerTests -only-testing:FoilTests/TranscriptionServiceTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests -only-testing:FoilTests/TranscriptionHistoryTests"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+    expected_output:
+      - "Final audit receipt with full_outcome_complete true or a concrete follow-up task."
+      - "PR summary and test evidence ready for maintainer review."
+    receipt:
+      result: done
+      decision: not_complete
+      full_outcome_complete: false
+      rationale: "The fallback warning proof passed, but the combined final UI verifier exposed a weak Settings test interaction: the cleanup controls were correctly absent while cleanup was off, yet the generic click helper did not toggle the macOS switch, so the after-enable assertions never exercised the enabled state."
+      evidence:
+        - "FoilUITests/FoilUITests.swift:449 failed waiting for settings.cleanupProviderPicker after clicking settings.cleanupFormattingToggle."
+        - "Failure AX tree showed settings.cleanupFormattingToggle value: 0 and the provider/prompt/preferred-term controls absent, proving the test did not enable cleanup."
+        - "FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible passed in the same run."
+      commands:
+        - cmd: "node /Users/jeremywatt/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+          status: pass
+        - cmd: "git diff --check"
+          status: pass
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+          status: fail
+          note: "Executed 2 UI tests; fallback warning passed, settings cleanup toggle test failed because the switch remained value 0 after click."
+      missing_evidence:
+        - "Focused XCUITest proof that cleanup Settings controls are hidden while off and visible after enabling."
+      spawned_tasks:
+        - T015
+
+  - id: T015
+    type: worker
+    assignee: Worker
+    status: blocked
+    reasoning_hint: medium
+    objective: "Make the cleanup Settings UI test use a deterministic macOS switch interaction, then rerun focused UI proof."
+    allowed_files:
+      - "FoilUITests/FoilUITests.swift"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+    inputs:
+      - "T014 final audit receipt"
+      - "FoilUITests/FoilUITests.swift"
+    constraints:
+      - "Only change test interaction/proof for the cleanup formatting toggle."
+      - "Do not change production Settings behavior."
+      - "Keep the test proving controls are absent while cleanup is off and present after cleanup is enabled."
+    verify:
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+      - "git diff --check"
+    stop_if:
+      - "The cleanup toggle cannot be toggled through XCUITest after two deterministic interaction attempts."
+      - "Production Settings behavior appears wrong rather than the test interaction being weak."
+      - "Verification fails twice for the same unexplained reason."
+    expected_output:
+      - "Focused UI proof covers hidden cleanup controls while off and visible controls after enabling."
+      - "Fallback warning UI proof remains green."
+    receipt:
+      result: blocked
+      changed_files:
+        - "FoilUITests/FoilUITests.swift"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+          status: fail
+          note: "Attempt 1: coordinate click on settings.cleanupFormattingToggle left switch value at 0."
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+          status: fail
+          note: "Attempt 2: UI-test defaults-suite relaunch also left settings.cleanupFormattingToggle value at 0; fallback warning continued to pass."
+        - cmd: "git diff --check"
+          status: pass
+      summary: "Tried two UI-test-only ways to make the cleanup Settings enabled-state proof deterministic. Both failed to place the app in enabled cleanup mode, so this task hit its stop condition and needs a narrow UI-test seed in the app-side testing controller."
+      stopped_because: "The cleanup toggle/defaults state could not be driven deterministically from FoilUITests alone after two attempts."
+      spawned_tasks:
+        - T016
+
+  - id: T016
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: medium
+    objective: "Add an app-side UI-test seed for cleanup formatting enabled state and use it in the focused Settings UI proof."
+    allowed_files:
+      - "Foil/UITestingController.swift"
+      - "FoilUITests/FoilUITests.swift"
+      - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+    inputs:
+      - "T015 blocked receipt"
+      - "Foil/UITestingController.swift"
+      - "FoilUITests/FoilUITests.swift"
+    constraints:
+      - "Only add UI-test seeding support and update the focused cleanup Settings UI test."
+      - "Do not change production Settings behavior."
+      - "Keep the test proving cleanup controls are absent while off and present when cleanup is enabled."
+    verify:
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+      - "git diff --check"
+    stop_if:
+      - "The seeded app state still renders cleanup controls hidden after two attempts."
+      - "Production Settings behavior appears wrong rather than the test setup being weak."
+      - "Verification fails twice for the same unexplained reason."
+    expected_output:
+      - "UITestingController supports a cleanup-formatting-enabled seed."
+      - "Focused UI proof covers hidden cleanup controls while off and visible controls after seeded enabled state."
+    receipt:
+      result: done
+      changed_files:
+        - "Foil/UITestingController.swift"
+        - "FoilUITests/FoilUITests.swift"
+        - "docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+      commands:
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+          status: pass
+          note: "Executed 2 UI tests, 0 failures. Cleanup fallback warning passed; Settings cleanup controls were absent in reset/off state and present after app-side cleanup-enabled seed."
+        - cmd: "git diff --check"
+          status: pass
+        - cmd: "rg -n \"Cleanup failed; raw transcript used|seed-cleanup-formatting-enabled|seedCleanupFallbackWarning|testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled|testCleanupFallbackWarningIsVisible|Cleanup failed; pasted raw transcript\\.\" Foil FoilTests FoilUITests docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+          status: pass
+          note: "No production occurrences of stale fallback copy; app-side UI-test seeds and focused UI tests are present."
+        - cmd: "node /Users/jeremywatt/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+          status: pass
+      summary: "Added `--seed-cleanup-formatting-enabled` for app-side UI testing and updated the cleanup Settings UI test to prove both reset/off hidden controls and seeded-enabled visible controls. The fallback warning UI proof remained green."
+      strongest_failure_mode: "The Settings proof could pass without actually placing the app in cleanup-enabled state."
+      disproof_evidence: "The focused UI test asserts the reset/off absence of cleanup controls, relaunches with the app-side cleanup-enabled seed, asserts the cleanup toggle value is 1, and finds provider, prompt editor, reset button, preferred-terms editor, and routing copy."
+      remaining_blockers: []
+      verification_attempts: 1
+      stopped_because: null
+
+  - id: T017
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: high
+    objective: "Final completion audit after T016 against the approved spec, goal oracle, receipts, and latest verification evidence."
+    inputs:
+      - "docs/superpowers/specs/2026-06-19-transcript-cleanup-formatting-design.md"
+      - "docs/superpowers/plans/2026-06-19-transcript-cleanup-formatting.md"
+      - "All task receipts through T016"
+      - "git diff --stat"
+      - "Latest focused verification command outputs"
+    constraints:
+      - "Do not mark complete on happy-path tests alone."
+      - "Audit the likely misfire explicitly."
+      - "Record the strongest realistic remaining failure mode and evidence that rules it out or names it as follow-up."
+      - "If any original spec requirement is not proven, set full_outcome_complete false and create the next bounded task."
+    verify:
+      - "git diff --check"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -only-testing:FoilTests/TranscriptionControllerTests -only-testing:FoilTests/TranscriptionServiceTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests -only-testing:FoilTests/TranscriptionHistoryTests"
+      - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+    expected_output:
+      - "Final audit receipt with full_outcome_complete true or a concrete follow-up task."
+      - "PR summary and test evidence ready for maintainer review."
+    receipt:
+      result: done
+      decision: complete
+      full_outcome_complete: true
+      rationale: "The implementation now satisfies the approved transcript cleanup formatting spec and goal oracle: cleanup is opt-in, prompt/preferred-term assembly is covered, cleanup provider routing is independent, raw fallback is non-blocking with visible warning, history stores final text only, diagnostics redact sensitive cleanup content, and Settings exposes cleanup controls only when enabled."
+      spec_coverage:
+        - "Optional cleanup off path: TranscriptionControllerTests/testCleanupOffDoesNotSendCleanupRequest passed."
+        - "Independent cleanup routing/key use: TranscriptionControllerTests prove Groq cleanup uses Groq key with OpenAI STT and custom cleanup request includes prompt/preferred terms."
+        - "Prompt/preferred terms: TranscriptionServiceTests and AppStateTests cover default/custom prompt, reset, preferred-term normalization, and request body assembly."
+        - "Raw fallback: TranscriptionControllerTests/testCustomChatCleanupFailureFallsBackToRaw passed and FoilApp uses `Cleanup failed; pasted raw transcript.` in retry and normal paths."
+        - "History final-text-only: TranscriptionHistoryTests and direct Swift proof cover cleaned success and raw fallback storage."
+        - "Diagnostics/privacy: DiagnosticLogTests plus direct Swift redaction proof cover prompt, preferred terms, transcript text, cleaned text, and bearer/API secret redaction."
+        - "Settings UI: FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled passed, proving off-state hidden controls and seeded enabled-state controls."
+        - "Visible fallback warning: FoilUITests/testCleanupFallbackWarningIsVisible passed."
+      commands:
+        - cmd: "git diff --check"
+          status: pass
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -only-testing:FoilTests/TranscriptionControllerTests -only-testing:FoilTests/TranscriptionServiceTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests -only-testing:FoilTests/TranscriptionHistoryTests"
+          status: pass
+          note: "Executed 282 selected unit tests, 0 failures."
+        - cmd: "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"
+          status: pass
+          note: "Executed 2 focused UI tests, 0 failures."
+        - cmd: "rg -n \"Cleanup failed; raw transcript used|seed-cleanup-formatting-enabled|seedCleanupFallbackWarning|testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled|testCleanupFallbackWarningIsVisible|Cleanup failed; pasted raw transcript\\.\" Foil FoilTests FoilUITests docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+          status: pass
+          note: "No production occurrences of stale fallback copy; approved copy and UI-test seed/proof are present."
+        - cmd: "node /Users/jeremywatt/.codex/plugins/cache/goalbuddy/goalbuddy/0.3.8/skills/goalbuddy/scripts/check-goal-state.mjs docs/goals/transcript-cleanup-formatting-handoff/state.yaml"
+          status: pass
+      strongest_failure_mode: "Cleanup could silently send transcript text to the wrong provider or leak transcript-adjacent sensitive content while the visible happy path still worked."
+      disproof_evidence: "Focused controller/service tests prove cleanup off sends no request, cleanup provider/key selection is independent of STT provider, request assembly includes resolved prompt and preferred terms, and cleanup failure returns raw text with cleanupFailed. Diagnostic redaction tests/direct proof remove custom prompts, preferred terms, raw transcript, cleaned text, bearer tokens, and API keys. Focused UI tests prove Settings routing controls are hidden until cleanup is enabled and that the fallback warning is visible."
+      residual_risk:
+        - "The full FoilUITests suite was not green in the T008 audit because existing testE2ETranscription failed/timed out after 90 seconds. The failing check is not specific to transcript cleanup formatting; focused cleanup UI proof now passes."
+      pr_handoff:
+        summary:
+          - "Implemented cleanup-formatting prompt defaults, custom prompt reset, preferred-term storage, and cleanup request assembly."
+          - "Preserved independent cleanup provider routing and raw fallback behavior."
+          - "Added Settings cleanup toggle, cleanup provider/prompt/preferred-terms controls, routing copy, diagnostics redaction, and final-text-only history proof."
+          - "Aligned cleanup fallback warning copy and added UI-test seeding/proof for Settings and warning visibility."
+        tests:
+          - "git diff --check"
+          - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -only-testing:FoilTests/TranscriptionControllerTests -only-testing:FoilTests/TranscriptionServiceTests -only-testing:FoilTests/AppStateTests -only-testing:FoilTests/DiagnosticLogTests -only-testing:FoilTests/TranscriptionHistoryTests"
+          - "xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO -maximum-concurrent-test-device-destinations 1 -enableCodeCoverage NO -only-testing:FoilUITests/FoilUITests/testTranscriptCleanupFormattingSettingsAreHiddenUntilEnabled -only-testing:FoilUITests/FoilUITests/testCleanupFallbackWarningIsVisible"

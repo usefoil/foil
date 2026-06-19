@@ -244,6 +244,25 @@ final class AppState {
         }
     }
 
+    var customCleanupPrompt: String = "" {
+        didSet { Self.defaults.set(customCleanupPrompt, forKey: "customCleanupPrompt.cleanUp") }
+    }
+
+    var customRewritePrompt: String = "" {
+        didSet { Self.defaults.set(customRewritePrompt, forKey: "customCleanupPrompt.rewriteClearly") }
+    }
+
+    var preferredTermsText: String = "" {
+        didSet {
+            let normalized = Self.normalizedPreferredTerms(from: preferredTermsText).joined(separator: "\n")
+            if preferredTermsText != normalized {
+                preferredTermsText = normalized
+                return
+            }
+            Self.defaults.set(preferredTermsText, forKey: "transcriptCleanupPreferredTerms")
+        }
+    }
+
     var keepOnClipboard: Bool = false {
         didSet { Self.defaults.set(keepOnClipboard, forKey: "keepOnClipboard") }
     }
@@ -469,6 +488,44 @@ final class AppState {
 
     var effectiveTranscriptProcessingMode: TranscriptProcessingMode {
         transcriptProcessingMode == .raw || !supportsSelectedTranscriptProcessing ? .raw : transcriptProcessingMode
+    }
+
+    var preferredTerms: [String] {
+        Self.normalizedPreferredTerms(from: preferredTermsText)
+    }
+
+    func customPrompt(for mode: TranscriptProcessingMode) -> String? {
+        let value: String
+        switch mode {
+        case .raw:
+            return nil
+        case .cleanUp:
+            value = customCleanupPrompt
+        case .rewriteClearly:
+            value = customRewritePrompt
+        }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    func resolvedPrompt(for mode: TranscriptProcessingMode) -> String {
+        customPrompt(for: mode) ?? mode.defaultPrompt
+    }
+
+    func setCustomPrompt(_ prompt: String, for mode: TranscriptProcessingMode) {
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch mode {
+        case .raw:
+            return
+        case .cleanUp:
+            customCleanupPrompt = trimmed
+        case .rewriteClearly:
+            customRewritePrompt = trimmed
+        }
+    }
+
+    func resetCustomPrompt(for mode: TranscriptProcessingMode) {
+        setCustomPrompt("", for: mode)
     }
 
     var customTranscriptionBaseURLValue: URL? {
@@ -944,6 +1001,9 @@ final class AppState {
                 "transcriptCleanupProvider",
                 "customTranscriptCleanupBaseURL",
                 "customTranscriptCleanupModel",
+                "customCleanupPrompt.cleanUp",
+                "customCleanupPrompt.rewriteClearly",
+                "transcriptCleanupPreferredTerms",
                 "selectedInputDeviceUID"
             ] {
                 defaults.removeObject(forKey: key)
@@ -977,7 +1037,10 @@ final class AppState {
             "transcriptCleanupModel": "llama-3.3-70b-versatile",
             "transcriptCleanupProvider": "groq",
             "customTranscriptCleanupBaseURL": "http://127.0.0.1:11434/v1",
-            "customTranscriptCleanupModel": "llama3.1:8b"
+            "customTranscriptCleanupModel": "llama3.1:8b",
+            "customCleanupPrompt.cleanUp": "",
+            "customCleanupPrompt.rewriteClearly": "",
+            "transcriptCleanupPreferredTerms": ""
         ])
 
         // Load persisted values into stored properties.
@@ -1012,6 +1075,11 @@ final class AppState {
         customTranscriptCleanupBaseURL = defaults.string(forKey: "customTranscriptCleanupBaseURL")
             ?? "http://127.0.0.1:11434/v1"
         customTranscriptCleanupModel = defaults.string(forKey: "customTranscriptCleanupModel") ?? "llama3.1:8b"
+        customCleanupPrompt = defaults.string(forKey: "customCleanupPrompt.cleanUp") ?? ""
+        customRewritePrompt = defaults.string(forKey: "customCleanupPrompt.rewriteClearly") ?? ""
+        preferredTermsText = Self.normalizedPreferredTerms(
+            from: defaults.string(forKey: "transcriptCleanupPreferredTerms") ?? ""
+        ).joined(separator: "\n")
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
@@ -1056,15 +1124,22 @@ final class AppState {
         }
     }
 
+    private static func normalizedPreferredTerms(from text: String) -> [String] {
+        var seen = Set<String>()
+        return text
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { term in
+                let key = term.lowercased()
+                guard !seen.contains(key) else { return false }
+                seen.insert(key)
+                return true
+            }
+    }
+
     private func syncCleanupProviderWithTranscriptionPreset() {
-        if selectedTranscriptionProviderPresetID != .groq,
-           transcriptCleanupProviderID == .groq {
-            transcriptCleanupProviderID = .none
-        } else if selectedTranscriptionProviderPresetID == .groq,
-                  transcriptProcessingMode != .raw,
-                  transcriptCleanupProviderID == .none {
-            transcriptCleanupProviderID = .groq
-        }
+        // Cleanup provider routing is independent from the STT provider.
     }
 
     private func handleTranscriptionProviderSelectionChanged() {

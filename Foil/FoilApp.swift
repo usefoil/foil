@@ -1250,7 +1250,7 @@ extension AppDelegate: TranscriptionControllerDelegate {
             Task {
                 await pasteController.pasteDirectly(text: text)
                 if cleanupFailed {
-                    appState.feedbackMessage = "Cleanup failed; raw transcript used"
+                    appState.feedbackMessage = "Cleanup failed; pasted raw transcript."
                 }
                 if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
                     NotificationManager.shared.postTranscriptionComplete(preview: text)
@@ -1278,7 +1278,7 @@ extension AppDelegate: TranscriptionControllerDelegate {
                     await pasteController.paste(text: text)
                 }
                 if cleanupFailed {
-                    appState.feedbackMessage = "Cleanup failed; raw transcript used"
+                    appState.feedbackMessage = "Cleanup failed; pasted raw transcript."
                 }
                 if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
                     NotificationManager.shared.postTranscriptionComplete(preview: text)
