@@ -243,6 +243,10 @@ struct TranscriptCleanupProvider: Equatable {
         endpoint("chat/completions")
     }
 
+    var responsesEndpoint: URL? {
+        endpoint("responses")
+    }
+
     var modelsEndpoint: URL? {
         endpoint("models")
     }
@@ -729,7 +733,7 @@ struct TranscriptionService {
         apiKey: String?
     ) async throws -> String {
         guard cleanupRequest.mode != .raw else { return cleanupRequest.rawTranscript }
-        guard let endpoint = cleanupRequest.provider.chatCompletionsEndpoint else {
+        guard let endpoint = cleanupEndpoint(for: cleanupRequest.provider) else {
             return cleanupRequest.rawTranscript
         }
 
@@ -737,7 +741,7 @@ struct TranscriptionService {
         request.httpMethod = "POST"
         setAuthorizationHeader(apiKey: apiKey, on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try Self.buildTranscriptProcessingBody(request: cleanupRequest)
+        request.httpBody = try Self.buildTranscriptProcessingBodyForProvider(request: cleanupRequest)
 
         DiagnosticLog.write("processTranscript: sending cleanupProvider=\(cleanupRequest.provider.id.rawValue) mode=\(cleanupRequest.mode.rawValue) model=\(cleanupRequest.provider.model) inputLength=\(cleanupRequest.rawTranscript.count)")
         let (data, response) = try await transport.data(for: request)
@@ -748,17 +752,7 @@ struct TranscriptionService {
         DiagnosticLog.write("processTranscript: response status=\(http.statusCode) responseBytes=\(data.count)")
 
         if http.statusCode == 200 {
-            let decoded: ChatCompletionResponse
-            do {
-                decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
-            } catch {
-                DiagnosticLog.write("processTranscript: failed to decode response")
-                throw TranscriptionError.invalidResponse
-            }
-            guard let content = decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !content.isEmpty else {
-                throw TranscriptionError.invalidResponse
-            }
+            let content = try decodeCleanupResponse(data, provider: cleanupRequest.provider)
             DiagnosticLog.write("processTranscript: success outputLength=\(content.count)")
             return content
         }
@@ -766,6 +760,17 @@ struct TranscriptionService {
         let error = mapAPIError(statusCode: http.statusCode, data: data)
         DiagnosticLog.write("processTranscript: API error status=\(http.statusCode) mapped=\(error.logName) bodyBytes=\(data.count)")
         throw error
+    }
+
+    private func cleanupEndpoint(for cleanupProvider: TranscriptCleanupProvider) -> URL? {
+        switch cleanupProvider.id {
+        case .openAI:
+            cleanupProvider.responsesEndpoint
+        case .groq, .customOpenAICompatibleChat:
+            cleanupProvider.chatCompletionsEndpoint
+        case .none:
+            nil
+        }
     }
 
     func validateApiKey(apiKey: String?, requiredModels: [String] = []) async throws {
@@ -875,26 +880,26 @@ struct TranscriptionService {
         switch http.statusCode {
         case 200:
             guard let responseBody = try? JSONDecoder().decode(ModelsResponse.self, from: data) else {
-                return try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
+                return try await validateCleanupSmoke(provider: cleanupProvider, apiKey: apiKey)
             }
             let availableModels = Set(responseBody.data.map(\.id))
             if !cleanupProvider.model.isEmpty && !availableModels.contains(cleanupProvider.model) {
                 throw TranscriptionError.modelUnavailable(cleanupProvider.model)
             }
-            _ = try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
+            _ = try await validateCleanupSmoke(provider: cleanupProvider, apiKey: apiKey)
             return .modelsValidated
         case 404, 405:
-            return try await validateCleanupChatSmoke(provider: cleanupProvider, apiKey: apiKey)
+            return try await validateCleanupSmoke(provider: cleanupProvider, apiKey: apiKey)
         default:
             throw mapAPIError(statusCode: http.statusCode, data: data)
         }
     }
 
-    private func validateCleanupChatSmoke(
+    private func validateCleanupSmoke(
         provider cleanupProvider: TranscriptCleanupProvider,
         apiKey: String?
     ) async throws -> ProviderValidationResult {
-        guard let endpoint = cleanupProvider.chatCompletionsEndpoint else {
+        guard let endpoint = cleanupEndpoint(for: cleanupProvider) else {
             throw TranscriptionError.invalidProviderURL
         }
 
@@ -903,33 +908,48 @@ struct TranscriptionService {
         request.timeoutInterval = Self.providerValidationTimeout
         setAuthorizationHeader(apiKey: apiKey, on: &request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try buildTranscriptProcessingBody(
-            transcript: "Connection test.",
-            mode: .cleanUp,
-            model: cleanupProvider.model
+        request.httpBody = try Self.buildTranscriptProcessingBodyForProvider(
+            request: TranscriptCleanupRequest(
+                rawTranscript: "Connection test.",
+                mode: .cleanUp,
+                customPrompt: nil,
+                preferredTerms: [],
+                provider: cleanupProvider
+            )
         )
 
-        DiagnosticLog.write("validateCleanupChatSmoke: checking chat provider=\(cleanupProvider.id.rawValue) model=\(cleanupProvider.model)")
+        DiagnosticLog.write("validateCleanupSmoke: checking provider=\(cleanupProvider.id.rawValue) model=\(cleanupProvider.model)")
         let (data, response) = try await transport.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            DiagnosticLog.write("validateCleanupChatSmoke: invalid response type")
+            DiagnosticLog.write("validateCleanupSmoke: invalid response type")
             throw TranscriptionError.invalidResponse
         }
-        DiagnosticLog.write("validateCleanupChatSmoke: response status=\(http.statusCode) responseBytes=\(data.count)")
+        DiagnosticLog.write("validateCleanupSmoke: response status=\(http.statusCode) responseBytes=\(data.count)")
 
         guard http.statusCode == 200 else {
             throw mapAPIError(statusCode: http.statusCode, data: data)
         }
-        try validateChatCompletionResponse(data)
+        _ = try decodeCleanupResponse(data, provider: cleanupProvider)
         return .reachableWithoutModelValidation
     }
 
-    private func validateChatCompletionResponse(_ data: Data) throws {
+    private func decodeCleanupResponse(_ data: Data, provider cleanupProvider: TranscriptCleanupProvider) throws -> String {
+        switch cleanupProvider.id {
+        case .openAI:
+            try decodeResponsesText(data)
+        case .groq, .customOpenAICompatibleChat:
+            try decodeChatCompletionText(data)
+        case .none:
+            throw TranscriptionError.invalidResponse
+        }
+    }
+
+    private func decodeChatCompletionText(_ data: Data) throws -> String {
         let decoded: ChatCompletionResponse
         do {
             decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
         } catch {
-            DiagnosticLog.write("validateCleanupChatSmoke: failed to decode response")
+            DiagnosticLog.write("processTranscript: failed to decode chat completion response")
             throw TranscriptionError.invalidResponse
         }
 
@@ -937,6 +957,23 @@ struct TranscriptionService {
               !content.isEmpty else {
             throw TranscriptionError.invalidResponse
         }
+        return content
+    }
+
+    private func decodeResponsesText(_ data: Data) throws -> String {
+        let decoded: ResponsesResponse
+        do {
+            decoded = try JSONDecoder().decode(ResponsesResponse.self, from: data)
+        } catch {
+            DiagnosticLog.write("processTranscript: failed to decode responses response")
+            throw TranscriptionError.invalidResponse
+        }
+
+        guard let content = decoded.resolvedText?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else {
+            throw TranscriptionError.invalidResponse
+        }
+        return content
     }
 
     func buildTranscriptProcessingBody(
@@ -966,6 +1003,25 @@ struct TranscriptionService {
             maxCompletionTokens: 1024
         )
         return try JSONEncoder().encode(request)
+    }
+
+    static func buildResponsesTranscriptProcessingBody(request cleanupRequest: TranscriptCleanupRequest) throws -> Data {
+        let request = ResponsesRequest(
+            model: cleanupRequest.provider.model,
+            instructions: cleanupRequest.systemInstruction,
+            input: cleanupRequest.rawTranscript,
+            maxOutputTokens: 1024
+        )
+        return try JSONEncoder().encode(request)
+    }
+
+    private static func buildTranscriptProcessingBodyForProvider(request cleanupRequest: TranscriptCleanupRequest) throws -> Data {
+        switch cleanupRequest.provider.id {
+        case .openAI:
+            try buildResponsesTranscriptProcessingBody(request: cleanupRequest)
+        case .groq, .customOpenAICompatibleChat, .none:
+            try buildTranscriptProcessingBody(request: cleanupRequest)
+        }
     }
 
     static func buildMultipartBody(audioFileURL: URL, model: String, format: AudioFormat, language: Language = .auto, boundary: String) throws -> Data {
@@ -1146,6 +1202,52 @@ struct TranscriptionService {
 
         struct Message: Decodable {
             let content: String
+        }
+    }
+
+    private struct ResponsesRequest: Encodable {
+        let model: String
+        let instructions: String
+        let input: String
+        let maxOutputTokens: Int
+
+        enum CodingKeys: String, CodingKey {
+            case model
+            case instructions
+            case input
+            case maxOutputTokens = "max_output_tokens"
+        }
+    }
+
+    private struct ResponsesResponse: Decodable {
+        let outputText: String?
+        let output: [OutputItem]?
+
+        var resolvedText: String? {
+            if let outputText, !outputText.isEmpty {
+                return outputText
+            }
+
+            return output?
+                .compactMap { item in
+                    item.content?
+                        .compactMap(\.text)
+                        .joined(separator: "")
+                }
+                .joined(separator: "")
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case outputText = "output_text"
+            case output
+        }
+
+        struct OutputItem: Decodable {
+            let content: [ContentItem]?
+        }
+
+        struct ContentItem: Decodable {
+            let text: String?
         }
     }
 

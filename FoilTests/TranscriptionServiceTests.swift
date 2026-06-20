@@ -107,6 +107,7 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(provider.id, .openAI)
         XCTAssertEqual(provider.displayName, "OpenAI")
         XCTAssertEqual(provider.chatCompletionsEndpoint?.absoluteString, "https://api.openai.com/v1/chat/completions")
+        XCTAssertEqual(provider.responsesEndpoint?.absoluteString, "https://api.openai.com/v1/responses")
         XCTAssertEqual(provider.modelsEndpoint?.absoluteString, "https://api.openai.com/v1/models")
         XCTAssertEqual(provider.model, "gpt-5.4-mini")
         XCTAssertTrue(provider.requiresAPIKey)
@@ -118,6 +119,7 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(provider.id, .none)
         XCTAssertEqual(provider.displayName, "None")
         XCTAssertNil(provider.chatCompletionsEndpoint)
+        XCTAssertNil(provider.responsesEndpoint)
         XCTAssertNil(provider.modelsEndpoint)
     }
 
@@ -835,6 +837,69 @@ final class TranscriptionServiceTests: XCTestCase {
         }
     }
 
+    func testOpenAICleanupRequestUsesResponsesAPIShape() async throws {
+        let transport = StubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer openai-key")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+
+            let body = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]
+            )
+            XCTAssertEqual(body["model"] as? String, "gpt-5.4-mini")
+            XCTAssertEqual(body["input"] as? String, "raw transcript")
+            XCTAssertEqual(body["max_output_tokens"] as? Int, 1024)
+            XCTAssertNil(body["messages"])
+            XCTAssertNil(body["max_completion_tokens"])
+            XCTAssertTrue((body["instructions"] as? String)?.contains("Clean up transcript formatting") == true)
+            XCTAssertTrue((body["instructions"] as? String)?.contains("Return only the final processed transcript.") == true)
+
+            return (
+                Data(#"{"output_text":"clean text"}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(transport: transport)
+
+        let result = try await service.processTranscript(
+            request: TranscriptCleanupRequest(
+                rawTranscript: "raw transcript",
+                mode: .cleanUp,
+                customPrompt: nil,
+                preferredTerms: [],
+                provider: .openAI(model: "gpt-5.4-mini")
+            ),
+            apiKey: "openai-key"
+        )
+
+        XCTAssertEqual(result, "clean text")
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testOpenAICleanupDecodesNestedResponsesOutputText() async throws {
+        let service = TranscriptionService(transport: StubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/responses")
+            return (
+                Data(#"{"output":[{"type":"message","content":[{"type":"output_text","text":"nested clean text"}]}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        })
+
+        let result = try await service.processTranscript(
+            request: TranscriptCleanupRequest(
+                rawTranscript: "raw transcript",
+                mode: .cleanUp,
+                customPrompt: nil,
+                preferredTerms: [],
+                provider: .openAI(model: "gpt-5.4-mini")
+            ),
+            apiKey: "openai-key"
+        )
+
+        XCTAssertEqual(result, "nested clean text")
+    }
+
     func testProcessTranscriptMapsHTTP401ToInvalidApiKey() async throws {
         let service = TranscriptionService(transport: StubTransport { request in
             (Data("unauthorized".utf8), Self.httpResponse(statusCode: 401, url: request.url!))
@@ -1029,6 +1094,37 @@ final class TranscriptionServiceTests: XCTestCase {
 
         XCTAssertEqual(result, .modelsValidated)
         XCTAssertEqual(transport.requests.map(\.url?.path), ["/v1/models", "/v1/chat/completions"])
+    }
+
+    func testValidateOpenAICleanupProviderUsesResponsesSmoke() async throws {
+        let transport = StubTransport { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer openai-key")
+            if request.url?.path.hasSuffix("/models") == true {
+                XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/models")
+                XCTAssertEqual(request.httpMethod, "GET")
+                let response = Self.httpResponse(statusCode: 200, url: request.url!)
+                return (Data(#"{"data":[{"id":"gpt-5.4-mini"}]}"#.utf8), response)
+            }
+
+            XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/responses")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            let body = try XCTUnwrap(
+                JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]
+            )
+            XCTAssertEqual(body["model"] as? String, "gpt-5.4-mini")
+            XCTAssertEqual(body["input"] as? String, "Connection test.")
+            XCTAssertNil(body["messages"])
+            let response = Self.httpResponse(statusCode: 200, url: request.url!)
+            return (Data(#"{"output_text":"ok"}"#.utf8), response)
+        }
+        let service = TranscriptionService(transport: transport)
+        let provider = TranscriptCleanupProvider.openAI(model: "gpt-5.4-mini")
+
+        let result = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: "openai-key")
+
+        XCTAssertEqual(result, .modelsValidated)
+        XCTAssertEqual(transport.requests.map(\.url?.path), ["/v1/models", "/v1/responses"])
     }
 
     func testValidateCustomCleanupProviderFallsBackToChatSmokeWhenModelsUnsupported() async throws {

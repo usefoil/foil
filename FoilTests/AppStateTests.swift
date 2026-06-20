@@ -1437,7 +1437,7 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(provider.id, .openAI)
         XCTAssertEqual(provider.model, "gpt-5.4-mini")
-        XCTAssertEqual(provider.chatCompletionsEndpoint?.absoluteString, "https://api.openai.com/v1/chat/completions")
+        XCTAssertEqual(provider.responsesEndpoint?.absoluteString, "https://api.openai.com/v1/responses")
         XCTAssertTrue(provider.requiresAPIKey)
     }
 
@@ -1458,11 +1458,13 @@ final class AppStateTests: XCTestCase {
                 )
             }
 
-            XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/responses")
             let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
             XCTAssertTrue(body.contains(#""model":"gpt-5.4-mini""#), body)
+            XCTAssertTrue(body.contains(#""input":"Connection test.""#), body)
+            XCTAssertFalse(body.contains(#""messages""#), body)
             return (
-                Data(#"{"choices":[{"message":{"content":"ok"}}]}"#.utf8),
+                Data(#"{"output_text":"ok"}"#.utf8),
                 Self.httpResponse(statusCode: 200, url: request.url!)
             )
         })

@@ -243,12 +243,14 @@ final class TranscriptionControllerTests: XCTestCase {
         try KeychainHelper.save(apiKey: "openai-cleanup-key", for: .openAI)
 
         let transport = ControllerStubTransport { request in
-            XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/chat/completions")
+            XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/responses")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer openai-cleanup-key")
             let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
             XCTAssertTrue(body.contains(#""model":"gpt-5.4-mini""#), body)
+            XCTAssertTrue(body.contains(#""input":"raw text""#), body)
+            XCTAssertFalse(body.contains(#""messages""#), body)
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (Data(#"{"choices":[{"message":{"content":"openai clean text"}}]}"#.utf8), response)
+            return (Data(#"{"output_text":"openai clean text"}"#.utf8), response)
         }
 
         let result = await controller.processTranscriptOrRaw(
