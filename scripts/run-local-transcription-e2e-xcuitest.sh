@@ -155,7 +155,11 @@ for key in \
   E2E_TRANSCRIPTION_BASE_URL \
   E2E_TRANSCRIPTION_MODEL \
   E2E_API_KEY \
-  E2E_WAV_PATH; do
+  E2E_WAV_PATH \
+  E2E_CLEANUP_PROVIDER \
+  E2E_CLEANUP_MODEL \
+  E2E_CLEANUP_BASE_URL \
+  E2E_CLEANUP_API_KEY; do
   "${PLISTBUDDY}" -c "Delete ${env_root}:${key}" "${patched}" >/dev/null 2>&1 || true
 done
 "${PLISTBUDDY}" -c "Add ${env_root}:E2E_TRANSCRIPTION_PROVIDER string ${PROVIDER}" "${patched}"
@@ -165,6 +169,11 @@ done
 if [[ -n "${E2E_WAV_PATH:-}" ]]; then
   "${PLISTBUDDY}" -c "Add ${env_root}:E2E_WAV_PATH string ${E2E_WAV_PATH}" "${patched}"
 fi
+for key in E2E_CLEANUP_PROVIDER E2E_CLEANUP_MODEL E2E_CLEANUP_BASE_URL E2E_CLEANUP_API_KEY; do
+  if [[ -n "${!key:-}" ]]; then
+    "${PLISTBUDDY}" -c "Add ${env_root}:${key} string ${!key}" "${patched}"
+  fi
+done
 
 echo "== XCUITest local transcription"
 rm -f "${RESULT_PATH}"

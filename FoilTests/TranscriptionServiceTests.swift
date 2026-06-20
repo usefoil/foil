@@ -101,6 +101,17 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(provider.requiresAPIKey)
     }
 
+    func testOpenAICleanupProviderBuildsExpectedEndpointsAndDefaultModel() {
+        let provider = TranscriptCleanupProvider.openAI(model: "")
+
+        XCTAssertEqual(provider.id, .openAI)
+        XCTAssertEqual(provider.displayName, "OpenAI")
+        XCTAssertEqual(provider.chatCompletionsEndpoint?.absoluteString, "https://api.openai.com/v1/chat/completions")
+        XCTAssertEqual(provider.modelsEndpoint?.absoluteString, "https://api.openai.com/v1/models")
+        XCTAssertEqual(provider.model, "gpt-5.4-mini")
+        XCTAssertTrue(provider.requiresAPIKey)
+    }
+
     func testNoCleanupProviderHasNoEndpoints() {
         let provider = TranscriptCleanupProvider.none
 

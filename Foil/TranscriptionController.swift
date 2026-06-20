@@ -228,9 +228,11 @@ final class TranscriptionController {
         case .none:
             cleanupApiKey = nil
         case .groq:
-            cleanupApiKey = KeychainHelper.readApiKey(for: .groq)
+            cleanupApiKey = resolveCleanupApiKey(for: .groq)
+        case .openAI:
+            cleanupApiKey = resolveCleanupApiKey(for: .openAI)
         case .customOpenAICompatibleChat:
-            cleanupApiKey = KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat)
+            cleanupApiKey = resolveCleanupApiKey(for: .customOpenAICompatibleChat)
         }
 
         let service = service ?? transcriptionService
@@ -251,6 +253,33 @@ final class TranscriptionController {
         } catch {
             DiagnosticLog.write("\(context): cleanup failed mappedMessage=\(errorMessage(from: error))")
             return (rawText, true)
+        }
+    }
+
+    private func resolveCleanupApiKey(for providerID: TranscriptCleanupProviderID) -> String? {
+        if AppDelegate.isE2ETranscriptionSmokeProcess() {
+            let env = ProcessInfo.processInfo.environment
+            if let cleanupKey = env["E2E_CLEANUP_API_KEY"], !cleanupKey.isEmpty {
+                DiagnosticLog.write("TranscriptionController: using E2E_CLEANUP_API_KEY from environment")
+                return cleanupKey
+            }
+            if [.groq, .openAI].contains(providerID),
+               let sharedKey = env["E2E_API_KEY"],
+               !sharedKey.isEmpty {
+                DiagnosticLog.write("TranscriptionController: using E2E_API_KEY for cleanup")
+                return sharedKey
+            }
+        }
+
+        switch providerID {
+        case .none:
+            return nil
+        case .groq:
+            return KeychainHelper.readApiKey(for: .groq)
+        case .openAI:
+            return KeychainHelper.readApiKey(for: .openAI)
+        case .customOpenAICompatibleChat:
+            return KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat)
         }
     }
 

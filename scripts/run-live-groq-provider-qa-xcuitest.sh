@@ -77,7 +77,14 @@ if [[ -z "${ui_target_index}" ]]; then
 fi
 
 env_root=":TestConfigurations:0:TestTargets:${ui_target_index}:EnvironmentVariables"
-for key in RUN_LIVE_GROQ_TESTS GROQ_API_KEY E2E_TRANSCRIPTION_TIMEOUT_SECONDS; do
+for key in \
+  RUN_LIVE_GROQ_TESTS \
+  GROQ_API_KEY \
+  E2E_TRANSCRIPTION_TIMEOUT_SECONDS \
+  E2E_CLEANUP_PROVIDER \
+  E2E_CLEANUP_MODEL \
+  E2E_CLEANUP_BASE_URL \
+  E2E_CLEANUP_API_KEY; do
   "${PLISTBUDDY}" -c "Delete ${env_root}:${key}" "${patched}" >/dev/null 2>&1 || true
 done
 "${PLISTBUDDY}" -c "Add ${env_root}:RUN_LIVE_GROQ_TESTS string 1" "${patched}"
@@ -85,6 +92,11 @@ done
 if [[ -n "${GROQ_API_KEY:-}" ]]; then
   "${PLISTBUDDY}" -c "Add ${env_root}:GROQ_API_KEY string ${GROQ_API_KEY}" "${patched}"
 fi
+for key in E2E_CLEANUP_PROVIDER E2E_CLEANUP_MODEL E2E_CLEANUP_BASE_URL E2E_CLEANUP_API_KEY; do
+  if [[ -n "${!key:-}" ]]; then
+    "${PLISTBUDDY}" -c "Add ${env_root}:${key} string ${!key}" "${patched}"
+  fi
+done
 
 echo "== XCUITest live Groq provider QA"
 xcodebuild test-without-building \

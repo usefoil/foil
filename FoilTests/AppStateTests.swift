@@ -53,7 +53,9 @@ final class AppStateTests: XCTestCase {
 
     override func tearDown() {
         KeychainHelper.delete()
+        KeychainHelper.delete(for: .openAI)
         KeychainHelper.delete(for: .openAICompatible)
+        KeychainHelper.deleteCleanupApiKey(for: .customOpenAICompatibleChat)
         KeychainHelper.storageDirectoryOverride = nil
         KeychainHelper.serviceOverride = nil
         KeychainHelper.accountOverride = nil
@@ -83,6 +85,7 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptProcessingMode")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupModel")
+        UserDefaults.standard.removeObject(forKey: "openAITranscriptCleanupModel")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupProvider")
         UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupBaseURL")
         UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupModel")
@@ -1424,6 +1427,52 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.selectedTranscriptCleanupProvider.id, .none)
         XCTAssertFalse(state.supportsSelectedTranscriptProcessing)
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
+    }
+
+    func testOpenAICleanupProviderUsesCloudEndpointAndDefaultMiniModel() {
+        let state = AppState()
+        state.transcriptCleanupProviderID = .openAI
+
+        let provider = state.selectedTranscriptCleanupProvider
+
+        XCTAssertEqual(provider.id, .openAI)
+        XCTAssertEqual(provider.model, "gpt-5.4-mini")
+        XCTAssertEqual(provider.chatCompletionsEndpoint?.absoluteString, "https://api.openai.com/v1/chat/completions")
+        XCTAssertTrue(provider.requiresAPIKey)
+    }
+
+    func testOpenAICleanupConnectionUsesOpenAIKeychainAccount() async throws {
+        let state = AppState()
+        state.transcriptCleanupProviderID = .openAI
+        state.openAITranscriptCleanupModel = "gpt-5.4-mini"
+        try KeychainHelper.save(apiKey: "groq-key", for: .groq)
+        try KeychainHelper.save(apiKey: "openai-key", for: .openAI)
+
+        let service = TranscriptionService(transport: StubTransport { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer openai-key")
+            if request.url?.path.hasSuffix("/models") == true {
+                XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/models")
+                return (
+                    Data(#"{"data":[{"id":"gpt-5.4-mini"}]}"#.utf8),
+                    Self.httpResponse(statusCode: 200, url: request.url!)
+                )
+            }
+
+            XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/chat/completions")
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains(#""model":"gpt-5.4-mini""#), body)
+            return (
+                Data(#"{"choices":[{"message":{"content":"ok"}}]}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        })
+
+        await state.testSelectedCleanupProviderConnection(service: service)
+
+        XCTAssertEqual(
+            state.cleanupConnectionTestState,
+            .succeeded("Cleanup server reachable. Model gpt-5.4-mini is available.")
+        )
     }
 
     func testGroqAndOpenAICompatibleAPIKeysAreIndependent() throws {

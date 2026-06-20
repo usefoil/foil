@@ -234,6 +234,35 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 1)
     }
 
+    func testOpenAICleanupUsesOpenAIKeyEvenWhenTranscriptionProviderIsGroq() async throws {
+        appState.selectedTranscriptionProviderPresetID = .groq
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .openAI
+        appState.openAITranscriptCleanupModel = "gpt-5.4-mini"
+        try KeychainHelper.save(apiKey: "groq-transcription-key", for: .groq)
+        try KeychainHelper.save(apiKey: "openai-cleanup-key", for: .openAI)
+
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://api.openai.com/v1/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer openai-cleanup-key")
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains(#""model":"gpt-5.4-mini""#), body)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"choices":[{"message":{"content":"openai clean text"}}]}"#.utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw text",
+            apiKey: "groq-transcription-key",
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "openai clean text")
+        XCTAssertFalse(result.cleanupFailed)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
     func testCleanupRequestIncludesCustomPromptAndPreferredTermsFromAppState() async {
         appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         appState.transcriptProcessingMode = .cleanUp

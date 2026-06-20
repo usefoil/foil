@@ -356,6 +356,7 @@ final class UITestingController {
             return
         }
         configureE2EProviderOverrides()
+        configureE2ECleanupOverrides()
 
         let wavURL: URL
         if let envPath = ProcessInfo.processInfo.environment["E2E_WAV_PATH"],
@@ -416,6 +417,44 @@ final class UITestingController {
             appState.refreshApiKeyState()
         }
         DiagnosticLog.write("E2E: provider=groq model=\(appState.selectedModel)")
+    }
+
+    private func configureE2ECleanupOverrides() {
+        let env = ProcessInfo.processInfo.environment
+        guard let rawProvider = env["E2E_CLEANUP_PROVIDER"],
+              !rawProvider.isEmpty,
+              let providerID = TranscriptCleanupProviderID(rawValue: rawProvider) else {
+            return
+        }
+
+        appState.transcriptCleanupProviderID = providerID
+        guard providerID != .none else {
+            appState.transcriptProcessingMode = .raw
+            DiagnosticLog.write("E2E: cleanup provider=none")
+            return
+        }
+
+        appState.transcriptProcessingMode = .cleanUp
+        switch providerID {
+        case .none:
+            break
+        case .groq:
+            if let model = env["E2E_CLEANUP_MODEL"], !model.isEmpty {
+                appState.transcriptCleanupModel = model
+            }
+            DiagnosticLog.write("E2E: cleanup provider=groq model=\(appState.transcriptCleanupModel)")
+        case .openAI:
+            if let model = env["E2E_CLEANUP_MODEL"], !model.isEmpty {
+                appState.openAITranscriptCleanupModel = model
+            }
+            DiagnosticLog.write("E2E: cleanup provider=openai model=\(appState.openAITranscriptCleanupModel)")
+        case .customOpenAICompatibleChat:
+            appState.customTranscriptCleanupBaseURL = env["E2E_CLEANUP_BASE_URL"] ?? appState.customTranscriptCleanupBaseURL
+            appState.customTranscriptCleanupModel = env["E2E_CLEANUP_MODEL"] ?? appState.customTranscriptCleanupModel
+            DiagnosticLog.write(
+                "E2E: cleanup provider=custom-openai-compatible-chat baseURL=\(appState.customTranscriptCleanupBaseURL) model=\(appState.customTranscriptCleanupModel)"
+            )
+        }
     }
 
     #if DEBUG
