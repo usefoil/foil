@@ -422,16 +422,29 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertFalse(decision.shouldSetDefaultInput)
     }
 
-    func testInputPreparationFallsBackCleanlyWhenExplicitSelectionIsMissing() {
+    func testInputPreparationFallsBackToSafeInputWhenExplicitSelectionIsMissing() {
+        let airPods = makeDevice(id: 10, uid: "airpods", name: "AirPods", transport: .bluetooth)
         let builtIn = makeDevice(id: 20, uid: "built-in", name: "MacBook Microphone", transport: .builtIn)
 
         let decision = AudioRecorder.inputPreparationDecision(
             selectedUID: "missing",
-            devices: [builtIn],
-            defaultInputDeviceID: builtIn.id
+            devices: [airPods, builtIn],
+            defaultInputDeviceID: airPods.id
         )
 
-        XCTAssertEqual(decision.reason, .explicitSelectionMissing)
+        XCTAssertEqual(decision.reason, .explicitSelectionMissingFallback)
+        XCTAssertEqual(decision.device, builtIn)
+        XCTAssertTrue(decision.shouldSetDefaultInput)
+    }
+
+    func testInputPreparationReportsNoInputDevicesWhenExplicitSelectionIsMissing() {
+        let decision = AudioRecorder.inputPreparationDecision(
+            selectedUID: "missing",
+            devices: [],
+            defaultInputDeviceID: nil
+        )
+
+        XCTAssertEqual(decision.reason, .noInputDevices)
         XCTAssertNil(decision.device)
         XCTAssertFalse(decision.shouldSetDefaultInput)
     }

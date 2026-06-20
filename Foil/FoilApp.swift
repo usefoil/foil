@@ -928,6 +928,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switch microphoneStatus {
         case .authorized:
             DiagnosticLog.write("SetupHealth: microphone=authorized")
+            let inputDevices = AudioRecorder.availableInputDevices()
+            appState.applyInputDeviceHealth(
+                availableInputDevices: inputDevices,
+                selectedInputDeviceUID: appState.selectedInputDeviceUID
+            )
+            DiagnosticLog.write(
+                "SetupHealth: inputDevices count=\(inputDevices.count) selectedUID=\(appState.selectedInputDeviceUID ?? "systemDefault") microphoneState=\(diagnosticMicrophoneState)"
+            )
         case .denied, .restricted:
             DiagnosticLog.write("SetupHealth: microphone=denied")
         case .notDetermined:
@@ -1082,6 +1090,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             appState.updateMicrophoneState(isReady: true)
+            let inputDevices = AudioRecorder.availableInputDevices()
+            appState.applyInputDeviceHealth(
+                availableInputDevices: inputDevices,
+                selectedInputDeviceUID: appState.selectedInputDeviceUID
+            )
+            guard appState.microphoneState == .ready else {
+                appState.failSetupCheck(AppState.noMicrophoneDetectedMessage)
+                return
+            }
 
             do {
                 try audioRecorder.startRecording()
@@ -1369,7 +1386,21 @@ extension AppDelegate: RecordingControllerDelegate {
         browserMediaController.recordingDidEnd(reason: .failed)
         pasteController.clearPendingTarget()
         appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
+        if AudioRecorder.availableInputDevices().isEmpty {
+            appState.updateMicrophoneState(isReady: false, message: AppState.noMicrophoneDetectedMessage)
+        }
         appState.showError("Microphone unavailable")
+    }
+
+    private var diagnosticMicrophoneState: String {
+        switch appState.microphoneState {
+        case .unknown:
+            return "unknown"
+        case .ready:
+            return "ready"
+        case .needsAction(let message):
+            return "needsAction(\(message))"
+        }
     }
 
     private func postBuiltInMicBluetoothGuidanceIfNeeded() {
