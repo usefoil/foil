@@ -249,11 +249,54 @@ final class TranscriptionController {
                 request: cleanupRequest,
                 apiKey: cleanupApiKey,
             )
+            writeE2ECleanupReceipt(
+                status: "applied",
+                provider: cleanupProvider,
+                mode: processingMode,
+                inputLength: rawText.count,
+                outputLength: text.count
+            )
             return (text, false)
         } catch {
             DiagnosticLog.write("\(context): cleanup failed mappedMessage=\(errorMessage(from: error))")
+            writeE2ECleanupReceipt(
+                status: "failed",
+                provider: cleanupProvider,
+                mode: processingMode,
+                inputLength: rawText.count,
+                outputLength: rawText.count,
+                error: errorMessage(from: error)
+            )
             return (rawText, true)
         }
+    }
+
+    private func writeE2ECleanupReceipt(
+        status: String,
+        provider: TranscriptCleanupProvider,
+        mode: TranscriptProcessingMode,
+        inputLength: Int,
+        outputLength: Int,
+        error: String? = nil
+    ) {
+        let env = ProcessInfo.processInfo.environment
+        guard let receiptPath = env["E2E_CLEANUP_RECEIPT_PATH"], !receiptPath.isEmpty else {
+            return
+        }
+
+        var lines = [
+            "status=\(status)",
+            "provider=\(provider.id.rawValue)",
+            "mode=\(mode.rawValue)",
+            "model=\(provider.model)",
+            "input_length=\(inputLength)",
+            "output_length=\(outputLength)"
+        ]
+        if let error {
+            lines.append("error=\(error.replacingOccurrences(of: "\n", with: " "))")
+        }
+        let body = lines.joined(separator: "\n") + "\n"
+        try? body.write(toFile: receiptPath, atomically: true, encoding: .utf8)
     }
 
     private func resolveCleanupApiKey(for providerID: TranscriptCleanupProviderID) -> String? {

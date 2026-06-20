@@ -897,7 +897,9 @@ final class FoilUITests: XCTestCase {
         }
 
         let resultPath = env["E2E_RESULT_PATH"] ?? "/tmp/foil-e2e-result.txt"
+        let cleanupReceiptPath = env["E2E_CLEANUP_RECEIPT_PATH"] ?? "/tmp/foil-e2e-cleanup-receipt.txt"
         try? FileManager.default.removeItem(atPath: resultPath)
+        try? FileManager.default.removeItem(atPath: cleanupReceiptPath)
 
         var environment = ["E2E_API_KEY": apiKey]
         if isOpenAIE2E {
@@ -922,6 +924,10 @@ final class FoilUITests: XCTestCase {
             if let value = env[key], !value.isEmpty {
                 environment[key] = value
             }
+        }
+        let requestedCleanupProvider = env["E2E_CLEANUP_PROVIDER"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let requestedCleanupProvider, !requestedCleanupProvider.isEmpty, requestedCleanupProvider != "none" {
+            environment["E2E_CLEANUP_RECEIPT_PATH"] = cleanupReceiptPath
         }
         environment["E2E_RESULT_PATH"] = resultPath
 
@@ -950,6 +956,42 @@ final class FoilUITests: XCTestCase {
         let missingWords = expectedWords.subtracting(transcriptWords)
         XCTAssertTrue(missingWords.count <= 1,
                       "Transcript '\(transcript)' missing words: \(missingWords.sorted()). Expected: '\(expected)'")
+
+        if let requestedCleanupProvider, !requestedCleanupProvider.isEmpty, requestedCleanupProvider != "none" {
+            let receipt = waitForTextFile(atPath: cleanupReceiptPath, timeout: 5)
+            XCTAssertFalse(receipt.isEmpty, "Cleanup receipt should be written when E2E_CLEANUP_PROVIDER=\(requestedCleanupProvider)")
+            let fields = keyValueReceiptFields(receipt)
+            XCTAssertEqual(fields["status"], "applied", "Cleanup did not complete successfully:\n\(receipt)")
+            XCTAssertEqual(fields["provider"], requestedCleanupProvider)
+            XCTAssertEqual(fields["mode"], "cleanUp")
+            if let expectedModel = env["E2E_CLEANUP_MODEL"], !expectedModel.isEmpty {
+                XCTAssertEqual(fields["model"], expectedModel)
+            }
+            XCTAssertGreaterThan(Int(fields["input_length"] ?? "0") ?? 0, 0, receipt)
+            XCTAssertGreaterThan(Int(fields["output_length"] ?? "0") ?? 0, 0, receipt)
+        }
+    }
+
+    private func waitForTextFile(atPath path: String, timeout: TimeInterval) -> String {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let text = try? String(contentsOfFile: path, encoding: .utf8),
+               !text.isEmpty {
+                return text
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+    }
+
+    private func keyValueReceiptFields(_ receipt: String) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: receipt
+            .split(separator: "\n")
+            .compactMap { line -> (String, String)? in
+                let parts = line.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+                guard parts.count == 2 else { return nil }
+                return (String(parts[0]), String(parts[1]))
+            })
     }
 
     private func readGroqKeyViaCLI() -> String? {
