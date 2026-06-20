@@ -86,6 +86,7 @@ final class TranscriptionControllerTests: XCTestCase {
         KeychainHelper.serviceOverride = nil
         KeychainHelper.storageDirectoryOverride = nil
         keychainStorageDirectory = nil
+        unsetenv("E2E_CLEANUP_RECEIPT_PATH")
         UserDefaults.standard.removePersistentDomain(forName: defaultsDomainName)
     }
 
@@ -263,6 +264,66 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(result.text, "openai clean text")
         XCTAssertFalse(result.cleanupFailed)
         XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testSuccessfulCleanupWritesE2EReceiptWhenPathIsProvided() async throws {
+        let receiptURL = keychainStorageDirectory.appendingPathComponent("cleanup-receipt.txt")
+        setenv("E2E_CLEANUP_RECEIPT_PATH", receiptURL.path, 1)
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+
+        let transport = ControllerStubTransport { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"choices":[{"message":{"content":"clean text"}}]}"#.utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw text",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "clean text")
+        XCTAssertFalse(result.cleanupFailed)
+        let receipt = try String(contentsOf: receiptURL, encoding: .utf8)
+        XCTAssertTrue(receipt.contains("status=applied"), receipt)
+        XCTAssertTrue(receipt.contains("provider=custom-openai-compatible-chat"), receipt)
+        XCTAssertTrue(receipt.contains("mode=cleanUp"), receipt)
+        XCTAssertTrue(receipt.contains("model=qwen2.5:7b"), receipt)
+        XCTAssertTrue(receipt.contains("input_length=8"), receipt)
+        XCTAssertTrue(receipt.contains("output_length=10"), receipt)
+    }
+
+    func testFailedCleanupWritesE2EReceiptWhenPathIsProvided() async throws {
+        let receiptURL = keychainStorageDirectory.appendingPathComponent("cleanup-failed-receipt.txt")
+        setenv("E2E_CLEANUP_RECEIPT_PATH", receiptURL.path, 1)
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+
+        let transport = ControllerStubTransport { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+            return (Data("unauthorized".utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw text",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "raw text")
+        XCTAssertTrue(result.cleanupFailed)
+        let receipt = try String(contentsOf: receiptURL, encoding: .utf8)
+        XCTAssertTrue(receipt.contains("status=failed"), receipt)
+        XCTAssertTrue(receipt.contains("provider=custom-openai-compatible-chat"), receipt)
+        XCTAssertTrue(receipt.contains("mode=cleanUp"), receipt)
+        XCTAssertTrue(receipt.contains("error=Invalid API key"), receipt)
     }
 
     func testCleanupRequestIncludesCustomPromptAndPreferredTermsFromAppState() async {
