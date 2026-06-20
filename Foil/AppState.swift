@@ -216,7 +216,7 @@ final class AppState {
         didSet { Self.defaults.set(transcriptProcessingMode.rawValue, forKey: "transcriptProcessingMode") }
     }
 
-    var transcriptCleanupModel: String = "llama-3.3-70b-versatile" {
+    var transcriptCleanupModel: String = "llama-3.1-8b-instant" {
         didSet {
             Self.defaults.set(transcriptCleanupModel, forKey: "transcriptCleanupModel")
             resetCleanupConnectionTest()
@@ -1034,7 +1034,7 @@ final class AppState {
             "hotkeyChoice": "rightCommand",
             "language": "auto",
             "transcriptProcessingMode": "raw",
-            "transcriptCleanupModel": "llama-3.3-70b-versatile",
+            "transcriptCleanupModel": "llama-3.1-8b-instant",
             "transcriptCleanupProvider": "groq",
             "customTranscriptCleanupBaseURL": "http://127.0.0.1:11434/v1",
             "customTranscriptCleanupModel": "llama3.1:8b",
@@ -1068,7 +1068,7 @@ final class AppState {
         selectedAudioFormat = AudioFormat(rawValue: defaults.string(forKey: "audioFormat") ?? "") ?? .m4a
         selectedLanguage = Language(rawValue: defaults.string(forKey: "language") ?? "") ?? .auto
         transcriptProcessingMode = TranscriptProcessingMode(rawValue: defaults.string(forKey: "transcriptProcessingMode") ?? "") ?? .raw
-        transcriptCleanupModel = defaults.string(forKey: "transcriptCleanupModel") ?? "llama-3.3-70b-versatile"
+        transcriptCleanupModel = defaults.string(forKey: "transcriptCleanupModel") ?? "llama-3.1-8b-instant"
         transcriptCleanupProviderID = TranscriptCleanupProviderID(
             rawValue: defaults.string(forKey: "transcriptCleanupProvider") ?? ""
         ) ?? .groq

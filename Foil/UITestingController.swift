@@ -202,7 +202,7 @@ final class UITestingController {
             appState.selectedAudioFormat = .m4a
             appState.selectedLanguage = .auto
             appState.transcriptProcessingMode = .raw
-            appState.transcriptCleanupModel = "llama-3.3-70b-versatile"
+            appState.transcriptCleanupModel = "llama-3.1-8b-instant"
             appState.hotkeyChoice = .rightCommand
             appState.recordingMode = .hold
             appState.showFloatingStatus = false
@@ -1023,6 +1023,7 @@ final class UITestingController {
         let args = ProcessInfo.processInfo.arguments
         if args.contains("--settings-tab-general") { return .general }
         if args.contains("--settings-tab-recording") { return .recording }
+        if args.contains("--settings-tab-cleanup") { return .cleanup }
         if args.contains("--settings-tab-paste") { return .paste }
         if args.contains("--settings-tab-privacy") { return .privacy }
         if args.contains("--settings-tab-whats-new") { return .whatsNew }

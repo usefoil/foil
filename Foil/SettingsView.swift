@@ -7,6 +7,7 @@ struct SettingsView: View {
         case general
         case recording
         case transcription
+        case cleanup
         case paste
         case privacy
         case whatsNew
@@ -17,6 +18,7 @@ struct SettingsView: View {
             case .general: "General"
             case .recording: "Recording"
             case .transcription: "Transcription"
+            case .cleanup: "Cleanup"
             case .paste: "Paste"
             case .privacy: "Storage"
             case .whatsNew: "What's New"
@@ -29,6 +31,7 @@ struct SettingsView: View {
             case .general: "gearshape"
             case .recording: "mic"
             case .transcription: "waveform"
+            case .cleanup: "wand.and.stars"
             case .paste: "text.cursor"
             case .privacy: "lock"
             case .whatsNew: "sparkles"
@@ -41,6 +44,7 @@ struct SettingsView: View {
             case .general: "settings.tab.general"
             case .recording: "settings.tab.recording"
             case .transcription: "settings.tab.transcription"
+            case .cleanup: "settings.tab.cleanup"
             case .paste: "settings.tab.paste"
             case .privacy: "settings.tab.privacy"
             case .whatsNew: "settings.tab.whatsNew"
@@ -127,7 +131,7 @@ struct SettingsView: View {
         }
         .accessibilityIdentifier("settings.root")
         .scenePadding()
-        .frame(width: 680, height: 452)
+        .frame(width: 760, height: 452)
         .alert("Clear History?", isPresented: $isShowingClearHistoryConfirmation) {
             Button("Clear History", role: .destructive) {
                 history.clear()
@@ -179,6 +183,8 @@ struct SettingsView: View {
             recordingSettings
         case .transcription:
             transcriptionSettings
+        case .cleanup:
+            cleanupSettings
         case .paste:
             pasteSettings
         case .privacy:
@@ -476,11 +482,17 @@ struct SettingsView: View {
                 }
             }
 
+        }
+        .formStyle(.grouped)
+    }
+
+    private var cleanupSettings: some View {
+        Form {
             Section("Transcript cleanup") {
                 Toggle("Clean up transcript formatting", isOn: cleanupFormattingEnabled)
                     .accessibilityIdentifier("settings.cleanupFormattingToggle")
 
-                Text("Cleanup is off unless enabled. When enabled, transcript text is sent to the cleanup provider selected below; audio still follows the transcription provider above.")
+                Text("Cleanup is off unless enabled. When enabled, transcript text is sent to the cleanup provider selected below; audio still follows the transcription provider.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -568,8 +580,8 @@ struct SettingsView: View {
 
     private var groqCleanupModelPicker: some View {
         Picker("Cleanup model", selection: $appState.transcriptCleanupModel) {
-            Text("Llama 3.3 70B Versatile").tag("llama-3.3-70b-versatile")
             Text("Llama 3.1 8B Instant").tag("llama-3.1-8b-instant")
+            Text("Llama 3.3 70B Versatile").tag("llama-3.3-70b-versatile")
         }
         .accessibilityIdentifier("settings.cleanupModelPicker")
     }
