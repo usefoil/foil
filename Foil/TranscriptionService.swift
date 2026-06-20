@@ -171,6 +171,7 @@ struct TranscriptionProvider: Equatable {
 enum TranscriptCleanupProviderID: String, CaseIterable, Identifiable {
     case none
     case groq
+    case openAI = "openai"
     case customOpenAICompatibleChat = "custom-openai-compatible-chat"
 
     var id: String { rawValue }
@@ -181,6 +182,8 @@ enum TranscriptCleanupProviderID: String, CaseIterable, Identifiable {
             "None"
         case .groq:
             "Groq"
+        case .openAI:
+            "OpenAI"
         case .customOpenAICompatibleChat:
             "Custom OpenAI-compatible chat"
         }
@@ -208,6 +211,16 @@ struct TranscriptCleanupProvider: Equatable {
             displayName: "Groq",
             baseURL: URL(string: "https://api.groq.com/openai/v1")!,
             model: model,
+            requiresAPIKey: true
+        )
+    }
+
+    static func openAI(model: String) -> TranscriptCleanupProvider {
+        TranscriptCleanupProvider(
+            id: .openAI,
+            displayName: "OpenAI",
+            baseURL: URL(string: "https://api.openai.com/v1")!,
+            model: model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "gpt-5.4-mini" : model,
             requiresAPIKey: true
         )
     }

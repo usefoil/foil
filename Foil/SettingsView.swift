@@ -98,6 +98,7 @@ struct SettingsView: View {
     @State private var launchAtLoginManager = LaunchAtLoginManager()
     @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
     @State private var selectedLocalWhisperSetupModelID = LocalWhisperSetupModel.recommendedDefaultID
+    @State private var openAICleanupAPIKey = ""
     @State private var customCleanupAPIKey = ""
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
     private let soundPreviewPlayer = SoundPlayer()
@@ -526,7 +527,7 @@ struct SettingsView: View {
         }
         .accessibilityIdentifier("settings.cleanupProviderPicker")
 
-        Text("Cleanup uses the selected chat endpoint. Foil will not send local/custom transcripts to Groq unless you choose Groq here.")
+        Text("Cleanup uses the selected chat endpoint. Foil will not send local/custom transcripts to a cloud provider unless you choose one here.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -535,6 +536,9 @@ struct SettingsView: View {
         switch appState.transcriptCleanupProviderID {
         case .groq:
             groqCleanupModelPicker
+            cloudCleanupConnectionSettings
+        case .openAI:
+            openAICleanupSettings
         case .customOpenAICompatibleChat:
             customChatCleanupSettings
         case .none:
@@ -547,7 +551,7 @@ struct SettingsView: View {
     }
 
     private var availableCleanupProviderIDs: [TranscriptCleanupProviderID] {
-        [.groq, .none, .customOpenAICompatibleChat]
+        [.groq, .openAI, .none, .customOpenAICompatibleChat]
     }
 
     private var cleanupPromptSettings: some View {
@@ -586,6 +590,56 @@ struct SettingsView: View {
         .accessibilityIdentifier("settings.cleanupModelPicker")
     }
 
+    private var openAICleanupSettings: some View {
+        Group {
+            Picker("Cleanup model", selection: $appState.openAITranscriptCleanupModel) {
+                Text("GPT-5.4 mini").tag("gpt-5.4-mini")
+                Text("GPT-5.4").tag("gpt-5.4")
+                Text("GPT-5.5").tag("gpt-5.5")
+            }
+            .accessibilityIdentifier("settings.openAICleanupModelPicker")
+
+            cloudCleanupConnectionSettings
+
+            Text("Uses your OpenAI API key. Saving here updates the same OpenAI key used by OpenAI Whisper.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.openAICleanupHelp")
+
+            SecureField("OpenAI API key", text: $openAICleanupAPIKey)
+                .accessibilityIdentifier("settings.openAICleanupAPIKey")
+
+            HStack {
+                Button("Save OpenAI key") {
+                    saveOpenAICleanupAPIKey()
+                }
+                .disabled(openAICleanupAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("settings.saveOpenAICleanupAPIKeyButton")
+
+                Button("Delete OpenAI key") {
+                    KeychainHelper.delete(for: .openAI)
+                    openAICleanupAPIKey = ""
+                }
+                .accessibilityIdentifier("settings.deleteOpenAICleanupAPIKeyButton")
+            }
+        }
+    }
+
+    private var cloudCleanupConnectionSettings: some View {
+        HStack {
+            Button("Test cleanup connection") {
+                Task {
+                    await appState.testSelectedCleanupProviderConnection()
+                }
+            }
+            .disabled(appState.cleanupConnectionTestState.isRunning)
+            .accessibilityIdentifier("settings.testCleanupConnectionButton")
+
+            cleanupConnectionStatus
+        }
+    }
+
     private var customChatCleanupSettings: some View {
         Group {
             TextField("Chat base URL", text: $appState.customTranscriptCleanupBaseURL)
@@ -593,17 +647,7 @@ struct SettingsView: View {
             TextField("Chat model", text: $appState.customTranscriptCleanupModel)
                 .accessibilityIdentifier("settings.customTranscriptCleanupModel")
 
-            HStack {
-                Button("Test cleanup connection") {
-                    Task {
-                        await appState.testSelectedCleanupProviderConnection()
-                    }
-                }
-                .disabled(appState.cleanupConnectionTestState.isRunning)
-                .accessibilityIdentifier("settings.testCleanupConnectionButton")
-
-                cleanupConnectionStatus
-            }
+            cloudCleanupConnectionSettings
 
             Text("API key is optional. If your endpoint requires one, save it for custom cleanup before testing.")
                 .font(.caption)
@@ -878,6 +922,15 @@ struct SettingsView: View {
             customCleanupAPIKey = ""
         } catch {
             appState.cleanupConnectionTestState = .failed("Could not save cleanup API key: \(error.localizedDescription)")
+        }
+    }
+
+    private func saveOpenAICleanupAPIKey() {
+        do {
+            try KeychainHelper.save(apiKey: openAICleanupAPIKey, for: .openAI)
+            openAICleanupAPIKey = ""
+        } catch {
+            appState.cleanupConnectionTestState = .failed("Could not save OpenAI API key: \(error.localizedDescription)")
         }
     }
 

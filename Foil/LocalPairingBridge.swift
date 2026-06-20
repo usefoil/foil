@@ -40,6 +40,7 @@ enum LocalBridgeCleanupRouteID: String, Codable, Equatable {
     case none
     case macDefault = "mac-default"
     case groq
+    case openAI = "openai"
     case customOpenAICompatibleChat = "custom-openai-compatible-chat"
 }
 
@@ -570,10 +571,19 @@ final class LocalPairingBridgeService {
             audioLeftIPhone: true,
             audioReachedMac: true,
             audioReachedCloudProvider: audioReachedProvider && providerLocation == .cloudProvider,
-            textReachedCloudProvider: textReachedCleanupProvider && cleanupRouteID == .groq,
+            textReachedCloudProvider: textReachedCleanupProvider && isCloudCleanupRoute(cleanupRouteID),
             macDeviceName: macDeviceName,
             completedAt: completedAt
         )
+    }
+
+    private static func isCloudCleanupRoute(_ cleanupRouteID: LocalBridgeCleanupRouteID) -> Bool {
+        switch cleanupRouteID {
+        case .groq, .openAI:
+            true
+        case .none, .macDefault, .customOpenAICompatibleChat:
+            false
+        }
     }
 
     static func routeID(for presetID: TranscriptionProviderPresetID) -> LocalBridgeRouteID {
@@ -636,6 +646,8 @@ final class LocalPairingBridgeService {
             return .none
         case .groq:
             return .groq
+        case .openAI:
+            return .openAI
         case .customOpenAICompatibleChat:
             return .customOpenAICompatibleChat
         }

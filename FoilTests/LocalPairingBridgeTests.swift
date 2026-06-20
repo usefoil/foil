@@ -315,6 +315,40 @@ final class LocalPairingBridgeTests: XCTestCase {
         XCTAssertNotNil(complete.routeReceipt.completedAt)
     }
 
+    func testOpenAICleanupRouteReceiptMarksTranscriptTextAsCloudUse() throws {
+        let state = makeState()
+        state.localBridgeEnabled = true
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.transcriptCleanupProviderID = .openAI
+        _ = try state.localPairingBridgeService.beginPairing(code: "123456")
+        _ = try state.localPairingBridgeService.approvePairing(
+            iphonePeerID: "fixture-iphone-public-id",
+            displayName: "Fixture iPhone"
+        )
+
+        let request = LocalBridgeTranscriptionStart(
+            requestID: "openai-cleanup-request",
+            audio: LocalBridgeAudioDescriptor(format: "m4a", durationMilliseconds: 1_000, byteCount: 8_192),
+            requestedRouteID: .macSelected,
+            cleanupRouteID: .macDefault
+        )
+
+        let response = try state.localPairingBridgeService.handleMockTranscription(
+            request,
+            appState: state,
+            macDeviceName: "Test Mac",
+            now: Date(timeIntervalSince1970: 0)
+        )
+
+        guard case .complete(let complete) = response else {
+            return XCTFail("Expected selected route success")
+        }
+        XCTAssertEqual(complete.routeReceipt.routeID, .localWhisperCPP)
+        XCTAssertEqual(complete.routeReceipt.cleanupRouteID, .openAI)
+        XCTAssertFalse(complete.routeReceipt.audioReachedCloudProvider)
+        XCTAssertTrue(complete.routeReceipt.textReachedCloudProvider)
+    }
+
     func testSelectedCloudRouteRequiresReadyApiKeyState() throws {
         let state = makeState()
         state.localBridgeEnabled = true

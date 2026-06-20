@@ -913,6 +913,16 @@ final class FoilUITests: XCTestCase {
         if let wavPath = env["E2E_WAV_PATH"], !wavPath.isEmpty {
             environment["E2E_WAV_PATH"] = wavPath
         }
+        for key in [
+            "E2E_CLEANUP_PROVIDER",
+            "E2E_CLEANUP_MODEL",
+            "E2E_CLEANUP_BASE_URL",
+            "E2E_CLEANUP_API_KEY"
+        ] {
+            if let value = env[key], !value.isEmpty {
+                environment[key] = value
+            }
+        }
         environment["E2E_RESULT_PATH"] = resultPath
 
         launchApp(arguments: [

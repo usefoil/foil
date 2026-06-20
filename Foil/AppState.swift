@@ -223,6 +223,13 @@ final class AppState {
         }
     }
 
+    var openAITranscriptCleanupModel: String = "gpt-5.4-mini" {
+        didSet {
+            Self.defaults.set(openAITranscriptCleanupModel, forKey: "openAITranscriptCleanupModel")
+            resetCleanupConnectionTest()
+        }
+    }
+
     var transcriptCleanupProviderID: TranscriptCleanupProviderID = .groq {
         didSet {
             Self.defaults.set(transcriptCleanupProviderID.rawValue, forKey: "transcriptCleanupProvider")
@@ -471,6 +478,8 @@ final class AppState {
             return .none
         case .groq:
             return .groq(model: transcriptCleanupModel)
+        case .openAI:
+            return .openAI(model: openAITranscriptCleanupModel)
         case .customOpenAICompatibleChat:
             guard let baseURL = customTranscriptCleanupBaseURLValue else {
                 return .none
@@ -1035,6 +1044,7 @@ final class AppState {
             "language": "auto",
             "transcriptProcessingMode": "raw",
             "transcriptCleanupModel": "llama-3.1-8b-instant",
+            "openAITranscriptCleanupModel": "gpt-5.4-mini",
             "transcriptCleanupProvider": "groq",
             "customTranscriptCleanupBaseURL": "http://127.0.0.1:11434/v1",
             "customTranscriptCleanupModel": "llama3.1:8b",
@@ -1069,6 +1079,7 @@ final class AppState {
         selectedLanguage = Language(rawValue: defaults.string(forKey: "language") ?? "") ?? .auto
         transcriptProcessingMode = TranscriptProcessingMode(rawValue: defaults.string(forKey: "transcriptProcessingMode") ?? "") ?? .raw
         transcriptCleanupModel = defaults.string(forKey: "transcriptCleanupModel") ?? "llama-3.1-8b-instant"
+        openAITranscriptCleanupModel = defaults.string(forKey: "openAITranscriptCleanupModel") ?? "gpt-5.4-mini"
         transcriptCleanupProviderID = TranscriptCleanupProviderID(
             rawValue: defaults.string(forKey: "transcriptCleanupProvider") ?? ""
         ) ?? .groq
@@ -1397,17 +1408,17 @@ final class AppState {
         apiKey: String? = nil
     ) async {
         let provider = selectedTranscriptCleanupProvider
-        guard provider.id == .customOpenAICompatibleChat else {
-            cleanupConnectionTestState = .warning("Connection test is only needed for custom chat cleanup.")
+        if provider.id == .customOpenAICompatibleChat, customTranscriptCleanupBaseURLValue == nil {
+            cleanupConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
             return
         }
-        guard customTranscriptCleanupBaseURLValue != nil else {
-            cleanupConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+        guard provider.id != .none else {
+            cleanupConnectionTestState = .warning("Select a cleanup provider before testing.")
             return
         }
 
         cleanupConnectionTestState = .running
-        let key = apiKey ?? KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat)
+        let key = apiKey ?? cleanupProviderAPIKey(for: provider.id)
         do {
             let result = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: key)
             switch result {
@@ -1421,9 +1432,35 @@ final class AppState {
         } catch TranscriptionService.TranscriptionError.invalidProviderURL {
             cleanupConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
         } catch is URLError {
-            cleanupConnectionTestState = .failed("Could not reach custom cleanup endpoint. Check that the server is running.")
+            cleanupConnectionTestState = .failed(cleanupProviderUnreachableMessage(for: provider.id))
         } catch {
             cleanupConnectionTestState = .failed("Cleanup connection test failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func cleanupProviderAPIKey(for providerID: TranscriptCleanupProviderID) -> String? {
+        switch providerID {
+        case .none:
+            nil
+        case .groq:
+            KeychainHelper.readApiKey(for: .groq)
+        case .openAI:
+            KeychainHelper.readApiKey(for: .openAI)
+        case .customOpenAICompatibleChat:
+            KeychainHelper.readCleanupApiKey(for: .customOpenAICompatibleChat)
+        }
+    }
+
+    private func cleanupProviderUnreachableMessage(for providerID: TranscriptCleanupProviderID) -> String {
+        switch providerID {
+        case .none:
+            "Select a cleanup provider before testing."
+        case .groq:
+            "Could not reach Groq. Check your network connection."
+        case .openAI:
+            "Could not reach OpenAI. Check your network connection."
+        case .customOpenAICompatibleChat:
+            "Could not reach custom cleanup endpoint. Check that the server is running."
         }
     }
 
