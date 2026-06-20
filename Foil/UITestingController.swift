@@ -288,6 +288,11 @@ final class UITestingController {
             appState.transcriptProcessingMode = .cleanUp
         }
 
+        if args.contains("--seed-openai-cleanup-provider") {
+            appState.transcriptCleanupProviderID = .openAI
+            appState.openAITranscriptCleanupModel = "gpt-5.4-mini"
+        }
+
         if args.contains("--seed-floating-status-enabled") {
             appState.showFloatingStatus = true
         }

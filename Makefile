@@ -178,6 +178,7 @@ test-provider-qa:
 		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings \
 		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
 		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSelectionPersistsAcrossRelaunch \
+		-only-testing:FoilUITests/FoilUITests/testCleanupTabShowsOpenAICloudCleanupControls \
 		-only-testing:FoilUITests/FoilUITests/testProviderQAInvalidCustomBaseURLShowsValidationStatus \
 		-only-testing:FoilUITests/FoilUITests/testProviderQACustomProviderPersistsAcrossRelaunch >"$$tmp" 2>&1; \
 	status=$$?; tail -8 "$$tmp"; \
