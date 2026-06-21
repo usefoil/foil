@@ -340,7 +340,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let shouldDisplayOnboarding = shouldShowOnboarding(isTesting: isTesting)
         if isTesting || isE2ESmoke || shouldDisplayOnboarding {
             DiagnosticLog.write("applicationDidFinishLaunching: setup-first mode, skipping initial hotkey monitor")
-            if !ProcessInfo.processInfo.arguments.contains("--seed-transcribing") {
+            let arguments = ProcessInfo.processInfo.arguments
+            if !arguments.contains("--seed-transcribing") && !arguments.contains("--seed-recording") {
                 appState.setStatus(.idle)
             }
         } else {

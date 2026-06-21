@@ -765,6 +765,15 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(staticTextLabelOrValueContaining("Cleanup failed; pasted raw transcript.").waitForExistence(timeout: 2), app.debugDescription)
     }
 
+    func testFloatingStatusShowsRecordingByDefault() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-recording"])
+
+        XCTAssertTrue(app.descendants(matching: .any)["floatingStatus.window"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.hud"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.title"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Recording").waitForExistence(timeout: 2), app.debugDescription)
+    }
+
     func testFloatingStatusAutoHidesAfterSuccessWhenEnabled() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-floating-status-enabled", "--simulate-success-after-launch"])
 
