@@ -458,6 +458,40 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(staticTextLabelOrValueContaining("transcript text is sent to the cleanup provider").waitForExistence(timeout: 2), app.debugDescription)
     }
 
+    func testCleanupTabShowsOpenAICloudCleanupControls() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--settings-tab-cleanup",
+            "--seed-cleanup-formatting-enabled",
+            "--seed-openai-cleanup-provider"
+        ])
+        openSettingsPanel()
+
+        XCTAssertTrue(app.buttons["Cleanup"].exists, app.debugDescription)
+        XCTAssertEqual(app.buttons["Cleanup"].value as? String, "Selected")
+
+        let enabledToggle = app.descendants(matching: .any)["settings.cleanupFormattingToggle"]
+        XCTAssertTrue(enabledToggle.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertEqual(String(describing: enabledToggle.value ?? ""), "1", app.debugDescription)
+
+        XCTAssertTrue(elementExists(id: "settings.cleanupProviderPicker", timeout: 4), app.debugDescription)
+        XCTAssertTrue(
+            (app.popUpButtons["settings.openAICleanupModelPicker"].value as? String) == "GPT-5.4 mini"
+                || app.staticTexts["GPT-5.4 mini"].exists,
+            app.debugDescription
+        )
+        XCTAssertTrue(elementExists(id: "settings.testCleanupConnectionButton", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.openAICleanupAPIKey", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.saveOpenAICleanupAPIKeyButton", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.deleteOpenAICleanupAPIKeyButton", timeout: 4), app.debugDescription)
+        XCTAssertTrue(
+            staticTextLabelOrValueContaining("same OpenAI key used by OpenAI Whisper").waitForExistence(timeout: 2),
+            app.debugDescription
+        )
+    }
+
     func testProviderQAOpenAIWhisperPresetShowsCloudSettings() {
         launchForProviderQA(extraArguments: ["--seed-openai-provider"])
         openTranscriptionSettingsPanel()
