@@ -290,11 +290,36 @@ struct SettingsView: View {
 
             Picker("Input Device", selection: $appState.selectedInputDeviceUID) {
                 Text("System Default").tag(nil as String?)
+                if let missingSelectedInputDeviceUID {
+                    Text("Unavailable microphone").tag(Optional(missingSelectedInputDeviceUID))
+                }
                 ForEach(availableInputDevices) { device in
                     Text(device.name).tag(Optional(device.uid))
                 }
             }
             .accessibilityIdentifier("settings.inputDevicePicker")
+
+            if availableInputDevices.isEmpty {
+                Label {
+                    Text("No microphone detected. Connect an input device, then reopen Recording settings or run Test Setup.")
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                }
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("settings.noMicrophoneDetected")
+            } else if missingSelectedInputDeviceUID != nil {
+                Label {
+                    Text("The previously selected microphone is unavailable. Foil will use a safe available input for recording when possible.")
+                        .fixedSize(horizontal: false, vertical: true)
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                }
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("settings.selectedInputUnavailable")
+            }
 
             if BluetoothMicGuidance.shouldShowSettingsGuidance(
                 selectedInputDevice: effectiveInputDevice,
@@ -383,6 +408,11 @@ struct SettingsView: View {
             return availableInputDevices.first { $0.uid == uid }
         }
         return AudioRecorder.effectiveInputDevice(forUID: nil)
+    }
+
+    private var missingSelectedInputDeviceUID: String? {
+        guard let uid = appState.selectedInputDeviceUID else { return nil }
+        return availableInputDevices.contains { $0.uid == uid } ? nil : uid
     }
 
     private var availableInputDevices: [AudioRecorder.AudioDevice] {

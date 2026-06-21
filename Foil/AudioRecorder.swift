@@ -409,6 +409,8 @@ final class AudioRecorder: @unchecked Sendable {
         case systemDefault
         case explicitSelection
         case explicitSelectionMissing
+        case explicitSelectionMissingFallback
+        case noInputDevices
         case avoidBluetoothDefault
         case bluetoothDefaultWithoutFallback
     }
@@ -540,6 +542,9 @@ final class AudioRecorder: @unchecked Sendable {
     static func prepareInputDeviceForRecording(selectedUID uid: String?) -> AudioDeviceID? {
         let devices = availableInputDevices()
         let defaultBeforeID = defaultInputDeviceID()
+        DiagnosticLog.write(
+            "AudioRecorder: available input devices selectedUID=\(uid ?? "systemDefault") devices=\(inputDevicesDescription(devices))"
+        )
         let decision = inputPreparationDecision(
             selectedUID: uid,
             devices: devices,
@@ -576,19 +581,40 @@ final class AudioRecorder: @unchecked Sendable {
         let defaultDevice = defaultInputDeviceID.flatMap { id in devices.first { $0.id == id } }
 
         if let uid {
-            guard let selectedDevice = devices.first(where: { $0.uid == uid }) else {
+            if let selectedDevice = devices.first(where: { $0.uid == uid }) {
                 return InputPreparationDecision(
-                    device: nil,
-                    shouldSetDefaultInput: false,
-                    reason: .explicitSelectionMissing,
+                    device: selectedDevice,
+                    shouldSetDefaultInput: true,
+                    reason: .explicitSelection,
                     defaultDevice: defaultDevice,
                     defaultDeviceID: defaultInputDeviceID
                 )
             }
+
+            guard let fallbackDevice = preferredNonBluetoothInputDevice(from: devices) ?? defaultDevice else {
+                return InputPreparationDecision(
+                    device: nil,
+                    shouldSetDefaultInput: false,
+                    reason: devices.isEmpty ? .noInputDevices : .explicitSelectionMissing,
+                    defaultDevice: defaultDevice,
+                    defaultDeviceID: defaultInputDeviceID
+                )
+            }
+
             return InputPreparationDecision(
-                device: selectedDevice,
+                device: fallbackDevice,
                 shouldSetDefaultInput: true,
-                reason: .explicitSelection,
+                reason: .explicitSelectionMissingFallback,
+                defaultDevice: defaultDevice,
+                defaultDeviceID: defaultInputDeviceID
+            )
+        }
+
+        guard !devices.isEmpty else {
+            return InputPreparationDecision(
+                device: nil,
+                shouldSetDefaultInput: false,
+                reason: .noInputDevices,
                 defaultDevice: defaultDevice,
                 defaultDeviceID: defaultInputDeviceID
             )
@@ -693,6 +719,13 @@ final class AudioRecorder: @unchecked Sendable {
         let selectedDescription = inputDeviceDescription(decision.device, id: decision.device?.id)
         let defaultDescription = inputDeviceDescription(decision.defaultDevice, id: decision.defaultDeviceID)
         return "reason=\(decision.reason.rawValue) selected=\(selectedDescription) shouldSetDefaultInput=\(decision.shouldSetDefaultInput) defaultBefore=\(defaultDescription)"
+    }
+
+    private static func inputDevicesDescription(_ devices: [AudioDevice]) -> String {
+        guard !devices.isEmpty else { return "none" }
+        return devices
+            .map { "\($0.name)(uid=\($0.uid), id=\($0.id), transport=\($0.transport.displayName))" }
+            .joined(separator: "; ")
     }
 
     private static func audioRouteDevice(for id: AudioDeviceID?) -> AudioRouteDevice? {

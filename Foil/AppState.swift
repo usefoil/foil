@@ -123,6 +123,9 @@ final class AppState {
     var cleanupConnectionTestState: ProviderConnectionTestState = .idle
     var localWhisperServerState: LocalWhisperServerState = .idle
 
+    static let noMicrophoneDetectedMessage = "No microphone detected"
+    static let selectedMicrophoneUnavailableMessage = "Selected microphone unavailable"
+
     // MARK: - UserDefaults-backed preferences
     //
     // These are stored properties so that @Observable can track mutations.
@@ -792,7 +795,7 @@ final class AppState {
                 detail: setupDetail(
                     for: microphoneState,
                     unknown: "Check microphone access before recording",
-                    needsAction: "Allow microphone access before recording"
+                    needsAction: microphoneSetupActionDetail
                 ),
                 timerText: nil,
                 systemImage: "exclamationmark.triangle.fill",
@@ -882,6 +885,21 @@ final class AppState {
             needsAction
         case .ready:
             ""
+        }
+    }
+
+    private var microphoneSetupActionDetail: String {
+        switch microphoneState {
+        case .needsAction(let message):
+            if message == Self.noMicrophoneDetectedMessage {
+                return "Connect or select a working microphone before recording"
+            }
+            if message == Self.selectedMicrophoneUnavailableMessage {
+                return "Choose System Default or another available input before recording"
+            }
+            return "Allow microphone access before recording"
+        case .unknown, .ready:
+            return ""
         }
     }
 
@@ -1244,6 +1262,23 @@ final class AppState {
             microphoneState = .unknown
         @unknown default:
             microphoneState = .unknown
+        }
+    }
+
+    func applyInputDeviceHealth(
+        availableInputDevices: [AudioRecorder.AudioDevice],
+        selectedInputDeviceUID: String? = nil
+    ) {
+        guard microphoneState == .ready else { return }
+        if availableInputDevices.isEmpty {
+            updateMicrophoneState(isReady: false, message: Self.noMicrophoneDetectedMessage)
+            return
+        }
+        if let selectedInputDeviceUID,
+           !availableInputDevices.contains(where: { $0.uid == selectedInputDeviceUID }) {
+            DiagnosticLog.write(
+                "SetupHealth: selected microphone unavailable uid=\(selectedInputDeviceUID) fallbackAvailable=true"
+            )
         }
     }
 

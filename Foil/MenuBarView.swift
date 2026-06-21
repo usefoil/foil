@@ -187,7 +187,7 @@ struct MenuBarView: View {
                 title: "Microphone",
                 state: appState.microphoneState,
                 actionTitle: microphoneActionTitle,
-                recoveryDetail: "Open Microphone privacy and allow \(AppBrand.name).",
+                recoveryDetail: microphoneRecoveryDetail,
                 action: microphoneAction
             )
             permissionRow(
@@ -672,9 +672,9 @@ struct MenuBarView: View {
                     "Check",
                     onCheckMicrophone
                 )
-            case .needsAction:
+            case .needsAction(let message):
                 return (
-                    "Allow microphone access before recording.",
+                    microphoneBlockedReason(for: message),
                     "Open Settings",
                     onOpenMicrophone
                 )
@@ -790,6 +790,27 @@ struct MenuBarView: View {
     private func permissionNeedsRecovery(_ state: AppState.PermissionState) -> Bool {
         if case .needsAction = state { return true }
         return false
+    }
+
+    private var microphoneRecoveryDetail: String {
+        switch appState.microphoneState {
+        case .needsAction(let message) where message == AppState.noMicrophoneDetectedMessage:
+            "Connect a microphone or choose an available input in Sound settings."
+        case .needsAction(let message) where message == AppState.selectedMicrophoneUnavailableMessage:
+            "Open Recording settings and choose System Default or another available input."
+        default:
+            "Open Microphone privacy and allow \(AppBrand.name)."
+        }
+    }
+
+    private func microphoneBlockedReason(for message: String) -> String {
+        if message == AppState.noMicrophoneDetectedMessage {
+            return "Connect or select a working microphone before recording."
+        }
+        if message == AppState.selectedMicrophoneUnavailableMessage {
+            return "Choose System Default or another available input before recording."
+        }
+        return "Allow microphone access before recording."
     }
 
     private var setupCheckTitle: String {

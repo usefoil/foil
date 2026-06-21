@@ -279,6 +279,46 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.isSetupReady)
     }
 
+    func testInputDeviceHealthReportsNoMicrophoneDistinctFromPermissionDenied() {
+        let state = AppState()
+
+        state.applySetupHealth(accessibilityTrusted: true, microphoneAuthorizationStatus: .authorized)
+        state.apiKeyState = .ready
+        state.applyInputDeviceHealth(availableInputDevices: [])
+
+        XCTAssertEqual(state.microphoneState, .needsAction(AppState.noMicrophoneDetectedMessage))
+        XCTAssertFalse(state.isSetupReady)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+        XCTAssertEqual(presentation.detail, "Connect or select a working microphone before recording")
+        XCTAssertEqual(presentation.primaryAction, .openMicrophone)
+    }
+
+    func testInputDeviceHealthKeepsSetupReadyWhenSavedDeviceIsMissingButFallbackExists() {
+        let state = AppState()
+        let builtIn = AudioRecorder.AudioDevice(
+            id: 20,
+            uid: "built-in",
+            name: "MacBook Microphone",
+            isInput: true,
+            transport: .builtIn
+        )
+
+        state.applySetupHealth(accessibilityTrusted: true, microphoneAuthorizationStatus: .authorized)
+        state.apiKeyState = .ready
+        state.applyInputDeviceHealth(
+            availableInputDevices: [builtIn],
+            selectedInputDeviceUID: "missing"
+        )
+
+        XCTAssertEqual(state.microphoneState, .ready)
+        XCTAssertTrue(state.isSetupReady)
+    }
+
     func testSystemPermissionsReadyDoesNotRequireApiKey() {
         let state = AppState()
 
