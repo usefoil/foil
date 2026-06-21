@@ -278,6 +278,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - App lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+#if DEBUG
+        if let snapshotRequest = AudioUXSnapshotRenderer.launchRequest() {
+            do {
+                _ = try AudioUXSnapshotRenderer(outputDirectory: snapshotRequest.outputDirectory).renderAll()
+                NSApp.terminate(nil)
+            } catch {
+                let message = "Audio UX snapshot rendering failed: \(error.localizedDescription)\n"
+                FileHandle.standardError.write(Data(message.utf8))
+                exit(1)
+            }
+            return
+        }
+#endif
+
         // Prevent multiple instances: if another copy is already running, activate it and quit.
         // Skip during UI testing (app is launched by the test harness) and during
         // unit/integration tests (the test runner hosts the app process, so the
