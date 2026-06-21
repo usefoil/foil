@@ -141,6 +141,31 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.status, .recording)
     }
 
+    func testAudioLevelUpdatesOnlyWhileRecordingAndRemainBounded() {
+        let state = AppState()
+
+        state.recordAudioLevel(0.8)
+        XCTAssertEqual(state.audioLevelHistory.last, 0)
+
+        state.setStatus(.recording)
+        state.recordAudioLevel(1.4)
+        state.recordAudioLevel(-0.5)
+
+        XCTAssertEqual(state.audioLevelHistory.count, 18)
+        XCTAssertEqual(state.audioLevelHistory[state.audioLevelHistory.count - 2], 1, accuracy: 0.001)
+        XCTAssertEqual(state.audioLevelHistory.last ?? -1, 0.72, accuracy: 0.001)
+    }
+
+    func testAudioLevelsResetWhenRecordingEnds() {
+        let state = AppState()
+        state.setStatus(.recording)
+        state.recordAudioLevel(0.9)
+
+        state.setStatus(.idle)
+
+        XCTAssertEqual(state.audioLevelHistory, Array(repeating: 0, count: 18))
+    }
+
     func testRecordingControlsRequireReadyIdleState() {
         let state = AppState()
 

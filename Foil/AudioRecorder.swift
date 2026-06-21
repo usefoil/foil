@@ -57,6 +57,7 @@ final class AudioRecorder: @unchecked Sendable {
     private let bufferLock = NSLock()
     private let encodingQueue = DispatchQueue(label: "com.neonwatty.foil.audioencoding", qos: .userInitiated)
     private let maxBufferedFrames: Int
+    var levelUpdateHandler: ((Float) -> Void)?
 
     private static let targetSampleRate: Double = 16000
     private static let targetChannels: AVAudioChannelCount = 1
@@ -76,6 +77,11 @@ final class AudioRecorder: @unchecked Sendable {
 
     func startRecording(deviceID: AudioDeviceID? = nil) throws {
         cancelRecording()
+
+        if deviceID == nil, Self.defaultInputDeviceID() == nil, Self.availableInputDevices().isEmpty {
+            DiagnosticLog.write("AudioRecorder: no input devices available")
+            throw RecordingError.deviceSelectionFailed
+        }
 
         let engine = AVAudioEngine()
         audioEngine = engine
@@ -127,13 +133,20 @@ final class AudioRecorder: @unchecked Sendable {
         guard let targetFormat = Self.pcmFormat else {
             throw RecordingError.audioFormatUnavailable
         }
-        guard let converter = AVAudioConverter(from: hwFormat, to: targetFormat) else {
-            throw RecordingError.formatConversionFailed
-        }
-
-        inputNode.installTap(onBus: 0, bufferSize: 4096, format: hwFormat) { [weak self] buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) { [weak self] buffer, _ in
             guard let self else { return }
-            let ratio = Self.targetSampleRate / hwFormat.sampleRate
+            self.levelUpdateHandler?(Self.normalizedRMSLevel(in: buffer))
+            let sourceFormat = buffer.format
+            guard let converter = AVAudioConverter(from: sourceFormat, to: targetFormat) else {
+                self.bufferLock.withLock {
+                    self.conversionErrorCount += 1
+                }
+                DiagnosticLog.write(
+                    "audioRecorder: converter unavailable sourceSampleRate=\(Int(sourceFormat.sampleRate)) channels=\(sourceFormat.channelCount)"
+                )
+                return
+            }
+            let ratio = Self.targetSampleRate / sourceFormat.sampleRate
             let outputFrameCount = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
             guard outputFrameCount > 0,
                   let converted = AVAudioPCMBuffer(
@@ -258,6 +271,32 @@ final class AudioRecorder: @unchecked Sendable {
             capturedFrameCount = 0
             didExceedFrameLimit = false
         }
+    }
+
+    static func normalizedRMSLevel(in buffer: AVAudioPCMBuffer) -> Float {
+        guard buffer.frameLength > 0,
+              let channelData = buffer.floatChannelData else {
+            return 0
+        }
+
+        let channelCount = max(1, Int(buffer.format.channelCount))
+        let frameCount = Int(buffer.frameLength)
+        var sumSquares: Float = 0
+        var sampleCount = 0
+
+        for channel in 0..<channelCount {
+            let samples = channelData[channel]
+            for frame in 0..<frameCount {
+                let sample = samples[frame]
+                sumSquares += sample * sample
+            }
+            sampleCount += frameCount
+        }
+
+        guard sampleCount > 0 else { return 0 }
+        let rms = sqrt(sumSquares / Float(sampleCount))
+        guard rms.isFinite else { return 0 }
+        return min(max(rms / 0.35, 0), 1)
     }
 
     // MARK: - WAV output
@@ -411,6 +450,7 @@ final class AudioRecorder: @unchecked Sendable {
         case explicitSelectionMissing
         case explicitSelectionMissingFallback
         case noInputDevices
+        case noSystemDefaultFallback
         case avoidBluetoothDefault
         case bluetoothDefaultWithoutFallback
     }
@@ -620,7 +660,26 @@ final class AudioRecorder: @unchecked Sendable {
             )
         }
 
-        guard let defaultDevice, defaultDevice.transport.isBluetooth else {
+        guard let defaultDevice else {
+            guard let fallbackDevice = preferredNonBluetoothInputDevice(from: devices) ?? devices.first else {
+                return InputPreparationDecision(
+                    device: nil,
+                    shouldSetDefaultInput: false,
+                    reason: .systemDefault,
+                    defaultDevice: nil,
+                    defaultDeviceID: defaultInputDeviceID
+                )
+            }
+            return InputPreparationDecision(
+                device: fallbackDevice,
+                shouldSetDefaultInput: true,
+                reason: .noSystemDefaultFallback,
+                defaultDevice: nil,
+                defaultDeviceID: defaultInputDeviceID
+            )
+        }
+
+        guard defaultDevice.transport.isBluetooth else {
             return InputPreparationDecision(
                 device: nil,
                 shouldSetDefaultInput: false,

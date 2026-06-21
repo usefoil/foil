@@ -71,7 +71,7 @@ if [[ -z "${ui_target_index}" ]]; then
 fi
 
 env_root=":TestConfigurations:0:TestTargets:${ui_target_index}:EnvironmentVariables"
-for key in RUN_LIVE_MICROPHONE_TESTS LIVE_MICROPHONE_RESULT_PATH LIVE_MICROPHONE_DURATION_SECONDS; do
+for key in RUN_LIVE_MICROPHONE_TESTS LIVE_MICROPHONE_RESULT_PATH LIVE_MICROPHONE_DURATION_SECONDS LIVE_MICROPHONE_APPLE_VOICE_TEXT; do
   "${PLISTBUDDY}" -c "Delete ${env_root}:${key}" "${patched}" >/dev/null 2>&1 || true
 done
 
@@ -101,6 +101,9 @@ done
 "${PLISTBUDDY}" -c "Add ${env_root}:LIVE_MICROPHONE_RESULT_PATH string ${LIVE_MICROPHONE_RESULT_PATH}" "${patched}"
 "${PLISTBUDDY}" -c "Add ${env_root}:LIVE_MICROPHONE_DURATION_SECONDS string ${LIVE_MICROPHONE_DURATION_SECONDS}" "${patched}"
 "${PLISTBUDDY}" -c "Add ${env_root}:LIVE_MICROPHONE_SIGNING_IDENTITY string ${signing_identity}" "${patched}"
+if [[ -n "${LIVE_MICROPHONE_APPLE_VOICE_TEXT:-}" ]]; then
+  "${PLISTBUDDY}" -c "Add ${env_root}:LIVE_MICROPHONE_APPLE_VOICE_TEXT string ${LIVE_MICROPHONE_APPLE_VOICE_TEXT}" "${patched}"
+fi
 rm -f "${LIVE_MICROPHONE_RESULT_PATH}"
 
 echo "== XCUITest live microphone QA"
