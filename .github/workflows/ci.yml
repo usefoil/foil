@@ -210,6 +210,48 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
+  audio-ux-snapshots:
+    name: Audio UX Snapshots
+    runs-on: macos-15
+    timeout-minutes: 15
+    needs: [detect-changes]
+    if: >-
+      always() && !cancelled() &&
+      needs.detect-changes.outputs.code == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
+
+      - name: Render audio UX snapshots
+        env:
+          SNAPSHOT_OUTPUT_DIR: audio-ux-snapshots
+        run: make render-audio-ux-snapshots
+
+      - name: Snapshot summary
+        if: always()
+        run: |
+          echo "## Audio UX Snapshots" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f audio-ux-snapshots/receipt.json ]; then
+            echo "\`\`\`json" >> "$GITHUB_STEP_SUMMARY"
+            cat audio-ux-snapshots/receipt.json >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "_No snapshot receipt generated._" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload audio UX snapshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: audio-ux-snapshots
+          path: audio-ux-snapshots
+          retention-days: 14
+          if-no-files-found: error
+
   ui-tests:
     name: Focused UI Smoke
     runs-on: macos-15
