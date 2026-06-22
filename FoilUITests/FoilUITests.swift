@@ -907,6 +907,11 @@ final class FoilUITests: XCTestCase {
         let resultPath = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_RESULT_PATH"]
             ?? "/tmp/foil-live-microphone-result.txt"
         try? FileManager.default.removeItem(atPath: resultPath)
+        let recordingScreenshotPath = liveMicrophoneScreenshotPath(resultPath: resultPath, variant: "recording-ui")
+        let finalScreenshotPath = liveMicrophoneScreenshotPath(resultPath: resultPath, variant: "ui")
+        for screenshotPath in [recordingScreenshotPath, finalScreenshotPath].compactMap({ $0 }) {
+            try? FileManager.default.removeItem(at: screenshotPath)
+        }
 
         launchApp(arguments: [
             "--ui-testing",
@@ -915,15 +920,21 @@ final class FoilUITests: XCTestCase {
             "--live-microphone-smoke"
         ], extraEnvironment: liveMicrophoneEnvironment(resultPath: resultPath), requireControlCenter: false)
 
-        let deadline = Date().addingTimeInterval(20)
-        var result = ""
-        while Date() < deadline {
-            result = (try? String(contentsOfFile: resultPath, encoding: .utf8)) ?? ""
-            if result.contains("status=pass") || result.contains("status=fail") {
-                break
-            }
-            Thread.sleep(forTimeInterval: 0.25)
+        let recordingResult = waitForLiveMicrophoneResult(at: resultPath, timeout: 20) { result in
+            result.contains("status=recording") || result.contains("status=pass") || result.contains("status=fail")
         }
+        guard recordingResult.contains("status=recording") else {
+            XCTFail("Live microphone smoke did not expose recording UX before finishing:\n\(recordingResult)")
+            return
+        }
+        assertLiveMicrophoneRecordingUX(result: recordingResult)
+        writeLiveMicrophoneScreenshotIfRequested(to: recordingScreenshotPath)
+
+        let result = waitForLiveMicrophoneResult(at: resultPath, timeout: 20) { result in
+            result.contains("status=pass") || result.contains("status=fail")
+        }
+        assertLiveMicrophoneReadyUX()
+        writeLiveMicrophoneScreenshotIfRequested(to: finalScreenshotPath)
 
         guard !result.isEmpty else {
             XCTFail("Live microphone smoke produced no result file. Check macOS Microphone permission for Foil, selected input device, and any blocking TCC prompt.")
@@ -934,10 +945,19 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(result.contains("status=recording"), "Live microphone smoke started but did not stop. Check input-device or recorder state:\n\(result)")
         XCTAssertTrue(result.contains("status=pass"), "Live microphone smoke failed:\n\(result)")
         XCTAssertFalse(result.contains("bytes=0"), "Live microphone smoke captured no audio:\n\(result)")
+        if ProcessInfo.processInfo.environment["LIVE_MICROPHONE_INPUT_ROUTE"] == "built-in" {
+            XCTAssertTrue(result.contains("input_route_request=built-in"), "Live microphone smoke did not request the built-in route:\n\(result)")
+            XCTAssertTrue(result.contains("selected_input_transport=Built-in"), "Live microphone smoke did not select a built-in input:\n\(result)")
+        }
         if ProcessInfo.processInfo.environment["LIVE_MICROPHONE_APPLE_VOICE_TEXT"]?.isEmpty == false {
             XCTAssertTrue(result.contains("apple_voice_playback=enabled"), "Apple voice playback was not enabled:\n\(result)")
-            XCTAssertGreaterThanOrEqual(
+            XCTAssertTrue(result.contains("apple_voice_process_started=true"), "Apple voice process did not start:\n\(result)")
+            let observedPeak = max(
                 liveMicrophoneFloatValue(named: "level_peak", in: result),
+                liveMicrophoneFloatValue(named: "file_level_peak", in: result)
+            )
+            XCTAssertGreaterThanOrEqual(
+                observedPeak,
                 0.02,
                 "Apple voice playback did not produce a captured microphone level above threshold:\n\(result)"
             )
@@ -1594,6 +1614,7 @@ final class FoilUITests: XCTestCase {
     private func installSystemInterruptionMonitor() {
         addUIInterruptionMonitor(withDescription: "Dismiss Setup Assistant") { interruption in
             let labels = [
+                "Allow",
                 "Continue",
                 "Not Now",
                 "Set Up Later",
@@ -1605,7 +1626,11 @@ final class FoilUITests: XCTestCase {
             for label in labels {
                 let button = interruption.buttons[label].firstMatch
                 if button.exists {
-                    self.clickElementDirectly(button)
+                    if label == "Allow" {
+                        button.click()
+                    } else {
+                        self.clickElementDirectly(button)
+                    }
                     return true
                 }
             }
@@ -1613,10 +1638,23 @@ final class FoilUITests: XCTestCase {
         }
     }
 
+    private func triggerSystemInterruptionMonitor() {
+        activateAppForInteraction()
+        if app.windows.firstMatch.exists {
+            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+    }
+
     private func liveMicrophoneEnvironment(resultPath: String) -> [String: String] {
         var environment = ["LIVE_MICROPHONE_RESULT_PATH": resultPath]
         if let signingIdentity = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_SIGNING_IDENTITY"] {
             environment["LIVE_MICROPHONE_SIGNING_IDENTITY"] = signingIdentity
+        }
+        if let inputRoute = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_INPUT_ROUTE"] {
+            environment["LIVE_MICROPHONE_INPUT_ROUTE"] = inputRoute
         }
         if let duration = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_DURATION_SECONDS"] {
             environment["LIVE_MICROPHONE_DURATION_SECONDS"] = duration
@@ -1624,7 +1662,114 @@ final class FoilUITests: XCTestCase {
         if let appleVoiceText = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_APPLE_VOICE_TEXT"] {
             environment["LIVE_MICROPHONE_APPLE_VOICE_TEXT"] = appleVoiceText
         }
+        if let screenshotDir = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_SCREENSHOT_DIR"] {
+            environment["LIVE_MICROPHONE_SCREENSHOT_DIR"] = screenshotDir
+        }
         return environment
+    }
+
+    private func liveMicrophoneScreenshotPath(resultPath: String, variant: String) -> URL? {
+        guard let screenshotDir = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_SCREENSHOT_DIR"],
+              !screenshotDir.isEmpty else {
+            return nil
+        }
+        let directory = URL(fileURLWithPath: screenshotDir, isDirectory: true)
+        let resultName = URL(fileURLWithPath: resultPath).deletingPathExtension().lastPathComponent
+        return directory.appendingPathComponent("\(resultName)-\(variant).png")
+    }
+
+    private func waitForLiveMicrophoneResult(
+        at path: String,
+        timeout: TimeInterval,
+        matching predicate: (String) -> Bool
+    ) -> String {
+        let deadline = Date().addingTimeInterval(timeout)
+        var result = ""
+        while Date() < deadline {
+            result = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            if predicate(result) {
+                break
+            }
+            if result.contains("status=permission_requested") {
+                triggerSystemInterruptionMonitor()
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        return result
+    }
+
+    private func assertLiveMicrophoneRecordingUX(result: String) {
+        XCTAssertTrue(result.contains("recording_started=true"), "Live microphone receipt did not mark recording started:\n\(result)")
+        XCTAssertTrue(result.contains("recording_stopped=false"), "Live microphone receipt skipped the active recording phase:\n\(result)")
+        XCTAssertTrue(waitForSessionTitle("Recording", timeout: 3), app.debugDescription)
+
+        XCTAssertTrue(
+            staticTextLabelOrValueContaining("Release Right Command").waitForExistence(timeout: 2),
+            "Recording detail should tell the user how to finish recording."
+        )
+
+        let startButton = app.buttons["menu.recording.startButton"]
+        let stopButton = app.buttons["menu.recording.stopButton"]
+        let cancelButton = app.buttons["menu.recording.cancelButton"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(startButton.isEnabled, "Start should be disabled while recording.")
+        XCTAssertTrue(stopButton.isEnabled, "Stop should be enabled while recording.")
+        XCTAssertTrue(cancelButton.isEnabled, "Cancel should be enabled while recording.")
+        XCTAssertEqual(cancelButton.label, "Cancel recording")
+
+        let floatingWindow = app.descendants(matching: .any)["floatingStatus.window"]
+        XCTAssertTrue(floatingWindow.waitForExistence(timeout: 3), app.debugDescription)
+        let liveFeedback = app.descendants(matching: .any)["liveFeedback.hud"]
+        XCTAssertTrue(liveFeedback.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Recording", in: liveFeedback).exists, app.debugDescription)
+    }
+
+    private func assertLiveMicrophoneReadyUX() {
+        XCTAssertTrue(waitForSessionTitle("Ready", timeout: 3), app.debugDescription)
+        XCTAssertFalse(
+            staticTextLabelOrValueContaining("Recording...").exists,
+            "Recording feedback should clear after the live microphone smoke finishes."
+        )
+
+        let startButton = app.buttons["menu.recording.startButton"]
+        let stopButton = app.buttons["menu.recording.stopButton"]
+        let cancelButton = app.buttons["menu.recording.cancelButton"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(startButton.isEnabled, "Start should be enabled when the live smoke returns to Ready.")
+        XCTAssertFalse(stopButton.isEnabled, "Stop should be disabled when the live smoke returns to Ready.")
+        XCTAssertFalse(cancelButton.isEnabled, "Cancel should be disabled when the live smoke returns to Ready.")
+    }
+
+    private func writeLiveMicrophoneScreenshotIfRequested(to url: URL?) {
+        guard let url else { return }
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "Live microphone UI"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try screenshot.pngRepresentation.write(to: url)
+        } catch {
+            let fallbackURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("foil-live-microphone-screenshots", isDirectory: true)
+                .appendingPathComponent(url.lastPathComponent)
+            do {
+                try FileManager.default.createDirectory(
+                    at: fallbackURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try screenshot.pngRepresentation.write(to: fallbackURL)
+                print("Saved live microphone screenshot to fallback path \(fallbackURL.path) after \(url.path) failed: \(error)")
+            } catch {
+                print("Failed to write live microphone screenshot to \(url.path) or \(fallbackURL.path): \(error)")
+            }
+        }
     }
 
     private func liveMicrophoneFloatValue(named name: String, in result: String) -> Float {

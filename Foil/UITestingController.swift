@@ -539,13 +539,19 @@ final class UITestingController {
         let resultPath = env["LIVE_MICROPHONE_RESULT_PATH"] ?? "/tmp/foil-live-microphone-result.txt"
         let duration = TimeInterval(env["LIVE_MICROPHONE_DURATION_SECONDS"] ?? "") ?? 2
         let signingIdentity = env["LIVE_MICROPHONE_SIGNING_IDENTITY"] ?? "unknown"
+        let inputRouteRequest = env["LIVE_MICROPHONE_INPUT_ROUTE"].flatMap { value in
+            value.isEmpty ? nil : value
+        } ?? "system-default"
         let appleVoiceText = env["LIVE_MICROPHONE_APPLE_VOICE_TEXT"].flatMap { text in
             text.isEmpty ? nil : text
         }
         let selectedInputDeviceUID = appState.selectedInputDeviceUID
+        let liveMicrophoneAppState = appState
         try? FileManager.default.removeItem(atPath: resultPath)
 
-        DiagnosticLog.write("live microphone smoke: starting duration=\(duration) resultPath=\(resultPath) appleVoice=\(appleVoiceText != nil)")
+        DiagnosticLog.write(
+            "live microphone smoke: starting duration=\(duration) resultPath=\(resultPath) inputRouteRequest=\(inputRouteRequest) appleVoice=\(appleVoiceText != nil)"
+        )
         Task.detached {
             let recorder = AudioRecorder()
             let levelLock = NSLock()
@@ -569,7 +575,8 @@ final class UITestingController {
                 microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
                 recordingStarted: false,
                 recordingStopped: false,
-                appleVoiceText: appleVoiceText
+                appleVoiceText: appleVoiceText,
+                inputRouteRequest: inputRouteRequest
             )
             if permissionStatus == .notDetermined {
                 Self.writeLiveMicrophoneResult(
@@ -583,7 +590,8 @@ final class UITestingController {
                     microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
                     recordingStarted: false,
                     recordingStopped: false,
-                    appleVoiceText: appleVoiceText
+                    appleVoiceText: appleVoiceText,
+                    inputRouteRequest: inputRouteRequest
                 )
                 _ = await Self.requestMicrophoneAccessForLiveSmoke(timeoutSeconds: 15)
                 permissionStatus = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -600,11 +608,13 @@ final class UITestingController {
                     microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
                     recordingStarted: false,
                     recordingStopped: false,
-                    appleVoiceText: appleVoiceText
+                    appleVoiceText: appleVoiceText,
+                    inputRouteRequest: inputRouteRequest
                 )
                 return
             }
             let inputDevices = AudioRecorder.availableInputDevices()
+            let inputDevicesDescription = Self.liveMicrophoneInputDevicesDescription(inputDevices)
             guard !inputDevices.isEmpty else {
                 Self.writeLiveMicrophoneResult(
                     path: resultPath,
@@ -617,13 +627,42 @@ final class UITestingController {
                     microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
                     recordingStarted: false,
                     recordingStopped: false,
-                    appleVoiceText: appleVoiceText
+                    appleVoiceText: appleVoiceText,
+                    inputRouteRequest: inputRouteRequest,
+                    availableInputDevices: inputDevicesDescription
                 )
                 return
             }
+
+            let routeSelection = Self.liveMicrophoneRouteSelection(
+                request: inputRouteRequest,
+                selectedInputDeviceUID: selectedInputDeviceUID,
+                inputDevices: inputDevices
+            )
+            guard routeSelection.failureDetail == nil else {
+                Self.writeLiveMicrophoneResult(
+                    path: resultPath,
+                    status: "fail",
+                    detail: routeSelection.failureDetail ?? "Requested input route could not be resolved.",
+                    elapsed: Date().timeIntervalSince(startedAt),
+                    bytes: 0,
+                    appPath: appPath,
+                    signingIdentity: signingIdentity,
+                    microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
+                    recordingStarted: false,
+                    recordingStopped: false,
+                    appleVoiceText: appleVoiceText,
+                    inputRouteRequest: inputRouteRequest,
+                    selectedInputDevice: routeSelection.device,
+                    availableInputDevices: inputDevicesDescription
+                )
+                return
+            }
+
             do {
-                let deviceID = AudioRecorder.prepareInputDeviceForRecording(selectedUID: selectedInputDeviceUID)
+                let deviceID = AudioRecorder.prepareInputDeviceForRecording(selectedUID: routeSelection.uid)
                 try recorder.startRecording(deviceID: deviceID)
+                await Self.setLiveMicrophoneUXRecording(appState: liveMicrophoneAppState, startedAt: startedAt)
                 Self.writeLiveMicrophoneResult(
                     path: resultPath,
                     status: "recording",
@@ -635,18 +674,31 @@ final class UITestingController {
                     microphonePermissionStatus: Self.microphonePermissionDescription(permissionStatus),
                     recordingStarted: true,
                     recordingStopped: false,
-                    appleVoiceText: appleVoiceText
+                    appleVoiceText: appleVoiceText,
+                    inputRouteRequest: inputRouteRequest,
+                    selectedInputDevice: routeSelection.device,
+                    preparedDeviceID: deviceID,
+                    availableInputDevices: inputDevicesDescription
                 )
-                let voiceTask: Task<Void, Never>? = appleVoiceText.map { text in
-                    Task.detached {
-                        try? await Task.sleep(for: .milliseconds(300))
-                        Self.playAppleVoice(text)
-                    }
+                var appleVoiceProcess: Process?
+                var appleVoiceStarted = false
+                var appleVoiceExitStatus: Int32?
+                if let appleVoiceText {
+                    try await Task.sleep(for: .milliseconds(300))
+                    appleVoiceProcess = Self.startAppleVoice(appleVoiceText)
+                    appleVoiceStarted = appleVoiceProcess != nil
                 }
                 try await Task.sleep(for: .milliseconds(Int(duration * 1000)))
-                voiceTask?.cancel()
+                if let appleVoiceProcess {
+                    if appleVoiceProcess.isRunning {
+                        appleVoiceProcess.terminate()
+                    }
+                    appleVoiceProcess.waitUntilExit()
+                    appleVoiceExitStatus = appleVoiceProcess.terminationStatus
+                }
                 guard let audioURL = try await recorder.stopRecordingAsync(format: .wav) else {
                     let levels = Self.liveMicrophoneLevelSummary(samples: levelLock.withLock { levelSamples })
+                    await Self.setLiveMicrophoneUXIdle(appState: liveMicrophoneAppState)
                     Self.writeLiveMicrophoneResult(
                         path: resultPath,
                         status: "fail",
@@ -659,6 +711,12 @@ final class UITestingController {
                         recordingStarted: true,
                         recordingStopped: true,
                         appleVoiceText: appleVoiceText,
+                        inputRouteRequest: inputRouteRequest,
+                        selectedInputDevice: routeSelection.device,
+                        preparedDeviceID: deviceID,
+                        availableInputDevices: inputDevicesDescription,
+                        appleVoiceProcessStarted: appleVoiceStarted,
+                        appleVoiceExitStatus: appleVoiceExitStatus,
                         levelSampleCount: levels.count,
                         peakLevel: levels.peak,
                         averageLevel: levels.average
@@ -666,13 +724,27 @@ final class UITestingController {
                     return
                 }
                 let bytes = (try? audioURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                try? FileManager.default.removeItem(at: audioURL)
                 let levels = Self.liveMicrophoneLevelSummary(samples: levelLock.withLock { levelSamples })
-                let appleVoiceLevelOK = appleVoiceText == nil || levels.peak >= 0.02
+                let fileLevels = Self.liveMicrophoneAudioFileLevelSummary(url: audioURL)
+                let observedPeakLevel = max(levels.peak, fileLevels.peak)
+                let appleVoiceStartedOK = appleVoiceText == nil || appleVoiceStarted
+                let minimumPeakLevel: Float = appleVoiceText == nil ? 0.001 : 0.02
+                let capturedLevelOK = observedPeakLevel >= minimumPeakLevel
+                let didPass = bytes > 0 && appleVoiceStartedOK && capturedLevelOK
+                let capturedAudioPath = didPass ? "" : audioURL.path
+                if didPass {
+                    try? FileManager.default.removeItem(at: audioURL)
+                }
+                await Self.setLiveMicrophoneUXIdle(appState: liveMicrophoneAppState)
                 Self.writeLiveMicrophoneResult(
                     path: resultPath,
-                    status: bytes > 0 && appleVoiceLevelOK ? "pass" : "fail",
-                    detail: Self.liveMicrophoneSuccessDetail(bytes: bytes, appleVoiceText: appleVoiceText, peakLevel: levels.peak),
+                    status: didPass ? "pass" : "fail",
+                    detail: Self.liveMicrophoneSuccessDetail(
+                        bytes: bytes,
+                        appleVoiceText: appleVoiceText,
+                        appleVoiceStarted: appleVoiceStarted,
+                        peakLevel: observedPeakLevel
+                    ),
                     elapsed: Date().timeIntervalSince(startedAt),
                     bytes: bytes,
                     appPath: appPath,
@@ -681,6 +753,15 @@ final class UITestingController {
                     recordingStarted: true,
                     recordingStopped: true,
                     appleVoiceText: appleVoiceText,
+                    inputRouteRequest: inputRouteRequest,
+                    selectedInputDevice: routeSelection.device,
+                    preparedDeviceID: deviceID,
+                    availableInputDevices: inputDevicesDescription,
+                    appleVoiceProcessStarted: appleVoiceStarted,
+                    appleVoiceExitStatus: appleVoiceExitStatus,
+                    filePeakLevel: fileLevels.peak,
+                    fileAverageLevel: fileLevels.average,
+                    capturedAudioPath: capturedAudioPath,
                     levelSampleCount: levels.count,
                     peakLevel: levels.peak,
                     averageLevel: levels.average
@@ -688,6 +769,7 @@ final class UITestingController {
             } catch {
                 recorder.cancelRecording()
                 let levels = Self.liveMicrophoneLevelSummary(samples: levelLock.withLock { levelSamples })
+                await Self.setLiveMicrophoneUXIdle(appState: liveMicrophoneAppState)
                 Self.writeLiveMicrophoneResult(
                     path: resultPath,
                     status: "fail",
@@ -700,6 +782,9 @@ final class UITestingController {
                     recordingStarted: false,
                     recordingStopped: false,
                     appleVoiceText: appleVoiceText,
+                    inputRouteRequest: inputRouteRequest,
+                    selectedInputDevice: routeSelection.device,
+                    availableInputDevices: inputDevicesDescription,
                     levelSampleCount: levels.count,
                     peakLevel: levels.peak,
                     averageLevel: levels.average
@@ -707,6 +792,25 @@ final class UITestingController {
             }
         }
         #endif
+    }
+
+    @MainActor
+    private static func setLiveMicrophoneUXRecording(appState: AppState, startedAt: Date) {
+        appState.recordingStartTime = startedAt
+        appState.recordingDuration = 0
+        appState.setStatus(.recording)
+    }
+
+    @MainActor
+    private static func setLiveMicrophoneUXIdle(appState: AppState) {
+        appState.recordingStartTime = nil
+        appState.recordingDuration = 0
+        if appState.status == .recording {
+            appState.setStatus(.idle)
+        }
+        if appState.feedbackMessage == "Recording..." {
+            appState.feedbackMessage = nil
+        }
     }
 
     private func configureSimulatedTranscriptionIfNeeded(args: [String]) {
@@ -738,6 +842,15 @@ final class UITestingController {
         recordingStarted: Bool,
         recordingStopped: Bool,
         appleVoiceText: String? = nil,
+        inputRouteRequest: String = "system-default",
+        selectedInputDevice: AudioRecorder.AudioDevice? = nil,
+        preparedDeviceID: AudioDeviceID? = nil,
+        availableInputDevices: String = "",
+        appleVoiceProcessStarted: Bool = false,
+        appleVoiceExitStatus: Int32? = nil,
+        filePeakLevel: Float = 0,
+        fileAverageLevel: Float = 0,
+        capturedAudioPath: String = "",
         levelSampleCount: Int = 0,
         peakLevel: Float = 0,
         averageLevel: Float = 0
@@ -749,11 +862,23 @@ final class UITestingController {
             "microphone_permission_status=\(microphonePermissionStatus)",
             "recording_started=\(recordingStarted)",
             "recording_stopped=\(recordingStopped)",
+            "input_route_request=\(inputRouteRequest)",
+            "selected_input_uid=\(selectedInputDevice?.uid ?? "")",
+            "selected_input_name=\(selectedInputDevice?.name ?? "")",
+            "selected_input_transport=\(selectedInputDevice?.transport.displayName ?? "")",
+            "selected_input_id=\(selectedInputDevice.map { String($0.id) } ?? "")",
+            "prepared_device_id=\(preparedDeviceID.map(String.init) ?? "")",
+            "available_input_devices=\(availableInputDevices)",
             "apple_voice_playback=\(appleVoiceText == nil ? "disabled" : "enabled")",
             "apple_voice_text=\(appleVoiceText ?? "")",
+            "apple_voice_process_started=\(appleVoiceProcessStarted)",
+            "apple_voice_exit_status=\(appleVoiceExitStatus.map(String.init) ?? "")",
             "level_sample_count=\(levelSampleCount)",
             "level_peak=\(String(format: "%.4f", peakLevel))",
             "level_average=\(String(format: "%.4f", averageLevel))",
+            "file_level_peak=\(String(format: "%.4f", filePeakLevel))",
+            "file_level_average=\(String(format: "%.4f", fileAverageLevel))",
+            "captured_audio_path=\(capturedAudioPath)",
             "bytes=\(bytes)",
             "elapsed_seconds=\(String(format: "%.3f", elapsed))",
             "detail=\(detail)"
@@ -762,16 +887,53 @@ final class UITestingController {
         DiagnosticLog.write("live microphone smoke: \(body.replacingOccurrences(of: "\n", with: " "))")
     }
 
-    nonisolated private static func playAppleVoice(_ text: String) {
+    nonisolated private static func liveMicrophoneRouteSelection(
+        request: String,
+        selectedInputDeviceUID: String?,
+        inputDevices: [AudioRecorder.AudioDevice]
+    ) -> (uid: String?, device: AudioRecorder.AudioDevice?, failureDetail: String?) {
+        switch request {
+        case "built-in", "built_in", "builtin":
+            guard let builtIn = inputDevices.first(where: { $0.transport == .builtIn }) else {
+                return (
+                    nil,
+                    nil,
+                    "Built-in microphone route was requested, but no built-in input device is available. Available inputs: \(liveMicrophoneInputDevicesDescription(inputDevices))"
+                )
+            }
+            return (builtIn.uid, builtIn, nil)
+        case "system-default", "system_default", "default":
+            let selectedDevice = selectedInputDeviceUID.flatMap { uid in
+                inputDevices.first { $0.uid == uid }
+            }
+            return (selectedInputDeviceUID, selectedDevice, nil)
+        default:
+            return (
+                nil,
+                nil,
+                "Unknown live microphone input route '\(request)'. Use 'built-in' or 'system-default'."
+            )
+        }
+    }
+
+    nonisolated private static func liveMicrophoneInputDevicesDescription(_ devices: [AudioRecorder.AudioDevice]) -> String {
+        guard !devices.isEmpty else { return "none" }
+        return devices
+            .map { "\($0.name)(uid=\($0.uid), id=\($0.id), transport=\($0.transport.displayName))" }
+            .joined(separator: "; ")
+    }
+
+    nonisolated private static func startAppleVoice(_ text: String) -> Process? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/say")
         process.arguments = [text]
         do {
             try process.run()
-            process.waitUntilExit()
-            DiagnosticLog.write("live microphone smoke: Apple voice finished status=\(process.terminationStatus)")
+            DiagnosticLog.write("live microphone smoke: Apple voice started pid=\(process.processIdentifier)")
+            return process
         } catch {
             DiagnosticLog.write("live microphone smoke: Apple voice failed error=\(error.localizedDescription)")
+            return nil
         }
     }
 
@@ -784,16 +946,66 @@ final class UITestingController {
         return (samples.count, peak, average)
     }
 
+    nonisolated private static func liveMicrophoneAudioFileLevelSummary(url: URL) -> (peak: Float, average: Float) {
+        do {
+            let file = try AVAudioFile(forReading: url)
+            guard file.length > 0,
+                  let buffer = AVAudioPCMBuffer(
+                      pcmFormat: file.processingFormat,
+                      frameCapacity: AVAudioFrameCount(file.length)
+                  ) else {
+                return (0, 0)
+            }
+            try file.read(into: buffer)
+            guard buffer.frameLength > 0,
+                  let channelData = buffer.floatChannelData else {
+                return (0, 0)
+            }
+
+            let channelCount = max(1, Int(buffer.format.channelCount))
+            let frameCount = Int(buffer.frameLength)
+            var peak: Float = 0
+            var sumSquares: Float = 0
+            var sampleCount = 0
+
+            for channel in 0..<channelCount {
+                let samples = channelData[channel]
+                for frame in 0..<frameCount {
+                    let sample = samples[frame]
+                    peak = max(peak, abs(sample))
+                    sumSquares += sample * sample
+                }
+                sampleCount += frameCount
+            }
+
+            guard sampleCount > 0 else { return (0, 0) }
+            let rms = sqrt(sumSquares / Float(sampleCount))
+            let normalizedPeak = min(max(peak / 0.35, 0), 1)
+            let normalizedAverage = min(max(rms / 0.35, 0), 1)
+            return (normalizedPeak, normalizedAverage)
+        } catch {
+            DiagnosticLog.write("live microphone smoke: failed to inspect captured audio level error=\(error.localizedDescription)")
+            return (0, 0)
+        }
+    }
+
     nonisolated private static func liveMicrophoneSuccessDetail(
         bytes: Int,
         appleVoiceText: String?,
+        appleVoiceStarted: Bool,
         peakLevel: Float
     ) -> String {
         guard bytes > 0 else {
             return "Captured audio file was empty."
         }
+        if appleVoiceText != nil, !appleVoiceStarted {
+            return "Apple voice playback was requested, but /usr/bin/say did not start."
+        }
         if appleVoiceText != nil, peakLevel < 0.02 {
             return "Apple voice playback ran, but captured level peak was below threshold. Check speaker output, microphone route, and input level."
+        }
+        if appleVoiceText == nil, peakLevel < 0.001 {
+            return "Captured audio file was non-empty, but the audio level was silent. Check microphone route and input level."
         }
         return appleVoiceText == nil ? "Captured microphone audio." : "Captured microphone audio while Apple voice playback was active."
     }
