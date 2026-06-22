@@ -17,6 +17,7 @@ LIVE_MICROPHONE_APPLE_VOICE_TEXT="${LIVE_MICROPHONE_APPLE_VOICE_TEXT:-Foil micro
 LIVE_MICROPHONE_SCREENSHOT_DIR="${LIVE_MICROPHONE_SCREENSHOT_DIR:-/tmp/foil-live-microphone-screenshots}"
 LIVE_MICROPHONE_XCTRUNNER_SCREENSHOT_DIR="${LIVE_MICROPHONE_XCTRUNNER_SCREENSHOT_DIR:-${HOME}/Library/Containers/com.neonwatty.FoilUITests.xctrunner/Data/tmp/foil-live-microphone-screenshots}"
 LIVE_MICROPHONE_DIRECT_LOG_PATH="${LIVE_MICROPHONE_DIRECT_LOG_PATH:-/tmp/foil-live-microphone-direct.log}"
+LIVE_MICROPHONE_ARTIFACT_DIR="${LIVE_MICROPHONE_ARTIFACT_DIR:-/tmp/foil-live-microphone-artifacts}"
 PLISTBUDDY="/usr/libexec/PlistBuddy"
 patched=""
 
@@ -25,7 +26,103 @@ cleanup() {
     rm -f "${patched}"
   fi
 }
-trap cleanup EXIT
+
+copy_file_if_present() {
+  local source="$1"
+  local destination="$2"
+
+  if [[ -f "${source}" ]]; then
+    mkdir -p "$(dirname "${destination}")"
+    cp "${source}" "${destination}"
+  fi
+}
+
+copy_screenshots_if_present() {
+  local source_dir="$1"
+  local destination_dir="$2"
+
+  if [[ -d "${source_dir}" ]]; then
+    mkdir -p "${destination_dir}"
+    find "${source_dir}" -maxdepth 1 -type f -name '*.png' -print0 \
+      | xargs -0 -I {} cp {} "${destination_dir}/" 2>/dev/null || true
+  fi
+}
+
+capture_direct_screenshot() {
+  local output_path="$1"
+
+  if ! screencapture -x "${output_path}" >/dev/null 2>&1; then
+    echo "screencapture failed for ${output_path}" >> "${LIVE_MICROPHONE_DIRECT_LOG_PATH}"
+  fi
+}
+
+collect_artifacts() {
+  local status="$1"
+
+  set +e
+  rm -rf "${LIVE_MICROPHONE_ARTIFACT_DIR}"
+  mkdir -p "${LIVE_MICROPHONE_ARTIFACT_DIR}"
+
+  {
+    echo "exit_status=${status}"
+    echo "result_path=${LIVE_MICROPHONE_RESULT_PATH}"
+    echo "screenshot_dir=${LIVE_MICROPHONE_SCREENSHOT_DIR}"
+    echo "xctrunner_screenshot_dir=${LIVE_MICROPHONE_XCTRUNNER_SCREENSHOT_DIR}"
+    echo "direct_log_path=${LIVE_MICROPHONE_DIRECT_LOG_PATH}"
+    echo "input_route=${LIVE_MICROPHONE_INPUT_ROUTE}"
+    echo "duration_seconds=${LIVE_MICROPHONE_DURATION_SECONDS}"
+    echo "artifact_dir=${LIVE_MICROPHONE_ARTIFACT_DIR}"
+    date -u '+generated_at=%Y-%m-%dT%H:%M:%SZ'
+  } > "${LIVE_MICROPHONE_ARTIFACT_DIR}/manifest.txt"
+
+  copy_file_if_present "${LIVE_MICROPHONE_RESULT_PATH}" "${LIVE_MICROPHONE_ARTIFACT_DIR}/live-microphone-result.txt"
+  copy_file_if_present "${LIVE_MICROPHONE_DIRECT_LOG_PATH}" "${LIVE_MICROPHONE_ARTIFACT_DIR}/direct-fallback.log"
+  copy_screenshots_if_present "${LIVE_MICROPHONE_SCREENSHOT_DIR}" "${LIVE_MICROPHONE_ARTIFACT_DIR}/screenshots/requested"
+  if [[ "${LIVE_MICROPHONE_XCTRUNNER_SCREENSHOT_DIR}" != "${LIVE_MICROPHONE_SCREENSHOT_DIR}" ]]; then
+    copy_screenshots_if_present "${LIVE_MICROPHONE_XCTRUNNER_SCREENSHOT_DIR}" "${LIVE_MICROPHONE_ARTIFACT_DIR}/screenshots/xctrunner"
+  fi
+
+  if [[ -f "${LIVE_MICROPHONE_RESULT_PATH}" ]]; then
+    captured_audio_path="$(sed -n 's/^captured_audio_path=//p' "${LIVE_MICROPHONE_RESULT_PATH}" | head -1)"
+    if [[ -n "${captured_audio_path}" && -f "${captured_audio_path}" ]]; then
+      copy_file_if_present "${captured_audio_path}" "${LIVE_MICROPHONE_ARTIFACT_DIR}/captured-audio/$(basename "${captured_audio_path}")"
+    fi
+  fi
+
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    {
+      echo "## Live Microphone QA"
+      echo
+      echo "- Artifact directory: \`${LIVE_MICROPHONE_ARTIFACT_DIR}\`"
+      echo "- Exit status: \`${status}\`"
+      echo
+      if [[ -f "${LIVE_MICROPHONE_ARTIFACT_DIR}/live-microphone-result.txt" ]]; then
+        echo "### Receipt"
+        echo
+        echo '```text'
+        cat "${LIVE_MICROPHONE_ARTIFACT_DIR}/live-microphone-result.txt"
+        echo '```'
+      else
+        echo "_No live microphone result receipt was generated._"
+      fi
+      echo
+      echo "### Files"
+      echo
+      find "${LIVE_MICROPHONE_ARTIFACT_DIR}" -type f | sort | sed "s#^${LIVE_MICROPHONE_ARTIFACT_DIR}/#- #"
+    } >> "${GITHUB_STEP_SUMMARY}"
+  fi
+
+  echo "artifacts=${LIVE_MICROPHONE_ARTIFACT_DIR}"
+  set -e
+}
+
+on_exit() {
+  local status="$?"
+  collect_artifacts "${status}"
+  cleanup
+  exit "${status}"
+}
+trap on_exit EXIT
 
 print_screenshots_status() {
   local paths=()
@@ -173,17 +270,43 @@ LIVE_MICROPHONE_SIGNING_IDENTITY="${signing_identity}" \
   >"${LIVE_MICROPHONE_DIRECT_LOG_PATH}" 2>&1 &
 direct_pid=$!
 
+( sleep 1.5; capture_direct_screenshot "${LIVE_MICROPHONE_SCREENSHOT_DIR}/direct-recording-ui.png" ) &
+direct_recording_capture_pid=$!
+
+direct_recording_screenshot_taken=0
+direct_final_screenshot_taken=0
+direct_poll_count=0
 for _ in $(seq 1 120); do
-  if [[ -f "${LIVE_MICROPHONE_RESULT_PATH}" ]] && grep -Eq '^status=(pass|fail)' "${LIVE_MICROPHONE_RESULT_PATH}"; then
+  direct_poll_count=$((direct_poll_count + 1))
+  result_contents=""
+  if [[ -f "${LIVE_MICROPHONE_RESULT_PATH}" ]]; then
+    result_contents="$(cat "${LIVE_MICROPHONE_RESULT_PATH}")"
+  fi
+
+  if [[ "${direct_recording_screenshot_taken}" == "0" && "${result_contents}" == *"status=recording"* ]]; then
+    capture_direct_screenshot "${LIVE_MICROPHONE_SCREENSHOT_DIR}/direct-recording-ui.png"
+    direct_recording_screenshot_taken=1
+  fi
+  if [[ "${direct_recording_screenshot_taken}" == "0" && "${direct_poll_count}" -eq 6 ]]; then
+    capture_direct_screenshot "${LIVE_MICROPHONE_SCREENSHOT_DIR}/direct-recording-ui.png"
+    direct_recording_screenshot_taken=1
+  fi
+
+  if [[ "${result_contents}" == *"status=pass"* || "${result_contents}" == *"status=fail"* ]]; then
+    if [[ "${direct_final_screenshot_taken}" == "0" ]]; then
+      capture_direct_screenshot "${LIVE_MICROPHONE_SCREENSHOT_DIR}/direct-ui.png"
+      direct_final_screenshot_taken=1
+    fi
     break
   fi
   sleep 0.25
 done
 
-if pgrep -x Foil >/dev/null; then
-  screencapture -x "${LIVE_MICROPHONE_SCREENSHOT_DIR}/direct-ui.png" >/dev/null 2>&1 || true
+if [[ "${direct_final_screenshot_taken}" == "0" ]]; then
+  capture_direct_screenshot "${LIVE_MICROPHONE_SCREENSHOT_DIR}/direct-ui.png"
 fi
 pkill -x Foil >/dev/null 2>&1 || true
+wait "${direct_recording_capture_pid}" 2>/dev/null || true
 wait "${direct_pid}" 2>/dev/null || true
 
 if [[ ! -f "${LIVE_MICROPHONE_RESULT_PATH}" ]]; then

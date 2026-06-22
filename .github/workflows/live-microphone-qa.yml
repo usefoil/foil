@@ -1,0 +1,120 @@
+name: Live Microphone QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      input_route:
+        description: "Microphone route to request"
+        required: true
+        default: "built-in"
+        type: choice
+        options:
+          - built-in
+          - system-default
+      duration_seconds:
+        description: "Capture duration in seconds"
+        required: true
+        default: "8"
+        type: string
+      apple_voice_text:
+        description: "Apple-generated speech phrase; leave empty to disable"
+        required: false
+        default: "Foil microphone test."
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-microphone-qa-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  live-microphone-qa:
+    name: Live microphone UX proof
+    runs-on: [self-hosted, macOS, ARM64, trusted-macos-e2e, e2e, gui, browser]
+    timeout-minutes: 45
+
+    steps:
+      - name: Host proof
+        run: |
+          hostname
+          sw_vers
+          uname -m
+          xcodebuild -version
+
+      - name: Workspace cleanup before
+        working-directory: /
+        run: |
+          set -euo pipefail
+
+          case "${GITHUB_WORKSPACE:-}" in
+            "$HOME/actions-runner/_work/"*)
+              rm -rf "$GITHUB_WORKSPACE"
+              mkdir -p "$GITHUB_WORKSPACE"
+              ;;
+            *)
+              echo "Refusing to clean unexpected GITHUB_WORKSPACE: ${GITHUB_WORKSPACE:-<unset>}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Healthcheck before
+        working-directory: /
+        run: |
+          RUNNER_HOME="$HOME" \
+          RUNNER_WORK="$HOME/actions-runner/_work" \
+          /usr/local/ci/bin/macos-runner-healthcheck --json
+
+      - uses: actions/checkout@v6
+
+      - name: Stop stale Foil processes
+        run: |
+          pkill -x Foil || true
+          pkill -x FoilUITests || true
+          pkill -f 'xcodebuild.*Foil' || true
+
+      - name: Run live microphone QA
+        timeout-minutes: 35
+        env:
+          RUN_LIVE_MICROPHONE_TESTS: "1"
+          LIVE_MICROPHONE_INPUT_ROUTE: ${{ inputs.input_route }}
+          LIVE_MICROPHONE_DURATION_SECONDS: ${{ inputs.duration_seconds }}
+          LIVE_MICROPHONE_APPLE_VOICE_TEXT: ${{ inputs.apple_voice_text }}
+          LIVE_MICROPHONE_RESULT_PATH: /tmp/foil-live-microphone-result.txt
+          LIVE_MICROPHONE_SCREENSHOT_DIR: /tmp/foil-live-microphone-screenshots
+          LIVE_MICROPHONE_ARTIFACT_DIR: live-microphone-artifacts
+        run: scripts/run-live-microphone-qa.sh
+
+      - name: Upload live microphone artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: live-microphone-qa
+          path: live-microphone-artifacts
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Workspace cleanup after
+        if: always()
+        run: |
+          set -euo pipefail
+
+          pkill -x Foil || true
+          pkill -x FoilUITests || true
+          pkill -f 'xcodebuild.*Foil' || true
+
+          rm -rf /tmp/foil-live-microphone-derived-data
+
+          cleanup="$HOME/Library/Application Support/macos-e2e-runner/macos-runner-cleanup"
+          RUNNER_HOME="$HOME" \
+          RUNNER_WORK="$HOME/actions-runner/_work" \
+          "$cleanup" --github-actions-safe --json
+
+      - name: Healthcheck after
+        if: always()
+        working-directory: /
+        run: |
+          RUNNER_HOME="$HOME" \
+          RUNNER_WORK="$HOME/actions-runner/_work" \
+          /usr/local/ci/bin/macos-runner-healthcheck --json

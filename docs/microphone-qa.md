@@ -27,7 +27,17 @@ recording-state PNG plus a final-state PNG under
 `/tmp/foil-live-microphone-screenshots/` when the runner can write there. If
 macOS denies that path, the test writes the screenshots under the XCTest runner
 container temp directory and the script reports that directory in the
-`screenshots=` line. It does not require network or Groq API availability.
+`screenshots=` line. On exit, the script also assembles
+`/tmp/foil-live-microphone-artifacts/` by default with a manifest, receipt,
+screenshots, direct-fallback log when present, and a captured WAV when the run
+fails due to silence or capture validation. It does not require network or Groq
+API availability.
+
+To produce a GitHub-hosted artifact instead of local-only screenshot paths, run
+the `Live Microphone QA` workflow manually from GitHub Actions. It runs on the
+self-hosted trusted macOS E2E runner, executes the same live smoke, writes the
+receipt into the step summary, and uploads a `live-microphone-qa` artifact with
+the same manifest, receipt, and screenshot bundle.
 
 When the Apple-speech path fails, the receipt preserves the captured WAV path in
 `captured_audio_path` so the recording can be inspected instead of relying only
@@ -47,6 +57,7 @@ RUN_LIVE_MICROPHONE_TESTS=1 \
 LIVE_MICROPHONE_INPUT_ROUTE=built-in \
 LIVE_MICROPHONE_APPLE_VOICE_TEXT="Foil microphone test phrase." \
 LIVE_MICROPHONE_DURATION_SECONDS=3 \
+LIVE_MICROPHONE_ARTIFACT_DIR=/tmp/foil-live-microphone-artifacts \
 make test-microphone-live
 ```
 
