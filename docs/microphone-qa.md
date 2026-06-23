@@ -15,7 +15,7 @@ RUN_LIVE_MICROPHONE_TESTS=1 make test-microphone-live
 ```
 
 The live smoke launches a debug-only app hook that starts the real recorder,
-forces the built-in microphone route by default, plays Apple-generated speech
+uses the system default input route by default, plays Apple-generated speech
 with `/usr/bin/say`, captures about eight seconds of audio, writes
 `/tmp/foil-live-microphone-result.txt`, and verifies the result from XCUITest.
 It records the app path, signing identity, microphone permission status,
@@ -37,7 +37,10 @@ To produce a GitHub-hosted artifact instead of local-only screenshot paths, run
 the `Live Microphone QA` workflow manually from GitHub Actions. It runs on the
 self-hosted trusted macOS E2E runner, executes the same live smoke, writes the
 receipt into the step summary, and uploads a `live-microphone-qa` artifact with
-the same manifest, receipt, and screenshot bundle.
+the same manifest, receipt, and screenshot bundle. The workflow defaults to
+`system-default` because the Mac mini runner does not have a built-in
+microphone; use `built-in` only when dispatching the workflow to hardware with
+a built-in microphone, such as a MacBook.
 
 When the Apple-speech path fails, the receipt preserves the captured WAV path in
 `captured_audio_path` so the recording can be inspected instead of relying only
@@ -74,11 +77,14 @@ make test-microphone-live
 For the default automated path, the result file should include:
 
 - `status=pass`
-- `input_route_request=built-in`
-- `selected_input_transport=Built-in`
+- `input_route_request=system-default`
 - `apple_voice_playback=enabled`
 - `apple_voice_process_started=true`
 - `level_peak` or `file_level_peak` at or above the XCUITest threshold
+
+For a MacBook built-in microphone proof, dispatch the workflow or run the local
+smoke with `LIVE_MICROPHONE_INPUT_ROUTE=built-in`; in that case the result
+should also include `selected_input_transport=Built-in`.
 
 The live smoke intentionally fails if the WAV file is non-empty but silent.
 `bytes` alone is not treated as proof of microphone capture.

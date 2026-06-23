@@ -6,11 +6,11 @@ on:
       input_route:
         description: "Microphone route to request"
         required: true
-        default: "built-in"
+        default: "system-default"
         type: choice
         options:
-          - built-in
           - system-default
+          - built-in
       duration_seconds:
         description: "Capture duration in seconds"
         required: true
