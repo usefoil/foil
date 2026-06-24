@@ -4,9 +4,9 @@ import CoreAudio
 import SwiftUI
 
 extension Notification.Name {
-    static let groqTalkHistoryUITestCommandRelay =
+    static let foilHistoryUITestCommandRelay =
         Notification.Name("com.neonwatty.Foil.uiTests.historyCommand.relay")
-    static let groqTalkOnboardingUITestCommandRelay =
+    static let foilOnboardingUITestCommandRelay =
         Notification.Name("com.neonwatty.Foil.uiTests.onboardingCommand.relay")
 }
 
@@ -1313,7 +1313,7 @@ final class UITestingController {
         let command = notification.userInfo?["command"] as? String ?? "<missing>"
         DiagnosticLog.write("UITesting: received history command=\(command)")
         NotificationCenter.default.post(
-            name: .groqTalkHistoryUITestCommandRelay,
+            name: .foilHistoryUITestCommandRelay,
             object: nil,
             userInfo: notification.userInfo
         )
@@ -1323,7 +1323,7 @@ final class UITestingController {
         let command = notification.userInfo?["command"] as? String ?? "<missing>"
         DiagnosticLog.write("UITesting: received onboarding command=\(command)")
         NotificationCenter.default.post(
-            name: .groqTalkOnboardingUITestCommandRelay,
+            name: .foilOnboardingUITestCommandRelay,
             object: nil,
             userInfo: notification.userInfo
         )

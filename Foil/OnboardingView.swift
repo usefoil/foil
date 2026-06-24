@@ -104,7 +104,7 @@ struct OnboardingView: View {
         .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
             appState.refreshApiKeyState()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .groqTalkOnboardingUITestCommandRelay)) { notification in
+        .onReceive(NotificationCenter.default.publisher(for: .foilOnboardingUITestCommandRelay)) { notification in
             guard let command = OnboardingUITestCommand(notification: notification) else { return }
             handleUITestOnboardingCommand(command)
         }

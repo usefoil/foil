@@ -29,14 +29,14 @@ enum AppBrand {
         versionDisplay(bundle: .main)
     }
 
-    static func versionDisplay(bundle: Bundle) -> String {
-        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        let trimmedVersion = version?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedBuild = build?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayBuild = trimmedBuild.flatMap(shortBuildDisplay)
+    static var succinctVersionDisplay: String {
+        succinctVersionDisplay(bundle: .main)
+    }
 
-        switch (trimmedVersion?.isEmpty == false ? trimmedVersion : nil, displayBuild) {
+    static func versionDisplay(bundle: Bundle) -> String {
+        let components = versionComponents(bundle: bundle)
+
+        switch (components.version, components.build) {
         case let (.some(version), .some(build)):
             return "\(name) \(version) (build \(build))"
         case let (.some(version), nil):
@@ -46,6 +46,34 @@ enum AppBrand {
         case (nil, nil):
             return "\(name) version unknown"
         }
+    }
+
+    static func succinctVersionDisplay(bundle: Bundle) -> String {
+        let components = versionComponents(bundle: bundle)
+
+        switch (components.version, components.build) {
+        case let (.some(version), .some(build)):
+            return "\(version) (\(build))"
+        case let (.some(version), nil):
+            return version
+        case (nil, .some(let build)):
+            return "build \(build)"
+        case (nil, nil):
+            return "version unknown"
+        }
+    }
+
+    private static func versionComponents(bundle: Bundle) -> (version: String?, build: String?) {
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        let trimmedVersion = version?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedBuild = build?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayBuild = trimmedBuild.flatMap(shortBuildDisplay)
+
+        return (
+            version: trimmedVersion?.isEmpty == false ? trimmedVersion : nil,
+            build: displayBuild
+        )
     }
 
     static func shortBuildDisplay(_ build: String) -> String? {
