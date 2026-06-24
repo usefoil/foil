@@ -199,6 +199,17 @@ struct SettingsView: View {
 
     private var generalSettings: some View {
         Form {
+            Section("About") {
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(AppBrand.succinctVersionDisplay)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                .accessibilityIdentifier("settings.general.versionRow")
+            }
+
             Toggle("Launch at Login", isOn: Binding(
                 get: { launchAtLoginManager.isEnabled },
                 set: { launchAtLoginManager.setEnabled($0) }

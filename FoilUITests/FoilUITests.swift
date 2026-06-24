@@ -815,6 +815,13 @@ final class FoilUITests: XCTestCase {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-general"])
         openSettingsPanel()
         XCTAssertTrue(checkBox(id: "settings.floatingStatusToggle", fallbackLabel: "Show floating status").exists)
+        let versionPredicate = NSPredicate(
+            format: "identifier == %@ AND value MATCHES %@",
+            "settings.general.versionRow",
+            #"^\d+\.\d+\.\d+ \(\d+\)$"#
+        )
+        let versionValue = app.staticTexts.matching(versionPredicate).firstMatch
+        XCTAssertTrue(versionValue.waitForExistence(timeout: 2), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup"])
         openSettingsPanel()

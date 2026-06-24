@@ -287,8 +287,8 @@ let pasted = waitUntil(timeout: 9, poll: 0.5, {
 
 let targetText = textValue(in: targetWindow)
 let log = readDiagnosticLog()
-let groqTalkWindows = windowTitles(forBundleID: appBundleID)
-let floatingStatusVisible = groqTalkWindows.contains { $0 == "Foil Floating Status" }
+let foilWindows = windowTitles(forBundleID: appBundleID)
+let floatingStatusVisible = foilWindows.contains { $0 == "Foil Floating Status" }
 
 print()
 print("Diagnostic checks:")
@@ -315,7 +315,7 @@ if log.contains("Microphone unavailable") {
 }
 
 if floatingStatusVisible {
-    print("Foil windows: \(groqTalkWindows)")
+    print("Foil windows: \(foilWindows)")
     finish(1)
 }
 

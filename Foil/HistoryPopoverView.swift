@@ -104,7 +104,7 @@ struct HistoryPopoverView: View {
         .sheet(item: $selectedRecord) { record in
             detailView(for: history.records.first { $0.id == record.id } ?? record)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .groqTalkHistoryUITestCommandRelay)) { notification in
+        .onReceive(NotificationCenter.default.publisher(for: .foilHistoryUITestCommandRelay)) { notification in
             guard let command = HistoryUITestCommand(notification: notification) else { return }
             handleUITestHistoryCommand(command)
         }
