@@ -14,6 +14,26 @@ struct OnboardingView: View {
 
     private let steps = ["Provider", "Credentials", "Accessibility", "Microphone"]
 
+    init(
+        appState: AppState,
+        onOpenAccessibility: (() -> Void)? = nil,
+        onOpenMicrophone: (() -> Void)? = nil,
+        onCheckMicrophone: (() -> Void)? = nil,
+        onRefreshSetupHealth: (() -> Void)? = nil,
+        onOpenSettings: (() -> Void)? = nil,
+        onComplete: @escaping () -> Void,
+        initialStep: Int = 0
+    ) {
+        self.appState = appState
+        self.onOpenAccessibility = onOpenAccessibility
+        self.onOpenMicrophone = onOpenMicrophone
+        self.onCheckMicrophone = onCheckMicrophone
+        self.onRefreshSetupHealth = onRefreshSetupHealth
+        self.onOpenSettings = onOpenSettings
+        self.onComplete = onComplete
+        _currentStep = State(initialValue: min(max(initialStep, 0), steps.count - 1))
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Step indicator

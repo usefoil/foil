@@ -290,6 +290,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+
+        if let snapshotRequest = MarketingSnapshotRenderer.launchRequest() {
+            do {
+                _ = try MarketingSnapshotRenderer(outputDirectory: snapshotRequest.outputDirectory).renderAll()
+                NSApp.terminate(nil)
+            } catch {
+                let message = "Marketing snapshot rendering failed: \(error.localizedDescription)\n"
+                FileHandle.standardError.write(Data(message.utf8))
+                exit(1)
+            }
+            return
+        }
 #endif
 
         // Prevent multiple instances: if another copy is already running, activate it and quit.
