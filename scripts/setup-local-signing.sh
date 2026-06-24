@@ -5,6 +5,7 @@ CERT_NAME="Foil Local Code Signing"
 KEYCHAIN_NAME="foil-codesign.keychain-db"
 KEYCHAIN_PATH="$HOME/Library/Keychains/$KEYCHAIN_NAME"
 KEYCHAIN_PASSWORD="${LOCAL_SIGN_KEYCHAIN_PASSWORD:-foil-local-codesign}"
+SECURITY_TIMEOUT_SECONDS="${LOCAL_SIGN_SECURITY_TIMEOUT_SECONDS:-10}"
 P12_PASSWORD="foil-local"
 TMPDIR_TO_CLEAN=""
 
@@ -19,8 +20,38 @@ has_identity() {
   security find-identity -p codesigning "$KEYCHAIN_PATH" 2>/dev/null | grep -q "\"$CERT_NAME\""
 }
 
+run_with_timeout() {
+  local timeout_seconds="$1"
+  shift
+
+  "$@" &
+  local command_pid=$!
+
+  (
+    sleep "$timeout_seconds"
+    kill -TERM "$command_pid" >/dev/null 2>&1 || true
+    sleep 1
+    kill -KILL "$command_pid" >/dev/null 2>&1 || true
+  ) &
+  local watchdog_pid=$!
+
+  set +e
+  wait "$command_pid"
+  local command_status=$?
+  set -e
+
+  kill "$watchdog_pid" >/dev/null 2>&1 || true
+  wait "$watchdog_pid" >/dev/null 2>&1 || true
+
+  return "$command_status"
+}
+
 keychain_search_list() {
-  security list-keychains -d user | tr -d '"' | sed 's/^[[:space:]]*//' | awk '!seen[$0]++'
+  security list-keychains -d user \
+    | tr -d '"' \
+    | sed 's/^[[:space:]]*//' \
+    | grep -v '/groqtalk-codesign\.keychain-db$' \
+    | awk '!seen[$0]++'
 }
 
 ensure_keychain_in_search_list() {
@@ -45,7 +76,9 @@ create_keychain() {
   if [ ! -f "$KEYCHAIN_PATH" ]; then
     security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
   fi
-  security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+  if ! run_with_timeout "$SECURITY_TIMEOUT_SECONDS" security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"; then
+    echo "warning: security set-keychain-settings timed out for $KEYCHAIN_PATH; continuing because unlock and signing identity checks are authoritative" >&2
+  fi
   security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
   ensure_keychain_in_search_list
 }
