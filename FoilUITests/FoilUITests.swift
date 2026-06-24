@@ -822,6 +822,7 @@ final class FoilUITests: XCTestCase {
         )
         let versionValue = app.staticTexts.matching(versionPredicate).firstMatch
         XCTAssertTrue(versionValue.waitForExistence(timeout: 2), app.debugDescription)
+        writeSettingsScreenshotIfRequested(name: "settings-general-version")
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup"])
         openSettingsPanel()
@@ -1777,6 +1778,14 @@ final class FoilUITests: XCTestCase {
                 print("Failed to write live microphone screenshot to \(url.path) or \(fallbackURL.path): \(error)")
             }
         }
+    }
+
+    private func writeSettingsScreenshotIfRequested(name: String) {
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "Settings \(name)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func liveMicrophoneFloatValue(named name: String, in result: String) -> Float {

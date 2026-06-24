@@ -336,7 +336,7 @@ jobs:
           fi
 
       - name: Upload UI test results
-        if: failure() || cancelled()
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: ui-test-results
