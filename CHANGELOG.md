@@ -1,3 +1,13 @@
+## [1.13.6](https://github.com/usefoil/foil/compare/v1.13.5...v1.13.6) (2026-06-25)
+
+- Add transcript cleanup formatting with a dedicated Cleanup settings tab and cloud cleanup provider controls.
+- Add OpenAI cleanup provider support using the Responses API, plus E2E cleanup proof coverage.
+- Show the recording floating status by default and add the live audio signifier.
+- Add audio UX, live microphone, and marketing screenshot automation with retained debugging artifacts.
+- Remove stale GroqTalk naming from user-visible app text and show the Foil version in Settings.
+- Harden local signing setup so stale keychains no longer block local production verification.
+
+
 ## [1.13.5](https://github.com/usefoil/foil/compare/v1.13.4...v1.13.5) (2026-06-12)
 
 - Fix Sparkle update signing for release DMGs so in-app updates can validate downloaded updates.
