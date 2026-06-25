@@ -1,0 +1,55 @@
+name: Apple Agent Kit macOS CI Eligibility
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/macos-ci-eligibility.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-ci-eligibility-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eligibility:
+    runs-on: [self-hosted, macOS, mac-mini-2, foil]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Checkout Apple Agent Kit
+        uses: actions/checkout@v6
+        with:
+          repository: neonwatty/apple-agent-kit
+          ref: main
+          path: .aak/apple-agent-kit
+      - name: Materialize private adapter
+        env:
+          APPLE_AGENT_KIT_ADAPTER_JSON: ${{ secrets.APPLE_AGENT_KIT_ADAPTER_JSON }}
+        run: |
+          set -euo pipefail
+          test -n "$APPLE_AGENT_KIT_ADAPTER_JSON"
+          printf '%s' "$APPLE_AGENT_KIT_ADAPTER_JSON" > .apple-agent-kit.json
+      - name: Validate private adapter
+        run: python3 .aak/apple-agent-kit/scripts/aak.py validate-adapter .apple-agent-kit.json --json
+      - name: Assert dedicated Mac binding
+        run: |
+          set -euo pipefail
+          grep -F "runs-on: [self-hosted, macOS, mac-mini-2, foil]" .github/workflows/macos-ci-eligibility.yml
+      - name: Render reusable workflow templates
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/aak-render
+          python3 .aak/apple-agent-kit/scripts/aak.py render-workflows \
+            --adapter .apple-agent-kit.json \
+            --output artifacts/aak-render \
+            --force
+      - name: Xcode readiness
+        run: python3 .aak/apple-agent-kit/scripts/aak.py check-xcode --json
+      - name: Device-free assertion
+        run: |
+          set -euo pipefail
+          echo "No product build, product test, app install, WDA, screenshots, app launch, app smoke, UI smoke, microphone QA, live transcription, or physical-device smoke is run by this workflow."
