@@ -1,3 +1,9 @@
+## [1.13.7](https://github.com/usefoil/foil/compare/v1.13.6...v1.13.7) (2026-06-25)
+
+- Add a device-free Apple Agent Kit macOS CI eligibility workflow for the dedicated Foil self-hosted Mac runner.
+- Keep the Apple Agent Kit adapter private through repository secrets and validate/render the adapter without running product build, install, UI, microphone, live transcription, screenshot, WDA, or physical-device automation.
+
+
 ## [1.13.6](https://github.com/usefoil/foil/compare/v1.13.5...v1.13.6) (2026-06-25)
 
 - Add transcript cleanup formatting with a dedicated Cleanup settings tab and cloud cleanup provider controls.
