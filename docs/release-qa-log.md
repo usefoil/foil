@@ -6,14 +6,14 @@ publishing.
 
 ## Current Public Install Status
 
-- Current public beta: Foil `v1.12.2` build `34`.
+- Current public beta: Foil `v1.13.8` build `43`.
 - Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
 - Verified command:
   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
   then `brew install --cask foil`.
-- Manual fallback: GitHub release asset `Foil-1.12.2-macos.dmg`, verified against `Foil-1.12.2-macos.dmg.sha256` and release asset digest.
-- Public cask status: `Casks/foil.rb` version `1.12.2`, SHA-256 `39180396a7d29bd43c03165167823f91f4b7358a3937198f155a7eaae30574ad`, matching the GitHub release DMG digest.
-- Latest recorded public cask smoke: temp-dir install in `/tmp/foil-brew-apps-1779902384` passed version/build, Gatekeeper, and deep strict codesign checks; cleanup removed the cask, tap, and temp app dir.
+- Manual fallback: GitHub release asset `Foil-1.13.8-macos.dmg`, verified against `Foil-1.13.8-macos.dmg.sha256` and release asset digest.
+- Public cask status: `Casks/foil.rb` version `1.13.8`, SHA-256 `88514efe98d14392644b2d5b1d74ddb6199fad0ab4faca3091ae033c755ad848`, matching the GitHub release DMG digest.
+- Latest recorded public cask smoke: temp-dir install and launch in `/tmp/foil-brew-apps-1.13.8-launch-79748` passed version/build, Gatekeeper, deep strict codesign, and process-path checks; cleanup removed the cask and temp app dir.
 - Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; tracked in issue #154 with the runbook in `docs/fresh-machine-homebrew-onboarding-smoke.md`.
 
 ## Test Command Policy
@@ -158,6 +158,22 @@ Do not set `ALLOW_LOCAL_QA_SKIP=1` unless the skipped result is recorded here.
 | Homebrew tap creation and cask metadata | `gh repo create mean-weasel/homebrew-foil`; `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb` | PASS | Public tap `mean-weasel/homebrew-foil` exists and `Casks/foil.rb` points at `v1.12.2` with SHA-256 `39180396a7d29bd43c03165167823f91f4b7358a3937198f155a7eaae30574ad`. |
 | Clean Homebrew cask install and launch smoke | `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`; `brew install --cask --appdir=/tmp/foil-brew-apps-35355 mean-weasel/foil/foil`; `PlistBuddy`; `spctl`; `codesign`; `brew uninstall`; `brew untap` | PASS | Homebrew installed Foil `1.12.2` build `34` into a temporary app dir. Gatekeeper accepted the app as Notarized Developer ID and deep strict codesign verification passed. Cleanup removed the temp app and untapped the tap. |
 | Fresh public Homebrew cask smoke recheck | `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`; `brew info --cask mean-weasel/foil/foil`; `brew install --cask --appdir=/tmp/foil-brew-apps-1779902384 mean-weasel/foil/foil`; `PlistBuddy`; `spctl -a -vv -t execute`; `codesign --verify --deep --strict --verbose=2`; `brew uninstall`; `brew untap`; `rm -rf /tmp/foil-brew-apps-1779902384` | PASS | Public cask reported `1.12.2`, installed into a temporary app dir as Foil `1.12.2` build `34`, Gatekeeper accepted it as `source=Notarized Developer ID` with origin `Developer ID Application: Mean Weasel LLC (B3A6AN2HA4)`, and deep strict codesign verification passed. Cleanup removed the cask, untapped the tap, and removed the temp app dir. |
+
+## v1.13.8 Post-Release Validation
+
+| Gate | Command | Result | Artifact / notes |
+| --- | --- | --- | --- |
+| Separate-machine local smoke | Issue #331 run-from-build smoke | PASS | Built source `18d5ccc` locally, verified Settings > What's New exposed current version/build and update control, and verified Groq/OpenAI cleanup connection tests show clear missing-key messages without raw `TranscriptionError`. Issue #331 was closed after release validation. |
+| Release workflow | `gh workflow run deploy.yml -f version=1.13.8 -f build=43`; run `28266487080` | PASS | Workflow passed DMG build/notarization/upload, notarization validation, appcast generation/upload, and Homebrew cask update. |
+| GitHub release assets | `gh release view v1.13.8 --repo usefoil/foil --json tagName,url,assets,publishedAt,isDraft,isPrerelease,targetCommitish` | PASS | Release `v1.13.8` is published, not draft, not prerelease, and includes `Foil-1.13.8-macos.dmg`, `Foil-1.13.8-macos.dmg.sha256`, and `appcast.xml`. |
+| DMG checksum/signature/notarization | `shasum -a 256`; normalized `.sha256` check; `spctl -a -vv -t open --context context:primary-signature`; `xcrun stapler validate` | PASS | SHA-256 is `88514efe98d14392644b2d5b1d74ddb6199fad0ab4faca3091ae033c755ad848`, matching the `.sha256` asset and GitHub release asset digest. Gatekeeper accepted the DMG as `source=Notarized Developer ID`; stapler validation passed. The `.sha256` file records the GitHub runner path, so local `shasum -c` was run with the filename normalized. |
+| DMG contents and mounted app signing | `hdiutil attach -readonly -nobrowse`; `find /Volumes/Foil`; `PlistBuddy`; `spctl -a -vv -t execute`; `codesign --verify --deep --strict --verbose=2`; `hdiutil detach` | PASS | Mounted DMG contains `.background/dmg-background.png`, `Foil.app`, and `Applications`. Mounted app is bundle id `com.neonwatty.Foil`, version `1.13.8`, build `43`, includes `SUPublicEDKey`, passes Gatekeeper as Notarized Developer ID, and satisfies deep strict codesign verification. |
+| Sparkle appcast asset | `xmllint --noout appcast.xml`; inspect appcast fields | PASS | `appcast.xml` points at `https://github.com/usefoil/foil/releases/download/v1.13.8/Foil-1.13.8-macos.dmg`, includes `sparkle:version` `43`, `sparkle:shortVersionString` `1.13.8`, `sparkle:edSignature`, and `sparkle:length` `2726608`. |
+| Homebrew cask metadata | `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`; `brew info --cask mean-weasel/foil/foil` | PASS | Public cask reports version `1.13.8` with SHA-256 `88514efe98d14392644b2d5b1d74ddb6199fad0ab4faca3091ae033c755ad848`, matching the release DMG. |
+| Temp-dir Homebrew cask identity smoke | `brew install --cask --appdir=/tmp/foil-brew-apps-1.13.8-78326 mean-weasel/foil/foil`; `PlistBuddy`; `spctl`; `codesign`; `brew uninstall`; `rm -rf` | PASS | Installed cask into a temporary app dir as Foil `1.13.8` build `43`; `SUPublicEDKey` was present; Gatekeeper accepted the app as Notarized Developer ID; deep strict codesign verification passed; cleanup removed the cask/temp app. Homebrew emitted unrelated local tap-trust warnings for other taps. |
+| Temp-dir Homebrew cask launch smoke | `brew install --cask --appdir=/tmp/foil-brew-apps-1.13.8-launch-79748 mean-weasel/foil/foil`; `open -n .../Foil.app --args --ui-testing --reset-defaults --seed-history`; process-path check; `brew uninstall`; `rm -rf` | PASS | The temp-installed app launched successfully from `/private/tmp/foil-brew-apps-1.13.8-launch-79748/Foil.app/Contents/MacOS/Foil`; cleanup removed the cask/temp app. |
+| `/Applications` production install | Move existing `/Applications/Foil.app` to `/tmp/foil-app-backups/20260626-153116-Foil-1.13.5-build40.app`; `brew install --cask mean-weasel/foil/foil`; `make guide-production-permissions-qa` | PASS | Backed up the previous local-signed `1.13.5` build `40` app, installed public cask `1.13.8` build `43` into `/Applications`, verified Developer ID signing/team id `B3A6AN2HA4`, Gatekeeper `Notarized Developer ID`, deep strict codesign, and active process path `/Applications/Foil.app/Contents/MacOS/Foil`. Helper opened Accessibility, Input Monitoring, and Microphone privacy panes and passed with 0 warnings. |
+| `/Applications` quit/relaunch persistence | `pkill -x Foil`; `open /Applications/Foil.app`; `pgrep -x Foil`; `ps`; `PlistBuddy` | PASS | App relaunched as pid `88095` from `/Applications/Foil.app/Contents/MacOS/Foil`; installed app still reported version `1.13.8` build `43`. Did not reset TCC on this daily account. |
 
 ## Queued Paste Compatibility Smoke
 
