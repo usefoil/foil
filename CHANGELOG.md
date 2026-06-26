@@ -1,3 +1,10 @@
+## [1.13.8](https://github.com/usefoil/foil/compare/v1.13.7...v1.13.8) (2026-06-26)
+
+- Added the current installed version/build and an in-app update check control to Settings > What's New.
+- Show clear local missing API-key messages before cleanup connection tests for Groq and OpenAI providers.
+- Fixed the Homebrew cask macOS version syntax used by the tap update flow.
+
+
 ## [1.13.7](https://github.com/usefoil/foil/compare/v1.13.6...v1.13.7) (2026-06-25)
 
 - Add a device-free Apple Agent Kit macOS CI eligibility workflow for the dedicated Foil self-hosted Mac runner.
