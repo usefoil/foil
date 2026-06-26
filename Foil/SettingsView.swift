@@ -240,10 +240,7 @@ struct SettingsView: View {
                     set: { sparkleUpdater.automaticallyChecksForUpdates = $0 }
                 ))
 
-                Button("Check for Updates…") {
-                    sparkleUpdater.checkForUpdates()
-                }
-                .disabled(!sparkleUpdater.canCheckForUpdates)
+                checkForUpdatesButton(accessibilityIdentifier: "settings.general.checkForUpdatesButton")
             }
         }
         .formStyle(.grouped)
@@ -1055,6 +1052,19 @@ struct SettingsView: View {
 
     private var whatsNewSettings: some View {
         Form {
+            Section("Current Version") {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Installed")
+                    Spacer()
+                    Text(AppBrand.succinctVersionDisplay)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("settings.whatsNew.versionText")
+
+                    checkForUpdatesButton(accessibilityIdentifier: "settings.whatsNew.checkForUpdatesButton")
+                }
+            }
+
             Section {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(ReleaseNotes.recent) { note in
@@ -1093,6 +1103,14 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .accessibilityIdentifier("settings.whatsNew")
+    }
+
+    private func checkForUpdatesButton(accessibilityIdentifier: String) -> some View {
+        Button("Check for Updates…") {
+            sparkleUpdater.checkForUpdates()
+        }
+        .disabled(!sparkleUpdater.canCheckForUpdates)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private var experimentalSettings: some View {

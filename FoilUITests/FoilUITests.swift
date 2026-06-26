@@ -507,14 +507,22 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(providerConnectionButton().exists)
     }
 
-    func testSettingsWhatsNewShowsOpenAIReleaseNote() {
+    func testSettingsWhatsNewShowsCurrentVersionAndUpdateControl() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-whats-new"])
         openSettingsPanel()
 
         XCTAssertTrue(app.buttons["What's New"].exists, app.debugDescription)
         XCTAssertEqual(app.buttons["What's New"].value as? String, "Selected")
-        XCTAssertTrue(staticTextLabelOrValueContaining("This Build").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("OpenAI Whisper is available as a cloud transcription provider").waitForExistence(timeout: 2), app.debugDescription)
+        let versionPredicate = NSPredicate(
+            format: "identifier == %@ AND value MATCHES %@",
+            "settings.whatsNew.versionText",
+            #"^\d+\.\d+\.\d+ \(\d+\)$"#
+        )
+        let versionValue = app.staticTexts.matching(versionPredicate).firstMatch
+        XCTAssertTrue(versionValue.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(button(id: "settings.whatsNew.checkForUpdatesButton", fallbackLabel: "Check for Updates…").exists)
+        XCTAssertTrue(staticTextLabelOrValueContaining("1.13.7").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Added a macOS CI eligibility check").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Release notes are bundled with Foil").waitForExistence(timeout: 2), app.debugDescription)
     }
 
