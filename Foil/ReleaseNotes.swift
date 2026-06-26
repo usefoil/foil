@@ -17,29 +17,27 @@ struct ReleaseNote: Equatable, Identifiable {
 enum ReleaseNotes {
     static let recent: [ReleaseNote] = [
         ReleaseNote(
-            title: "This Build",
-            date: "OpenAI Whisper",
+            title: "1.13.7",
+            date: "June 25, 2026",
             highlights: [
-                "OpenAI Whisper is available as a cloud transcription provider.",
-                "OpenAI, Groq, local whisper.cpp, and custom OpenAI-compatible providers can be selected from Transcription settings.",
-                "Cloud transcription QA now includes opt-in OpenAI live tests with secrets kept out of normal PR logs."
+                "Added a macOS CI eligibility check for Apple Agent Kit support.",
+                "Kept Apple Agent adapter validation separate from product build, install, UI, microphone, and live transcription automation."
             ]
         ),
         ReleaseNote(
-            title: "1.13.4",
-            date: "May 31, 2026",
+            title: "1.13.6",
+            date: "June 25, 2026",
             highlights: [
-                "Installed-app automation smoke launches no longer get diverted into an already-running Foil process.",
-                "Production cask QA validates release artifacts without moving an existing Applications install."
+                "Added transcript cleanup formatting with a dedicated Cleanup settings tab.",
+                "Added OpenAI cleanup provider support using the Responses API.",
+                "Showed the recording floating status by default and added the live audio signifier."
             ]
         ),
         ReleaseNote(
-            title: "1.13.0",
-            date: "May 28, 2026",
+            title: "1.13.5",
+            date: "June 12, 2026",
             highlights: [
-                "Queued paste can collect multiple transcripts before delivery.",
-                "Foil Dev now uses separate preferences, Keychain storage, diagnostics, and TCC identity.",
-                "Custom OpenAI-compatible chat cleanup can route transcript cleanup to a selected endpoint."
+                "Fixed Sparkle update signing for release DMGs so in-app updates can validate downloaded updates."
             ]
         )
     ]
