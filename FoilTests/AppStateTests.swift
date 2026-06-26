@@ -1556,6 +1556,22 @@ final class AppStateTests: XCTestCase {
         )
     }
 
+    func testCleanupConnectionMissingRequiredAPIKeyFailsBeforeNetwork() async {
+        let state = AppState()
+        state.transcriptCleanupProviderID = .groq
+        let service = TranscriptionService(transport: StubTransport { request in
+            XCTFail("Missing cleanup API key should not make a request: \(String(describing: request.url))")
+            return (Data(), Self.httpResponse(statusCode: 500))
+        })
+
+        await state.testSelectedCleanupProviderConnection(service: service)
+
+        XCTAssertEqual(
+            state.cleanupConnectionTestState,
+            .failed("Add a Groq API key before testing cleanup.")
+        )
+    }
+
     func testGroqAndOpenAICompatibleAPIKeysAreIndependent() throws {
         try KeychainHelper.save(apiKey: "groq-key", for: .groq)
         try KeychainHelper.save(apiKey: "openai-key", for: .openAI)

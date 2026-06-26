@@ -1460,6 +1460,11 @@ final class AppState {
 
         cleanupConnectionTestState = .running
         let key = apiKey ?? cleanupProviderAPIKey(for: provider.id)
+        if provider.requiresAPIKey, (key?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) {
+            cleanupConnectionTestState = .failed(missingCleanupProviderAPIKeyMessage(for: provider.id))
+            return
+        }
+
         do {
             let result = try await service.validateCleanupProviderConfiguration(provider: provider, apiKey: key)
             switch result {
@@ -1476,6 +1481,19 @@ final class AppState {
             cleanupConnectionTestState = .failed(cleanupProviderUnreachableMessage(for: provider.id))
         } catch {
             cleanupConnectionTestState = .failed("Cleanup connection test failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func missingCleanupProviderAPIKeyMessage(for providerID: TranscriptCleanupProviderID) -> String {
+        switch providerID {
+        case .none:
+            "Select a cleanup provider before testing."
+        case .groq:
+            "Add a Groq API key before testing cleanup."
+        case .openAI:
+            "Add an OpenAI API key before testing cleanup."
+        case .customOpenAICompatibleChat:
+            "Save a cleanup API key before testing this endpoint."
         }
     }
 
