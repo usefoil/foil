@@ -66,7 +66,7 @@ cask "foil" do
   homepage "https://github.com/${SOURCE_REPO}"
 
   auto_updates true
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Foil.app"
 
