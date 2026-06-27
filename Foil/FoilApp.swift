@@ -358,6 +358,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onPasteText: { [weak self] text in self?.paste(text: text) },
             onReplaceRecordingController: { [weak self] controller in
                 self?.replaceRecordingController(with: controller)
+            },
+            onSimulateSelectedHotkeyCycle: { [weak self] in
+                self?.simulateSelectedHotkeyCycleForUITesting()
             }
         )
         uiTestingController = uiTestingCtrl
@@ -857,6 +860,48 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         recordingController = newController
         recordingController.delegate = self
     }
+
+    #if DEBUG
+    func simulateSelectedHotkeyCycleForUITesting() {
+        guard ProcessInfo.processInfo.arguments.contains("--ui-testing") else { return }
+        applyHotkeyConfig()
+
+        switch appState.hotkeyChoice {
+        case .rightCommand:
+            _ = hotkeyMonitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: CGEventFlags(rawValue: 0x10))
+            releaseSelectedHotkeyForUITesting()
+        case .rightOption:
+            _ = hotkeyMonitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: CGEventFlags(rawValue: 0x40))
+            releaseSelectedHotkeyForUITesting()
+        case .globeFn:
+            _ = hotkeyMonitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [.maskSecondaryFn])
+            releaseSelectedHotkeyForUITesting()
+        case .custom:
+            _ = hotkeyMonitor.handleCGEventForTesting(
+                type: .keyDown,
+                keyCode: appState.customHotkeyKeyCode,
+                flags: CGEventFlags(rawValue: appState.customHotkeyModifiers)
+            )
+            releaseSelectedHotkeyForUITesting()
+        }
+    }
+
+    private func releaseSelectedHotkeyForUITesting() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            switch appState.hotkeyChoice {
+            case .rightCommand, .rightOption, .globeFn:
+                _ = hotkeyMonitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [])
+            case .custom:
+                _ = hotkeyMonitor.handleCGEventForTesting(
+                    type: .keyUp,
+                    keyCode: appState.customHotkeyKeyCode,
+                    flags: CGEventFlags(rawValue: appState.customHotkeyModifiers)
+                )
+            }
+        }
+    }
+    #endif
 
     // MARK: - Wiring
 

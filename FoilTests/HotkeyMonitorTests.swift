@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 @testable import Foil
 
 final class HotkeyMonitorTests: XCTestCase {
@@ -145,6 +146,62 @@ final class HotkeyMonitorTests: XCTestCase {
         XCTAssertEqual(monitor.hotkeyChoice, .rightCommand)
         monitor.configure(hotkeyChoice: .globeFn, recordingMode: .hold)
         XCTAssertEqual(monitor.hotkeyChoice, .globeFn)
+    }
+
+    func testConfiguredHotkeyChoiceUsesOnlySelectedEventSource() {
+        monitor.configure(hotkeyChoice: .rightCommand, recordingMode: .hold)
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: CGEventFlags(rawValue: 0x40))
+        XCTAssertEqual(events, [])
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: CGEventFlags(rawValue: 0x10))
+        Thread.sleep(forTimeInterval: 0.25)
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [])
+        XCTAssertEqual(events, ["started", "stopped"])
+
+        events = []
+        monitor.configure(hotkeyChoice: .rightOption, recordingMode: .hold)
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: CGEventFlags(rawValue: 0x10))
+        XCTAssertEqual(events, [])
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: CGEventFlags(rawValue: 0x40))
+        Thread.sleep(forTimeInterval: 0.25)
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [])
+        XCTAssertEqual(events, ["started", "stopped"])
+
+        events = []
+        monitor.configure(hotkeyChoice: .globeFn, recordingMode: .hold)
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: CGEventFlags(rawValue: 0x10))
+        XCTAssertEqual(events, [])
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [.maskSecondaryFn])
+        Thread.sleep(forTimeInterval: 0.25)
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [])
+        XCTAssertEqual(events, ["started", "stopped"])
+
+        events = []
+        monitor.configure(hotkeyChoice: .custom, recordingMode: .hold)
+        monitor.configureCustomKey(keyCode: 0x31, modifiers: 0)
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [.maskSecondaryFn])
+        XCTAssertEqual(events, [])
+        XCTAssertTrue(monitor.handleCGEventForTesting(type: .keyDown, keyCode: 0x31, flags: []))
+        Thread.sleep(forTimeInterval: 0.25)
+        XCTAssertTrue(monitor.handleCGEventForTesting(type: .keyUp, keyCode: 0x31, flags: []))
+        XCTAssertEqual(events, ["started", "stopped"])
+    }
+
+    func testGlobeFnStartsAndStopsFromFunctionModifierFlag() {
+        monitor.configure(hotkeyChoice: .globeFn, recordingMode: .hold)
+
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [.maskSecondaryFn])
+        Thread.sleep(forTimeInterval: 0.25)
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [])
+
+        XCTAssertEqual(events, ["started", "stopped"])
+    }
+
+    func testGlobeFnIgnoresUnrelatedModifierFlags() {
+        monitor.configure(hotkeyChoice: .globeFn, recordingMode: .hold)
+
+        _ = monitor.handleCGEventForTesting(type: .flagsChanged, keyCode: 0, flags: [.maskCommand])
+
+        XCTAssertEqual(events, [])
     }
 
     // MARK: - Queued paste delivery shortcut

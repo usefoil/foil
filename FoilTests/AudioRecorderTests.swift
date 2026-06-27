@@ -203,6 +203,12 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertEqual(loud, 1, accuracy: 0.001)
     }
 
+    func testNormalizedRMSLevelUsesSpeechForwardVisualScale() {
+        let speechLevel = AudioRecorder.normalizedRMSLevel(in: makeSineBuffer(amplitude: 0.25))
+
+        XCTAssertEqual(speechLevel, 0.707, accuracy: 0.01)
+    }
+
     // MARK: - Multiple buffers
 
     func testMultipleBuffersConcatenateWAV() throws {
