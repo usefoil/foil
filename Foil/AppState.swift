@@ -126,6 +126,7 @@ final class AppState {
 
     static let noMicrophoneDetectedMessage = "No microphone detected"
     static let selectedMicrophoneUnavailableMessage = "Selected microphone unavailable"
+    static let microphonePromptTimedOutMessage = "Open Microphone privacy and allow \(AppBrand.name)"
 
     // MARK: - UserDefaults-backed preferences
     //
@@ -840,6 +841,9 @@ final class AppState {
             return "Add or update the \(selectedTranscriptionProvider.displayName) API key"
         }
         if message.localizedCaseInsensitiveContains("microphone") {
+            if message == Self.microphonePromptTimedOutMessage {
+                return Self.microphonePromptTimedOutMessage
+            }
             return "Allow Microphone access or choose a working input device"
         }
         return message
@@ -897,6 +901,9 @@ final class AppState {
             }
             if message == Self.selectedMicrophoneUnavailableMessage {
                 return "Choose System Default or another available input before recording"
+            }
+            if message == Self.microphonePromptTimedOutMessage {
+                return Self.microphonePromptTimedOutMessage
             }
             return "Allow microphone access before recording"
         case .unknown, .ready:

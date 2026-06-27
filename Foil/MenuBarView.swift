@@ -798,6 +798,8 @@ struct MenuBarView: View {
             "Connect a microphone or choose an available input in Sound settings."
         case .needsAction(let message) where message == AppState.selectedMicrophoneUnavailableMessage:
             "Open Recording settings and choose System Default or another available input."
+        case .needsAction(let message) where message == AppState.microphonePromptTimedOutMessage:
+            "Open Microphone privacy, allow \(AppBrand.name), then return to \(AppBrand.name)."
         default:
             "Open Microphone privacy and allow \(AppBrand.name)."
         }
@@ -809,6 +811,9 @@ struct MenuBarView: View {
         }
         if message == AppState.selectedMicrophoneUnavailableMessage {
             return "Choose System Default or another available input before recording."
+        }
+        if message == AppState.microphonePromptTimedOutMessage {
+            return "\(AppState.microphonePromptTimedOutMessage) before recording."
         }
         return "Allow microphone access before recording."
     }

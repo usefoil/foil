@@ -199,7 +199,7 @@ final class SingleInstanceGuardTests: XCTestCase {
 
         XCTAssertEqual(
             delegate.appState.microphoneState,
-            .needsAction("Microphone prompt did not finish; reopen Foil or reset Microphone privacy")
+            .needsAction(AppState.microphonePromptTimedOutMessage)
         )
     }
 
