@@ -107,6 +107,7 @@ final class UITestingController {
     private let onRetryRecord: (TranscriptionRecord) -> Void
     private let onPasteText: (String) -> Void
     private let onReplaceRecordingController: (RecordingController) -> Void
+    private let onSimulateSelectedHotkeyCycle: () -> Void
 
     // MARK: - Window storage
 
@@ -158,7 +159,8 @@ final class UITestingController {
         onRunSetupCheck: @escaping () -> Void,
         onRetryRecord: @escaping (TranscriptionRecord) -> Void,
         onPasteText: @escaping (String) -> Void,
-        onReplaceRecordingController: @escaping (RecordingController) -> Void
+        onReplaceRecordingController: @escaping (RecordingController) -> Void,
+        onSimulateSelectedHotkeyCycle: @escaping () -> Void
     ) {
         self.appState = appState
         self.queuedPasteQueue = queuedPasteQueue
@@ -179,6 +181,7 @@ final class UITestingController {
         self.onRetryRecord = onRetryRecord
         self.onPasteText = onPasteText
         self.onReplaceRecordingController = onReplaceRecordingController
+        self.onSimulateSelectedHotkeyCycle = onSimulateSelectedHotkeyCycle
     }
 
     deinit {
@@ -473,9 +476,14 @@ final class UITestingController {
         var levelUpdateHandler: ((Float) -> Void)?
 
         private let onStartRecording: () -> Void
+        private let onStopRecording: () -> Void
 
-        init(onStartRecording: @escaping () -> Void) {
+        init(
+            onStartRecording: @escaping () -> Void,
+            onStopRecording: @escaping () -> Void = {}
+        ) {
             self.onStartRecording = onStartRecording
+            self.onStopRecording = onStopRecording
         }
 
         func startRecording(deviceID: AudioDeviceID?) throws {
@@ -483,7 +491,8 @@ final class UITestingController {
         }
 
         func stopRecordingAsync(format: AudioFormat) async throws -> URL? {
-            nil
+            onStopRecording()
+            return nil
         }
 
         func cancelRecording() {
@@ -526,6 +535,38 @@ final class UITestingController {
         DiagnosticLog.write("UITesting: recording cue acceptance prepared")
         #else
         DiagnosticLog.write("UITesting: recording cue acceptance skipped outside DEBUG")
+        #endif
+    }
+
+    private func prepareHotkeySwitchingAcceptance() {
+        #if DEBUG
+        clearRecordingEvents()
+        appState.soundEffectsEnabled = false
+        appState.updateAccessibilityState(isTrusted: true)
+        appState.updateMicrophoneState(isReady: true)
+        appState.apiKeyState = .ready
+        appState.recordingMode = .hold
+        appState.setStatus(.idle)
+
+        let audioStub = RecordingCueAcceptanceAudioStub(
+            onStartRecording: { [weak self] in
+                self?.appendRecordingEvent("audioRecorderStart")
+            },
+            onStopRecording: { [weak self] in
+                self?.appendRecordingEvent("audioRecorderStop")
+            }
+        )
+        let controller = RecordingController(
+            audioRecorder: audioStub,
+            appState: appState,
+            playStartCueBeforeRecording: { false },
+            startCuePreRollNanoseconds: 0
+        )
+        onReplaceRecordingController(controller)
+        writeStateSnapshot()
+        DiagnosticLog.write("UITesting: hotkey switching acceptance prepared")
+        #else
+        DiagnosticLog.write("UITesting: hotkey switching acceptance skipped outside DEBUG")
         #endif
     }
 
@@ -1347,10 +1388,27 @@ final class UITestingController {
             clearRecordingEvents()
         case "prepareRecordingCueAcceptance":
             prepareRecordingCueAcceptance()
+        case "prepareHotkeySwitchingAcceptance":
+            prepareHotkeySwitchingAcceptance()
         case "seedCleanupFallbackWarning":
             appState.feedbackMessage = "Cleanup failed; pasted raw transcript."
             appState.floatingStatusTransientVisible = true
             appState.setStatus(.idle)
+        case "selectRecordingHotkey":
+            if let rawValue = notification.userInfo?["choice"] as? String,
+               let choice = HotkeyMonitor.HotkeyChoice(rawValue: rawValue) {
+                appState.hotkeyChoice = choice
+                if choice == .custom {
+                    appState.customHotkeyKeyCode = 0x31
+                    appState.customHotkeyModifiers = 0
+                    appState.customHotkeyLabel = "Space"
+                }
+                appState.recordingMode = .hold
+                onHotkeyChanged()
+                writeStateSnapshot()
+            }
+        case "simulateSelectedHotkeyCycle":
+            onSimulateSelectedHotkeyCycle()
         case "startRecording":
             onStartRecording()
         case "stopRecording":

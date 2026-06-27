@@ -48,6 +48,7 @@ enum Language: String, CaseIterable, Codable {
 final class AudioRecorder: @unchecked Sendable {
     static let defaultMaxRecordingDuration: TimeInterval = 600
     static let defaultMaxBufferedFrames = Int(targetSampleRate * defaultMaxRecordingDuration)
+    static let fullScaleRMSLevel: Float = 0.25
 
     private var audioEngine: AVAudioEngine?
     private var buffers: [AVAudioPCMBuffer] = []
@@ -296,7 +297,7 @@ final class AudioRecorder: @unchecked Sendable {
         guard sampleCount > 0 else { return 0 }
         let rms = sqrt(sumSquares / Float(sampleCount))
         guard rms.isFinite else { return 0 }
-        return min(max(rms / 0.35, 0), 1)
+        return min(max(rms / fullScaleRMSLevel, 0), 1)
     }
 
     // MARK: - WAV output

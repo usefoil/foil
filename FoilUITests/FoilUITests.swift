@@ -919,6 +919,50 @@ final class FoilUITests: XCTestCase {
         )
     }
 
+    func testConfiguredHotkeyChoicesStartAndStopAfterSwitching() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-recording"])
+
+        let choices: [(rawValue: String, label: String)] = [
+            ("rightCommand", "Right Command"),
+            ("rightOption", "Right Option"),
+            ("globeFn", "Globe/Fn"),
+            ("custom", "Space")
+        ]
+
+        for choice in choices {
+            postUITestCommand(appCommandNotification, userInfo: ["command": "prepareHotkeySwitchingAcceptance"])
+            postUITestCommand(appCommandNotification, userInfo: [
+                "command": "selectRecordingHotkey",
+                "choice": choice.rawValue
+            ])
+
+            let configured = waitForUITestStateSnapshot { snapshot in
+                snapshot.statusText == "Ready" && snapshot.sessionDetail.contains(choice.label)
+            }
+            XCTAssertNotNil(configured, "Expected selected hotkey \(choice.rawValue) to appear in ready session detail")
+
+            postUITestCommand(appCommandNotification, userInfo: ["command": "simulateSelectedHotkeyCycle"])
+
+            let state = waitForUITestStateSnapshot { snapshot in
+                snapshot.recordingEvents.contains { $0.name == "audioRecorderStart" }
+                    && snapshot.recordingEvents.contains { $0.name == "audioRecorderStop" }
+            }
+
+            guard let events = state?.recordingEvents else {
+                XCTFail("Expected recording events after \(choice.rawValue) hotkey cycle")
+                return
+            }
+
+            let start = requireRecordingEvent(named: "audioRecorderStart", in: events)
+            let stop = requireRecordingEvent(named: "audioRecorderStop", in: events)
+            XCTAssertLessThan(
+                start.uptimeNanoseconds,
+                stop.uptimeNanoseconds,
+                "\(choice.rawValue) should start recording before it stops"
+            )
+        }
+    }
+
     func testHelpButtonTargetsCanonicalTroubleshootingURL() throws {
         removeOpenedURLRecord()
         postUITestCommand(openHelpNotification)

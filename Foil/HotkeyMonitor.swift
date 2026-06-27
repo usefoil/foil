@@ -17,11 +17,13 @@ final class HotkeyMonitor {
         case globeFn
         case custom
 
+        static let globeFnFlag = CGEventFlags.maskSecondaryFn
+
         var deviceFlagBit: UInt64 {
             switch self {
             case .rightCommand: 0x10   // NX_DEVICERCMDKEYMASK
             case .rightOption:  0x40   // NX_DEVICERALTKEYMASK
-            case .globeFn:      0      // Not used — Globe/Fn uses IOKit HID, never CGEvent tap
+            case .globeFn:      0      // Not used; Globe/Fn uses HID plus CGEvent function flags
             case .custom:       0      // Not used — custom uses key code + modifier matching
             }
         }
@@ -113,8 +115,8 @@ final class HotkeyMonitor {
         stop()
         if hotkeyChoice == .globeFn {
             let hidStarted = startHID()
-            let deliveryStarted = queuedPasteDeliveryShortcutEnabled ? startCGEvent() : true
-            return hidStarted && deliveryStarted
+            let eventStarted = startCGEvent()
+            return hidStarted || eventStarted
         } else {
             return startCGEvent()
         }
@@ -184,6 +186,17 @@ final class HotkeyMonitor {
         }
 
         if hotkeyChoice == .globeFn {
+            if type == .flagsChanged {
+                let fnActive = event.flags.contains(Self.HotkeyChoice.globeFnFlag)
+                DiagnosticLog.write("flagsChanged: globeFn rawFlags=\(String(event.flags.rawValue, radix: 16)) fnActive=\(fnActive)")
+                handleKeyStateChange(pressed: fnActive)
+            } else if type == .keyDown && keyDown {
+                if !otherKeysDuringHold {
+                    otherKeysDuringHold = true
+                    onRecordingCancelled?()
+                    toggleRecording = false
+                }
+            }
             return Unmanaged.passUnretained(event)
         }
 
