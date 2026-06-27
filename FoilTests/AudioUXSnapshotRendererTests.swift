@@ -4,6 +4,36 @@ import XCTest
 #if DEBUG
 @MainActor
 final class AudioUXSnapshotRendererTests: XCTestCase {
+    func testLiveAudioLevelScaleBoostsNormalLevelsWithoutChangingEndpoints() {
+        XCTAssertEqual(LiveAudioLevelScale.visualLevel(for: 0), 0, accuracy: 0.001)
+        XCTAssertEqual(LiveAudioLevelScale.visualLevel(for: 1), 1, accuracy: 0.001)
+
+        XCTAssertEqual(LiveAudioLevelScale.visualLevel(for: 0.02), 0.303, accuracy: 0.001)
+        XCTAssertEqual(LiveAudioLevelScale.visualLevel(for: 0.05), 0.452, accuracy: 0.001)
+        XCTAssertEqual(LiveAudioLevelScale.visualLevel(for: 0.10), 0.574, accuracy: 0.001)
+        XCTAssertEqual(LiveAudioLevelScale.visualLevel(for: 0.25), 0.741, accuracy: 0.001)
+    }
+
+    func testLiveAudioLevelScalePreservesDynamicRangeAndBoundsInvalidInputs() {
+        let quiet = LiveAudioLevelScale.visualLevel(for: 0.02)
+        let normal = LiveAudioLevelScale.visualLevel(for: 0.05)
+        let moderate = LiveAudioLevelScale.visualLevel(for: 0.10)
+        let loud = LiveAudioLevelScale.visualLevel(for: 0.25)
+        let veryLoud = LiveAudioLevelScale.visualLevel(for: 0.70)
+
+        XCTAssertGreaterThan(quiet, 0.30)
+        XCTAssertGreaterThan(normal, quiet)
+        XCTAssertGreaterThan(moderate, normal)
+        XCTAssertGreaterThan(loud, moderate)
+        XCTAssertGreaterThan(veryLoud, loud)
+        XCTAssertLessThan(loud, 0.90)
+        XCTAssertLessThan(veryLoud, 0.95)
+
+        XCTAssertEqual(LiveAudioLevelScale.visualLevel(for: -0.50), 0, accuracy: 0.001)
+        XCTAssertEqual(LiveAudioLevelScale.visualLevel(for: 2), 1, accuracy: 0.001)
+        XCTAssertEqual(LiveAudioLevelScale.visualLevel(for: .nan), 0, accuracy: 0.001)
+    }
+
     func testLaunchRequestAcceptsSeparateOutputArgument() {
         let request = AudioUXSnapshotRenderer.launchRequest(arguments: [
             "Foil",
