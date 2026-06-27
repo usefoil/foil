@@ -11,6 +11,7 @@ final class FoilUITests: XCTestCase {
     private let historyCommandNotification = Notification.Name("com.neonwatty.Foil.uiTests.historyCommand")
     private let onboardingCommandNotification = Notification.Name("com.neonwatty.Foil.uiTests.onboardingCommand")
     private let appCommandNotification = Notification.Name("com.neonwatty.Foil.uiTests.appCommand")
+    private let microphonePromptTimedOutMessage = "Open Microphone privacy and allow Foil"
     private let stateSnapshotURL =
         URL(fileURLWithPath: "/tmp").appendingPathComponent("foil-ui-tests-state-\(ProcessInfo.processInfo.processIdentifier).json")
     private let commandInboxURL =
@@ -164,6 +165,24 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(state?.microphoneActionTitle, "Open Settings")
         XCTAssertEqual(state?.sessionTitle, "Setup needed")
         XCTAssertTrue(app.staticTexts["Allow microphone access before recording."].waitForExistence(timeout: 2), app.debugDescription)
+    }
+
+    func testMicrophoneTimeoutShowsManualPrivacyRecovery() {
+        launchApp(arguments: [
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-microphone-timeout"
+        ])
+
+        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        let state = waitForUITestStateSnapshot { $0.microphoneText == microphonePromptTimedOutMessage }
+        XCTAssertEqual(state?.accessibilityText, "Ready")
+        XCTAssertEqual(state?.microphoneActionTitle, "Open Settings")
+        XCTAssertEqual(state?.sessionTitle, "Setup needed")
+        XCTAssertTrue(
+            app.staticTexts["\(microphonePromptTimedOutMessage) before recording."].waitForExistence(timeout: 2),
+            app.debugDescription
+        )
     }
 
     func testOnboardingMicrophoneStepCanCheckPermission() {

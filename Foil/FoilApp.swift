@@ -993,6 +993,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState.apiKeyState = .ready
                 return
             }
+            if ProcessInfo.processInfo.arguments.contains("--seed-microphone-timeout") {
+                appState.updateAccessibilityState(isTrusted: true)
+                appState.updateMicrophoneState(
+                    isReady: false,
+                    message: AppState.microphonePromptTimedOutMessage
+                )
+                appState.apiKeyState = .ready
+                return
+            }
             if ProcessInfo.processInfo.arguments.contains("--seed-permissions-ready-api-missing") {
                 appState.updateAccessibilityState(isTrusted: true)
                 appState.updateMicrophoneState(isReady: true)
@@ -1253,6 +1262,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 DiagnosticLog.write("MicrophonePermission: requestAccess granted=false")
             case .timedOut:
                 DiagnosticLog.write("MicrophonePermission: requestAccess timedOut=true")
+                startSetupRefreshPolling()
             }
             return result
         @unknown default:
@@ -1267,7 +1277,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case .denied:
             return "Allow microphone access"
         case .timedOut:
-            return "Microphone prompt did not finish; reopen Foil or reset Microphone privacy"
+            return AppState.microphonePromptTimedOutMessage
         }
     }
 

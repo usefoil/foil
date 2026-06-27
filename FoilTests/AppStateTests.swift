@@ -323,6 +323,24 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(presentation.primaryAction, .openMicrophone)
     }
 
+    func testMicrophonePromptTimeoutShowsManualPrivacyRecovery() {
+        let state = AppState()
+
+        state.updateAccessibilityState(isTrusted: true)
+        state.updateMicrophoneState(isReady: false, message: AppState.microphonePromptTimedOutMessage)
+        state.apiKeyState = .ready
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Setup needed")
+        XCTAssertEqual(presentation.detail, AppState.microphonePromptTimedOutMessage)
+        XCTAssertEqual(presentation.primaryAction, .openMicrophone)
+    }
+
     func testInputDeviceHealthKeepsSetupReadyWhenSavedDeviceIsMissingButFallbackExists() {
         let state = AppState()
         let builtIn = AudioRecorder.AudioDevice(
