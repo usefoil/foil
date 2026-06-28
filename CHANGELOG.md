@@ -1,3 +1,10 @@
+## [1.13.9](https://github.com/usefoil/foil/compare/v1.13.8...v1.13.9) (2026-06-28)
+
+- Fixed microphone permission setup recovery so stale or timed-out macOS microphone prompts no longer leave onboarding stuck indefinitely.
+- Fixed recording hotkey switching so newly selected modifier options, including Globe/Fn and right-side modifier keys, take effect immediately.
+- Increased the live recording meter response for normal speaking volume while keeping recorder input normalization and transcription behavior unchanged.
+
+
 ## [1.13.8](https://github.com/usefoil/foil/compare/v1.13.7...v1.13.8) (2026-06-26)
 
 - Added the current installed version/build and an in-app update check control to Settings > What's New.
