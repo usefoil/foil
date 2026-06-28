@@ -1611,7 +1611,7 @@ final class AppState {
     func recordAudioLevel(_ level: Float) {
         guard status == .recording else { return }
         let boundedLevel = min(max(level.isFinite ? level : 0, 0), 1)
-        let smoothedLevel = max(boundedLevel, (audioLevelHistory.last ?? 0) * 0.72)
+        let smoothedLevel = max(boundedLevel, (audioLevelHistory.last ?? 0) * 0.45)
         audioLevelHistory.append(smoothedLevel)
         let maxSamples = 18
         if audioLevelHistory.count > maxSamples {

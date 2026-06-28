@@ -153,7 +153,7 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(state.audioLevelHistory.count, 18)
         XCTAssertEqual(state.audioLevelHistory[state.audioLevelHistory.count - 2], 1, accuracy: 0.001)
-        XCTAssertEqual(state.audioLevelHistory.last ?? -1, 0.72, accuracy: 0.001)
+        XCTAssertEqual(state.audioLevelHistory.last ?? -1, 0.45, accuracy: 0.001)
     }
 
     func testAudioLevelsResetWhenRecordingEnds() {

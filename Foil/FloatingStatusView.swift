@@ -1,4 +1,15 @@
+import Foundation
 import SwiftUI
+
+enum LiveAudioLevelScale {
+    static let visualCompression: Double = 200
+
+    static func visualLevel(for level: Float) -> Float {
+        let boundedLevel = min(max(level.isFinite ? level : 0, 0), 1)
+        let compressedLevel = log1p(Double(boundedLevel) * visualCompression) / log1p(visualCompression)
+        return Float(compressedLevel)
+    }
+}
 
 struct LiveAudioSignifierView: View {
     @Bindable var appState: AppState
@@ -151,7 +162,7 @@ struct LiveAudioLevelBars: View {
             return index.isMultiple(of: 2) ? 6 : 4
         case .recording, .processing:
             let floor: CGFloat = 5
-            return floor + CGFloat(level(at: index)) * (height - floor)
+            return floor + CGFloat(visualLevel(at: index)) * (height - floor)
         }
     }
 
@@ -162,8 +173,12 @@ struct LiveAudioLevelBars: View {
         case .success, .error:
             return index < 5 || index > barCount - 6 ? 0.25 : 0.7
         case .recording, .processing:
-            return 0.35 + Double(level(at: index)) * 0.65
+            return 0.35 + Double(visualLevel(at: index)) * 0.65
         }
+    }
+
+    private func visualLevel(at index: Int) -> Float {
+        LiveAudioLevelScale.visualLevel(for: level(at: index))
     }
 
     private func level(at index: Int) -> Float {
