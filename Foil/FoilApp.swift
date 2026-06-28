@@ -360,7 +360,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.replaceRecordingController(with: controller)
             },
             onSimulateSelectedHotkeyCycle: { [weak self] in
+                #if DEBUG
                 self?.simulateSelectedHotkeyCycleForUITesting()
+                #else
+                DiagnosticLog.write("UITesting: selected hotkey cycle skipped outside DEBUG")
+                #endif
             }
         )
         uiTestingController = uiTestingCtrl
