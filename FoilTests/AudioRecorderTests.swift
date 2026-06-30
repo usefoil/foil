@@ -376,6 +376,28 @@ final class AudioRecorderTests: XCTestCase {
         XCTAssertTrue(decision.shouldSetDefaultInput)
     }
 
+    func testInputPreparationResultMarksDefaultInputChangeAfterSuccessfulSwitch() {
+        let airPods = makeDevice(id: 10, uid: "airpods", name: "AirPods", transport: .bluetooth)
+        let builtIn = makeDevice(id: 20, uid: "built-in", name: "MacBook Microphone", transport: .builtIn)
+        let decision = AudioRecorder.InputPreparationDecision(
+            device: builtIn,
+            shouldSetDefaultInput: true,
+            reason: .avoidBluetoothDefault,
+            defaultDevice: airPods,
+            defaultDeviceID: airPods.id
+        )
+
+        let result = AudioRecorder.inputPreparationResult(
+            selectedDevice: builtIn,
+            decision: decision,
+            setStatus: noErr,
+            defaultAfterID: builtIn.id
+        )
+
+        XCTAssertEqual(result.deviceID, builtIn.id)
+        XCTAssertTrue(result.didChangeDefaultInput)
+    }
+
     func testInputPreparationAvoidsBluetoothSystemDefaultWithUsbFallback() {
         let airPods = makeDevice(id: 10, uid: "airpods", name: "AirPods", transport: .bluetoothLE)
         let usb = makeDevice(id: 30, uid: "usb", name: "USB Microphone", transport: .usb)

@@ -464,6 +464,11 @@ final class AudioRecorder: @unchecked Sendable {
         let defaultDeviceID: AudioDeviceID?
     }
 
+    struct InputPreparationResult: Equatable {
+        let deviceID: AudioDeviceID?
+        let didChangeDefaultInput: Bool
+    }
+
     static func availableInputDevices() -> [AudioDevice] {
         var propertyAddress = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,
@@ -581,6 +586,10 @@ final class AudioRecorder: @unchecked Sendable {
     /// When System Default points at a Bluetooth microphone, prefer a non-Bluetooth
     /// mic for recording so playback can stay on the high-quality output route.
     static func prepareInputDeviceForRecording(selectedUID uid: String?) -> AudioDeviceID? {
+        prepareInputRouteForRecording(selectedUID: uid).deviceID
+    }
+
+    static func prepareInputRouteForRecording(selectedUID uid: String?) -> InputPreparationResult {
         let devices = availableInputDevices()
         let defaultBeforeID = defaultInputDeviceID()
         DiagnosticLog.write(
@@ -594,10 +603,10 @@ final class AudioRecorder: @unchecked Sendable {
         DiagnosticLog.write("AudioRecorder: input policy \(inputPolicyDescription(decision))")
 
         guard let selectedDevice = decision.device else {
-            return nil
+            return InputPreparationResult(deviceID: nil, didChangeDefaultInput: false)
         }
         guard decision.shouldSetDefaultInput else {
-            return selectedDevice.id
+            return InputPreparationResult(deviceID: selectedDevice.id, didChangeDefaultInput: false)
         }
 
         DiagnosticLog.write(
@@ -611,7 +620,26 @@ final class AudioRecorder: @unchecked Sendable {
             "AudioRecorder: set default input requested=\(selectedDevice.id) status=\(setStatus) defaultAfter=\(inputDeviceDescription(defaultAfter, id: defaultAfterID))"
         )
 
-        return selectedDevice.id
+        return inputPreparationResult(
+            selectedDevice: selectedDevice,
+            decision: decision,
+            setStatus: setStatus,
+            defaultAfterID: defaultAfterID
+        )
+    }
+
+    static func inputPreparationResult(
+        selectedDevice: AudioDevice,
+        decision: InputPreparationDecision,
+        setStatus: OSStatus,
+        defaultAfterID: AudioDeviceID?
+    ) -> InputPreparationResult {
+        InputPreparationResult(
+            deviceID: selectedDevice.id,
+            didChangeDefaultInput: setStatus == noErr
+                && decision.defaultDeviceID != selectedDevice.id
+                && defaultAfterID == selectedDevice.id
+        )
     }
 
     static func inputPreparationDecision(

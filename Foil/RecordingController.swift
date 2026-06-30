@@ -46,9 +46,10 @@ final class RecordingController {
 
     private let audioRecorder: any AudioRecording
     private let appState: AppState
-    private let prepareInputDeviceForRecording: (String?) -> AudioDeviceID?
+    private let prepareInputRouteForRecording: (String?) -> AudioRecorder.InputPreparationResult
     private let playStartCueBeforeRecording: () -> Bool
     private let startCuePreRollNanoseconds: UInt64
+    private let inputRouteSettleNanoseconds: UInt64
     private var recordingTimer: Timer?
     private var pendingStartTask: Task<Void, Never>?
 
@@ -57,15 +58,29 @@ final class RecordingController {
     init(
         audioRecorder: any AudioRecording,
         appState: AppState,
-        prepareInputDeviceForRecording: @escaping (String?) -> AudioDeviceID? = AudioRecorder.prepareInputDeviceForRecording,
+        prepareInputDeviceForRecording: ((String?) -> AudioDeviceID?)? = nil,
+        prepareInputRouteForRecording: ((String?) -> AudioRecorder.InputPreparationResult)? = nil,
         playStartCueBeforeRecording: @escaping () -> Bool = { false },
-        startCuePreRollNanoseconds: UInt64 = 300_000_000
+        startCuePreRollNanoseconds: UInt64 = 300_000_000,
+        inputRouteSettleNanoseconds: UInt64 = 500_000_000
     ) {
         self.audioRecorder = audioRecorder
         self.appState = appState
-        self.prepareInputDeviceForRecording = prepareInputDeviceForRecording
+        if let prepareInputRouteForRecording {
+            self.prepareInputRouteForRecording = prepareInputRouteForRecording
+        } else if let prepareInputDeviceForRecording {
+            self.prepareInputRouteForRecording = { uid in
+                AudioRecorder.InputPreparationResult(
+                    deviceID: prepareInputDeviceForRecording(uid),
+                    didChangeDefaultInput: false
+                )
+            }
+        } else {
+            self.prepareInputRouteForRecording = AudioRecorder.prepareInputRouteForRecording
+        }
         self.playStartCueBeforeRecording = playStartCueBeforeRecording
         self.startCuePreRollNanoseconds = startCuePreRollNanoseconds
+        self.inputRouteSettleNanoseconds = inputRouteSettleNanoseconds
         self.audioRecorder.levelUpdateHandler = { [weak appState] level in
             Task { @MainActor in
                 appState?.recordAudioLevel(level)
@@ -109,8 +124,24 @@ final class RecordingController {
     }
 
     private func beginRecording() {
+        let inputPreparation = prepareInputRouteForRecording(appState.selectedInputDeviceUID)
+        if inputPreparation.didChangeDefaultInput && inputRouteSettleNanoseconds > 0 {
+            DiagnosticLog.write(
+                "RecordingController.startRecording: waiting for input route settle ns=\(inputRouteSettleNanoseconds)"
+            )
+            pendingStartTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: inputRouteSettleNanoseconds)
+                guard !Task.isCancelled else { return }
+                pendingStartTask = nil
+                startPreparedRecording(deviceID: inputPreparation.deviceID)
+            }
+            return
+        }
+        startPreparedRecording(deviceID: inputPreparation.deviceID)
+    }
+
+    private func startPreparedRecording(deviceID: AudioDeviceID?) {
         do {
-            let deviceID = prepareInputDeviceForRecording(appState.selectedInputDeviceUID)
             try audioRecorder.startRecording(deviceID: deviceID)
             isRecording = true
             appState.setStatus(.recording)
@@ -127,7 +158,7 @@ final class RecordingController {
     /// Stop the current recording session and deliver the encoded audio to the delegate.
     func stopRecording() {
         if let pendingStartTask {
-            DiagnosticLog.write("RecordingController.stopRecording: cancelling pending start cue pre-roll")
+            DiagnosticLog.write("RecordingController.stopRecording: cancelling pending recording start")
             pendingStartTask.cancel()
             self.pendingStartTask = nil
             isRecording = false
