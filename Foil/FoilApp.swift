@@ -952,6 +952,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState.updateAccessibilityState(isTrusted: initialAccessibilityTrusted)
         if hotkeyMonitor.start() {
             DiagnosticLog.write("HotkeyMonitor: start succeeded")
+            guard initialAccessibilityTrusted else {
+                DiagnosticLog.write("HotkeyMonitor: start succeeded without Accessibility trust; prompting for Accessibility")
+                requestAccessibilityPermissionAndPoll()
+                return
+            }
             appState.updateAccessibilityState(isTrusted: true)
             appState.setStatus(.idle)
             return
@@ -983,11 +988,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        requestAccessibilityPermissionAndPoll()
+    }
+
+    private func requestAccessibilityPermissionAndPoll() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true] as CFDictionary
         let promptedAccessibilityTrusted = AXIsProcessTrustedWithOptions(options)
         DiagnosticLog.write("AccessibilityTrust: prompt requested result=\(promptedAccessibilityTrusted)")
-        appState.updateAccessibilityState(isTrusted: false)
-        appState.setStatus(.error("Enable Accessibility in Settings"))
+        appState.updateAccessibilityState(isTrusted: promptedAccessibilityTrusted)
+        if !promptedAccessibilityTrusted {
+            appState.setStatus(.error("Enable Accessibility in Settings"))
+        }
 
         Task {
             while !accessibilityTrusted() {
