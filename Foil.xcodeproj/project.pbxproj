@@ -12,6 +12,14 @@
 		070000000000000000000002 /* AudioUXSnapshotRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070000000000000000000001 /* AudioUXSnapshotRenderer.swift */; };
 		070000000000000000000003 /* AudioUXSnapshotRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070000000000000000000001 /* AudioUXSnapshotRenderer.swift */; };
 		070000000000000000000004 /* AudioUXSnapshotRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CB837E3BE88277ED2418E48 /* AudioUXSnapshotRendererTests.swift */; };
+		080000000000000000000001 /* FoilTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000009 /* FoilTheme.swift */; };
+		080000000000000000000002 /* FoilTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000009 /* FoilTheme.swift */; };
+		080000000000000000000003 /* FoilAppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08000000000000000000000A /* FoilAppShellView.swift */; };
+		080000000000000000000004 /* FoilAppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08000000000000000000000A /* FoilAppShellView.swift */; };
+		080000000000000000000005 /* FoilSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08000000000000000000000B /* FoilSidebarView.swift */; };
+		080000000000000000000006 /* FoilSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08000000000000000000000B /* FoilSidebarView.swift */; };
+		080000000000000000000007 /* FoilHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08000000000000000000000C /* FoilHomeView.swift */; };
+		080000000000000000000008 /* FoilHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08000000000000000000000C /* FoilHomeView.swift */; };
 		0A6863A7DC18F10FEC34F722 /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060256614A30FE900FF0B56C /* TranscriptionService.swift */; };
 		0DEDD41CD5E295C680B06F72 /* FloatingStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 688F792F32D0F925AADAF98B /* FloatingStatusView.swift */; };
 		0DF540CE9ABDBDBCE6876628 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0364A3EA681FE127352D7A68 /* ReleaseNotes.swift */; };
@@ -155,6 +163,10 @@
 		060256614A30FE900FF0B56C /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
 		070000000000000000000001 /* AudioUXSnapshotRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioUXSnapshotRenderer.swift; sourceTree = "<group>"; };
 		0662D2B02AF9975FC2DBE4C3 /* QueuedPaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedPaste.swift; sourceTree = "<group>"; };
+		080000000000000000000009 /* FoilTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilTheme.swift; sourceTree = "<group>"; };
+		08000000000000000000000A /* FoilAppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilAppShellView.swift; sourceTree = "<group>"; };
+		08000000000000000000000B /* FoilSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilSidebarView.swift; sourceTree = "<group>"; };
+		08000000000000000000000C /* FoilHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoilHomeView.swift; sourceTree = "<group>"; };
 		0B52597228CF4C951BABAF82 /* TranscriptionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionServiceTests.swift; sourceTree = "<group>"; };
 		0F644DBBB77DAB1C03598705 /* HotkeyMonitorCustomKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorCustomKeyTests.swift; sourceTree = "<group>"; };
 		14AA97DF6B90EC3374D3B78A /* HotkeyMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorTests.swift; sourceTree = "<group>"; };
@@ -350,7 +362,11 @@
 				C37D2018A3060BAA54FEAD5F /* E2EAudioStub.swift */,
 				688F792F32D0F925AADAF98B /* FloatingStatusView.swift */,
 				3E1BA82958302443A236410E /* Foil.entitlements */,
+				08000000000000000000000A /* FoilAppShellView.swift */,
 				F5CAE3A8BF36E49174BC28F2 /* FoilApp.swift */,
+				08000000000000000000000C /* FoilHomeView.swift */,
+				08000000000000000000000B /* FoilSidebarView.swift */,
+				080000000000000000000009 /* FoilTheme.swift */,
 				AD87483A60981AE4B604B6D9 /* HistoryPopoverView.swift */,
 				4EB32DEAE315506B29398AC5 /* HotkeyMonitor.swift */,
 				7FCD21B9C9281282775BA407 /* Info.plist */,
@@ -557,7 +573,11 @@
 				BE823D06D669BCA2449B6E91 /* DiagnosticLog.swift in Sources */,
 				516896CBD235F4B2137ADB13 /* E2EAudioStub.swift in Sources */,
 				0DEDD41CD5E295C680B06F72 /* FloatingStatusView.swift in Sources */,
+				080000000000000000000003 /* FoilAppShellView.swift in Sources */,
 				D258D3CAEB7B5F369532B3D2 /* FoilApp.swift in Sources */,
+				080000000000000000000007 /* FoilHomeView.swift in Sources */,
+				080000000000000000000005 /* FoilSidebarView.swift in Sources */,
+				080000000000000000000001 /* FoilTheme.swift in Sources */,
 				37524AE7AAC412DE61A82E90 /* HistoryPopoverView.swift in Sources */,
 				C8B129926686C907C91F224F /* HotkeyMonitor.swift in Sources */,
 				E9DFE31C32AF14EE22DA3CC6 /* KeyRecorderView.swift in Sources */,
@@ -663,7 +683,11 @@
 				EEAFEF9A0391FB80B03E3279 /* DiagnosticLog.swift in Sources */,
 				CC9F3C6B5C00A2CC5D75A390 /* E2EAudioStub.swift in Sources */,
 				3FA490B8625B0BCE0901863E /* FloatingStatusView.swift in Sources */,
+				080000000000000000000004 /* FoilAppShellView.swift in Sources */,
 				CE5DFBD289E04F8FD0874B04 /* FoilApp.swift in Sources */,
+				080000000000000000000008 /* FoilHomeView.swift in Sources */,
+				080000000000000000000006 /* FoilSidebarView.swift in Sources */,
+				080000000000000000000002 /* FoilTheme.swift in Sources */,
 				8A93D34AF94C2EEF846CA5E5 /* HistoryPopoverView.swift in Sources */,
 				286EC4F37A8EA41187107E14 /* HotkeyMonitor.swift in Sources */,
 				D7668BE10136A62C41C99C19 /* KeyRecorderView.swift in Sources */,

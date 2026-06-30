@@ -91,6 +91,8 @@ struct SettingsView: View {
     var onCopySetupReport: (() -> Void)?
     var onExportDiagnostics: (() -> Void)?
     var onStartLocalWhisperServer: ((LocalWhisperSetupModelID) -> Void)?
+    var showsTabStrip: Bool
+    var usesFixedFrame: Bool
 
     @Environment(\.openWindow) private var openWindow
     @State private var selectedTab: Tab
@@ -110,7 +112,9 @@ struct SettingsView: View {
         onHotkeyChanged: (() -> Void)? = nil,
         onCopySetupReport: (() -> Void)? = nil,
         onExportDiagnostics: (() -> Void)? = nil,
-        onStartLocalWhisperServer: ((LocalWhisperSetupModelID) -> Void)? = nil
+        onStartLocalWhisperServer: ((LocalWhisperSetupModelID) -> Void)? = nil,
+        showsTabStrip: Bool = true,
+        usesFixedFrame: Bool = true
     ) {
         self.appState = appState
         self.history = history
@@ -118,21 +122,30 @@ struct SettingsView: View {
         self.onCopySetupReport = onCopySetupReport
         self.onExportDiagnostics = onExportDiagnostics
         self.onStartLocalWhisperServer = onStartLocalWhisperServer
+        self.showsTabStrip = showsTabStrip
+        self.usesFixedFrame = usesFixedFrame
         _selectedTab = State(initialValue: initialTab)
     }
 
     var body: some View {
         VStack(spacing: 14) {
-            settingsTabStrip
+            if showsTabStrip {
+                settingsTabStrip
+            }
 
             selectedSettingsPane
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            AppVersionFooter(accessibilityIdentifier: "settings.appVersionFooter")
+            if showsTabStrip {
+                AppVersionFooter(accessibilityIdentifier: "settings.appVersionFooter")
+            }
         }
         .accessibilityIdentifier("settings.root")
         .scenePadding()
-        .frame(width: 760, height: 452)
+        .frame(
+            width: usesFixedFrame ? 760 : nil,
+            height: usesFixedFrame ? 452 : nil
+        )
         .alert("Clear History?", isPresented: $isShowingClearHistoryConfirmation) {
             Button("Clear History", role: .destructive) {
                 history.clear()

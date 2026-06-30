@@ -112,6 +112,7 @@ final class UITestingController {
     // MARK: - Window storage
 
     private var uiTestWindow: NSWindow?
+    private var uiTestAppShellWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
     private var uiTestSettingsWindow: NSWindow?
     private var uiTestCommandFileTimer: Timer?
@@ -330,6 +331,9 @@ final class UITestingController {
         UserDefaults(suiteName: "com.neonwatty.Foil.UITests")?.synchronize()
 
         showUITestWindow()
+        if args.contains("--show-app-shell") {
+            showUITestAppShellWindow()
+        }
         configureUITestCommandNotifications()
         configureUITestCommandFileRelay()
         configureLiveMicrophoneSmokeIfNeeded(args: args)
@@ -1168,8 +1172,9 @@ final class UITestingController {
             onCancelRecording: onCancelRecording,
             onCancelTranscription: onCancelTranscription,
             onHotkeyChanged: onHotkeyChanged,
-            onOpenHistory: { [weak self] in self?.showUITestHistoryWindow() },
-            onOpenSettings: { [weak self] in self?.showUITestSettingsWindow() },
+            onOpenFoil: { [weak self] in self?.showUITestAppShellWindow(selection: .home) },
+            onOpenHistory: { [weak self] in self?.showUITestAppShellWindow(selection: .history) },
+            onOpenSettings: { [weak self] in self?.showUITestAppShellWindow(selection: .general) },
             onOpenAccessibility: onOpenAccessibility,
             onOpenMicrophone: onOpenMicrophone,
             onCheckMicrophone: { [weak self] in self?.appState.updateMicrophoneState(isReady: true) },
@@ -1178,20 +1183,52 @@ final class UITestingController {
             onSimulateFailure: { [weak self] in self?.simulateUITestTranscription(success: false) }
         )
         .accessibilityIdentifier("uiTest.controlCenter")
-        .frame(width: 460, height: 620)
+        .frame(width: 380, height: 560)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 640),
+            contentRect: NSRect(x: 0, y: 0, width: 400, height: 580),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Foil UI Test"
-        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 460, height: 620))
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 380, height: 560))
         window.center()
         window.makeKeyAndOrderFront(nil)
         activateUITestApplication()
         uiTestWindow = window
+    }
+
+    private func showUITestAppShellWindow(selection: FoilAppSection = .home) {
+        activateUITestApplication()
+        let view = FoilAppShellView(
+            appState: appState,
+            queuedPasteQueue: queuedPasteQueue,
+            history: history,
+            initialSelection: selection,
+            onRetryRecord: { [weak self] record in self?.onRetryRecord(record) },
+            onPasteText: { [weak self] text in self?.onPasteText(text) },
+            onHotkeyChanged: onHotkeyChanged,
+            onStartRecording: onStartRecording,
+            onStopRecording: onStopRecording,
+            onCancelRecording: onCancelRecording,
+            onCancelTranscription: onCancelTranscription,
+            onPasteLast: onPasteLast
+        )
+        .frame(width: 940, height: 640)
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 940, height: 640),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = AppBrand.name
+        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 940, height: 640))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        activateUITestApplication()
+        uiTestAppShellWindow = window
     }
 
     private func showUITestHistoryWindow() {
