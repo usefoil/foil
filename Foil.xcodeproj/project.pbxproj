@@ -21,6 +21,9 @@
 		080000000000000000000007 /* FoilHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08000000000000000000000C /* FoilHomeView.swift */; };
 		080000000000000000000008 /* FoilHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08000000000000000000000C /* FoilHomeView.swift */; };
 		0A6863A7DC18F10FEC34F722 /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060256614A30FE900FF0B56C /* TranscriptionService.swift */; };
+		0F3480000000000000000001 /* VocabularyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3480000000000000000000 /* VocabularyModels.swift */; };
+		0F3480000000000000000002 /* VocabularyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3480000000000000000000 /* VocabularyModels.swift */; };
+		0F3480000000000000000003 /* VocabularyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F3480000000000000000000 /* VocabularyModels.swift */; };
 		0DEDD41CD5E295C680B06F72 /* FloatingStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 688F792F32D0F925AADAF98B /* FloatingStatusView.swift */; };
 		0DF540CE9ABDBDBCE6876628 /* ReleaseNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0364A3EA681FE127352D7A68 /* ReleaseNotes.swift */; };
 		12D8611C108842AB0D4336FA /* BluetoothMicGuidance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9281C806CB5154A7EA3CC4A8 /* BluetoothMicGuidance.swift */; };
@@ -177,6 +180,7 @@
 		247D187523C813DF31F5D304 /* DiagnosticLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogTests.swift; sourceTree = "<group>"; };
 		27739EBB5DD5F75EE13FD4AD /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		2885F1C7852F237A3ABB7279 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		0F3480000000000000000000 /* VocabularyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyModels.swift; sourceTree = "<group>"; };
 		2960830956460C7F3971DD97 /* IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntegrationTests.swift; sourceTree = "<group>"; };
 		2C9A0B9D7199D81E3EDD2D94 /* PasteTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasteTarget.swift; sourceTree = "<group>"; };
 		3358DC46136520D279B35604 /* LocalPairingBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPairingBridge.swift; sourceTree = "<group>"; };
@@ -395,6 +399,7 @@
 				060256614A30FE900FF0B56C /* TranscriptionService.swift */,
 				E803837FB3EA2A22B2B8B39B /* TranscriptProcessingMode.swift */,
 				759115F0BDA7323B04672F10 /* UITestingController.swift */,
+				0F3480000000000000000000 /* VocabularyModels.swift */,
 			);
 			path = Foil;
 			sourceTree = "<group>";
@@ -605,6 +610,7 @@
 				C833F707535C1034E608BAB8 /* TranscriptionHistory.swift in Sources */,
 				88528D5D5DAA5A0EEBA8A90F /* TranscriptionService.swift in Sources */,
 				2232086C37CAB700E925D4E6 /* UITestingController.swift in Sources */,
+				0F3480000000000000000002 /* VocabularyModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -626,6 +632,7 @@
 				57829234426F8D50B2FEDB96 /* DiagnosticLogStub.swift in Sources */,
 				277A2A9FB0208D3A1511DF21 /* TranscriptProcessingMode.swift in Sources */,
 				4F9A790BA7CDF0FE1AF66BFE /* TranscriptionService.swift in Sources */,
+				0F3480000000000000000003 /* VocabularyModels.swift in Sources */,
 				C5B9851BF2E4346B398CB506 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -715,6 +722,7 @@
 				1EAF0620CC3E962C99F1CED8 /* TranscriptionHistory.swift in Sources */,
 				0A6863A7DC18F10FEC34F722 /* TranscriptionService.swift in Sources */,
 				7693C29B2106FECE776E6316 /* UITestingController.swift in Sources */,
+				0F3480000000000000000001 /* VocabularyModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
