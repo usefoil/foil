@@ -52,7 +52,7 @@ struct HistoryPopoverView: View {
         }
     }
 
-    private struct VocabularyCorrectionSheet: View {
+    private struct VocabularyCorrectionPopover: View {
         let draft: VocabularyCorrectionDraft
         let canShowSaveAndReclean: Bool
         let onCancel: () -> Void
@@ -84,42 +84,40 @@ struct HistoryPopoverView: View {
         }
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Add to Vocabulary")
+                    Label("Vocabulary", systemImage: "text.badge.plus")
                         .font(.headline)
+                        .foregroundStyle(.primary)
                     Spacer()
-                    Button("Cancel") {
+                    Button {
                         isSavingAndRecleaning = false
                         onCancel()
+                    } label: {
+                        Image(systemName: "xmark")
                     }
+                    .buttonStyle(.plain)
+                    .controlSize(.small)
+                    .help("Cancel")
+                    .accessibilityLabel("Cancel")
                     .accessibilityIdentifier("history.vocabulary.cancelButton")
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Foil wrote")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                field("Foil wrote") {
                     TextField("Phrase Foil wrote", text: $writtenAs, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
-                        .lineLimit(2...4)
+                        .lineLimit(1...3)
                         .accessibilityIdentifier("history.vocabulary.writtenAsField")
                         .accessibilityValue(writtenAs)
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Use this instead")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                field("Use instead") {
                     TextField("Correct version", text: $correctVersion)
                         .textFieldStyle(.roundedBorder)
                         .accessibilityIdentifier("history.vocabulary.correctVersionField")
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Note")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                field("Note") {
                     TextField("Optional context", text: $note)
                         .textFieldStyle(.roundedBorder)
                         .accessibilityIdentifier("history.vocabulary.noteField")
@@ -132,7 +130,7 @@ struct HistoryPopoverView: View {
                         .accessibilityIdentifier("history.vocabulary.error")
                 }
 
-                HStack {
+                HStack(spacing: 10) {
                     Spacer()
                     Button {
                         guard let onSaveVocabularyCorrection else { return }
@@ -153,6 +151,7 @@ struct HistoryPopoverView: View {
                     }
                     .disabled(onSaveVocabularyCorrection == nil || isFormIncomplete)
                     .keyboardShortcut(.defaultAction)
+                    .controlSize(.regular)
                     .accessibilityIdentifier("history.vocabulary.saveButton")
 
                     if canShowSaveAndReclean {
@@ -168,12 +167,26 @@ struct HistoryPopoverView: View {
                             }
                         }
                         .disabled(isSavingAndRecleaning || isFormIncomplete)
+                        .controlSize(.regular)
                         .accessibilityIdentifier("history.vocabulary.saveAndRecleanButton")
                     }
                 }
             }
-            .padding(18)
-            .frame(width: 460)
+            .padding(14)
+            .frame(width: 360)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .foregroundStyle(.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .preferredColorScheme(.light)
+        }
+
+        private func field<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                content()
+            }
         }
 
         private var isFormIncomplete: Bool {
@@ -312,9 +325,6 @@ struct HistoryPopoverView: View {
         }
         .sheet(item: $selectedRecord) { record in
             detailView(for: history.records.first { $0.id == record.id } ?? record)
-        }
-        .sheet(item: $vocabularyDraft) { draft in
-            vocabularyCorrectionSheet(for: draft)
         }
         .onReceive(NotificationCenter.default.publisher(for: .foilHistoryUITestCommandRelay)) { notification in
             guard let command = HistoryUITestCommand(notification: notification) else { return }
@@ -635,6 +645,15 @@ struct HistoryPopoverView: View {
                         }
                         .controlSize(.small)
                         .accessibilityIdentifier("history.vocabulary.addSelectionButton")
+                        .popover(
+                            isPresented: vocabularyPopoverPresentation(for: record),
+                            attachmentAnchor: .rect(.bounds),
+                            arrowEdge: .bottom
+                        ) {
+                            if let draft = vocabularyDraft, draft.recordID == record.id {
+                                vocabularyCorrectionPopover(for: draft)
+                            }
+                        }
 
                         Button {
                             clearVocabularySelection()
@@ -907,8 +926,19 @@ struct HistoryPopoverView: View {
         return selectedTokens.map(\.correctionText).joined(separator: " ")
     }
 
-    private func vocabularyCorrectionSheet(for draft: VocabularyCorrectionDraft) -> some View {
-        VocabularyCorrectionSheet(
+    private func vocabularyPopoverPresentation(for record: TranscriptionRecord) -> Binding<Bool> {
+        Binding(
+            get: { vocabularyDraft?.recordID == record.id },
+            set: { isPresented in
+                if !isPresented, vocabularyDraft?.recordID == record.id {
+                    vocabularyDraft = nil
+                }
+            }
+        )
+    }
+
+    private func vocabularyCorrectionPopover(for draft: VocabularyCorrectionDraft) -> some View {
+        VocabularyCorrectionPopover(
             draft: draft,
             canShowSaveAndReclean: canShowSaveAndReclean,
             onCancel: { vocabularyDraft = nil },

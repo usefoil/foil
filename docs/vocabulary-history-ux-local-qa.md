@@ -27,11 +27,11 @@ Residual risk / follow-up: None for seeded filter behavior.
 
 ### History Phrase Selection
 
-Claim: selecting History transcript tokens opens a Vocabulary sheet prefilled with the selected phrase.
+Claim: selecting History transcript tokens opens an anchored Vocabulary popover prefilled with the selected phrase.
 
-Strongest realistic failure mode: the inline selected phrase is correct, but the sheet opens with a blank editable phrase field.
+Strongest realistic failure mode: the inline selected phrase is correct, but the popover opens with a blank editable phrase field.
 
-Evidence: Manual testing initially reproduced this failure. After the fix, Computer Use showed the sheet field `history.vocabulary.writtenAsField` with `Value: Second searchable`.
+Evidence: Manual testing initially reproduced this failure. After the fix, Computer Use showed the popover field `history.vocabulary.writtenAsField` with `Value: Second searchable`.
 
 Residual risk / follow-up: Covered by focused UI test assertions for single-token and multi-token selections.
 
@@ -80,4 +80,4 @@ xcodebuild test -project Foil.xcodeproj -scheme Foil -destination 'platform=macO
   -only-testing:FoilUITests/FoilUITests/testHistoryComponentHostSaveAndRecleanVocabularySelection
 ```
 
-Result: passed after adding assertions that the Vocabulary sheet pre-fills `Second searchable` and `Second`.
+Result: passed after adding assertions that the Vocabulary popover pre-fills `Second searchable` and `Second`.
