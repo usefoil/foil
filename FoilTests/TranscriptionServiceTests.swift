@@ -498,6 +498,7 @@ final class TranscriptionServiceTests: XCTestCase {
             rawTranscript: "first item supa base second item",
             mode: .cleanUp,
             customPrompt: nil,
+            vocabularyCorrections: [],
             preferredTerms: ["Supabase", "Vercel"],
             provider: .customOpenAICompatibleChat(
                 baseURL: URL(string: "http://127.0.0.1:11434/v1")!,
@@ -522,6 +523,7 @@ final class TranscriptionServiceTests: XCTestCase {
             rawTranscript: "raw words",
             mode: .cleanUp,
             customPrompt: "Use short paragraphs and preserve product names.",
+            vocabularyCorrections: [],
             preferredTerms: [],
             provider: .groq(model: "llama-3.3-70b-versatile")
         )
@@ -532,6 +534,31 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(bodyString.contains("Use short paragraphs and preserve product names."), bodyString)
         XCTAssertFalse(bodyString.contains("Preferred terms"), bodyString)
         XCTAssertTrue(bodyString.contains("Return only the final processed transcript"), bodyString)
+    }
+
+    func testCleanupFormattingRequestIncludesVocabularyCorrectionsBeforePreferredTerms() throws {
+        let request = TranscriptCleanupRequest(
+            rawTranscript: "please fix super base auth",
+            mode: .cleanUp,
+            customPrompt: nil,
+            vocabularyCorrections: [
+                VocabularyCorrection(writtenAs: "super base", correctVersion: "Supabase")
+            ],
+            preferredTerms: ["Postgres"],
+            provider: .customOpenAICompatibleChat(
+                baseURL: URL(string: "http://127.0.0.1:11434/v1")!,
+                model: "qwen2.5:7b"
+            )
+        )
+
+        let body = try TranscriptionService.buildTranscriptProcessingBody(request: request)
+        let bodyString = String(data: body, encoding: .utf8)!
+
+        XCTAssertTrue(bodyString.contains("Vocabulary corrections"), bodyString)
+        XCTAssertTrue(bodyString.contains("If the transcript says \\\"super base\\\", use \\\"Supabase\\\"."), bodyString)
+        XCTAssertTrue(bodyString.contains("Preferred terms"), bodyString)
+        XCTAssertTrue(bodyString.contains("Postgres"), bodyString)
+        XCTAssertTrue(bodyString.contains("please fix super base auth"), bodyString)
     }
 
     // MARK: - Deterministic transport/status mapping
@@ -867,6 +894,7 @@ final class TranscriptionServiceTests: XCTestCase {
                 rawTranscript: "raw transcript",
                 mode: .cleanUp,
                 customPrompt: nil,
+                vocabularyCorrections: [],
                 preferredTerms: [],
                 provider: .openAI(model: "gpt-5.4-mini")
             ),
@@ -891,6 +919,7 @@ final class TranscriptionServiceTests: XCTestCase {
                 rawTranscript: "raw transcript",
                 mode: .cleanUp,
                 customPrompt: nil,
+                vocabularyCorrections: [],
                 preferredTerms: [],
                 provider: .openAI(model: "gpt-5.4-mini")
             ),

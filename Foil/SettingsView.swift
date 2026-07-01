@@ -102,6 +102,9 @@ struct SettingsView: View {
     @State private var selectedLocalWhisperSetupModelID = LocalWhisperSetupModel.recommendedDefaultID
     @State private var openAICleanupAPIKey = ""
     @State private var customCleanupAPIKey = ""
+    @State private var vocabularyWrittenAs = ""
+    @State private var vocabularyCorrectVersion = ""
+    @State private var vocabularyNote = ""
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
     private let soundPreviewPlayer = SoundPlayer()
 
@@ -553,7 +556,7 @@ struct SettingsView: View {
                 if cleanupFormattingEnabled.wrappedValue {
                     cleanupProviderSettings
                     cleanupPromptSettings
-                    preferredTermsSettings
+                    vocabularySettings
                 }
             }
         }
@@ -623,13 +626,94 @@ struct SettingsView: View {
         }
     }
 
-    private var preferredTermsSettings: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Preferred terms")
-            TextEditor(text: $appState.preferredTermsText)
-                .font(.body)
-                .frame(minHeight: 72)
-                .accessibilityIdentifier("settings.preferredTermsEditor")
+    private var vocabularySettings: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Divider()
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Vocabulary")
+                    .font(.headline)
+                    .accessibilityIdentifier("settings.vocabularySection")
+                Text("Corrections teach Cleanup what Foil wrote and what it should use instead. Preferred terms tell Cleanup which names and phrases to preserve.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    TextField("Foil wrote", text: $vocabularyWrittenAs)
+                        .accessibilityIdentifier("settings.vocabularyCorrectionWrittenAs")
+                    TextField("Use this instead", text: $vocabularyCorrectVersion)
+                        .accessibilityIdentifier("settings.vocabularyCorrectionCorrectVersion")
+                }
+
+                TextField("Optional note", text: $vocabularyNote)
+                    .accessibilityIdentifier("settings.vocabularyCorrectionNote")
+
+                Button {
+                    guard appState.addVocabularyCorrection(
+                        writtenAs: vocabularyWrittenAs,
+                        correctVersion: vocabularyCorrectVersion,
+                        note: vocabularyNote
+                    ) != nil else {
+                        return
+                    }
+                    vocabularyWrittenAs = ""
+                    vocabularyCorrectVersion = ""
+                    vocabularyNote = ""
+                } label: {
+                    Label("Add correction", systemImage: "plus")
+                }
+                .disabled(vocabularyWrittenAs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vocabularyCorrectVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("settings.addVocabularyCorrectionButton")
+            }
+
+            if appState.vocabularyCorrections.isEmpty {
+                Text("No corrections yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settings.vocabularyCorrectionsEmpty")
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(appState.vocabularyCorrections) { correction in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(correction.writtenAs) -> \(correction.correctVersion)")
+                                    .font(.callout)
+                                    .lineLimit(2)
+                                if let note = correction.note, !note.isEmpty {
+                                    Text(note)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                            }
+
+                            Spacer()
+
+                            Button(role: .destructive) {
+                                appState.deleteVocabularyCorrection(id: correction.id)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Delete vocabulary correction")
+                            .accessibilityIdentifier("settings.deleteVocabularyCorrectionButton")
+                        }
+                        .padding(.vertical, 4)
+                        .accessibilityIdentifier("settings.vocabularyCorrectionRow")
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Preferred terms")
+                TextEditor(text: $appState.preferredTermsText)
+                    .font(.body)
+                    .frame(minHeight: 72)
+                    .accessibilityIdentifier("settings.preferredTermsEditor")
+            }
         }
     }
 

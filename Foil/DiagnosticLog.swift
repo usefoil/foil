@@ -231,6 +231,8 @@ enum DiagnosticLog {
             (#"(?i)(authorization\s*:\s*bearer\s+)[A-Za-z0-9._\-]+"#, "$1<redacted>"),
             (#"(?i)(\b(?:cleanup\s+)?prompt(?:\s*text)?\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
             (#"(?i)(\bpreferred[_ -]?terms?\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
+            (#"(?i)(\bvocabulary[_ -]?corrections?\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
+            (#"(?i)(\bvocabulary[_ -]?notes?\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
             (#"(?i)(\b(?:raw|cleaned)?transcript(?:\s*text)?\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
             (#"(?i)(\bcleaned[_ -]?text\s*[=:]\s*)[^\n,;]+"#, "$1<redacted>"),
             (#"gsk_[A-Za-z0-9_\-]+"#, "<redacted-api-key>"),

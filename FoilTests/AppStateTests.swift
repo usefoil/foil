@@ -1344,10 +1344,67 @@ final class AppStateTests: XCTestCase {
         state.preferredTermsText = " Supabase \n\nVercel\nSupabase "
 
         XCTAssertEqual(state.preferredTerms, ["Supabase", "Vercel"])
+        XCTAssertEqual(state.vocabularyTerms.map(\.term), ["Supabase", "Vercel"])
 
         let reloaded = AppState()
         XCTAssertEqual(reloaded.preferredTerms, ["Supabase", "Vercel"])
         XCTAssertEqual(reloaded.preferredTermsText, "Supabase\nVercel")
+        XCTAssertEqual(reloaded.vocabularyTerms.map(\.term), ["Supabase", "Vercel"])
+    }
+
+    func testLegacyPreferredTermsMigrateIntoVocabularyTermsOnReload() {
+        UserDefaults.standard.set(" Supabase \n\nVercel\nSupabase ", forKey: "transcriptCleanupPreferredTerms")
+
+        let reloaded = AppState()
+
+        XCTAssertEqual(reloaded.preferredTermsText, "Supabase\nVercel")
+        XCTAssertEqual(reloaded.preferredTerms, ["Supabase", "Vercel"])
+        XCTAssertEqual(reloaded.vocabularyTerms.map(\.term), ["Supabase", "Vercel"])
+    }
+
+    func testVocabularyCorrectionsNormalizeDedupePersistAndReload() {
+        let state = AppState()
+        let correction = state.addVocabularyCorrection(
+            writtenAs: " super base ",
+            correctVersion: " Supabase ",
+            note: " product name ",
+            sourceAppName: " Messages "
+        )
+
+        XCTAssertEqual(correction?.writtenAs, "super base")
+        XCTAssertEqual(correction?.correctVersion, "Supabase")
+        XCTAssertEqual(correction?.note, "product name")
+        XCTAssertEqual(correction?.sourceAppName, "Messages")
+        XCTAssertEqual(state.vocabularyCorrections.count, 1)
+
+        let duplicate = state.addVocabularyCorrection(writtenAs: "SUPER BASE", correctVersion: "supabase")
+        XCTAssertEqual(duplicate?.id, correction?.id)
+        XCTAssertEqual(state.vocabularyCorrections.count, 1)
+
+        let rejected = state.addVocabularyCorrection(writtenAs: "Same", correctVersion: "Same")
+        XCTAssertNil(rejected)
+
+        let reloaded = AppState()
+        XCTAssertEqual(reloaded.vocabularyCorrections.count, 1)
+        XCTAssertEqual(reloaded.vocabularyCorrections.first?.writtenAs, "super base")
+        XCTAssertEqual(reloaded.vocabularyCorrections.first?.correctVersion, "Supabase")
+        XCTAssertEqual(reloaded.vocabularyCorrections.first?.note, "product name")
+    }
+
+    func testCanRecleanHistoryTranscriptsRequiresCleanupModeAndProvider() {
+        let state = AppState()
+
+        XCTAssertFalse(state.canRecleanHistoryTranscripts)
+
+        state.transcriptProcessingMode = .cleanUp
+        XCTAssertTrue(state.canRecleanHistoryTranscripts)
+
+        state.transcriptCleanupProviderID = .none
+        XCTAssertFalse(state.canRecleanHistoryTranscripts)
+
+        state.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        state.customTranscriptCleanupBaseURL = "not a url"
+        XCTAssertFalse(state.canRecleanHistoryTranscripts)
     }
 
     func testDefaultTranscriptionProviderIsGroq() {

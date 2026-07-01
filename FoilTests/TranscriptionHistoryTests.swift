@@ -79,6 +79,24 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertEqual(history2.records.first?.text, "persisted")
     }
 
+    func testSuccessPersistsSourceAppName() {
+        history.addSuccess(text: "persisted", sourceAppName: "  Mail  ")
+
+        let history2 = TranscriptionHistory(storageDirectory: testDir)
+
+        XCTAssertEqual(history2.records.first?.sourceAppName, "Mail")
+    }
+
+    func testRetryCanStoreSourceAppName() {
+        history.addFailure(error: "timeout", audioFileURL: nil)
+        let recordID = history.records.first!.id
+
+        history.resolveRetry(id: recordID, text: "retried text", sourceAppName: "Messages")
+
+        XCTAssertEqual(history.records.first?.text, "retried text")
+        XCTAssertEqual(history.records.first?.sourceAppName, "Messages")
+    }
+
     func testFailureAudioPersistsAcrossReloadFromRetryAudioDirectory() throws {
         let audioURL = testDir.appendingPathComponent("reload-source.wav")
         try Data([0x00, 0x01]).write(to: audioURL)
@@ -196,6 +214,16 @@ final class TranscriptionHistoryTests: XCTestCase {
         history.updateSuccess(id: id, text: " edited ")
 
         XCTAssertEqual(history.records.first?.text, "edited")
+    }
+
+    func testUpdateSuccessPreservesSourceAppName() {
+        history.addSuccess(text: "original", sourceAppName: "Mail")
+        let id = history.records.first!.id
+
+        history.updateSuccess(id: id, text: "re-cleaned")
+
+        XCTAssertEqual(history.records.first?.text, "re-cleaned")
+        XCTAssertEqual(history.records.first?.sourceAppName, "Mail")
     }
 
     func testUpdateSuccessIgnoresFailures() {

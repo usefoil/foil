@@ -511,10 +511,24 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(searchField.exists)
         postUITestCommand(historyCommandNotification, userInfo: ["command": "search", "query": "Second searchable"])
 
-        XCTAssertTrue(app.staticTexts["Second searchable transcript."].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.descendants(matching: .any)["Select Second for Vocabulary"].waitForExistence(timeout: 2))
 
         postUITestCommand(historyCommandNotification, userInfo: ["command": "search", "query": "no matching transcript"])
         XCTAssertTrue(staticTextLabelOrValueContaining("No matches", in: historyPanel).waitForExistence(timeout: 4), app.debugDescription)
+    }
+
+    func testHistoryComponentHostFiltersBySourceApp() {
+        openHistoryWindow()
+        XCTAssertTrue(waitForHistoryPanel(timeout: 3))
+
+        XCTAssertTrue(app.buttons["All apps"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.buttons["Messages"].waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(app.buttons["Mail"])
+
+        XCTAssertTrue(app.descendants(matching: .any)["Select Second for Vocabulary"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(app.descendants(matching: .any)["Select Seeded for Vocabulary"].exists, app.debugDescription)
+        XCTAssertEqual(app.buttons["Mail"].value as? String, "Selected")
+        XCTAssertEqual(app.buttons["All apps"].value as? String, "Not selected")
     }
 
     func testHistoryComponentHostFiltersFailedRecords() {
@@ -532,7 +546,7 @@ final class FoilUITests: XCTestCase {
         openHistoryWindow()
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
 
-        XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["Select Second for Vocabulary"].exists)
         postUITestCommand(historyCommandNotification, userInfo: ["command": "showDeleteFirst"])
         XCTAssertTrue(app.staticTexts["Delete History Item?"].waitForExistence(timeout: 2))
         postUITestCommand(historyCommandNotification, userInfo: ["command": "cancelDeleteFirst"])
@@ -575,6 +589,21 @@ final class FoilUITests: XCTestCase {
 
         let detailsButtons = historyPanel.buttons.matching(NSPredicate(format: "label == %@", "Details"))
         XCTAssertGreaterThanOrEqual(detailsButtons.count, 2, app.debugDescription)
+        let firstVocabularyToken = app.descendants(matching: .any)["Select Second for Vocabulary"]
+        XCTAssertTrue(firstVocabularyToken.waitForExistence(timeout: 2), app.debugDescription)
+        firstVocabularyToken.click()
+        let secondVocabularyToken = app.descendants(matching: .any)["Select searchable for Vocabulary"]
+        XCTAssertTrue(secondVocabularyToken.waitForExistence(timeout: 2), app.debugDescription)
+        secondVocabularyToken.click()
+        let selectedVocabularyText = app.staticTexts["history.vocabulary.selectedText"]
+        XCTAssertTrue(selectedVocabularyText.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(selectedVocabularyText.value as? String, "Second searchable")
+        app.buttons["history.vocabulary.addSelectionButton"].click()
+        let vocabularyWrittenAsEditor = app.textViews["history.vocabulary.writtenAsEditor"]
+        XCTAssertTrue(vocabularyWrittenAsEditor.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "history.vocabulary.correctVersionField", timeout: 2), app.debugDescription)
+        app.buttons["history.vocabulary.cancelButton"].click()
+
         postUITestCommand(historyCommandNotification, userInfo: ["command": "selectDetail", "index": 1])
         let editor = app.textViews["history.detail.editor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
@@ -583,6 +612,46 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Paste"].exists)
         XCTAssertTrue(app.buttons["Delete"].exists)
         postUITestCommand(historyCommandNotification, userInfo: ["command": "dismissDetail"])
+    }
+
+    func testHistoryComponentHostSaveAndRecleanVocabularySelection() {
+        openHistoryWindow()
+        XCTAssertTrue(waitForHistoryPanel(timeout: 3))
+
+        let defaultToken = app.descendants(matching: .any)["Select Second for Vocabulary"]
+        XCTAssertTrue(defaultToken.waitForExistence(timeout: 2), app.debugDescription)
+        defaultToken.click()
+        app.buttons["history.vocabulary.addSelectionButton"].click()
+        XCTAssertTrue(app.textViews["history.vocabulary.writtenAsEditor"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "history.vocabulary.saveAndRecleanButton", timeout: 1), app.debugDescription)
+        app.buttons["history.vocabulary.cancelButton"].click()
+
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-history-reclean-enabled"
+        ])
+        openHistoryWindow()
+        XCTAssertTrue(waitForHistoryPanel(timeout: 3))
+
+        let token = app.descendants(matching: .any)["Select Second for Vocabulary"]
+        XCTAssertTrue(token.waitForExistence(timeout: 2), app.debugDescription)
+        token.click()
+        app.buttons["history.vocabulary.addSelectionButton"].click()
+
+        let correctVersionField = app.textFields["history.vocabulary.correctVersionField"]
+        XCTAssertTrue(correctVersionField.waitForExistence(timeout: 2), app.debugDescription)
+        correctVersionField.click()
+        correctVersionField.typeText("Supabase")
+
+        let saveAndRecleanButton = app.buttons["history.vocabulary.saveAndRecleanButton"]
+        XCTAssertTrue(saveAndRecleanButton.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(saveAndRecleanButton)
+
+        XCTAssertTrue(app.descendants(matching: .any)["Select Re-cleaned for Vocabulary"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["Select Supabase for Vocabulary"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(app.descendants(matching: .any)["Select Second for Vocabulary"].exists, app.debugDescription)
     }
 
     func testSettingsComponentHostOpensForDetailedPaneCoverage() {
@@ -618,6 +687,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.cleanupProviderPicker", timeout: 1), app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.cleanupPromptEditor", timeout: 1), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "settings.vocabularySection", timeout: 1), app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.preferredTermsEditor", timeout: 1), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup", "--seed-cleanup-formatting-enabled"])
@@ -631,6 +701,10 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue((app.popUpButtons["settings.cleanupModelPicker"].value as? String) == "Llama 3.1 8B Instant" || app.staticTexts["Llama 3.1 8B Instant"].exists, app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.cleanupPromptEditor", timeout: 4), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.resetCleanupPromptButton", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.vocabularySection", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.vocabularyCorrectionWrittenAs", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.vocabularyCorrectionCorrectVersion", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.addVocabularyCorrectionButton", timeout: 4), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.preferredTermsEditor", timeout: 4), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("transcript text is sent to the cleanup provider").waitForExistence(timeout: 2), app.debugDescription)
     }

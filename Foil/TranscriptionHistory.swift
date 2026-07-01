@@ -4,6 +4,7 @@ import Observation
 struct TranscriptionRecord: Codable, Identifiable {
     let id: UUID
     let timestamp: Date
+    var sourceAppName: String?
     var outcome: Outcome
 
     enum Outcome: Codable {
@@ -97,26 +98,35 @@ final class TranscriptionHistory {
         self.init(storageDirectory: dir)
     }
 
-    func addSuccess(text: String) {
+    func addSuccess(text: String, sourceAppName: String? = nil) {
         let record = TranscriptionRecord(
-            id: UUID(), timestamp: Date(), outcome: .success(text: text)
+            id: UUID(),
+            timestamp: Date(),
+            sourceAppName: Self.normalizedSourceAppName(sourceAppName),
+            outcome: .success(text: text)
         )
         insert(record)
     }
 
-    func addFailure(error: String, audioFileURL: URL?) {
+    func addFailure(error: String, audioFileURL: URL?, sourceAppName: String? = nil) {
         let retainedAudioURL = retainFailedAudio(audioFileURL)
         let record = TranscriptionRecord(
-            id: UUID(), timestamp: Date(), outcome: .failure(error: error, audioFileURL: retainedAudioURL)
+            id: UUID(),
+            timestamp: Date(),
+            sourceAppName: Self.normalizedSourceAppName(sourceAppName),
+            outcome: .failure(error: error, audioFileURL: retainedAudioURL)
         )
         insert(record)
     }
 
-    func resolveRetry(id: UUID, text: String) {
+    func resolveRetry(id: UUID, text: String, sourceAppName: String? = nil) {
         guard let index = records.firstIndex(where: { $0.id == id }) else { return }
         // Delete the audio file since retry succeeded
         if let audioURL = records[index].audioFileURL {
             try? FileManager.default.removeItem(at: audioURL)
+        }
+        if let normalizedSourceAppName = Self.normalizedSourceAppName(sourceAppName) {
+            records[index].sourceAppName = normalizedSourceAppName
         }
         records[index].outcome = .success(text: text)
         save()
@@ -265,6 +275,11 @@ final class TranscriptionHistory {
         records.insert(record, at: 0)
         trimToRetentionLimit()
         save()
+    }
+
+    private static func normalizedSourceAppName(_ sourceAppName: String?) -> String? {
+        let trimmed = sourceAppName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func trimToRetentionLimit() {

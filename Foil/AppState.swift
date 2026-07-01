@@ -2,6 +2,59 @@ import AVFoundation
 import Foundation
 import Observation
 
+struct VocabularyCorrection: Codable, Identifiable, Equatable {
+    var id: UUID
+    var writtenAs: String
+    var correctVersion: String
+    var note: String?
+    var sourceRecordID: UUID?
+    var sourceAppName: String?
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        writtenAs: String,
+        correctVersion: String,
+        note: String? = nil,
+        sourceRecordID: UUID? = nil,
+        sourceAppName: String? = nil,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.writtenAs = writtenAs
+        self.correctVersion = correctVersion
+        self.note = note
+        self.sourceRecordID = sourceRecordID
+        self.sourceAppName = sourceAppName
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+struct VocabularyTerm: Codable, Identifiable, Equatable {
+    var id: UUID
+    var term: String
+    var note: String?
+    var createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        term: String,
+        note: String? = nil,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date()
+    ) {
+        self.id = id
+        self.term = term
+        self.note = note
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
 @MainActor @Observable
 final class AppState {
     enum Status: Equatable {
@@ -148,6 +201,9 @@ final class AppState {
         return Bundle.main.bundleIdentifier ?? "com.neonwatty.Foil"
     }
 
+    private static let vocabularyCorrectionsKey = "transcriptCleanupVocabularyCorrections"
+    private static let vocabularyTermsKey = "transcriptCleanupVocabularyTerms"
+
     private static var localBridgeDeviceName: String {
         Host.current().localizedName ?? "This Mac"
     }
@@ -266,14 +322,45 @@ final class AppState {
 
     var preferredTermsText: String = "" {
         didSet {
+            if isSynchronizingVocabularyText {
+                Self.defaults.set(preferredTermsText, forKey: "transcriptCleanupPreferredTerms")
+                return
+            }
             let normalized = Self.normalizedPreferredTerms(from: preferredTermsText).joined(separator: "\n")
             if preferredTermsText != normalized {
                 preferredTermsText = normalized
                 return
             }
             Self.defaults.set(preferredTermsText, forKey: "transcriptCleanupPreferredTerms")
+            isSynchronizingVocabularyText = true
+            vocabularyTerms = Self.vocabularyTerms(
+                from: Self.normalizedPreferredTerms(from: preferredTermsText),
+                preserving: vocabularyTerms
+            )
+            isSynchronizingVocabularyText = false
         }
     }
+
+    var vocabularyCorrections: [VocabularyCorrection] = [] {
+        didSet { Self.saveVocabularyCorrections(vocabularyCorrections) }
+    }
+
+    var vocabularyTerms: [VocabularyTerm] = [] {
+        didSet {
+            Self.saveVocabularyTerms(vocabularyTerms)
+            guard !isSynchronizingVocabularyText else { return }
+            isSynchronizingVocabularyText = true
+            let text = Self.normalizedVocabularyTerms(vocabularyTerms).map(\.term).joined(separator: "\n")
+            if preferredTermsText != text {
+                preferredTermsText = text
+            } else {
+                Self.defaults.set(preferredTermsText, forKey: "transcriptCleanupPreferredTerms")
+            }
+            isSynchronizingVocabularyText = false
+        }
+    }
+
+    private var isSynchronizingVocabularyText = false
 
     var keepOnClipboard: Bool = false {
         didSet { Self.defaults.set(keepOnClipboard, forKey: "keepOnClipboard") }
@@ -504,8 +591,99 @@ final class AppState {
         transcriptProcessingMode == .raw || !supportsSelectedTranscriptProcessing ? .raw : transcriptProcessingMode
     }
 
+    var canRecleanHistoryTranscripts: Bool {
+        effectiveTranscriptProcessingMode != .raw && selectedTranscriptCleanupProvider.id != .none
+    }
+
     var preferredTerms: [String] {
-        Self.normalizedPreferredTerms(from: preferredTermsText)
+        Self.normalizedVocabularyTerms(vocabularyTerms).map(\.term)
+    }
+
+    @discardableResult
+    func addVocabularyCorrection(
+        writtenAs: String,
+        correctVersion: String,
+        note: String? = nil,
+        sourceRecordID: UUID? = nil,
+        sourceAppName: String? = nil
+    ) -> VocabularyCorrection? {
+        let normalizedWrittenAs = writtenAs.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedCorrectVersion = correctVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedNote = Self.normalizedOptionalText(note)
+        let normalizedSourceAppName = Self.normalizedOptionalText(sourceAppName)
+        guard !normalizedWrittenAs.isEmpty,
+              !normalizedCorrectVersion.isEmpty,
+              normalizedWrittenAs != normalizedCorrectVersion else {
+            return nil
+        }
+
+        if let existing = vocabularyCorrections.first(where: {
+            $0.writtenAs.caseInsensitiveCompare(normalizedWrittenAs) == .orderedSame &&
+                $0.correctVersion.caseInsensitiveCompare(normalizedCorrectVersion) == .orderedSame
+        }) {
+            return existing
+        }
+
+        let correction = VocabularyCorrection(
+            writtenAs: normalizedWrittenAs,
+            correctVersion: normalizedCorrectVersion,
+            note: normalizedNote,
+            sourceRecordID: sourceRecordID,
+            sourceAppName: normalizedSourceAppName
+        )
+        vocabularyCorrections.append(correction)
+        return correction
+    }
+
+    @discardableResult
+    func updateVocabularyCorrection(
+        id: UUID,
+        writtenAs: String,
+        correctVersion: String,
+        note: String? = nil
+    ) -> VocabularyCorrection? {
+        guard let index = vocabularyCorrections.firstIndex(where: { $0.id == id }) else { return nil }
+        let normalizedWrittenAs = writtenAs.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedCorrectVersion = correctVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedWrittenAs.isEmpty,
+              !normalizedCorrectVersion.isEmpty,
+              normalizedWrittenAs != normalizedCorrectVersion else {
+            return nil
+        }
+        if vocabularyCorrections.contains(where: {
+            $0.id != id &&
+                $0.writtenAs.caseInsensitiveCompare(normalizedWrittenAs) == .orderedSame &&
+                $0.correctVersion.caseInsensitiveCompare(normalizedCorrectVersion) == .orderedSame
+        }) {
+            return nil
+        }
+
+        vocabularyCorrections[index].writtenAs = normalizedWrittenAs
+        vocabularyCorrections[index].correctVersion = normalizedCorrectVersion
+        vocabularyCorrections[index].note = Self.normalizedOptionalText(note)
+        vocabularyCorrections[index].updatedAt = Date()
+        return vocabularyCorrections[index]
+    }
+
+    func deleteVocabularyCorrection(id: UUID) {
+        vocabularyCorrections.removeAll { $0.id == id }
+    }
+
+    @discardableResult
+    func addVocabularyTerm(_ term: String, note: String? = nil) -> VocabularyTerm? {
+        let normalizedTerm = term.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTerm.isEmpty else { return nil }
+        if let existing = vocabularyTerms.first(where: { $0.term.caseInsensitiveCompare(normalizedTerm) == .orderedSame }) {
+            return existing
+        }
+
+        let vocabularyTerm = VocabularyTerm(term: normalizedTerm, note: Self.normalizedOptionalText(note))
+        vocabularyTerms.append(vocabularyTerm)
+        return vocabularyTerm
+    }
+
+    func deleteVocabularyTerm(id: UUID) {
+        vocabularyTerms.removeAll { $0.id == id }
     }
 
     func customPrompt(for mode: TranscriptProcessingMode) -> String? {
@@ -1039,6 +1217,8 @@ final class AppState {
                 "customCleanupPrompt.cleanUp",
                 "customCleanupPrompt.rewriteClearly",
                 "transcriptCleanupPreferredTerms",
+                Self.vocabularyCorrectionsKey,
+                Self.vocabularyTermsKey,
                 "selectedInputDeviceUID"
             ] {
                 defaults.removeObject(forKey: key)
@@ -1117,6 +1297,14 @@ final class AppState {
         preferredTermsText = Self.normalizedPreferredTerms(
             from: defaults.string(forKey: "transcriptCleanupPreferredTerms") ?? ""
         ).joined(separator: "\n")
+        vocabularyCorrections = Self.loadVocabularyCorrections()
+        let storedVocabularyTerms = Self.loadVocabularyTerms()
+        vocabularyTerms = storedVocabularyTerms.isEmpty
+            ? Self.vocabularyTerms(
+                from: Self.normalizedPreferredTerms(from: preferredTermsText),
+                preserving: []
+            )
+            : storedVocabularyTerms
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
@@ -1173,6 +1361,81 @@ final class AppState {
                 seen.insert(key)
                 return true
             }
+    }
+
+    private static func normalizedOptionalText(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func vocabularyTerms(from terms: [String], preserving existing: [VocabularyTerm]) -> [VocabularyTerm] {
+        let byLowercase = Dictionary(uniqueKeysWithValues: existing.map { ($0.term.lowercased(), $0) })
+        return terms.map { term in
+            byLowercase[term.lowercased()] ?? VocabularyTerm(term: term)
+        }
+    }
+
+    private static func normalizedVocabularyTerms(_ terms: [VocabularyTerm]) -> [VocabularyTerm] {
+        var seen = Set<String>()
+        return terms.compactMap { term in
+            let trimmed = term.term.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            let key = trimmed.lowercased()
+            guard !seen.contains(key) else { return nil }
+            seen.insert(key)
+            var normalized = term
+            normalized.term = trimmed
+            normalized.note = normalizedOptionalText(term.note)
+            return normalized
+        }
+    }
+
+    private static func loadVocabularyCorrections() -> [VocabularyCorrection] {
+        guard let data = defaults.data(forKey: vocabularyCorrectionsKey),
+              let corrections = try? JSONDecoder().decode([VocabularyCorrection].self, from: data) else {
+            return []
+        }
+        return normalizedVocabularyCorrections(corrections)
+    }
+
+    private static func loadVocabularyTerms() -> [VocabularyTerm] {
+        guard let data = defaults.data(forKey: vocabularyTermsKey),
+              let terms = try? JSONDecoder().decode([VocabularyTerm].self, from: data) else {
+            return []
+        }
+        return normalizedVocabularyTerms(terms)
+    }
+
+    private static func saveVocabularyCorrections(_ corrections: [VocabularyCorrection]) {
+        guard let data = try? JSONEncoder().encode(normalizedVocabularyCorrections(corrections)) else { return }
+        defaults.set(data, forKey: vocabularyCorrectionsKey)
+    }
+
+    private static func saveVocabularyTerms(_ terms: [VocabularyTerm]) {
+        guard let data = try? JSONEncoder().encode(normalizedVocabularyTerms(terms)) else { return }
+        defaults.set(data, forKey: vocabularyTermsKey)
+    }
+
+    private static func normalizedVocabularyCorrections(_ corrections: [VocabularyCorrection]) -> [VocabularyCorrection] {
+        var seen = Set<String>()
+        return corrections.compactMap { correction in
+            let writtenAs = correction.writtenAs.trimmingCharacters(in: .whitespacesAndNewlines)
+            let correctVersion = correction.correctVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !writtenAs.isEmpty,
+                  !correctVersion.isEmpty,
+                  writtenAs != correctVersion else {
+                return nil
+            }
+            let key = "\(writtenAs.lowercased())\u{1f}\(correctVersion.lowercased())"
+            guard !seen.contains(key) else { return nil }
+            seen.insert(key)
+            var normalized = correction
+            normalized.writtenAs = writtenAs
+            normalized.correctVersion = correctVersion
+            normalized.note = normalizedOptionalText(correction.note)
+            normalized.sourceAppName = normalizedOptionalText(correction.sourceAppName)
+            return normalized
+        }
     }
 
     private func syncCleanupProviderWithTranscriptionPreset() {
