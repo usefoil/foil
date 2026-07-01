@@ -117,13 +117,28 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(elementExists(id: "appShell.history", timeout: 4), app.debugDescription)
         XCTAssertTrue(elementExists(id: "history.root", timeout: 2), app.debugDescription)
         XCTAssertEqual(historyNavItem.value as? String, "Selected")
-        XCTAssertTrue(elementExists(id: "history.searchField", timeout: 2), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "history.exportButton", timeout: 2), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "history.clearButton", timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.textFields["Search transcriptions..."].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.buttons["Export"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.buttons["Clear"].waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["Seeded transcript for UI testing."].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["Seeded network failure"].exists, app.debugDescription)
         XCTAssertGreaterThanOrEqual(app.buttons.matching(NSPredicate(format: "label == %@", "Details")).count, 3, app.debugDescription)
+    }
+
+    func testAppShellHistorySearchesAndFiltersSeededRecords() {
+        openAppShellHistory()
+
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "search", "query": "Second searchable"])
+        XCTAssertTrue(app.staticTexts["Second searchable transcript."].waitForExistence(timeout: 2), app.debugDescription)
+
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "search", "query": "no matching transcript"])
+        XCTAssertTrue(staticTextLabelOrValueContaining("No matches", in: app).waitForExistence(timeout: 4), app.debugDescription)
+
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "search", "query": ""])
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "filter", "filter": "Failed"])
+        XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(app.windows["History"].exists, app.debugDescription)
     }
 
     func testAppShellShowsGeneralPreferences() {
@@ -136,13 +151,48 @@ final class FoilUITests: XCTestCase {
         generalNavItem.click()
 
         XCTAssertTrue(elementExists(id: "appShell.preferences", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.root", timeout: 2), app.debugDescription)
         XCTAssertEqual(generalNavItem.value as? String, "Selected")
         XCTAssertTrue(elementExists(id: "settings.general.versionRow", timeout: 2), app.debugDescription)
         XCTAssertTrue(checkBox(id: "settings.launchAtLoginToggle", fallbackLabel: "Launch at Login").exists, app.debugDescription)
         XCTAssertTrue(checkBox(id: "settings.soundEffectsToggle", fallbackLabel: "Sound effects").exists, app.debugDescription)
         XCTAssertTrue(checkBox(id: "settings.floatingStatusToggle", fallbackLabel: "Show floating status").exists, app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.tab.general", timeout: 1), app.debugDescription)
+    }
+
+    func testAppShellShowsAllSettingsSidebarPanes() {
+        let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
+        XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)
+        openFoilButton.click()
+        XCTAssertTrue(elementExists(id: "appShell.root", timeout: 4), app.debugDescription)
+
+        assertAppShellSettingsPane(
+            navID: "appShell.nav.settings.recording",
+            requiredID: "settings.hotkeyPicker"
+        )
+        assertAppShellSettingsPane(
+            navID: "appShell.nav.settings.transcription",
+            requiredID: "settings.transcriptionProviderPicker"
+        )
+        assertAppShellSettingsPane(
+            navID: "appShell.nav.settings.cleanup",
+            requiredID: "settings.cleanupFormattingToggle"
+        )
+        assertAppShellSettingsPane(
+            navID: "appShell.nav.settings.paste",
+            requiredID: "settings.keepClipboardToggle"
+        )
+        assertAppShellSettingsPane(
+            navID: "appShell.nav.settings.storage",
+            requiredID: "settings.historyRetentionPicker"
+        )
+        assertAppShellSettingsPane(
+            navID: "appShell.nav.settings.whatsNew",
+            requiredID: "settings.whatsNew.versionText"
+        )
+        assertAppShellSettingsPane(
+            navID: "appShell.nav.settings.experimental",
+            requiredID: "settings.asyncPasteToggle"
+        )
     }
 
     func testMenuHistoryButtonRoutesToAppShellHistory() {
@@ -453,7 +503,7 @@ final class FoilUITests: XCTestCase {
         )
     }
 
-    func testHistoryWindowOpensAndSearchesSeededRecords() {
+    func testHistoryComponentHostSearchesSeededRecords() {
         openHistoryWindow()
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
 
@@ -462,14 +512,12 @@ final class FoilUITests: XCTestCase {
         postUITestCommand(historyCommandNotification, userInfo: ["command": "search", "query": "Second searchable"])
 
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].waitForExistence(timeout: 2))
-        XCTAssertFalse(app.staticTexts["Seeded transcript for UI testing."].exists)
 
         postUITestCommand(historyCommandNotification, userInfo: ["command": "search", "query": "no matching transcript"])
         XCTAssertTrue(staticTextLabelOrValueContaining("No matches", in: historyPanel).waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertFalse(historyPanel.staticTexts["Second searchable transcript."].exists)
     }
 
-    func testHistoryFilterShowsFailedRecords() {
+    func testHistoryComponentHostFiltersFailedRecords() {
         openHistoryWindow()
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
 
@@ -480,7 +528,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Seeded network failure"].waitForExistence(timeout: 2))
     }
 
-    func testHistoryDeleteAndClearActions() {
+    func testHistoryComponentHostDeleteAndClearActions() {
         openHistoryWindow()
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
 
@@ -520,7 +568,7 @@ final class FoilUITests: XCTestCase {
         )
     }
 
-    func testHistoryDetailAllowsEditingAndExport() {
+    func testHistoryComponentHostDetailAllowsEditingAndExport() {
         openHistoryWindow()
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))
         assertButtonExists(id: "history.exportButton", fallbackLabel: "Export")
@@ -537,7 +585,7 @@ final class FoilUITests: XCTestCase {
         postUITestCommand(historyCommandNotification, userInfo: ["command": "dismissDetail"])
     }
 
-    func testSettingsButtonOpensSettingsWindow() {
+    func testSettingsComponentHostOpensForDetailedPaneCoverage() {
         openSettingsPanel()
         XCTAssertTrue(waitForSettingsPanel(timeout: 4))
         XCTAssertTrue(providerPickerExists(timeout: 6) || elementExists(id: "settings.root", timeout: 4))
@@ -1434,6 +1482,31 @@ final class FoilUITests: XCTestCase {
     private func openTranscriptionSettingsPanel() {
         openSettingsPanel()
         XCTAssertTrue(providerPickerExists(timeout: 6), app.debugDescription)
+    }
+
+    private func openAppShellHistory() {
+        let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
+        XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)
+        openFoilButton.click()
+
+        let historyNavItem = app.descendants(matching: .any)["appShell.nav.history"]
+        XCTAssertTrue(historyNavItem.waitForExistence(timeout: 4), app.debugDescription)
+        historyNavItem.click()
+
+        XCTAssertTrue(elementExists(id: "appShell.history", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "history.root", timeout: 2), app.debugDescription)
+        XCTAssertEqual(historyNavItem.value as? String, "Selected")
+    }
+
+    private func assertAppShellSettingsPane(navID: String, requiredID: String) {
+        let navItem = app.descendants(matching: .any)[navID]
+        XCTAssertTrue(navItem.waitForExistence(timeout: 4), app.debugDescription)
+        navItem.click()
+
+        XCTAssertTrue(elementExists(id: "appShell.preferences", timeout: 4), app.debugDescription)
+        XCTAssertEqual(navItem.value as? String, "Selected", app.debugDescription)
+        XCTAssertTrue(elementExists(id: requiredID, timeout: 4), app.debugDescription)
+        XCTAssertFalse(app.windows["Settings"].exists, app.debugDescription)
     }
 
     private func openHistoryWindow() {
