@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 @main
 struct FoilApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @Environment(\.openWindow) private var openWindow
 
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("--ui-testing")
@@ -26,7 +27,6 @@ struct FoilApp: App {
                 onCancelRecording: { [weak appDelegate] in appDelegate?.cancelRecordingFromControl() },
                 onCancelTranscription: { [weak appDelegate] in appDelegate?.cancelTranscriptionFromControl() },
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
-                onOpenSettings: { [weak appDelegate] in appDelegate?.showSettingsWindow() },
                 onOpenAccessibility: { [weak appDelegate] in appDelegate?.openAccessibilitySettings() },
                 onOpenMicrophone: { [weak appDelegate] in appDelegate?.openMicrophoneSettings() },
                 onCheckMicrophone: { [weak appDelegate] in appDelegate?.checkMicrophonePermission() },
@@ -37,6 +37,29 @@ struct FoilApp: App {
             appDelegate.menuBarLabel
         }
         .menuBarExtraStyle(.window)
+
+        Window(AppBrand.name, id: "main") {
+            FoilAppShellView(
+                appState: appDelegate.appState,
+                queuedPasteQueue: appDelegate.queuedPasteQueue,
+                history: appDelegate.history,
+                onRetryRecord: { [weak appDelegate] record in appDelegate?.retryRecord(record) },
+                onPasteText: { [weak appDelegate] text in appDelegate?.paste(text: text) },
+                onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
+                onCopySetupReport: { [weak appDelegate] in appDelegate?.copySetupReportToClipboard() },
+                onExportDiagnostics: { [weak appDelegate] in appDelegate?.exportDiagnostics() },
+                onStartLocalWhisperServer: { [weak appDelegate] modelID in
+                    appDelegate?.startLocalWhisperServer(modelID: modelID)
+                },
+                onStartRecording: { [weak appDelegate] in appDelegate?.startRecordingFromControl() },
+                onStopRecording: { [weak appDelegate] in appDelegate?.stopRecordingFromControl() },
+                onCancelRecording: { [weak appDelegate] in appDelegate?.cancelRecordingFromControl() },
+                onCancelTranscription: { [weak appDelegate] in appDelegate?.cancelTranscriptionFromControl() },
+                onPasteLast: { [weak appDelegate] in appDelegate?.pasteLastSuccess() }
+            )
+        }
+        .defaultSize(width: 940, height: 640)
+        .defaultPosition(.center)
 
         Window("\(AppBrand.name) Setup", id: "api-key-setup") {
             if appDelegate.appState.selectedProviderUsesSharedApiKey {
@@ -91,6 +114,14 @@ struct FoilApp: App {
             )
         }
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings...") {
+                    FoilAppSection.request(.general)
+                    openWindow(id: "main")
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+
             CommandGroup(after: .help) {
                 Button("Copy Setup Report") {
                     appDelegate.copySetupReportToClipboard()

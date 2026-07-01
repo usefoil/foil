@@ -14,6 +14,7 @@ struct MenuBarView: View {
     var onCancelRecording: (() -> Void)?
     var onCancelTranscription: (() -> Void)?
     var onHotkeyChanged: (() -> Void)?
+    var onOpenFoil: (() -> Void)?
     var onOpenHistory: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onOpenAccessibility: (() -> Void)?
@@ -72,6 +73,7 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            menuHeader
             toolbarActions
             sessionStrip
             if appState.needsSetupAttention {
@@ -91,11 +93,41 @@ struct MenuBarView: View {
         }
         .accessibilityIdentifier("menu.controlCenter")
         .padding(14)
-        .frame(width: 360)
+        .frame(width: 380)
+        .background(FoilTheme.windowBackground)
+        .environment(\.colorScheme, .light)
         .onAppear {
             if !isUITesting {
                 appState.refreshApiKeyState()
             }
+        }
+    }
+
+    private var menuHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                FoilCylinderMark(size: 30)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(AppBrand.name)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(FoilTheme.deepTeal)
+                    Text(session.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            Button {
+                openFoil()
+            } label: {
+                Label("Open Foil", systemImage: "macwindow")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(FoilTheme.deepTeal)
+            .accessibilityIdentifier("menu.openFoilButton")
+            .help("Open Foil")
         }
     }
 
@@ -941,7 +973,17 @@ struct MenuBarView: View {
         if let onOpenHistory {
             onOpenHistory()
         } else {
-            openWindow(id: "history")
+            FoilAppSection.request(.history)
+            openWindow(id: "main")
+        }
+    }
+
+    private func openFoil() {
+        if let onOpenFoil {
+            onOpenFoil()
+        } else {
+            FoilAppSection.request(.home)
+            openWindow(id: "main")
         }
     }
 
@@ -949,7 +991,8 @@ struct MenuBarView: View {
         if let onOpenSettings {
             onOpenSettings()
         } else {
-            NSApplication.shared.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            FoilAppSection.request(.general)
+            openWindow(id: "main")
         }
     }
 }

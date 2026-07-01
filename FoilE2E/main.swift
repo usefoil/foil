@@ -7,8 +7,6 @@ struct FoilE2EConfig {
     var model = ProcessInfo.processInfo.environment["E2E_TRANSCRIPTION_MODEL"] ?? "whisper-large-v3-turbo"
     var provider = ProcessInfo.processInfo.environment["E2E_TRANSCRIPTION_PROVIDER"] ?? "groq"
     var baseURL = ProcessInfo.processInfo.environment["E2E_TRANSCRIPTION_BASE_URL"] ?? "https://api.groq.com/openai/v1"
-    var apiKey = ProcessInfo.processInfo.environment["GROQ_API_KEY"]
-        ?? ProcessInfo.processInfo.environment["E2E_API_KEY"]
     var timeoutSeconds = TimeInterval(ProcessInfo.processInfo.environment["E2E_TRANSCRIPTION_TIMEOUT_SECONDS"] ?? "") ?? 90
 }
 
@@ -17,7 +15,7 @@ enum FoilE2EError: Error, CustomStringConvertible {
     case unknownArgument(String)
     case invalidAudioPath(String)
     case invalidFormat(String)
-    case missingAPIKey
+    case missingAPIKey(provider: String)
     case invalidBaseURL(String)
     case timedOut(TimeInterval)
     case transcriptMismatch(transcript: String, missingWords: [String])
@@ -32,8 +30,8 @@ enum FoilE2EError: Error, CustomStringConvertible {
             "Audio file does not exist: \(path)"
         case .invalidFormat(let path):
             "Unsupported audio format for file: \(path)"
-        case .missingAPIKey:
-            "GROQ_API_KEY or E2E_API_KEY is required"
+        case .missingAPIKey(let provider):
+            "API key is required for \(provider) E2E transcription"
         case .invalidBaseURL(let value):
             "Invalid E2E_TRANSCRIPTION_BASE_URL: \(value)"
         case .timedOut(let seconds):
@@ -94,9 +92,9 @@ enum FoilE2E {
     }
 
     private static func run(config: FoilE2EConfig) async throws -> String {
-        guard let apiKey = config.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+        guard let apiKey = apiKey(for: config)?.trimmingCharacters(in: .whitespacesAndNewlines),
               !apiKey.isEmpty else {
-            throw FoilE2EError.missingAPIKey
+            throw FoilE2EError.missingAPIKey(provider: config.provider)
         }
 
         let audioURL = URL(fileURLWithPath: config.audioPath)
@@ -119,6 +117,10 @@ enum FoilE2E {
             provider = .groq
         }
 
+        print("provider=\(provider.id.rawValue)")
+        print("baseURL=\(provider.baseURL.absoluteString)")
+        print("model=\(config.model)")
+
         let service = TranscriptionService(provider: provider)
         let transcript = try await withTimeout(seconds: config.timeoutSeconds) {
             try await service.transcribe(
@@ -136,6 +138,16 @@ enum FoilE2E {
         }
 
         return transcript
+    }
+
+    private static func apiKey(for config: FoilE2EConfig) -> String? {
+        let environment = ProcessInfo.processInfo.environment
+        switch config.provider {
+        case "openai", "openai-compatible":
+            return environment["E2E_API_KEY"] ?? environment["OPENAI_API_KEY"]
+        default:
+            return environment["GROQ_API_KEY"] ?? environment["E2E_API_KEY"]
+        }
     }
 
     private static func withTimeout<T>(
