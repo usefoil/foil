@@ -121,8 +121,6 @@ struct FoilAppShellView: View {
             .background(FoilTheme.windowBackground)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("appShell.preferences")
-        default:
-            sectionPlaceholder
         }
     }
 
@@ -154,19 +152,5 @@ struct FoilAppShellView: View {
             return
         }
         selection = requestedSelection
-    }
-
-    private var sectionPlaceholder: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(selection.title)
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(FoilTheme.deepTeal)
-            Text("Home remains available while this section moves into the app window.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .padding(28)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(FoilTheme.windowBackground)
     }
 }
