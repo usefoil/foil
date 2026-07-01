@@ -599,8 +599,9 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(selectedVocabularyText.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertEqual(selectedVocabularyText.value as? String, "Second searchable")
         app.buttons["history.vocabulary.addSelectionButton"].click()
-        let vocabularyWrittenAsEditor = app.textViews["history.vocabulary.writtenAsEditor"]
-        XCTAssertTrue(vocabularyWrittenAsEditor.waitForExistence(timeout: 2), app.debugDescription)
+        let vocabularyWrittenAsField = app.textFields["history.vocabulary.writtenAsField"]
+        XCTAssertTrue(vocabularyWrittenAsField.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(vocabularyWrittenAsField.value as? String, "Second searchable")
         XCTAssertTrue(elementExists(id: "history.vocabulary.correctVersionField", timeout: 2), app.debugDescription)
         app.buttons["history.vocabulary.cancelButton"].click()
 
@@ -622,7 +623,9 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(defaultToken.waitForExistence(timeout: 2), app.debugDescription)
         defaultToken.click()
         app.buttons["history.vocabulary.addSelectionButton"].click()
-        XCTAssertTrue(app.textViews["history.vocabulary.writtenAsEditor"].waitForExistence(timeout: 2), app.debugDescription)
+        let defaultWrittenAsField = app.textFields["history.vocabulary.writtenAsField"]
+        XCTAssertTrue(defaultWrittenAsField.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(defaultWrittenAsField.value as? String, "Second")
         XCTAssertFalse(elementExists(id: "history.vocabulary.saveAndRecleanButton", timeout: 1), app.debugDescription)
         app.buttons["history.vocabulary.cancelButton"].click()
 
