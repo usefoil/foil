@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foil Vocabulary UX Mockup</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f6;
+      --window: #fbfcfc;
+      --panel: #ffffff;
+      --sidebar: #edf3f2;
+      --text: #18201f;
+      --muted: #63706d;
+      --quiet: #8a9491;
+      --line: #dce4e2;
+      --line-strong: #c8d4d1;
+      --brand: #0d5f59;
+      --brand-mid: #16847b;
+      --brand-soft: #dff0ed;
+      --yellow: #e8b539;
+      --warning-soft: #fff6dc;
+      --danger: #bf3f38;
+      --shadow: rgba(18, 36, 34, 0.16);
+      --control: #f2f5f4;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 28px 24px 42px;
+    }
+
+    .intro {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 22px;
+      margin-bottom: 18px;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      font-size: 28px;
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .intro p {
+      max-width: 720px;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 25px;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      white-space: nowrap;
+    }
+
+    .mock-grid {
+      display: grid;
+      grid-template-columns: minmax(360px, 1.18fr) minmax(340px, 0.82fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .mock-section {
+      min-width: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      background: var(--window);
+      box-shadow: 0 14px 34px color-mix(in srgb, var(--shadow) 70%, transparent);
+      overflow: hidden;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 38px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      background: #f8faf9;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 168px minmax(0, 1fr);
+      min-height: 610px;
+    }
+
+    .sidebar {
+      padding: 14px 10px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 2px 6px 18px;
+      font-weight: 700;
+      color: var(--brand);
+    }
+
+    .mark {
+      width: 25px;
+      height: 25px;
+      border-radius: 9px;
+      background:
+        linear-gradient(135deg, var(--brand), var(--brand-mid) 62%, var(--yellow));
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.45);
+    }
+
+    .nav-group {
+      margin-bottom: 18px;
+    }
+
+    .nav-label {
+      padding: 0 8px 6px;
+      color: var(--quiet);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 31px;
+      padding: 0 9px;
+      border-radius: 7px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .nav-item.selected {
+      color: var(--brand);
+      background: var(--brand-soft);
+      font-weight: 650;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+    }
+
+    .content {
+      min-width: 0;
+      padding: 24px;
+      background: var(--bg);
+    }
+
+    .content-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .content-header h2 {
+      font-size: 24px;
+      letter-spacing: 0;
+      color: var(--brand);
+    }
+
+    .content-header p {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: -3px 0 12px;
+    }
+
+    button,
+    .button {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 30px;
+      padding: 6px 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      color: var(--text);
+      background: var(--panel);
+      font: inherit;
+      font-size: 13px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .primary {
+      color: #fff;
+      border-color: var(--brand);
+      background: var(--brand);
+    }
+
+    .ghost {
+      color: var(--muted);
+      background: transparent;
+    }
+
+    .danger {
+      color: var(--danger);
+    }
+
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--panel);
+      font-size: 12px;
+    }
+
+    .filter-chip.selected {
+      color: var(--brand);
+      border-color: color-mix(in srgb, var(--brand) 36%, var(--line));
+      background: var(--brand-soft);
+      font-weight: 650;
+    }
+
+    .record-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .record {
+      display: grid;
+      gap: 9px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .record.selected {
+      border-color: color-mix(in srgb, var(--brand) 50%, var(--line));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-soft) 65%, transparent);
+    }
+
+    .record h3,
+    .settings-card h3,
+    .sheet-card h3 {
+      margin-bottom: 6px;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    .transcript {
+      max-width: 64ch;
+      color: #28302f;
+      font-size: 13px;
+      line-height: 1.42;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .highlight {
+      display: inline-flex;
+      align-items: center;
+      min-height: 21px;
+      margin: 0 1px;
+      padding: 1px 5px;
+      border: 0;
+      border-radius: 4px;
+      color: var(--text);
+      background: var(--warning-soft);
+      box-shadow: inset 0 0 0 1px #ead18b;
+      font-weight: 650;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .highlight::after {
+      content: "+";
+      margin-left: 5px;
+      color: #806410;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .selected-token {
+      display: inline-flex;
+      align-items: center;
+      min-height: 21px;
+      margin: 0 1px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: var(--text);
+      background: var(--warning-soft);
+      box-shadow: inset 0 0 0 1px #ead18b;
+      font-weight: 650;
+    }
+
+    .phrase-hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .phrase-hint strong {
+      color: var(--brand);
+    }
+
+    .detail-panel {
+      margin-top: 12px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdfd;
+    }
+
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .sheet-wrap {
+      position: relative;
+      min-height: 610px;
+      padding: 30px;
+      background:
+        linear-gradient(rgba(24, 32, 31, .34), rgba(24, 32, 31, .34)),
+        var(--bg);
+    }
+
+    .sheet-card {
+      width: min(460px, 100%);
+      margin: 56px auto 0;
+      border: 1px solid var(--line-strong);
+      border-radius: 10px;
+      background: var(--panel);
+      box-shadow: 0 24px 80px rgba(18, 36, 34, .32);
+      overflow: hidden;
+    }
+
+    .sheet-head {
+      padding: 18px 18px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .sheet-head h2 {
+      font-size: 20px;
+      color: var(--brand);
+    }
+
+    .sheet-head p {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .sheet-body {
+      display: grid;
+      gap: 13px;
+      padding: 16px 18px 18px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 650;
+      color: var(--muted);
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: 7px;
+      padding: 9px 10px;
+      color: var(--text);
+      background: #fff;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    textarea {
+      min-height: 86px;
+      resize: vertical;
+      line-height: 1.4;
+    }
+
+    .sheet-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 13px 18px;
+      border-top: 1px solid var(--line);
+      background: #f8faf9;
+    }
+
+    .notice {
+      padding: 9px 10px;
+      border: 1px solid #ead18b;
+      border-radius: 7px;
+      color: #6b5312;
+      background: var(--warning-soft);
+      font-size: 12px;
+      line-height: 1.36;
+    }
+
+    .settings-app {
+      display: grid;
+      grid-template-columns: 168px minmax(0, 1fr);
+      min-height: 620px;
+    }
+
+    .settings-body {
+      padding: 24px;
+      background: var(--bg);
+    }
+
+    .settings-grid {
+      display: grid;
+      gap: 14px;
+      max-width: 760px;
+    }
+
+    .settings-card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .row:first-of-type {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .term-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .term-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 42px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fbfdfd;
+    }
+
+    .arrow {
+      color: var(--brand);
+      font-weight: 700;
+    }
+
+    .footer-notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .note {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .note h3 {
+      margin-bottom: 5px;
+      font-size: 13px;
+      color: var(--brand);
+    }
+
+    .note p {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 980px) {
+      .intro,
+      .content-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .badge-row {
+        justify-content: flex-start;
+      }
+
+      .mock-grid,
+      .footer-notes {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .page { padding: 18px 12px 30px; }
+      .app,
+      .settings-app {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .content,
+      .settings-body {
+        padding: 16px;
+      }
+
+      .sheet-wrap {
+        padding: 16px;
+      }
+
+      .record,
+      .term-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="intro">
+      <div>
+        <h1>Vocabulary UX Mockup</h1>
+        <p>First-pass exploration for teaching Foil recurring corrections from real transcript history. Vocabulary applies during Cleanup and avoids silent raw-transcript mutation.</p>
+      </div>
+      <div class="badge-row" aria-label="mockup scope">
+        <span class="badge">History-first creation</span>
+        <span class="badge">Cleanup-powered</span>
+        <span class="badge">No blind replacement</span>
+      </div>
+    </section>
+
+    <section class="mock-grid" aria-label="vocabulary interaction mockups">
+      <article class="mock-section">
+        <div class="section-title">
+          <span>History correction entry point</span>
+          <span>Click a phrase, then save the correction</span>
+        </div>
+        <div class="app">
+          <aside class="sidebar" aria-label="Foil sidebar">
+            <div class="brand"><span class="mark" aria-hidden="true"></span><span>Foil</span></div>
+            <div class="nav-group">
+              <div class="nav-label">Workspace</div>
+              <div class="nav-item"><span class="dot"></span>Home</div>
+              <div class="nav-item selected"><span class="dot"></span>History</div>
+            </div>
+            <div class="nav-group">
+              <div class="nav-label">Preferences</div>
+              <div class="nav-item"><span class="dot"></span>General</div>
+              <div class="nav-item"><span class="dot"></span>Recording</div>
+              <div class="nav-item"><span class="dot"></span>Transcription</div>
+              <div class="nav-item"><span class="dot"></span>Cleanup</div>
+            </div>
+          </aside>
+
+          <section class="content" aria-label="History">
+            <div class="content-header">
+              <div>
+                <h2>History</h2>
+                <p>Filter by app, then click the wrong word or phrase inside a transcript to teach Vocabulary.</p>
+              </div>
+              <div class="toolbar">
+                <button>Search</button>
+                <button>Export</button>
+              </div>
+            </div>
+
+            <div class="filter-bar" aria-label="History filters">
+              <span class="filter-chip selected">All apps</span>
+              <span class="filter-chip">Messages</span>
+              <span class="filter-chip">Linear</span>
+              <span class="filter-chip">Mail</span>
+              <span class="filter-chip">Failed</span>
+            </div>
+
+            <div class="record-list">
+              <div class="record selected">
+                <div>
+                  <h3>Transcript from Messages</h3>
+                  <p class="transcript">Can you update the docs for <button class="highlight">super base</button> auth before the release notes go out?</p>
+                  <p class="muted">2m ago · cleaned and pasted</p>
+                </div>
+                <p class="phrase-hint"><strong>Selected phrase:</strong> super base</p>
+              </div>
+              <div class="record">
+                <div>
+                  <h3>Transcript from Linear</h3>
+                  <p class="transcript">I think the local <button class="highlight">whisper path</button> is good enough for the beta build.</p>
+                  <p class="muted">18m ago · raw transcript</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-panel" aria-label="Selected transcript details">
+              <h3>Correction preview</h3>
+              <p class="transcript">Vocabulary will save a correction for <span class="selected-token">super base</span> from the selected Messages transcript.</p>
+              <div class="detail-actions">
+                <button>Copy</button>
+                <button>Paste Again</button>
+                <button>Edit</button>
+                <button class="primary">Continue to Vocabulary</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </article>
+
+      <article class="mock-section">
+        <div class="section-title">
+          <span>Correction sheet</span>
+          <span>Correction, not just a saved word</span>
+        </div>
+        <div class="sheet-wrap">
+          <div class="sheet-card" role="dialog" aria-labelledby="sheet-title">
+            <div class="sheet-head">
+              <h2 id="sheet-title">Correct in Vocabulary</h2>
+              <p>Teach Foil how this phrase should be written when Cleanup runs.</p>
+            </div>
+            <div class="sheet-body">
+              <label>
+                Foil wrote
+                <input value="super base">
+              </label>
+              <label>
+                Use this instead
+                <input value="Supabase">
+              </label>
+              <div class="notice">Vocabulary applies during Cleanup. It does not change raw transcripts or silently rewrite old history.</div>
+              <label>
+                Optional note
+                <textarea placeholder="Example: product name, client name, acronym, or technical term"></textarea>
+              </label>
+            </div>
+            <div class="sheet-actions">
+              <button class="ghost">Cancel</button>
+              <button>Save</button>
+              <button class="primary">Save and Re-clean</button>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="mock-section" style="grid-column: 1 / -1;">
+        <div class="section-title">
+          <span>Cleanup settings management</span>
+          <span>Settings manages Vocabulary; History creates it</span>
+        </div>
+        <div class="settings-app">
+          <aside class="sidebar" aria-label="Foil settings sidebar">
+            <div class="brand"><span class="mark" aria-hidden="true"></span><span>Foil</span></div>
+            <div class="nav-group">
+              <div class="nav-label">Workspace</div>
+              <div class="nav-item"><span class="dot"></span>Home</div>
+              <div class="nav-item"><span class="dot"></span>History</div>
+            </div>
+            <div class="nav-group">
+              <div class="nav-label">Preferences</div>
+              <div class="nav-item"><span class="dot"></span>General</div>
+              <div class="nav-item"><span class="dot"></span>Recording</div>
+              <div class="nav-item"><span class="dot"></span>Transcription</div>
+              <div class="nav-item selected"><span class="dot"></span>Cleanup</div>
+              <div class="nav-item"><span class="dot"></span>Paste</div>
+              <div class="nav-item"><span class="dot"></span>Storage</div>
+            </div>
+          </aside>
+
+          <section class="settings-body" aria-label="Cleanup settings">
+            <div class="content-header">
+              <div>
+                <h2>Cleanup</h2>
+                <p>Cleanup can use Vocabulary to preserve names, tools, acronyms, and recurring corrections.</p>
+              </div>
+              <div class="toolbar">
+                <button>Test Connection</button>
+              </div>
+            </div>
+
+            <div class="settings-grid">
+              <div class="settings-card">
+                <div class="row">
+                  <div>
+                    <h3>Clean up transcript formatting</h3>
+                    <p class="muted">Transcript text is sent to the selected cleanup provider when enabled.</p>
+                  </div>
+                  <button class="primary">On</button>
+                </div>
+                <div class="row">
+                  <div>
+                    <h3>Cleanup provider</h3>
+                    <p class="muted">OpenAI · GPT-5.4 mini</p>
+                  </div>
+                  <button>Change</button>
+                </div>
+              </div>
+
+              <div class="settings-card">
+                <div class="content-header" style="margin-bottom: 4px;">
+                  <div>
+                    <h3>Vocabulary</h3>
+                    <p class="muted">Used as prompt context during Cleanup. Corrections are stronger than preferred terms.</p>
+                  </div>
+                  <div class="toolbar">
+                    <button>Add Term</button>
+                    <button class="primary">Add Correction</button>
+                  </div>
+                </div>
+
+                <div class="term-list">
+                  <div class="term-row">
+                    <div>
+                      <strong>super base <span class="arrow">-&gt;</span> Supabase</strong>
+                      <p class="muted">Correction · created from History</p>
+                    </div>
+                    <div class="toolbar">
+                      <button>Edit</button>
+                      <button class="danger">Delete</button>
+                    </div>
+                  </div>
+                  <div class="term-row">
+                    <div>
+                      <strong>open AI <span class="arrow">-&gt;</span> OpenAI</strong>
+                      <p class="muted">Correction · applies during Cleanup</p>
+                    </div>
+                    <div class="toolbar">
+                      <button>Edit</button>
+                      <button class="danger">Delete</button>
+                    </div>
+                  </div>
+                  <div class="term-row">
+                    <div>
+                      <strong>Postgres</strong>
+                      <p class="muted">Preferred term</p>
+                    </div>
+                    <div class="toolbar">
+                      <button>Edit</button>
+                      <button class="danger">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-card">
+                <h3>Cleanup prompt</h3>
+                <p class="muted">Foil combines this prompt with Vocabulary. Prompt text and Vocabulary are not written to diagnostics.</p>
+                <textarea>Clean up transcript formatting while preserving the speaker's meaning, facts, voice, and intent.</textarea>
+                <div class="detail-actions">
+                  <button>Reset Prompt</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </article>
+    </section>
+
+    <section class="footer-notes" aria-label="UX decisions">
+      <div class="note">
+        <h3>Primary UX Bet</h3>
+        <p>Users should create Vocabulary from transcript mistakes, because Settings-first vocabulary management makes the user invent examples instead of correcting real failures.</p>
+      </div>
+      <div class="note">
+        <h3>Interaction Detail</h3>
+        <p>The sheet includes Save and Re-clean because immediate repair is valuable, but that may be the main implementation scope decision for v1.</p>
+      </div>
+      <div class="note">
+        <h3>Boundary</h3>
+        <p>Vocabulary only affects Cleanup. If Cleanup is off, Vocabulary is stored but inactive, which keeps routing and privacy behavior explainable.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

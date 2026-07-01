@@ -6,6 +6,7 @@ struct FoilAppShellView: View {
     var history: TranscriptionHistory
     var onRetryRecord: ((TranscriptionRecord) -> Void)?
     var onPasteText: ((String) -> Void)?
+    var onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?
     var onHotkeyChanged: (() -> Void)?
     var onCopySetupReport: (() -> Void)?
     var onExportDiagnostics: (() -> Void)?
@@ -25,6 +26,7 @@ struct FoilAppShellView: View {
         initialSelection: FoilAppSection = .home,
         onRetryRecord: ((TranscriptionRecord) -> Void)? = nil,
         onPasteText: ((String) -> Void)? = nil,
+        onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)? = nil,
         onHotkeyChanged: (() -> Void)? = nil,
         onCopySetupReport: (() -> Void)? = nil,
         onExportDiagnostics: (() -> Void)? = nil,
@@ -40,6 +42,7 @@ struct FoilAppShellView: View {
         self.history = history
         self.onRetryRecord = onRetryRecord
         self.onPasteText = onPasteText
+        self.onSaveAndRecleanVocabularyCorrection = onSaveAndRecleanVocabularyCorrection
         self.onHotkeyChanged = onHotkeyChanged
         self.onCopySetupReport = onCopySetupReport
         self.onExportDiagnostics = onExportDiagnostics
@@ -96,6 +99,20 @@ struct FoilAppShellView: View {
                 history: history,
                 onRetry: onRetryRecord,
                 onPaste: onPasteText,
+                onSaveVocabularyTerm: { [appState] term, note in
+                    appState.addVocabularyTerm(term, note: note)
+                },
+                onSaveVocabularyCorrection: { [appState] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
+                    appState.addVocabularyCorrection(
+                        writtenAs: writtenAs,
+                        correctVersion: correctVersion,
+                        note: note,
+                        sourceRecordID: sourceRecordID,
+                        sourceAppName: sourceAppName
+                    )
+                },
+                onSaveAndRecleanVocabularyCorrection: onSaveAndRecleanVocabularyCorrection,
+                canSaveAndRecleanVocabularyCorrection: appState.canRecleanHistoryTranscripts,
                 showsHeader: true
             )
             .padding(28)

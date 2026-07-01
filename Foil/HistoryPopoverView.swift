@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+enum HistoryVocabularyRecleanResult: Equatable {
+    case updated
+    case saveRejected
+    case cleanupUnavailable
+    case cleanupFailed
+}
+
 struct HistoryPopoverView: View {
     enum Filter: String, CaseIterable {
         case all = "All"
@@ -11,10 +18,292 @@ struct HistoryPopoverView: View {
     var history: TranscriptionHistory
     var onRetry: ((TranscriptionRecord) -> Void)?
     var onPaste: ((String) -> Void)?
+    var onSaveVocabularyTerm: ((String, String?) -> VocabularyTerm?)?
+    var onSaveVocabularyCorrection: ((String, String, String?, UUID?, String?) -> VocabularyCorrection?)?
+    var onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?
+    var canSaveAndRecleanVocabularyCorrection = false
     var showsHeader = true
+
+    private struct VocabularyCorrectionDraft: Identifiable {
+        let id = UUID()
+        let recordID: UUID
+        let selectedText: String
+        let sourceAppName: String?
+    }
+
+    private enum VocabularySaveMode: String, CaseIterable, Identifiable {
+        case preferredTerm = "Preferred term"
+        case correction = "Correction"
+
+        var id: String { rawValue }
+    }
+
+    private struct VocabularyToken: Identifiable {
+        let id: Int
+        let text: String
+        let correctionText: String
+    }
+
+    private struct VocabularyTokenSelection: Equatable {
+        let recordID: UUID
+        var lowerTokenID: Int
+        var upperTokenID: Int
+
+        init(recordID: UUID, tokenID: Int) {
+            self.recordID = recordID
+            self.lowerTokenID = tokenID
+            self.upperTokenID = tokenID
+        }
+
+        var range: ClosedRange<Int> {
+            lowerTokenID...upperTokenID
+        }
+    }
+
+    private struct VocabularyCorrectionPopover: View {
+        let draft: VocabularyCorrectionDraft
+        let canShowSaveAndReclean: Bool
+        let onCancel: () -> Void
+        let onSaveVocabularyTerm: ((String, String?) -> VocabularyTerm?)?
+        let onSaveVocabularyCorrection: ((String, String, String?, UUID?, String?) -> VocabularyCorrection?)?
+        let onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?
+        let onRecleanUpdated: () -> Void
+
+        @State private var saveMode: VocabularySaveMode = .correction
+        @State private var term: String
+        @State private var writtenAs: String
+        @State private var correctVersion = ""
+        @State private var note = ""
+        @State private var saveError: String?
+        @State private var isSavingAndRecleaning = false
+
+        init(
+            draft: VocabularyCorrectionDraft,
+            canShowSaveAndReclean: Bool,
+            onCancel: @escaping () -> Void,
+            onSaveVocabularyTerm: ((String, String?) -> VocabularyTerm?)?,
+            onSaveVocabularyCorrection: ((String, String, String?, UUID?, String?) -> VocabularyCorrection?)?,
+            onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?,
+            onRecleanUpdated: @escaping () -> Void
+        ) {
+            self.draft = draft
+            self.canShowSaveAndReclean = canShowSaveAndReclean
+            self.onCancel = onCancel
+            self.onSaveVocabularyTerm = onSaveVocabularyTerm
+            self.onSaveVocabularyCorrection = onSaveVocabularyCorrection
+            self.onSaveAndRecleanVocabularyCorrection = onSaveAndRecleanVocabularyCorrection
+            self.onRecleanUpdated = onRecleanUpdated
+            _term = State(initialValue: draft.selectedText)
+            _writtenAs = State(initialValue: draft.selectedText)
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Vocabulary", systemImage: "text.badge.plus")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Button {
+                        isSavingAndRecleaning = false
+                        onCancel()
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .buttonStyle(.plain)
+                    .controlSize(.small)
+                    .help("Cancel")
+                    .accessibilityLabel("Cancel")
+                    .accessibilityIdentifier("history.vocabulary.cancelButton")
+                }
+
+                HStack(spacing: 6) {
+                    ForEach(VocabularySaveMode.allCases) { mode in
+                        Button {
+                            saveError = nil
+                            saveMode = mode
+                        } label: {
+                            Text(mode.rawValue)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .accessibilityAddTraits(saveMode == mode ? .isSelected : [])
+                        .accessibilityValue(saveMode == mode ? "Selected" : "Not selected")
+                        .accessibilityIdentifier(
+                            mode == .preferredTerm
+                                ? "history.vocabulary.mode.preferredTerm"
+                                : "history.vocabulary.mode.correction"
+                        )
+                    }
+                }
+
+                if saveMode == .preferredTerm {
+                    field("Preferred term") {
+                        TextField("Name or phrase to preserve", text: $term, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1...3)
+                            .accessibilityIdentifier("history.vocabulary.termField")
+                            .accessibilityValue(term)
+                    }
+                } else {
+                    field("Foil wrote") {
+                        TextField("Phrase Foil wrote", text: $writtenAs, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1...3)
+                            .accessibilityIdentifier("history.vocabulary.writtenAsField")
+                            .accessibilityValue(writtenAs)
+                    }
+
+                    field("Use instead") {
+                        TextField("Correct version", text: $correctVersion)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("history.vocabulary.correctVersionField")
+                    }
+                }
+
+                field("Note") {
+                    TextField("Optional context", text: $note)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("history.vocabulary.noteField")
+                }
+
+                if let saveError {
+                    Text(saveError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("history.vocabulary.error")
+                }
+
+                HStack(spacing: 10) {
+                    Spacer()
+                    Button {
+                        save()
+                    } label: {
+                        Label(saveButtonTitle, systemImage: "checkmark")
+                    }
+                    .disabled(!canSave || isFormIncomplete)
+                    .keyboardShortcut(.defaultAction)
+                    .controlSize(.regular)
+                    .accessibilityIdentifier("history.vocabulary.saveButton")
+
+                    if saveMode == .correction && canShowSaveAndReclean {
+                        Button {
+                            Task {
+                                await saveAndReclean()
+                            }
+                        } label: {
+                            if isSavingAndRecleaning {
+                                Label("Re-cleaning", systemImage: "wand.and.stars")
+                            } else {
+                                Label("Save and Re-clean", systemImage: "wand.and.stars")
+                            }
+                        }
+                        .disabled(isSavingAndRecleaning || isFormIncomplete)
+                        .controlSize(.regular)
+                        .accessibilityIdentifier("history.vocabulary.saveAndRecleanButton")
+                    }
+                }
+            }
+            .padding(14)
+            .frame(width: 360)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .foregroundStyle(.primary)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .preferredColorScheme(.light)
+        }
+
+        private func field<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                content()
+            }
+        }
+
+        private var isFormIncomplete: Bool {
+            switch saveMode {
+            case .preferredTerm:
+                term.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            case .correction:
+                writtenAs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                correctVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+        }
+
+        private var canSave: Bool {
+            switch saveMode {
+            case .preferredTerm:
+                onSaveVocabularyTerm != nil
+            case .correction:
+                onSaveVocabularyCorrection != nil
+            }
+        }
+
+        private var saveButtonTitle: String {
+            switch saveMode {
+            case .preferredTerm: "Save Term"
+            case .correction: "Save Correction"
+            }
+        }
+
+        private func save() {
+            saveError = nil
+            switch saveMode {
+            case .preferredTerm:
+                guard let onSaveVocabularyTerm else { return }
+                if onSaveVocabularyTerm(term, note) == nil {
+                    saveError = "Add a term or phrase for Cleanup to preserve."
+                } else {
+                    onCancel()
+                }
+            case .correction:
+                guard let onSaveVocabularyCorrection else { return }
+                let savedCorrection = onSaveVocabularyCorrection(
+                    writtenAs,
+                    correctVersion,
+                    note,
+                    draft.recordID,
+                    draft.sourceAppName
+                )
+                if savedCorrection == nil {
+                    saveError = "Add both the phrase Foil wrote and the corrected version."
+                } else {
+                    onCancel()
+                }
+            }
+        }
+
+        private func saveAndReclean() async {
+            guard let onSaveAndRecleanVocabularyCorrection else { return }
+            isSavingAndRecleaning = true
+            saveError = nil
+            let result = await onSaveAndRecleanVocabularyCorrection(
+                writtenAs,
+                correctVersion,
+                note,
+                draft.recordID,
+                draft.sourceAppName
+            )
+            isSavingAndRecleaning = false
+
+            switch result {
+            case .updated:
+                onRecleanUpdated()
+            case .saveRejected:
+                saveError = "Add both the phrase Foil wrote and the corrected version."
+            case .cleanupUnavailable:
+                saveError = "Turn on transcript cleanup and choose a cleanup provider to re-clean this transcript."
+            case .cleanupFailed:
+                saveError = "Could not re-clean this transcript. The History item was left unchanged."
+            }
+        }
+    }
 
     @State private var searchText = ""
     @State private var filter: Filter = .all
+    @State private var sourceAppFilter: String?
     @State private var isShowingClearConfirmation = false
     @State private var isShowingDeleteOlderConfirmation = false
     @State private var isShowingDeleteFilteredConfirmation = false
@@ -23,6 +312,8 @@ struct HistoryPopoverView: View {
     @State private var pendingDetailDeleteRecord: TranscriptionRecord?
     @State private var selectedRecord: TranscriptionRecord?
     @State private var editedText = ""
+    @State private var vocabularyDraft: VocabularyCorrectionDraft?
+    @State private var vocabularySelection: VocabularyTokenSelection?
 
     private var filteredRecords: [TranscriptionRecord] {
         history.records.filter { record in
@@ -33,6 +324,10 @@ struct HistoryPopoverView: View {
             }
             guard matchesFilter else { return false }
 
+            if let sourceAppFilter, record.sourceAppName != sourceAppFilter {
+                return false
+            }
+
             if searchText.isEmpty { return true }
             if let text = record.text {
                 return text.localizedCaseInsensitiveContains(searchText)
@@ -42,6 +337,14 @@ struct HistoryPopoverView: View {
             }
             return false
         }
+    }
+
+    private var sourceAppFilters: [String] {
+        let names = history.records.compactMap { record -> String? in
+            let trimmed = record.sourceAppName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        return Array(Set(names)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
     var body: some View {
@@ -129,6 +432,12 @@ struct HistoryPopoverView: View {
             if let value = command.filter,
                let nextFilter = Filter(rawValue: value) {
                 filter = nextFilter
+            }
+        case "appFilter":
+            if let appName = command.appName, sourceAppFilters.contains(appName) {
+                sourceAppFilter = appName
+            } else {
+                sourceAppFilter = nil
             }
         case "showDeleteFirst":
             pendingDeleteRecord = filteredRecords.first
@@ -240,6 +549,31 @@ struct HistoryPopoverView: View {
                 }
             }
             .accessibilityIdentifier("history.filterPicker")
+
+            if !sourceAppFilters.isEmpty {
+                HStack {
+                    Button("All apps") {
+                        sourceAppFilter = nil
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier("history.appFilter.allApps")
+                    .accessibilityAddTraits(sourceAppFilter == nil ? .isSelected : [])
+                    .accessibilityValue(sourceAppFilter == nil ? "Selected" : "Not selected")
+
+                    ForEach(sourceAppFilters, id: \.self) { appName in
+                        Button(appName) {
+                            sourceAppFilter = appName
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("history.appFilter.\(appName)")
+                        .accessibilityAddTraits(sourceAppFilter == appName ? .isSelected : [])
+                        .accessibilityValue(sourceAppFilter == appName ? "Selected" : "Not selected")
+                    }
+                }
+                .accessibilityIdentifier("history.appFilterPicker")
+            }
         }
         .padding(10)
     }
@@ -281,7 +615,7 @@ struct HistoryPopoverView: View {
 
     private var emptyStateTitle: String {
         if !history.isPersistenceEnabled { return "History storage is off" }
-        if !searchText.isEmpty { return "No matches" }
+        if !searchText.isEmpty || sourceAppFilter != nil { return "No matches" }
         switch filter {
         case .all:
             return "No transcriptions yet"
@@ -296,7 +630,7 @@ struct HistoryPopoverView: View {
         if !history.isPersistenceEnabled {
             return "Turn on history retention in Settings to keep future transcripts here."
         }
-        if !searchText.isEmpty {
+        if !searchText.isEmpty || sourceAppFilter != nil {
             return "Clear the search or change the filter to see more history."
         }
         switch filter {
@@ -328,14 +662,16 @@ struct HistoryPopoverView: View {
                 .padding(.top, 3)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(record.text ?? record.error ?? "")
-                    .lineLimit(3)
-                    .font(.body)
-                    .textSelection(.enabled)
-                    .foregroundStyle(record.isFailure ? .red : .primary)
-                Text(record.relativeTimestamp)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                transcriptSummary(for: record)
+                HStack(spacing: 5) {
+                    Text(record.relativeTimestamp)
+                    if let sourceAppName = record.sourceAppName {
+                        Text("·")
+                        Text(sourceAppName)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 Button {
                     selectedRecord = record
                     editedText = record.text ?? ""
@@ -357,10 +693,93 @@ struct HistoryPopoverView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("history.row")
         .contentShape(Rectangle())
-        .onTapGesture {
-            selectedRecord = record
-            editedText = record.text ?? ""
+    }
+
+    @ViewBuilder
+    private func transcriptSummary(for record: TranscriptionRecord) -> some View {
+        if let text = record.text {
+            VStack(alignment: .leading, spacing: 5) {
+                WrappingHStack(horizontalSpacing: 3, verticalSpacing: 3) {
+                    ForEach(vocabularyTokens(from: text)) { token in
+                        vocabularyTokenButton(record: record, token: token)
+                    }
+
+                    if transcriptNeedsEllipsis(text) {
+                        Text("...")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let selectedText = selectedVocabularyText(for: record, tokens: vocabularyTokens(from: text)) {
+                    HStack(spacing: 8) {
+                        Text(selectedText)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("history.vocabulary.selectedText")
+
+                        Button {
+                            beginVocabularyCorrection(for: record, writtenAs: selectedText)
+                        } label: {
+                            Label("Add selected", systemImage: "text.badge.plus")
+                        }
+                        .controlSize(.small)
+                        .accessibilityIdentifier("history.vocabulary.addSelectionButton")
+                        .popover(
+                            isPresented: vocabularyPopoverPresentation(for: record),
+                            attachmentAnchor: .rect(.bounds),
+                            arrowEdge: .bottom
+                        ) {
+                            if let draft = vocabularyDraft, draft.recordID == record.id {
+                                vocabularyCorrectionPopover(for: draft)
+                            }
+                        }
+
+                        Button {
+                            clearVocabularySelection()
+                        } label: {
+                            Image(systemName: "xmark.circle")
+                        }
+                        .buttonStyle(.plain)
+                        .controlSize(.small)
+                        .help("Clear Vocabulary selection")
+                        .accessibilityLabel("Clear Vocabulary selection")
+                        .accessibilityIdentifier("history.vocabulary.clearSelectionButton")
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Text(record.error ?? "")
+                .lineLimit(3)
+                .font(.body)
+                .textSelection(.enabled)
+                .foregroundStyle(.red)
         }
+    }
+
+    private func vocabularyTokenButton(record: TranscriptionRecord, token: VocabularyToken) -> some View {
+        let isSelected = isVocabularyTokenSelected(record: record, token: token)
+        return Button {
+            selectVocabularyToken(record: record, token: token)
+        } label: {
+            Text(token.text)
+                .font(.body)
+                .lineLimit(1)
+                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                .padding(.horizontal, 3)
+                .padding(.vertical, 1)
+                .background(
+                    isSelected ? Color.accentColor.opacity(0.16) : Color.yellow.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 4, style: .continuous)
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Select \(token.correctionText) for Vocabulary")
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("history.row.transcriptVocabularyToken")
+        .accessibilityLabel("\(isSelected ? "Selected" : "Select") \(token.correctionText) for Vocabulary")
     }
 
     @ViewBuilder
@@ -539,5 +958,166 @@ struct HistoryPopoverView: View {
         .onAppear {
             editedText = record.text ?? ""
         }
+    }
+
+    private func beginVocabularyCorrection(for record: TranscriptionRecord, writtenAs: String) {
+        let normalizedWrittenAs = writtenAs.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedWrittenAs.isEmpty else { return }
+
+        vocabularyDraft = VocabularyCorrectionDraft(
+            recordID: record.id,
+            selectedText: normalizedWrittenAs,
+            sourceAppName: record.sourceAppName
+        )
+    }
+
+    private func selectVocabularyToken(record: TranscriptionRecord, token: VocabularyToken) {
+        guard var selection = vocabularySelection, selection.recordID == record.id else {
+            vocabularySelection = VocabularyTokenSelection(recordID: record.id, tokenID: token.id)
+            return
+        }
+
+        if token.id < selection.lowerTokenID {
+            selection.lowerTokenID = token.id
+        } else if token.id > selection.upperTokenID {
+            selection.upperTokenID = token.id
+        } else if selection.lowerTokenID == selection.upperTokenID {
+            clearVocabularySelection()
+            return
+        } else {
+            selection = VocabularyTokenSelection(recordID: record.id, tokenID: token.id)
+        }
+
+        vocabularySelection = selection
+    }
+
+    private func clearVocabularySelection() {
+        vocabularySelection = nil
+    }
+
+    private func isVocabularyTokenSelected(record: TranscriptionRecord, token: VocabularyToken) -> Bool {
+        guard let selection = vocabularySelection, selection.recordID == record.id else { return false }
+        return selection.range.contains(token.id)
+    }
+
+    private func selectedVocabularyText(for record: TranscriptionRecord, tokens: [VocabularyToken]) -> String? {
+        guard let selection = vocabularySelection, selection.recordID == record.id else { return nil }
+        let selectedTokens = tokens.filter { selection.range.contains($0.id) }
+        guard !selectedTokens.isEmpty else { return nil }
+        return selectedTokens.map(\.correctionText).joined(separator: " ")
+    }
+
+    private func vocabularyPopoverPresentation(for record: TranscriptionRecord) -> Binding<Bool> {
+        Binding(
+            get: { vocabularyDraft?.recordID == record.id },
+            set: { isPresented in
+                if !isPresented, vocabularyDraft?.recordID == record.id {
+                    vocabularyDraft = nil
+                }
+            }
+        )
+    }
+
+    private func vocabularyCorrectionPopover(for draft: VocabularyCorrectionDraft) -> some View {
+        VocabularyCorrectionPopover(
+            draft: draft,
+            canShowSaveAndReclean: canShowSaveAndReclean,
+            onCancel: { vocabularyDraft = nil },
+            onSaveVocabularyTerm: onSaveVocabularyTerm,
+            onSaveVocabularyCorrection: onSaveVocabularyCorrection,
+            onSaveAndRecleanVocabularyCorrection: onSaveAndRecleanVocabularyCorrection,
+            onRecleanUpdated: {
+                clearVocabularySelection()
+                vocabularyDraft = nil
+            }
+        )
+    }
+
+    private var canShowSaveAndReclean: Bool {
+        onSaveAndRecleanVocabularyCorrection != nil && canSaveAndRecleanVocabularyCorrection
+    }
+
+    private func vocabularyTokens(from text: String) -> [VocabularyToken] {
+        text.split(whereSeparator: \.isWhitespace)
+            .prefix(28)
+            .enumerated()
+            .compactMap { index, rawToken in
+                let displayText = String(rawToken)
+                let correctionText = displayText.trimmingCharacters(in: .punctuationCharacters)
+                guard !correctionText.isEmpty else { return nil }
+                return VocabularyToken(id: index, text: displayText, correctionText: correctionText)
+            }
+    }
+
+    private func transcriptNeedsEllipsis(_ text: String) -> Bool {
+        text.split(whereSeparator: \.isWhitespace).count > 28
+    }
+}
+
+private struct WrappingHStack: Layout {
+    var horizontalSpacing: CGFloat = 4
+    var verticalSpacing: CGFloat = 4
+
+    private struct Item {
+        let index: Int
+        let size: CGSize
+    }
+
+    private struct Row {
+        var items: [Item] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = rows(for: subviews, maxWidth: proposal.width ?? .greatestFiniteMagnitude)
+        let width = proposal.width ?? rows.map(\.width).max() ?? 0
+        let height = rows.enumerated().reduce(CGFloat.zero) { partial, item in
+            partial + item.element.height + (item.offset == 0 ? 0 : verticalSpacing)
+        }
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = rows(for: subviews, maxWidth: bounds.width)
+        var y = bounds.minY
+
+        for row in rows {
+            var x = bounds.minX
+            for item in row.items {
+                subviews[item.index].place(
+                    at: CGPoint(x: x, y: y + (row.height - item.size.height) / 2),
+                    proposal: ProposedViewSize(item.size)
+                )
+                x += item.size.width + horizontalSpacing
+            }
+            y += row.height + verticalSpacing
+        }
+    }
+
+    private func rows(for subviews: Subviews, maxWidth: CGFloat) -> [Row] {
+        var rows: [Row] = []
+        var current = Row()
+        let constrainedWidth = maxWidth.isFinite ? maxWidth : .greatestFiniteMagnitude
+
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let nextWidth = current.items.isEmpty ? size.width : current.width + horizontalSpacing + size.width
+
+            if !current.items.isEmpty, nextWidth > constrainedWidth {
+                rows.append(current)
+                current = Row()
+            }
+
+            current.items.append(Item(index: index, size: size))
+            current.width = current.items.count == 1 ? size.width : current.width + horizontalSpacing + size.width
+            current.height = max(current.height, size.height)
+        }
+
+        if !current.items.isEmpty {
+            rows.append(current)
+        }
+
+        return rows
     }
 }

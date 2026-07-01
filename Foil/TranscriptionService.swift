@@ -262,6 +262,7 @@ struct TranscriptCleanupRequest: Equatable {
     let rawTranscript: String
     let mode: TranscriptProcessingMode
     let customPrompt: String?
+    let vocabularyCorrections: [VocabularyCorrection]
     let preferredTerms: [String]
     let provider: TranscriptCleanupProvider
 
@@ -273,6 +274,12 @@ struct TranscriptCleanupRequest: Equatable {
     var systemInstruction: String {
         guard mode != .raw else { return "" }
         var parts = [resolvedPrompt]
+        if !vocabularyCorrections.isEmpty {
+            let corrections = vocabularyCorrections
+                .map { "- If the transcript says \"\($0.writtenAs)\", use \"\($0.correctVersion)\"." }
+                .joined(separator: "\n")
+            parts.append("Vocabulary corrections:\n\(corrections)")
+        }
         if !preferredTerms.isEmpty {
             let terms = preferredTerms.map { "- \($0)" }.joined(separator: "\n")
             parts.append("Preferred terms to preserve or prefer when appropriate:\n\(terms)")
@@ -721,6 +728,7 @@ struct TranscriptionService {
                 rawTranscript: transcript,
                 mode: mode,
                 customPrompt: nil,
+                vocabularyCorrections: [],
                 preferredTerms: [],
                 provider: cleanupProvider
             ),
@@ -913,6 +921,7 @@ struct TranscriptionService {
                 rawTranscript: "Connection test.",
                 mode: .cleanUp,
                 customPrompt: nil,
+                vocabularyCorrections: [],
                 preferredTerms: [],
                 provider: cleanupProvider
             )
@@ -986,6 +995,7 @@ struct TranscriptionService {
                 rawTranscript: transcript,
                 mode: mode,
                 customPrompt: nil,
+                vocabularyCorrections: [],
                 preferredTerms: [],
                 provider: .groq(model: model)
             )

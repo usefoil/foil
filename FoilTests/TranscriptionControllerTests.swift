@@ -334,10 +334,12 @@ final class TranscriptionControllerTests: XCTestCase {
         appState.customTranscriptCleanupModel = "qwen2.5:7b"
         appState.setCustomPrompt("Preserve the speaker style.", for: .cleanUp)
         appState.preferredTermsText = "Supabase\nVercel"
+        appState.addVocabularyCorrection(writtenAs: "super base", correctVersion: "Supabase")
 
         let transport = ControllerStubTransport { request in
             let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
             XCTAssertTrue(body.contains("Preserve the speaker style."), body)
+            XCTAssertTrue(body.contains("If the transcript says \\\"super base\\\", use \\\"Supabase\\\"."), body)
             XCTAssertTrue(body.contains("Supabase"), body)
             XCTAssertTrue(body.contains("Vercel"), body)
             XCTAssertTrue(body.contains("Return only the final processed transcript"), body)
@@ -354,6 +356,57 @@ final class TranscriptionControllerTests: XCTestCase {
 
         XCTAssertEqual(result.text, "clean text")
         XCTAssertFalse(result.cleanupFailed)
+    }
+
+    func testRecleanTranscriptUsesNewlySavedVocabularyCorrection() async {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+        appState.addVocabularyCorrection(writtenAs: "super base", correctVersion: "Supabase")
+
+        let transport = ControllerStubTransport { request in
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains("If the transcript says \\\"super base\\\", use \\\"Supabase\\\"."), body)
+            XCTAssertTrue(body.contains("please clean super base"), body)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"choices":[{"message":{"content":"please clean Supabase"}}]}"#.utf8), response)
+        }
+
+        let result = await controller.recleanTranscript(
+            rawText: "please clean super base",
+            service: TranscriptionService(transport: transport)
+        )
+
+        XCTAssertEqual(result.text, "please clean Supabase")
+        XCTAssertFalse(result.cleanupFailed)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testRecleanTranscriptFailureReturnsOriginalText() async {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+        appState.addVocabularyCorrection(writtenAs: "super base", correctVersion: "Supabase")
+
+        let transport = ControllerStubTransport { request in
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains("If the transcript says \\\"super base\\\", use \\\"Supabase\\\"."), body)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"error":{"message":"server unavailable"}}"#.utf8), response)
+        }
+
+        let result = await controller.recleanTranscript(
+            rawText: "please clean super base",
+            service: TranscriptionService(transport: transport)
+        )
+
+        XCTAssertEqual(result.text, "please clean super base")
+        XCTAssertTrue(result.cleanupFailed)
+        XCTAssertEqual(transport.requests.count, 1)
     }
 
     func testProcessTranscriptOrRawStillRunsGroqCleanupWhenSupported() async throws {
@@ -549,6 +602,7 @@ final class TranscriptionControllerTests: XCTestCase {
         let record = TranscriptionRecord(
             id: UUID(),
             timestamp: Date(),
+            sourceAppName: nil,
             outcome: .failure(error: "previous failure", audioFileURL: tempURL)
         )
         let transport = ControllerStubTransport { request in
@@ -605,6 +659,7 @@ final class TranscriptionControllerTests: XCTestCase {
         let record = TranscriptionRecord(
             id: UUID(),
             timestamp: Date(),
+            sourceAppName: nil,
             outcome: .failure(error: "some error", audioFileURL: nil)
         )
         await controller.retryTranscription(record: record)

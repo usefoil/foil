@@ -72,6 +72,7 @@ final class DiagnosticLogTests: XCTestCase {
     func testRedactedRemovesLabeledCleanupPromptTermsAndTranscriptText() {
         let text = """
         cleanup prompt=SECRET PROMPT SENTINEL, preferredTerms=SECRET TERM SENTINEL
+        vocabularyCorrection=SECRET CORRECTION SENTINEL, vocabularyNote=SECRET NOTE SENTINEL
         rawTranscript=raw transcript sentinel; cleanedText=cleaned transcript sentinel
         """
 
@@ -79,10 +80,14 @@ final class DiagnosticLogTests: XCTestCase {
 
         XCTAssertFalse(redacted.contains("SECRET PROMPT SENTINEL"))
         XCTAssertFalse(redacted.contains("SECRET TERM SENTINEL"))
+        XCTAssertFalse(redacted.contains("SECRET CORRECTION SENTINEL"))
+        XCTAssertFalse(redacted.contains("SECRET NOTE SENTINEL"))
         XCTAssertFalse(redacted.contains("raw transcript sentinel"))
         XCTAssertFalse(redacted.contains("cleaned transcript sentinel"))
         XCTAssertTrue(redacted.contains("cleanup prompt=<redacted>"))
         XCTAssertTrue(redacted.contains("preferredTerms=<redacted>"))
+        XCTAssertTrue(redacted.contains("vocabularyCorrection=<redacted>"))
+        XCTAssertTrue(redacted.contains("vocabularyNote=<redacted>"))
         XCTAssertTrue(redacted.contains("rawTranscript=<redacted>"))
         XCTAssertTrue(redacted.contains("cleanedText=<redacted>"))
     }
@@ -278,6 +283,11 @@ final class DiagnosticLogTests: XCTestCase {
         appState.customTranscriptCleanupModel = "qwen2.5:7b"
         appState.setCustomPrompt("SECRET PROMPT SENTINEL", for: .cleanUp)
         appState.preferredTermsText = "SECRET TERM SENTINEL"
+        appState.addVocabularyCorrection(
+            writtenAs: "SECRET WRONG SENTINEL",
+            correctVersion: "SECRET CORRECT SENTINEL",
+            note: "SECRET NOTE SENTINEL"
+        )
 
         DiagnosticLog.write("processTranscript: cleanupProvider=custom-openai-compatible-chat mode=cleanUp model=qwen2.5:7b inputLength=29 outputLength=25 cleanupFailed=false")
 
@@ -293,6 +303,9 @@ final class DiagnosticLogTests: XCTestCase {
         XCTAssertTrue(combined.contains("cleanupFailed=false"))
         XCTAssertFalse(combined.contains("SECRET PROMPT SENTINEL"))
         XCTAssertFalse(combined.contains("SECRET TERM SENTINEL"))
+        XCTAssertFalse(combined.contains("SECRET WRONG SENTINEL"))
+        XCTAssertFalse(combined.contains("SECRET CORRECT SENTINEL"))
+        XCTAssertFalse(combined.contains("SECRET NOTE SENTINEL"))
         XCTAssertFalse(combined.contains("raw transcript sentinel"))
         XCTAssertFalse(combined.contains("cleaned transcript sentinel"))
     }

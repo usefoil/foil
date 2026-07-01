@@ -15,6 +15,7 @@ struct HistoryUITestCommand: Equatable {
     let name: String
     let query: String?
     let filter: String?
+    let appName: String?
     let index: Int
 
     init?(notification: Notification) {
@@ -22,6 +23,7 @@ struct HistoryUITestCommand: Equatable {
         self.name = name
         self.query = notification.userInfo?["query"] as? String
         self.filter = notification.userInfo?["filter"] as? String
+        self.appName = notification.userInfo?["appName"] as? String
         self.index = notification.userInfo?["index"] as? Int
             ?? (notification.userInfo?["index"] as? NSNumber)?.intValue
             ?? 0
@@ -251,8 +253,8 @@ final class UITestingController {
 
         if args.contains("--seed-history") {
             history.clear()
-            history.addSuccess(text: "Seeded transcript for UI testing.")
-            history.addSuccess(text: "Second searchable transcript.")
+            history.addSuccess(text: "Seeded transcript for UI testing.", sourceAppName: "Messages")
+            history.addSuccess(text: "Second searchable transcript.", sourceAppName: "Mail")
             history.addFailure(error: "Seeded network failure", audioFileURL: nil)
         }
 
@@ -295,6 +297,13 @@ final class UITestingController {
         if args.contains("--seed-openai-cleanup-provider") {
             appState.transcriptCleanupProviderID = .openAI
             appState.openAITranscriptCleanupModel = "gpt-5.4-mini"
+        }
+
+        if args.contains("--seed-history-reclean-enabled") {
+            appState.transcriptProcessingMode = .cleanUp
+            appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+            appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+            appState.customTranscriptCleanupModel = "deterministic-ui-test-cleanup"
         }
 
         if args.contains("--seed-floating-status-enabled") {
@@ -1114,7 +1123,7 @@ final class UITestingController {
             stopTranscribingAnimation()
 
             let text = "Mock transcription automation smoke"
-            history.addSuccess(text: text)
+            history.addSuccess(text: text, sourceAppName: target?.appName)
             appState.setStatus(.idle)
 
             pasteController.setPendingTarget(target)
@@ -1138,7 +1147,7 @@ final class UITestingController {
             #endif
             appState.clearError()
             let text = "Mock queued paste automation smoke"
-            history.addSuccess(text: text)
+            history.addSuccess(text: text, sourceAppName: target?.appName)
             queuedPasteQueue.enqueue(text: text, target: target, recordingStartTime: Date())
             appState.feedbackMessage = "Transcript queued"
             appState.floatingStatusTransientVisible = true
@@ -1208,6 +1217,7 @@ final class UITestingController {
             initialSelection: selection,
             onRetryRecord: { [weak self] record in self?.onRetryRecord(record) },
             onPasteText: { [weak self] text in self?.onPasteText(text) },
+            onSaveAndRecleanVocabularyCorrection: historyRecleanUITestAction,
             onHotkeyChanged: onHotkeyChanged,
             onStartRecording: onStartRecording,
             onStopRecording: onStopRecording,
@@ -1237,6 +1247,20 @@ final class UITestingController {
             history: history,
             onRetry: { [weak self] record in self?.onRetryRecord(record) },
             onPaste: { [weak self] text in self?.onPasteText(text) },
+            onSaveVocabularyTerm: { [weak self] term, note in
+                self?.appState.addVocabularyTerm(term, note: note)
+            },
+            onSaveVocabularyCorrection: { [weak self] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
+                self?.appState.addVocabularyCorrection(
+                    writtenAs: writtenAs,
+                    correctVersion: correctVersion,
+                    note: note,
+                    sourceRecordID: sourceRecordID,
+                    sourceAppName: sourceAppName
+                )
+            },
+            onSaveAndRecleanVocabularyCorrection: historyRecleanUITestAction,
+            canSaveAndRecleanVocabularyCorrection: historyRecleanUITestAction != nil,
             showsHeader: true
         )
         .accessibilityIdentifier("history.testHost")
@@ -1254,6 +1278,47 @@ final class UITestingController {
         window.makeKeyAndOrderFront(nil)
         activateUITestApplication()
         uiTestHistoryWindow = window
+    }
+
+    private var historyRecleanUITestAction: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)? {
+        guard ProcessInfo.processInfo.arguments.contains("--seed-history-reclean-enabled") else {
+            return nil
+        }
+        return { [weak self] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
+            guard let self else { return .cleanupUnavailable }
+            return await self.saveVocabularyCorrectionAndRecleanForUITesting(
+                writtenAs: writtenAs,
+                correctVersion: correctVersion,
+                note: note,
+                sourceRecordID: sourceRecordID,
+                sourceAppName: sourceAppName
+            )
+        }
+    }
+
+    private func saveVocabularyCorrectionAndRecleanForUITesting(
+        writtenAs: String,
+        correctVersion: String,
+        note: String?,
+        sourceRecordID: UUID,
+        sourceAppName: String?
+    ) async -> HistoryVocabularyRecleanResult {
+        guard appState.addVocabularyCorrection(
+            writtenAs: writtenAs,
+            correctVersion: correctVersion,
+            note: note,
+            sourceRecordID: sourceRecordID,
+            sourceAppName: sourceAppName
+        ) != nil else {
+            return .saveRejected
+        }
+        guard history.records.contains(where: { $0.id == sourceRecordID && !$0.isFailure }) else {
+            return .cleanupFailed
+        }
+
+        let corrected = correctVersion.trimmingCharacters(in: .whitespacesAndNewlines)
+        history.updateSuccess(id: sourceRecordID, text: "Re-cleaned History transcript uses \(corrected).")
+        return .updated
     }
 
     private func showUITestSettingsWindow() {
@@ -1574,7 +1639,6 @@ final class UITestingController {
 
             if success {
                 let text = "Mock async paste transcript"
-                history.addSuccess(text: text)
                 appState.setStatus(.idle)
                 if appState.queuedPasteEnabled {
                     let target = PasteTarget(
@@ -1584,6 +1648,7 @@ final class UITestingController {
                         appName: "Foil UI Test"
                     )
                     appState.recordTargetCapture(target)
+                    history.addSuccess(text: text, sourceAppName: target.appName)
                     queuedPasteQueue.enqueue(text: text, target: target, recordingStartTime: Date())
                     appState.feedbackMessage = "Transcript queued"
                 } else if appState.asyncPasteEnabled {
@@ -1594,9 +1659,11 @@ final class UITestingController {
                         appName: "Foil UI Test"
                     )
                     appState.recordTargetCapture(target)
+                    history.addSuccess(text: text, sourceAppName: target.appName)
                     pasteController.setPendingTarget(target)
                     await pasteController.paste(text: text)
                 } else {
+                    history.addSuccess(text: text)
                     await pasteController.pasteDirectly(text: text)
                 }
             } else {

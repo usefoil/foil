@@ -45,6 +45,16 @@ struct FoilApp: App {
                 history: appDelegate.history,
                 onRetryRecord: { [weak appDelegate] record in appDelegate?.retryRecord(record) },
                 onPasteText: { [weak appDelegate] text in appDelegate?.paste(text: text) },
+                onSaveAndRecleanVocabularyCorrection: { [weak appDelegate] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
+                    guard let appDelegate else { return .cleanupUnavailable }
+                    return await appDelegate.saveVocabularyCorrectionAndRecleanHistoryRecord(
+                        writtenAs: writtenAs,
+                        correctVersion: correctVersion,
+                        note: note,
+                        sourceRecordID: sourceRecordID,
+                        sourceAppName: sourceAppName
+                    )
+                },
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
                 onCopySetupReport: { [weak appDelegate] in appDelegate?.copySetupReportToClipboard() },
                 onExportDiagnostics: { [weak appDelegate] in appDelegate?.exportDiagnostics() },
@@ -96,6 +106,29 @@ struct FoilApp: App {
                 history: appDelegate.history,
                 onRetry: { [weak appDelegate] record in appDelegate?.retryRecord(record) },
                 onPaste: { [weak appDelegate] text in appDelegate?.paste(text: text) },
+                onSaveVocabularyTerm: { [weak appDelegate] term, note in
+                    appDelegate?.appState.addVocabularyTerm(term, note: note)
+                },
+                onSaveVocabularyCorrection: { [weak appDelegate] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
+                    appDelegate?.appState.addVocabularyCorrection(
+                        writtenAs: writtenAs,
+                        correctVersion: correctVersion,
+                        note: note,
+                        sourceRecordID: sourceRecordID,
+                        sourceAppName: sourceAppName
+                    )
+                },
+                onSaveAndRecleanVocabularyCorrection: { [weak appDelegate] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
+                    guard let appDelegate else { return .cleanupUnavailable }
+                    return await appDelegate.saveVocabularyCorrectionAndRecleanHistoryRecord(
+                        writtenAs: writtenAs,
+                        correctVersion: correctVersion,
+                        note: note,
+                        sourceRecordID: sourceRecordID,
+                        sourceAppName: sourceAppName
+                    )
+                },
+                canSaveAndRecleanVocabularyCorrection: appDelegate.appState.canRecleanHistoryTranscripts,
                 showsHeader: true
             )
         }
@@ -1395,6 +1428,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             await transcriptionController.retryTranscription(record: record)
         }
     }
+
+    func saveVocabularyCorrectionAndRecleanHistoryRecord(
+        writtenAs: String,
+        correctVersion: String,
+        note: String?,
+        sourceRecordID: UUID,
+        sourceAppName: String?
+    ) async -> HistoryVocabularyRecleanResult {
+        guard appState.canRecleanHistoryTranscripts else {
+            return .cleanupUnavailable
+        }
+        guard appState.addVocabularyCorrection(
+            writtenAs: writtenAs,
+            correctVersion: correctVersion,
+            note: note,
+            sourceRecordID: sourceRecordID,
+            sourceAppName: sourceAppName
+        ) != nil else {
+            return .saveRejected
+        }
+        guard let record = history.records.first(where: { $0.id == sourceRecordID }),
+              let rawText = record.text else {
+            return .cleanupFailed
+        }
+
+        let processed = await transcriptionController.recleanTranscript(
+            rawText: rawText,
+            context: "historyReclean"
+        )
+        guard !processed.cleanupFailed else {
+            return .cleanupFailed
+        }
+
+        history.updateSuccess(id: sourceRecordID, text: processed.text)
+        return .updated
+    }
 }
 
 // MARK: - TranscriptionControllerDelegate
@@ -1445,7 +1514,7 @@ extension AppDelegate: TranscriptionControllerDelegate {
 
         if let retryID = retryingRecordID {
             // Retry path: resolve the existing history record
-            history.resolveRetry(id: retryID, text: text)
+            history.resolveRetry(id: retryID, text: text, sourceAppName: appState.capturedTargetName)
             retryingRecordID = nil
             appState.transcriptionStage = .pasting
             Task {
@@ -1460,7 +1529,7 @@ extension AppDelegate: TranscriptionControllerDelegate {
             }
         } else {
             // Normal flow: add new success record, handle paste routing
-            history.addSuccess(text: text)
+            history.addSuccess(text: text, sourceAppName: appState.capturedTargetName)
 
             DiagnosticLog.write("paste decision: delegating to pasteController asyncOn=\(appState.asyncPasteEnabled) queuedOn=\(appState.queuedPasteEnabled) pendingTarget=\(String(describing: pasteController.pendingTarget))")
             appState.transcriptionStage = .pasting

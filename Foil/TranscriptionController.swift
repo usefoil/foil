@@ -203,6 +203,20 @@ final class TranscriptionController {
     // MARK: - Internal helpers
 
     /// Apply transcript processing mode (cleanup/raw). Returns (text, cleanupFailed).
+    func recleanTranscript(
+        rawText: String,
+        service: TranscriptionService? = nil,
+        context: String = "historyReclean"
+    ) async -> (text: String, cleanupFailed: Bool) {
+        await processTranscriptOrRaw(
+            rawText: rawText,
+            apiKey: nil,
+            service: service,
+            context: context
+        )
+    }
+
+    /// Apply transcript processing mode (cleanup/raw). Returns (text, cleanupFailed).
     func processTranscriptOrRaw(
         rawText: String,
         apiKey: String?,
@@ -241,6 +255,7 @@ final class TranscriptionController {
             rawTranscript: rawText,
             mode: processingMode,
             customPrompt: appState.customPrompt(for: processingMode),
+            vocabularyCorrections: appState.vocabularyCorrections,
             preferredTerms: appState.preferredTerms,
             provider: cleanupProvider
         )
