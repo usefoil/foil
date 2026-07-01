@@ -92,6 +92,8 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.cleanUp")
         UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.rewriteClearly")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupPreferredTerms")
+        UserDefaults.standard.removeObject(forKey: "transcriptCleanupVocabularyCorrections")
+        UserDefaults.standard.removeObject(forKey: "transcriptCleanupVocabularyTerms")
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
@@ -1350,6 +1352,28 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(reloaded.preferredTerms, ["Supabase", "Vercel"])
         XCTAssertEqual(reloaded.preferredTermsText, "Supabase\nVercel")
         XCTAssertEqual(reloaded.vocabularyTerms.map(\.term), ["Supabase", "Vercel"])
+    }
+
+    func testVocabularyTermsNormalizeDedupePersistAndReload() {
+        let state = AppState()
+        let term = state.addVocabularyTerm(" Supabase ", note: " product name ")
+
+        XCTAssertEqual(term?.term, "Supabase")
+        XCTAssertEqual(term?.note, "product name")
+        XCTAssertEqual(state.preferredTermsText, "Supabase")
+        XCTAssertEqual(state.preferredTerms, ["Supabase"])
+
+        let duplicate = state.addVocabularyTerm("supabase", note: "duplicate")
+        XCTAssertEqual(duplicate?.id, term?.id)
+        XCTAssertEqual(state.vocabularyTerms.count, 1)
+
+        let rejected = state.addVocabularyTerm("   ")
+        XCTAssertNil(rejected)
+
+        let reloaded = AppState()
+        XCTAssertEqual(reloaded.preferredTermsText, "Supabase")
+        XCTAssertEqual(reloaded.preferredTerms, ["Supabase"])
+        XCTAssertEqual(reloaded.vocabularyTerms.first?.note, "product name")
     }
 
     func testLegacyPreferredTermsMigrateIntoVocabularyTermsOnReload() {

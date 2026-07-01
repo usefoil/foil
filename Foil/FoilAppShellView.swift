@@ -99,6 +99,9 @@ struct FoilAppShellView: View {
                 history: history,
                 onRetry: onRetryRecord,
                 onPaste: onPasteText,
+                onSaveVocabularyTerm: { [appState] term, note in
+                    appState.addVocabularyTerm(term, note: note)
+                },
                 onSaveVocabularyCorrection: { [appState] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
                     appState.addVocabularyCorrection(
                         writtenAs: writtenAs,

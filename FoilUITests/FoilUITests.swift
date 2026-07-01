@@ -615,6 +615,40 @@ final class FoilUITests: XCTestCase {
         postUITestCommand(historyCommandNotification, userInfo: ["command": "dismissDetail"])
     }
 
+    func testHistoryComponentHostSavesSelectedTextAsPreferredTerm() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--settings-tab-cleanup",
+            "--seed-cleanup-formatting-enabled"
+        ])
+        openHistoryWindow()
+        XCTAssertTrue(waitForHistoryPanel(timeout: 3))
+
+        let firstVocabularyToken = app.descendants(matching: .any)["Select Second for Vocabulary"]
+        XCTAssertTrue(firstVocabularyToken.waitForExistence(timeout: 2), app.debugDescription)
+        firstVocabularyToken.click()
+        let secondVocabularyToken = app.descendants(matching: .any)["Select searchable for Vocabulary"]
+        XCTAssertTrue(secondVocabularyToken.waitForExistence(timeout: 2), app.debugDescription)
+        secondVocabularyToken.click()
+        app.buttons["history.vocabulary.addSelectionButton"].click()
+
+        let preferredTermModeButton = app.buttons["history.vocabulary.mode.preferredTerm"]
+        XCTAssertTrue(preferredTermModeButton.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(preferredTermModeButton)
+
+        let termField = app.textFields["history.vocabulary.termField"]
+        XCTAssertTrue(termField.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(termField.value as? String, "Second searchable")
+        clickElement(app.buttons["history.vocabulary.saveButton"])
+
+        openSettingsPanel()
+        let preferredTermsEditor = app.textViews["settings.preferredTermsEditor"]
+        XCTAssertTrue(preferredTermsEditor.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertEqual(preferredTermsEditor.value as? String, "Second searchable")
+    }
+
     func testHistoryComponentHostSaveAndRecleanVocabularySelection() {
         openHistoryWindow()
         XCTAssertTrue(waitForHistoryPanel(timeout: 3))

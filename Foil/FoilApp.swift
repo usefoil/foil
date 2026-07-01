@@ -106,6 +106,9 @@ struct FoilApp: App {
                 history: appDelegate.history,
                 onRetry: { [weak appDelegate] record in appDelegate?.retryRecord(record) },
                 onPaste: { [weak appDelegate] text in appDelegate?.paste(text: text) },
+                onSaveVocabularyTerm: { [weak appDelegate] term, note in
+                    appDelegate?.appState.addVocabularyTerm(term, note: note)
+                },
                 onSaveVocabularyCorrection: { [weak appDelegate] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
                     appDelegate?.appState.addVocabularyCorrection(
                         writtenAs: writtenAs,

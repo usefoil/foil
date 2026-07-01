@@ -1294,9 +1294,11 @@ final class AppState {
         customTranscriptCleanupModel = defaults.string(forKey: "customTranscriptCleanupModel") ?? "llama3.1:8b"
         customCleanupPrompt = defaults.string(forKey: "customCleanupPrompt.cleanUp") ?? ""
         customRewritePrompt = defaults.string(forKey: "customCleanupPrompt.rewriteClearly") ?? ""
+        isSynchronizingVocabularyText = true
         preferredTermsText = Self.normalizedPreferredTerms(
             from: defaults.string(forKey: "transcriptCleanupPreferredTerms") ?? ""
         ).joined(separator: "\n")
+        isSynchronizingVocabularyText = false
         vocabularyCorrections = Self.loadVocabularyCorrections()
         let storedVocabularyTerms = Self.loadVocabularyTerms()
         vocabularyTerms = storedVocabularyTerms.isEmpty

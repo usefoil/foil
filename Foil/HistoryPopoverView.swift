@@ -18,6 +18,7 @@ struct HistoryPopoverView: View {
     var history: TranscriptionHistory
     var onRetry: ((TranscriptionRecord) -> Void)?
     var onPaste: ((String) -> Void)?
+    var onSaveVocabularyTerm: ((String, String?) -> VocabularyTerm?)?
     var onSaveVocabularyCorrection: ((String, String, String?, UUID?, String?) -> VocabularyCorrection?)?
     var onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?
     var canSaveAndRecleanVocabularyCorrection = false
@@ -26,8 +27,15 @@ struct HistoryPopoverView: View {
     private struct VocabularyCorrectionDraft: Identifiable {
         let id = UUID()
         let recordID: UUID
-        let writtenAs: String
+        let selectedText: String
         let sourceAppName: String?
+    }
+
+    private enum VocabularySaveMode: String, CaseIterable, Identifiable {
+        case preferredTerm = "Preferred term"
+        case correction = "Correction"
+
+        var id: String { rawValue }
     }
 
     private struct VocabularyToken: Identifiable {
@@ -56,10 +64,13 @@ struct HistoryPopoverView: View {
         let draft: VocabularyCorrectionDraft
         let canShowSaveAndReclean: Bool
         let onCancel: () -> Void
+        let onSaveVocabularyTerm: ((String, String?) -> VocabularyTerm?)?
         let onSaveVocabularyCorrection: ((String, String, String?, UUID?, String?) -> VocabularyCorrection?)?
         let onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?
         let onRecleanUpdated: () -> Void
 
+        @State private var saveMode: VocabularySaveMode = .correction
+        @State private var term: String
         @State private var writtenAs: String
         @State private var correctVersion = ""
         @State private var note = ""
@@ -70,6 +81,7 @@ struct HistoryPopoverView: View {
             draft: VocabularyCorrectionDraft,
             canShowSaveAndReclean: Bool,
             onCancel: @escaping () -> Void,
+            onSaveVocabularyTerm: ((String, String?) -> VocabularyTerm?)?,
             onSaveVocabularyCorrection: ((String, String, String?, UUID?, String?) -> VocabularyCorrection?)?,
             onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?,
             onRecleanUpdated: @escaping () -> Void
@@ -77,10 +89,12 @@ struct HistoryPopoverView: View {
             self.draft = draft
             self.canShowSaveAndReclean = canShowSaveAndReclean
             self.onCancel = onCancel
+            self.onSaveVocabularyTerm = onSaveVocabularyTerm
             self.onSaveVocabularyCorrection = onSaveVocabularyCorrection
             self.onSaveAndRecleanVocabularyCorrection = onSaveAndRecleanVocabularyCorrection
             self.onRecleanUpdated = onRecleanUpdated
-            _writtenAs = State(initialValue: draft.writtenAs)
+            _term = State(initialValue: draft.selectedText)
+            _writtenAs = State(initialValue: draft.selectedText)
         }
 
         var body: some View {
@@ -103,18 +117,49 @@ struct HistoryPopoverView: View {
                     .accessibilityIdentifier("history.vocabulary.cancelButton")
                 }
 
-                field("Foil wrote") {
-                    TextField("Phrase Foil wrote", text: $writtenAs, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(1...3)
-                        .accessibilityIdentifier("history.vocabulary.writtenAsField")
-                        .accessibilityValue(writtenAs)
+                HStack(spacing: 6) {
+                    ForEach(VocabularySaveMode.allCases) { mode in
+                        Button {
+                            saveError = nil
+                            saveMode = mode
+                        } label: {
+                            Text(mode.rawValue)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .accessibilityAddTraits(saveMode == mode ? .isSelected : [])
+                        .accessibilityValue(saveMode == mode ? "Selected" : "Not selected")
+                        .accessibilityIdentifier(
+                            mode == .preferredTerm
+                                ? "history.vocabulary.mode.preferredTerm"
+                                : "history.vocabulary.mode.correction"
+                        )
+                    }
                 }
 
-                field("Use instead") {
-                    TextField("Correct version", text: $correctVersion)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("history.vocabulary.correctVersionField")
+                if saveMode == .preferredTerm {
+                    field("Preferred term") {
+                        TextField("Name or phrase to preserve", text: $term, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1...3)
+                            .accessibilityIdentifier("history.vocabulary.termField")
+                            .accessibilityValue(term)
+                    }
+                } else {
+                    field("Foil wrote") {
+                        TextField("Phrase Foil wrote", text: $writtenAs, axis: .vertical)
+                            .textFieldStyle(.roundedBorder)
+                            .lineLimit(1...3)
+                            .accessibilityIdentifier("history.vocabulary.writtenAsField")
+                            .accessibilityValue(writtenAs)
+                    }
+
+                    field("Use instead") {
+                        TextField("Correct version", text: $correctVersion)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityIdentifier("history.vocabulary.correctVersionField")
+                    }
                 }
 
                 field("Note") {
@@ -133,28 +178,16 @@ struct HistoryPopoverView: View {
                 HStack(spacing: 10) {
                     Spacer()
                     Button {
-                        guard let onSaveVocabularyCorrection else { return }
-                        let savedCorrection = onSaveVocabularyCorrection(
-                            writtenAs,
-                            correctVersion,
-                            note,
-                            draft.recordID,
-                            draft.sourceAppName
-                        )
-                        if savedCorrection == nil {
-                            saveError = "Add both the phrase Foil wrote and the corrected version."
-                        } else {
-                            onCancel()
-                        }
+                        save()
                     } label: {
-                        Label("Save", systemImage: "checkmark")
+                        Label(saveButtonTitle, systemImage: "checkmark")
                     }
-                    .disabled(onSaveVocabularyCorrection == nil || isFormIncomplete)
+                    .disabled(!canSave || isFormIncomplete)
                     .keyboardShortcut(.defaultAction)
                     .controlSize(.regular)
                     .accessibilityIdentifier("history.vocabulary.saveButton")
 
-                    if canShowSaveAndReclean {
+                    if saveMode == .correction && canShowSaveAndReclean {
                         Button {
                             Task {
                                 await saveAndReclean()
@@ -190,8 +223,56 @@ struct HistoryPopoverView: View {
         }
 
         private var isFormIncomplete: Bool {
-            writtenAs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            switch saveMode {
+            case .preferredTerm:
+                term.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            case .correction:
+                writtenAs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                 correctVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+        }
+
+        private var canSave: Bool {
+            switch saveMode {
+            case .preferredTerm:
+                onSaveVocabularyTerm != nil
+            case .correction:
+                onSaveVocabularyCorrection != nil
+            }
+        }
+
+        private var saveButtonTitle: String {
+            switch saveMode {
+            case .preferredTerm: "Save Term"
+            case .correction: "Save Correction"
+            }
+        }
+
+        private func save() {
+            saveError = nil
+            switch saveMode {
+            case .preferredTerm:
+                guard let onSaveVocabularyTerm else { return }
+                if onSaveVocabularyTerm(term, note) == nil {
+                    saveError = "Add a term or phrase for Cleanup to preserve."
+                } else {
+                    onCancel()
+                }
+            case .correction:
+                guard let onSaveVocabularyCorrection else { return }
+                let savedCorrection = onSaveVocabularyCorrection(
+                    writtenAs,
+                    correctVersion,
+                    note,
+                    draft.recordID,
+                    draft.sourceAppName
+                )
+                if savedCorrection == nil {
+                    saveError = "Add both the phrase Foil wrote and the corrected version."
+                } else {
+                    onCancel()
+                }
+            }
         }
 
         private func saveAndReclean() async {
@@ -885,7 +966,7 @@ struct HistoryPopoverView: View {
 
         vocabularyDraft = VocabularyCorrectionDraft(
             recordID: record.id,
-            writtenAs: normalizedWrittenAs,
+            selectedText: normalizedWrittenAs,
             sourceAppName: record.sourceAppName
         )
     }
@@ -942,6 +1023,7 @@ struct HistoryPopoverView: View {
             draft: draft,
             canShowSaveAndReclean: canShowSaveAndReclean,
             onCancel: { vocabularyDraft = nil },
+            onSaveVocabularyTerm: onSaveVocabularyTerm,
             onSaveVocabularyCorrection: onSaveVocabularyCorrection,
             onSaveAndRecleanVocabularyCorrection: onSaveAndRecleanVocabularyCorrection,
             onRecleanUpdated: {

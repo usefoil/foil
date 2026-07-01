@@ -1247,6 +1247,9 @@ final class UITestingController {
             history: history,
             onRetry: { [weak self] record in self?.onRetryRecord(record) },
             onPaste: { [weak self] text in self?.onPasteText(text) },
+            onSaveVocabularyTerm: { [weak self] term, note in
+                self?.appState.addVocabularyTerm(term, note: note)
+            },
             onSaveVocabularyCorrection: { [weak self] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
                 self?.appState.addVocabularyCorrection(
                     writtenAs: writtenAs,
