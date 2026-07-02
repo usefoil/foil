@@ -543,17 +543,27 @@ struct SettingsView: View {
 
     private var cleanupSettings: some View {
         Form {
-            Section("Transcript cleanup") {
-                Toggle("Clean up transcript formatting", isOn: cleanupFormattingEnabled)
-                    .accessibilityIdentifier("settings.cleanupFormattingToggle")
+            Section("Active cleanup mode") {
+                Picker("Active mode", selection: $appState.transcriptProcessingMode) {
+                    ForEach(TranscriptProcessingMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .accessibilityIdentifier("settings.activeCleanupModePicker")
 
-                Text("Cleanup is off unless enabled. When enabled, transcript text is sent to the cleanup provider selected below; audio still follows the transcription provider.")
+                Text(appState.transcriptProcessingMode.activeModeDescription)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.activeCleanupModeDescription")
+
+                Text("When an active cleanup mode is selected, transcript text is sent to the cleanup provider selected below; audio still follows the transcription provider.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("settings.cleanupRoutingSummary")
 
-                if cleanupFormattingEnabled.wrappedValue {
+                if appState.transcriptProcessingMode.usesCleanupProvider {
                     cleanupProviderSettings
                     cleanupPromptSettings
                     vocabularySettings
@@ -561,15 +571,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-    }
-
-    private var cleanupFormattingEnabled: Binding<Bool> {
-        Binding(
-            get: { appState.transcriptProcessingMode != .raw },
-            set: { enabled in
-                appState.transcriptProcessingMode = enabled ? .cleanUp : .raw
-            }
-        )
     }
 
     @ViewBuilder
@@ -611,19 +612,26 @@ struct SettingsView: View {
     private var cleanupPromptSettings: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Cleanup prompt")
+                Text("\(appState.transcriptProcessingMode.displayName) prompt")
                 Spacer()
                 Button("Reset") {
-                    appState.resetCustomPrompt(for: .cleanUp)
+                    appState.resetCustomPrompt(for: appState.transcriptProcessingMode)
                 }
                 .accessibilityIdentifier("settings.resetCleanupPromptButton")
             }
 
-            TextEditor(text: $appState.customCleanupPrompt)
+            TextEditor(text: customPromptBinding(for: appState.transcriptProcessingMode))
                 .font(.body)
                 .frame(minHeight: 88)
                 .accessibilityIdentifier("settings.cleanupPromptEditor")
         }
+    }
+
+    private func customPromptBinding(for mode: TranscriptProcessingMode) -> Binding<String> {
+        Binding(
+            get: { appState.resolvedPrompt(for: mode) },
+            set: { appState.setCustomPrompt($0, for: mode) }
+        )
     }
 
     private var vocabularySettings: some View {
@@ -816,13 +824,13 @@ struct SettingsView: View {
     private var providerPrivacySummary: String {
         switch appState.selectedTranscriptionProviderPresetID {
         case .groq:
-            "Audio is sent to Groq for transcription. Cleanup is off unless enabled; when enabled, transcript text is sent to the cleanup provider selected below."
+            "Audio is sent to Groq for transcription. Raw transcript is the default; active cleanup modes send transcript text to the cleanup provider selected below."
         case .openAIWhisper:
-            "Audio is sent to OpenAI for Whisper transcription. Cleanup is off unless enabled; when enabled, transcript text is sent to the cleanup provider selected below."
+            "Audio is sent to OpenAI for Whisper transcription. Raw transcript is the default; active cleanup modes send transcript text to the cleanup provider selected below."
         case .localWhisperCPP:
-            "Audio stays on this Mac when whisper.cpp is running at the local 127.0.0.1 endpoint shown below. Cleanup is off unless enabled; when enabled, transcript text is sent to the cleanup provider selected below."
+            "Audio stays on this Mac when whisper.cpp is running at the local 127.0.0.1 endpoint shown below. Raw transcript is the default; active cleanup modes send transcript text to the cleanup provider selected below."
         case .customOpenAICompatible:
-            "Audio is sent to the OpenAI-compatible endpoint you configure below. Cleanup is off unless enabled; when enabled, transcript text is sent to the cleanup provider selected below."
+            "Audio is sent to the OpenAI-compatible endpoint you configure below. Raw transcript is the default; active cleanup modes send transcript text to the cleanup provider selected below."
         }
     }
 

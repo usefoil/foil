@@ -59,6 +59,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           E2E_TRANSCRIPTION_TIMEOUT_SECONDS: "90"
           E2E_CLEANUP_PROVIDER: openai
+          E2E_CLEANUP_MODE: numbered
           E2E_CLEANUP_MODEL: gpt-5.4-mini
           E2E_CLEANUP_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |

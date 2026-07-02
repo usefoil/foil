@@ -4,6 +4,9 @@ enum TranscriptProcessingMode: String, CaseIterable, Identifiable {
     case raw
     case cleanUp
     case rewriteClearly
+    case bulletize
+    case numbered
+    case summarize
 
     var id: String { rawValue }
 
@@ -15,7 +18,34 @@ enum TranscriptProcessingMode: String, CaseIterable, Identifiable {
             "Clean up transcript formatting"
         case .rewriteClearly:
             "Rewrite clearly"
+        case .bulletize:
+            "Bullets"
+        case .numbered:
+            "Numbered list"
+        case .summarize:
+            "Summary"
         }
+    }
+
+    var activeModeDescription: String {
+        switch self {
+        case .raw:
+            "Paste the transcript exactly as returned by transcription."
+        case .cleanUp:
+            "Fix punctuation, capitalization, filler, and paragraph breaks while preserving the wording."
+        case .rewriteClearly:
+            "Rewrite the transcript into concise prose."
+        case .bulletize:
+            "Paste the transcript as concise bullet points."
+        case .numbered:
+            "Paste the transcript as a numbered list."
+        case .summarize:
+            "Paste a short summary of the transcript."
+        }
+    }
+
+    var usesCleanupProvider: Bool {
+        self != .raw
     }
 
     var defaultPrompt: String {
@@ -33,6 +63,30 @@ enum TranscriptProcessingMode: String, CaseIterable, Identifiable {
             """
         case .rewriteClearly:
             "Rewrite the transcript into clear, concise prose. Preserve all concrete facts, names, numbers, and intent. Do not add new information."
+        case .bulletize:
+            """
+            Convert the transcript into concise bullet points.
+            Preserve every important fact, name, number, task, decision, and next action.
+            Use one bullet per important idea.
+            Start every bullet line with "- ".
+            Do not add information that was not in the transcript.
+            """
+        case .numbered:
+            """
+            Convert the transcript into a concise numbered list.
+            Preserve every important fact, name, number, task, decision, and next action.
+            Use one numbered item per important idea.
+            Start each item with "1. ", "2. ", "3. ", and so on.
+            Do not add information that was not in the transcript.
+            """
+        case .summarize:
+            """
+            Summarize the transcript briefly as one short paragraph.
+            Preserve the key facts, decisions, names, numbers, and next actions.
+            Keep the summary concise and readable.
+            Do not use bullet points, numbered lists, headings, or labels.
+            Do not add information that was not in the transcript.
+            """
         }
     }
 

@@ -269,6 +269,9 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
 
       - name: Run focused UI smoke
+        env:
+          ACTIVE_MODE_SCREENSHOT_DIR: /tmp/foil-active-mode-screenshots
+          HISTORY_TRANSFORM_SCREENSHOT_DIR: /tmp/foil-history-transform-screenshots
         run: |
           xcodebuild test \
             -scheme Foil \
@@ -289,6 +292,7 @@ jobs:
             -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff \
             -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled \
             -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory \
+            -only-testing:FoilUITests/FoilUITests/testActiveCleanupModeSelectorPersistsAndScreenshotsResult \
             -only-testing:FoilUITests/FoilUITests/testAppShellHistoryBulletizeTransformPreservesBulletFormatInDetail \
             -only-testing:FoilUITests/FoilUITests/testFloatingWarningShowsExpandedClipboardContext \
             -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled \

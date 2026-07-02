@@ -203,17 +203,18 @@ final class SingleInstanceGuardTests: XCTestCase {
         )
     }
 
-    func testAppDelegateCanOpenSettingsWindowExplicitly() {
+    func testAppDelegateOpensAppShellInsteadOfLegacySettingsWindow() {
         let stub = NotRunningStub()
         let delegate = AppDelegate(singleInstanceGuard: stub)
 
-        delegate.showSettingsWindow()
+        delegate.showAppShellWindow(initialSelection: .transcription)
 
-        let settingsWindow = NSApp.windows.first { $0.title == "Settings" }
-        XCTAssertNotNil(settingsWindow)
-        XCTAssertTrue(settingsWindow?.isVisible == true)
+        let appShellWindow = NSApp.windows.first { $0.title == AppBrand.name }
+        XCTAssertNotNil(appShellWindow)
+        XCTAssertTrue(appShellWindow?.isVisible == true)
+        XCTAssertNil(NSApp.windows.first { $0.title == "Settings" })
 
-        settingsWindow?.close()
+        appShellWindow?.close()
     }
 
     func testSettingsTabStripUsesCompactVisibleLabels() {

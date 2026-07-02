@@ -61,6 +61,10 @@ jobs:
       - name: Run E2E transcription UI test
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          E2E_CLEANUP_PROVIDER: groq
+          E2E_CLEANUP_MODE: numbered
+          E2E_CLEANUP_MODEL: llama-3.3-70b-versatile
+          E2E_CLEANUP_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
           if [ -z "$GROQ_API_KEY" ]; then
             echo "::warning::GROQ_API_KEY secret not set — skipping E2E UI test"

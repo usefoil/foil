@@ -58,8 +58,6 @@ final class UITestingController {
         Notification.Name("com.neonwatty.Foil.automation.queuedDeliverNext")
     static let openHistoryNotification =
         Notification.Name("com.neonwatty.Foil.uiTests.openHistory")
-    static let openSettingsNotification =
-        Notification.Name("com.neonwatty.Foil.uiTests.openSettings")
     static let openHelpNotification =
         Notification.Name("com.neonwatty.Foil.uiTests.openHelp")
     static let runSetupCheckNotification =
@@ -118,7 +116,6 @@ final class UITestingController {
     private var uiTestWindow: NSWindow?
     private var uiTestAppShellWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
-    private var uiTestSettingsWindow: NSWindow?
     private var uiTestCommandFileTimer: Timer?
     private var lastUITestCommandFileID: String?
     private var recordingEvents: [RecordingEventSnapshot] = []
@@ -296,6 +293,18 @@ final class UITestingController {
             appState.transcriptProcessingMode = .cleanUp
         }
 
+        if args.contains("--seed-active-mode-bullets") {
+            appState.transcriptProcessingMode = .bulletize
+        }
+
+        if args.contains("--seed-active-mode-numbered") {
+            appState.transcriptProcessingMode = .numbered
+        }
+
+        if args.contains("--seed-active-mode-summary") {
+            appState.transcriptProcessingMode = .summarize
+        }
+
         if args.contains("--seed-openai-cleanup-provider") {
             appState.transcriptCleanupProviderID = .openAI
             appState.openAITranscriptCleanupModel = "gpt-5.4-mini"
@@ -469,7 +478,13 @@ final class UITestingController {
             return
         }
 
-        appState.transcriptProcessingMode = .cleanUp
+        if let rawMode = env["E2E_CLEANUP_MODE"],
+           !rawMode.isEmpty,
+           let mode = TranscriptProcessingMode(rawValue: rawMode) {
+            appState.transcriptProcessingMode = mode
+        } else {
+            appState.transcriptProcessingMode = .cleanUp
+        }
         switch providerID {
         case .none:
             break
@@ -1379,31 +1394,6 @@ final class UITestingController {
         return .added
     }
 
-    private func showUITestSettingsWindow() {
-        activateUITestApplication()
-        let view = SettingsView(
-            appState: appState,
-            history: history,
-            initialTab: initialSettingsTab(),
-            onHotkeyChanged: onHotkeyChanged
-        )
-        .accessibilityIdentifier("settings.testHost")
-        .frame(width: 680, height: 430)
-
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 680, height: 430),
-            styleMask: [.titled, .closable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "Settings"
-        window.contentView = fixedHostingView(rootView: view, size: NSSize(width: 680, height: 430))
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        activateUITestApplication()
-        uiTestSettingsWindow = window
-    }
-
     private func activateUITestApplication() {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
@@ -1414,12 +1404,6 @@ final class UITestingController {
             self,
             selector: #selector(openHistoryForUITest),
             name: UITestingController.openHistoryNotification,
-            object: nil
-        )
-        DistributedNotificationCenter.default().addObserver(
-            self,
-            selector: #selector(openSettingsForUITest),
-            name: UITestingController.openSettingsNotification,
             object: nil
         )
         DistributedNotificationCenter.default().addObserver(
@@ -1488,10 +1472,6 @@ final class UITestingController {
 
     @objc private func openHistoryForUITest() {
         showUITestHistoryWindow()
-    }
-
-    @objc private func openSettingsForUITest() {
-        showUITestSettingsWindow()
     }
 
     @objc private func openHelpForUITest() {
@@ -1658,20 +1638,6 @@ final class UITestingController {
         }
     }
 
-    private func initialSettingsTab() -> SettingsView.Tab {
-        let args = ProcessInfo.processInfo.arguments
-        if args.contains("--settings-tab-general") { return .general }
-        if args.contains("--settings-tab-recording") { return .recording }
-        if args.contains("--settings-tab-cleanup") { return .cleanup }
-        if args.contains("--settings-tab-paste") { return .paste }
-        if args.contains("--settings-tab-privacy") { return .privacy }
-        if args.contains("--settings-tab-whats-new") { return .whatsNew }
-        if args.contains("--settings-tab-experimental") || args.contains("--settings-tab-advanced") {
-            return .experimental
-        }
-        return .transcription
-    }
-
     // MARK: - Simulate transcription (UI testing)
 
     func simulateUITestTranscription(success: Bool) {
@@ -1696,7 +1662,7 @@ final class UITestingController {
             stopTranscribingAnimation()
 
             if success {
-                let text = "Mock async paste transcript"
+                let text = simulatedSuccessTranscriptText()
                 appState.setStatus(.idle)
                 if appState.queuedPasteEnabled {
                     let target = PasteTarget(
@@ -1728,6 +1694,27 @@ final class UITestingController {
                 history.addFailure(error: "Simulated transcription failure", audioFileURL: nil)
                 appState.showError("Simulated transcription failure")
             }
+        }
+    }
+
+    private func simulatedSuccessTranscriptText() -> String {
+        switch appState.effectiveTranscriptProcessingMode {
+        case .numbered:
+            """
+            1. Confirm the launch checklist.
+            2. Assign follow ups for Chrome, Terminal, and TextEdit.
+            3. Record the Foil demo.
+            """
+        case .bulletize:
+            """
+            - Confirm the launch checklist.
+            - Assign follow ups for Chrome, Terminal, and TextEdit.
+            - Record the Foil demo.
+            """
+        case .summarize:
+            "Confirm the launch checklist, assign follow ups for Chrome, Terminal, and TextEdit, then record the Foil demo."
+        case .cleanUp, .rewriteClearly, .raw:
+            "Mock async paste transcript"
         }
     }
 
