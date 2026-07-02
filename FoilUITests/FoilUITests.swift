@@ -141,6 +141,67 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(app.windows["History"].exists, app.debugDescription)
     }
 
+    func testAppShellHistorySavesSelectedTextAsPreferredTerm() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--settings-tab-cleanup",
+            "--seed-cleanup-formatting-enabled"
+        ])
+        openAppShellHistory()
+
+        selectAppShellHistoryVocabularyToken("Second")
+        selectAppShellHistoryVocabularyToken("searchable")
+        clickElement(app.buttons["history.vocabulary.addSelectionButton"])
+
+        let preferredTermModeButton = app.buttons["history.vocabulary.mode.preferredTerm"]
+        XCTAssertTrue(preferredTermModeButton.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(preferredTermModeButton)
+
+        let termField = app.textFields["history.vocabulary.termField"]
+        XCTAssertTrue(termField.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(termField.value as? String, "Second searchable")
+        clickElement(app.buttons["history.vocabulary.saveButton"])
+
+        let cleanupNavItem = app.descendants(matching: .any)["appShell.nav.settings.cleanup"]
+        XCTAssertTrue(cleanupNavItem.waitForExistence(timeout: 4), app.debugDescription)
+        clickElement(cleanupNavItem)
+
+        XCTAssertTrue(elementExists(id: "appShell.preferences", timeout: 4), app.debugDescription)
+        let preferredTermsEditor = app.textViews["settings.preferredTermsEditor"]
+        XCTAssertTrue(preferredTermsEditor.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertEqual(preferredTermsEditor.value as? String, "Second searchable")
+        XCTAssertFalse(app.windows["History"].exists, app.debugDescription)
+    }
+
+    func testAppShellHistorySaveAndRecleanVocabularySelection() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-history-reclean-enabled"
+        ])
+        openAppShellHistory()
+
+        selectAppShellHistoryVocabularyToken("Second")
+        clickElement(app.buttons["history.vocabulary.addSelectionButton"])
+
+        let correctVersionField = app.textFields["history.vocabulary.correctVersionField"]
+        XCTAssertTrue(correctVersionField.waitForExistence(timeout: 2), app.debugDescription)
+        correctVersionField.click()
+        correctVersionField.typeText("Supabase")
+
+        let saveAndRecleanButton = app.buttons["history.vocabulary.saveAndRecleanButton"]
+        XCTAssertTrue(saveAndRecleanButton.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(saveAndRecleanButton)
+
+        XCTAssertTrue(app.descendants(matching: .any)["Select Re-cleaned for Vocabulary"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["Select Supabase for Vocabulary"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(app.descendants(matching: .any)["Select Second for Vocabulary"].exists, app.debugDescription)
+        XCTAssertFalse(app.windows["History"].exists, app.debugDescription)
+    }
+
     func testAppShellShowsGeneralPreferences() {
         let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
         XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)
@@ -1607,6 +1668,12 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(elementExists(id: "appShell.history", timeout: 4), app.debugDescription)
         XCTAssertTrue(elementExists(id: "history.root", timeout: 2), app.debugDescription)
         XCTAssertEqual(historyNavItem.value as? String, "Selected")
+    }
+
+    private func selectAppShellHistoryVocabularyToken(_ token: String) {
+        let tokenElement = app.descendants(matching: .any)["Select \(token) for Vocabulary"]
+        XCTAssertTrue(tokenElement.waitForExistence(timeout: 2), app.debugDescription)
+        clickElement(tokenElement)
     }
 
     private func assertAppShellSettingsPane(navID: String, requiredID: String) {
