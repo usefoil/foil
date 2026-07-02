@@ -153,18 +153,6 @@ struct FoilApp: App {
         }
         .defaultSize(width: 620, height: 560)
 
-        Settings {
-            SettingsView(
-                appState: appDelegate.appState,
-                history: appDelegate.history,
-                onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
-                onCopySetupReport: { [weak appDelegate] in appDelegate?.copySetupReportToClipboard() },
-                onExportDiagnostics: { [weak appDelegate] in appDelegate?.exportDiagnostics() },
-                onStartLocalWhisperServer: { [weak appDelegate] modelID in
-                    appDelegate?.startLocalWhisperServer(modelID: modelID)
-                }
-            )
-        }
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button("Settings...") {
@@ -277,7 +265,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var transcriptionTask: Task<Void, Never>?
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
-    private var settingsWindow: NSWindow?
+    private var appShellWindow: NSWindow?
     private var liveAudioSignifierPanel: NSPanel?
     private var hasCompletedOnboarding: Bool {
         get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
@@ -635,7 +623,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onOpenMicrophone: { [weak self] in self?.openMicrophoneSettings() },
             onCheckMicrophone: { [weak self] in self?.checkMicrophonePermission() },
             onRefreshSetupHealth: { [weak self] in self?.refreshSetupHealth() },
-            onOpenSettings: { [weak self] in self?.showSettingsWindow(initialTab: .transcription) },
+            onOpenSettings: { [weak self] in self?.showAppShellWindow(initialSelection: .transcription) },
             onComplete: { [weak self] in
                 guard let self else { return }
                 self.hasCompletedOnboarding = true
@@ -667,38 +655,66 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         onboardingWindow = window
     }
 
-    func showSettingsWindow(initialTab: SettingsView.Tab = .general) {
-        if let settingsWindow {
-            settingsWindow.makeKeyAndOrderFront(nil)
+    func showAppShellWindow(initialSelection: FoilAppSection = .home) {
+        FoilAppSection.request(initialSelection)
+        if let appShellWindow {
+            appShellWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return
         }
 
-        let settingsView = SettingsView(
+        let appShellView = FoilAppShellView(
             appState: appState,
+            queuedPasteQueue: queuedPasteQueue,
             history: history,
-            initialTab: initialTab,
+            initialSelection: initialSelection,
+            onRetryRecord: { [weak self] record in self?.retryRecord(record) },
+            onPasteText: { [weak self] text in self?.paste(text: text) },
+            onSaveAndRecleanVocabularyCorrection: { [weak self] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
+                guard let self else { return .cleanupUnavailable }
+                return await self.saveVocabularyCorrectionAndRecleanHistoryRecord(
+                    writtenAs: writtenAs,
+                    correctVersion: correctVersion,
+                    note: note,
+                    sourceRecordID: sourceRecordID,
+                    sourceAppName: sourceAppName
+                )
+            },
+            onTransformTranscript: { [weak self] transformKind, sourceRecordID, text, sourceAppName in
+                guard let self else { return .cleanupUnavailable }
+                return await self.transformHistoryRecord(
+                    transformKind: transformKind,
+                    sourceRecordID: sourceRecordID,
+                    text: text,
+                    sourceAppName: sourceAppName
+                )
+            },
             onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() },
             onCopySetupReport: { [weak self] in self?.copySetupReportToClipboard() },
             onExportDiagnostics: { [weak self] in self?.exportDiagnostics() },
             onStartLocalWhisperServer: { [weak self] modelID in
                 self?.startLocalWhisperServer(modelID: modelID)
-            }
+            },
+            onStartRecording: { [weak self] in self?.startRecordingFromControl() },
+            onStopRecording: { [weak self] in self?.stopRecordingFromControl() },
+            onCancelRecording: { [weak self] in self?.cancelRecordingFromControl() },
+            onCancelTranscription: { [weak self] in self?.cancelTranscriptionFromControl() },
+            onPasteLast: { [weak self] in self?.pasteLastSuccess() }
         )
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 680, height: 430),
+            contentRect: NSRect(x: 0, y: 0, width: 940, height: 640),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
         )
-        window.title = "Settings"
+        window.title = AppBrand.name
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: settingsView)
+        window.contentView = NSHostingView(rootView: appShellView)
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        settingsWindow = window
+        appShellWindow = window
     }
 
     // MARK: - Floating status

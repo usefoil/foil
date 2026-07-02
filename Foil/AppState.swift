@@ -267,6 +267,18 @@ final class AppState {
         didSet { Self.defaults.set(customRewritePrompt, forKey: "customCleanupPrompt.rewriteClearly") }
     }
 
+    var customBulletPrompt: String = "" {
+        didSet { Self.defaults.set(customBulletPrompt, forKey: "customCleanupPrompt.bulletize") }
+    }
+
+    var customNumberedPrompt: String = "" {
+        didSet { Self.defaults.set(customNumberedPrompt, forKey: "customCleanupPrompt.numbered") }
+    }
+
+    var customSummaryPrompt: String = "" {
+        didSet { Self.defaults.set(customSummaryPrompt, forKey: "customCleanupPrompt.summarize") }
+    }
+
     var preferredTermsText: String = "" {
         didSet {
             if isSynchronizingVocabularyText {
@@ -646,6 +658,12 @@ final class AppState {
             value = customCleanupPrompt
         case .rewriteClearly:
             value = customRewritePrompt
+        case .bulletize:
+            value = customBulletPrompt
+        case .numbered:
+            value = customNumberedPrompt
+        case .summarize:
+            value = customSummaryPrompt
         }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
@@ -664,6 +682,12 @@ final class AppState {
             customCleanupPrompt = trimmed
         case .rewriteClearly:
             customRewritePrompt = trimmed
+        case .bulletize:
+            customBulletPrompt = trimmed
+        case .numbered:
+            customNumberedPrompt = trimmed
+        case .summarize:
+            customSummaryPrompt = trimmed
         }
     }
 
@@ -1054,7 +1078,7 @@ final class AppState {
         case .cleaningTranscript:
             return SessionPresentation(
                 title: "Cleaning up",
-                detail: "\(transcriptCleanupModel) · \(transcriptProcessingMode.displayName) · \(currentTargetDetail)",
+                detail: "\(selectedTranscriptCleanupProvider.model) · \(transcriptProcessingMode.displayName) · \(currentTargetDetail)",
                 timerText: nil,
                 systemImage: "sparkles",
                 tone: .progress,
@@ -1077,8 +1101,8 @@ final class AppState {
         switch effectiveTranscriptProcessingMode {
         case .raw:
             baseDetail = "\(selectedTranscriptionProvider.displayName) · \(selectedTranscriptionModel)"
-        case .cleanUp, .rewriteClearly:
-            baseDetail = "\(selectedTranscriptionProvider.displayName) · cleanup next"
+        case .cleanUp, .rewriteClearly, .bulletize, .numbered, .summarize:
+            baseDetail = "\(selectedTranscriptionProvider.displayName) · \(effectiveTranscriptProcessingMode.displayName) next"
         }
         return "\(baseDetail) · \(currentTargetDetail)"
     }
@@ -1167,6 +1191,9 @@ final class AppState {
                 "customTranscriptCleanupModel",
                 "customCleanupPrompt.cleanUp",
                 "customCleanupPrompt.rewriteClearly",
+                "customCleanupPrompt.bulletize",
+                "customCleanupPrompt.numbered",
+                "customCleanupPrompt.summarize",
                 "transcriptCleanupPreferredTerms",
                 Self.vocabularyCorrectionsKey,
                 Self.vocabularyTermsKey,
@@ -1207,6 +1234,9 @@ final class AppState {
             "customTranscriptCleanupModel": "llama3.1:8b",
             "customCleanupPrompt.cleanUp": "",
             "customCleanupPrompt.rewriteClearly": "",
+            "customCleanupPrompt.bulletize": "",
+            "customCleanupPrompt.numbered": "",
+            "customCleanupPrompt.summarize": "",
             "transcriptCleanupPreferredTerms": ""
         ])
 
@@ -1245,6 +1275,9 @@ final class AppState {
         customTranscriptCleanupModel = defaults.string(forKey: "customTranscriptCleanupModel") ?? "llama3.1:8b"
         customCleanupPrompt = defaults.string(forKey: "customCleanupPrompt.cleanUp") ?? ""
         customRewritePrompt = defaults.string(forKey: "customCleanupPrompt.rewriteClearly") ?? ""
+        customBulletPrompt = defaults.string(forKey: "customCleanupPrompt.bulletize") ?? ""
+        customNumberedPrompt = defaults.string(forKey: "customCleanupPrompt.numbered") ?? ""
+        customSummaryPrompt = defaults.string(forKey: "customCleanupPrompt.summarize") ?? ""
         isSynchronizingVocabularyText = true
         preferredTermsText = Self.normalizedPreferredTerms(
             from: defaults.string(forKey: "transcriptCleanupPreferredTerms") ?? ""

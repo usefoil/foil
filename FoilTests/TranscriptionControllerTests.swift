@@ -297,6 +297,37 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertTrue(receipt.contains("output_length=10"), receipt)
     }
 
+    func testActiveNumberedModeChangesCleanupPromptAndReceiptMode() async throws {
+        let receiptURL = keychainStorageDirectory.appendingPathComponent("numbered-cleanup-receipt.txt")
+        setenv("E2E_CLEANUP_RECEIPT_PATH", receiptURL.path, 1)
+        appState.transcriptProcessingMode = .numbered
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+
+        let transport = ControllerStubTransport { request in
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains("Convert the transcript into a concise numbered list."), body)
+            XCTAssertTrue(body.contains("Start each item with \\\"1. \\\""), body)
+            XCTAssertTrue(body.contains("launch checklist then assign follow ups"), body)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"choices":[{"message":{"content":"1. Confirm checklist.\n2. Assign follow ups."}}]}"#.utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "launch checklist then assign follow ups",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "1. Confirm checklist.\n2. Assign follow ups.")
+        XCTAssertFalse(result.cleanupFailed)
+        let receipt = try String(contentsOf: receiptURL, encoding: .utf8)
+        XCTAssertTrue(receipt.contains("mode=numbered"), receipt)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
     func testFailedCleanupWritesE2EReceiptWhenPathIsProvided() async throws {
         let receiptURL = keychainStorageDirectory.appendingPathComponent("cleanup-failed-receipt.txt")
         setenv("E2E_CLEANUP_RECEIPT_PATH", receiptURL.path, 1)

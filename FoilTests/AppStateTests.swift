@@ -91,6 +91,9 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupModel")
         UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.cleanUp")
         UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.rewriteClearly")
+        UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.bulletize")
+        UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.numbered")
+        UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.summarize")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupPreferredTerms")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupVocabularyCorrections")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupVocabularyTerms")
@@ -652,7 +655,7 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .cleanUp)
-        XCTAssertEqual(presentation.detail, "Custom OpenAI-compatible · cleanup next · Target: current app")
+        XCTAssertEqual(presentation.detail, "Custom OpenAI-compatible · Clean up transcript formatting next · Target: current app")
     }
 
     func testCleaningSessionPresentationShowsCleanupModel() {
@@ -1331,14 +1334,37 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertNil(state.customPrompt(for: .cleanUp))
         XCTAssertEqual(state.resolvedPrompt(for: .cleanUp), TranscriptProcessingMode.cleanUp.defaultPrompt)
+        XCTAssertNil(state.customPrompt(for: .bulletize))
+        XCTAssertEqual(state.resolvedPrompt(for: .bulletize), TranscriptProcessingMode.bulletize.defaultPrompt)
 
         state.setCustomPrompt("Custom cleanup instructions", for: .cleanUp)
         XCTAssertEqual(state.customPrompt(for: .cleanUp), "Custom cleanup instructions")
         XCTAssertEqual(state.resolvedPrompt(for: .cleanUp), "Custom cleanup instructions")
+        state.setCustomPrompt("Use compact numbered steps", for: .numbered)
+        XCTAssertEqual(state.customPrompt(for: .numbered), "Use compact numbered steps")
+        XCTAssertEqual(state.resolvedPrompt(for: .numbered), "Use compact numbered steps")
 
         state.resetCustomPrompt(for: .cleanUp)
         XCTAssertNil(state.customPrompt(for: .cleanUp))
         XCTAssertEqual(state.resolvedPrompt(for: .cleanUp), TranscriptProcessingMode.cleanUp.defaultPrompt)
+        state.resetCustomPrompt(for: .numbered)
+        XCTAssertNil(state.customPrompt(for: .numbered))
+        XCTAssertEqual(state.resolvedPrompt(for: .numbered), TranscriptProcessingMode.numbered.defaultPrompt)
+    }
+
+    func testActiveCleanupModesPersistAndResolvePrompts() {
+        let state = AppState()
+        state.transcriptProcessingMode = .numbered
+        state.setCustomPrompt("Number every action.", for: .numbered)
+        state.setCustomPrompt("Summarize in one sentence.", for: .summarize)
+
+        let reloaded = AppState()
+
+        XCTAssertEqual(reloaded.transcriptProcessingMode, .numbered)
+        XCTAssertEqual(reloaded.customPrompt(for: .numbered), "Number every action.")
+        XCTAssertEqual(reloaded.customPrompt(for: .summarize), "Summarize in one sentence.")
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "transcriptProcessingMode"), "numbered")
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "customCleanupPrompt.numbered"), "Number every action.")
     }
 
     func testPreferredTermsNormalizePersistAndReload() {
