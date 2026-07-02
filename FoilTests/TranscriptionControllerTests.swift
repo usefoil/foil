@@ -384,6 +384,70 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 1)
     }
 
+    func testHistoryTransformUsesSelectedCleanupProviderAndVocabularyContext() async {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .raw
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+        appState.addVocabularyCorrection(writtenAs: "super base", correctVersion: "Supabase")
+        appState.preferredTermsText = "Supabase"
+
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/chat/completions")
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains("Polish this transcript into clear, natural writing."), body)
+            XCTAssertTrue(body.contains("If the transcript says \\\"super base\\\", use \\\"Supabase\\\"."), body)
+            XCTAssertTrue(body.contains("Preferred terms"), body)
+            XCTAssertTrue(body.contains("please polish super base"), body)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"choices":[{"message":{"content":"please polish Supabase"}}]}"#.utf8), response)
+        }
+
+        let result = await controller.transformTranscript(
+            rawText: "please polish super base",
+            transformKind: .polish,
+            service: TranscriptionService(transport: transport),
+            context: "testHistoryTransform"
+        )
+
+        XCTAssertEqual(result.text, "please polish Supabase")
+        XCTAssertFalse(result.transformFailed)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testHistoryBulletizeTransformReturnsProviderBulletFormat() async {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .raw
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/chat/completions")
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains("Convert this transcript into concise bullet points."), body)
+            XCTAssertTrue(body.contains("first talk through launch checklist then assign follow ups"), body)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (
+                Data(#"{"choices":[{"message":{"content":"- Confirm launch checklist.\n- Assign follow ups."}}]}"#.utf8),
+                response
+            )
+        }
+
+        let result = await controller.transformTranscript(
+            rawText: "first talk through launch checklist then assign follow ups",
+            transformKind: .bulletize,
+            service: TranscriptionService(transport: transport),
+            context: "testHistoryBulletizeTransform"
+        )
+
+        XCTAssertEqual(result.text, "- Confirm launch checklist.\n- Assign follow ups.")
+        XCTAssertFalse(result.transformFailed)
+        XCTAssertTrue(result.text.split(separator: "\n").allSatisfy { $0.hasPrefix("- ") }, result.text)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
     func testRecleanTranscriptFailureReturnsOriginalText() async {
         appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         appState.transcriptProcessingMode = .cleanUp

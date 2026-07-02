@@ -202,6 +202,62 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(app.windows["History"].exists, app.debugDescription)
     }
 
+    func testAppShellHistoryTransformsTranscriptAsSeparateRecord() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-history-transform-enabled"
+        ])
+        openAppShellHistory()
+
+        XCTAssertTrue(app.descendants(matching: .any)["Transform"].waitForExistence(timeout: 2), app.debugDescription)
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "filter", "filter": "Successful"])
+        postUITestCommand(historyCommandNotification, userInfo: [
+            "command": "transform",
+            "index": 0,
+            "transformKind": "polish"
+        ])
+
+        XCTAssertTrue(app.descendants(matching: .any)["Select Polish for Vocabulary"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["Select Second for Vocabulary"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(app.windows["History"].exists, app.debugDescription)
+    }
+
+    func testAppShellHistoryBulletizeTransformPreservesBulletFormatInDetail() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-history-transform-enabled"
+        ])
+        openAppShellHistory()
+
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "filter", "filter": "Successful"])
+        postUITestCommand(historyCommandNotification, userInfo: [
+            "command": "transform",
+            "index": 0,
+            "transformKind": "bulletize"
+        ])
+
+        XCTAssertTrue(app.descendants(matching: .any)["Select Alpha for Vocabulary"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["Select Beta for Vocabulary"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["Select Second for Vocabulary"].waitForExistence(timeout: 2), app.debugDescription)
+        writeHistoryTransformScreenshot(name: "history-bulletize-row")
+
+        postUITestCommand(historyCommandNotification, userInfo: ["command": "selectDetail", "index": 0])
+        let editor = app.textViews["history.detail.editor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 2), app.debugDescription)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        writeHistoryTransformScreenshot(name: "history-bulletize-detail")
+        NSPasteboard.general.clearContents()
+        clickElement(app.buttons["history.detail.copyButton"])
+        let detailText = NSPasteboard.general.string(forType: .string) ?? ""
+        XCTAssertTrue(detailText.contains("- Alpha action from Second searchable transcript."), detailText)
+        XCTAssertTrue(detailText.contains("- Beta action preserves the original transcript context."), detailText)
+        XCTAssertFalse(app.windows["History"].exists, app.debugDescription)
+    }
+
     func testAppShellShowsGeneralPreferences() {
         let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
         XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)
@@ -2219,6 +2275,29 @@ final class FoilUITests: XCTestCase {
         attachment.name = "Settings \(name)"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func writeHistoryTransformScreenshot(name: String) {
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "History transform \(name)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        guard let screenshotDir = ProcessInfo.processInfo.environment["HISTORY_TRANSFORM_SCREENSHOT_DIR"],
+              !screenshotDir.isEmpty else {
+            return
+        }
+
+        let url = URL(fileURLWithPath: screenshotDir, isDirectory: true)
+            .appendingPathComponent("\(name).png")
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try screenshot.pngRepresentation.write(to: url)
+            print("Saved history transform screenshot to \(url.path)")
+        } catch {
+            print("Failed to write history transform screenshot to \(url.path): \(error)")
+        }
     }
 
     private func liveMicrophoneFloatValue(named name: String, in result: String) -> Float {

@@ -56,6 +56,13 @@ enum CleanupMode: String, CaseIterable {
 }
 
 enum CleanupQualityTest {
+    static let historyBulletizeInstruction = """
+    Convert this transcript into concise bullet points.
+    Preserve every important fact, name, number, task, and decision.
+    Group related ideas together and avoid adding information that was not in the transcript.
+    Return only the final processed transcript.
+    """
+
     static func run() async -> Int32 {
         guard let key = ProcessInfo.processInfo.environment["GROQ_API_KEY"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -106,6 +113,37 @@ enum CleanupQualityTest {
             }
         }
 
+        do {
+            let transformSample = "first talk through the launch checklist then assign follow ups for chrome terminal and textedit before the foil demo"
+            let output = try await process(
+                endpoint: endpoint,
+                apiKey: key,
+                model: model,
+                instruction: historyBulletizeInstruction,
+                transcript: transformSample
+            )
+            print("History Bulletize:")
+            print(output)
+            print()
+
+            let lower = output
+                .lowercased()
+                .replacingOccurrences(of: "-", with: " ")
+            let preservesCoreFacts = ["launch checklist", "follow ups", "chrome", "terminal", "textedit", "foil demo"]
+                .allSatisfy { lower.contains($0) }
+            if output.isEmpty || !preservesCoreFacts || !hasListFormat(output) {
+                failed = true
+                print("❌ History Bulletize failed list-format or fact-preservation smoke check.")
+            } else {
+                print("✅ History Bulletize returned a bullet/numbered list and preserved core facts.")
+            }
+            print()
+        } catch {
+            failed = true
+            print("❌ History Bulletize failed: \(error)")
+            print()
+        }
+
         return failed ? 1 : 0
     }
 
@@ -116,6 +154,22 @@ enum CleanupQualityTest {
         mode: CleanupMode,
         transcript: String
     ) async throws -> String {
+        try await process(
+            endpoint: endpoint,
+            apiKey: apiKey,
+            model: model,
+            instruction: mode.instruction,
+            transcript: transcript
+        )
+    }
+
+    static func process(
+        endpoint: URL,
+        apiKey: String,
+        model: String,
+        instruction: String,
+        transcript: String
+    ) async throws -> String {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -124,7 +178,7 @@ enum CleanupQualityTest {
             ChatRequest(
                 model: model,
                 messages: [
-                    Message(role: "system", content: mode.instruction),
+                    Message(role: "system", content: instruction),
                     Message(role: "user", content: transcript)
                 ],
                 temperature: 0.2,
@@ -142,6 +196,19 @@ enum CleanupQualityTest {
         }
         let decoded = try JSONDecoder().decode(ChatResponse.self, from: data)
         return decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    static func hasListFormat(_ text: String) -> Bool {
+        let lines = text
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard lines.count >= 2 else { return false }
+        return lines.allSatisfy { line in
+            line.hasPrefix("- ")
+                || line.hasPrefix("* ")
+                || line.range(of: #"^\d+[\.)]\s+"#, options: .regularExpression) != nil
+        }
     }
 }
 

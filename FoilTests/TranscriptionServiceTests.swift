@@ -536,6 +536,34 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(bodyString.contains("Return only the final processed transcript"), bodyString)
     }
 
+    func testHistoryTransformRequestUsesTransformPromptAndTranscriptOnlyAsUserContent() throws {
+        let request = TranscriptCleanupRequest(
+            rawTranscript: "make this better and mention super base",
+            mode: .rewriteClearly,
+            customPrompt: HistoryTransformKind.bulletize.prompt,
+            vocabularyCorrections: [
+                VocabularyCorrection(writtenAs: "super base", correctVersion: "Supabase")
+            ],
+            preferredTerms: ["Supabase"],
+            provider: .customOpenAICompatibleChat(
+                baseURL: URL(string: "http://127.0.0.1:11434/v1")!,
+                model: "qwen2.5:7b"
+            )
+        )
+
+        let body = try TranscriptionService.buildTranscriptProcessingBody(request: request)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let messages = try XCTUnwrap(json["messages"] as? [[String: String]])
+        let system = try XCTUnwrap(messages.first?["content"])
+        let user = try XCTUnwrap(messages.last?["content"])
+
+        XCTAssertTrue(system.contains("Convert this transcript into concise bullet points."), system)
+        XCTAssertTrue(system.contains("If the transcript says \"super base\", use \"Supabase\"."), system)
+        XCTAssertTrue(system.contains("Preferred terms"), system)
+        XCTAssertTrue(system.contains("Return only the final processed transcript."), system)
+        XCTAssertEqual(user, "make this better and mention super base")
+    }
+
     func testCleanupFormattingRequestIncludesVocabularyCorrectionsBeforePreferredTerms() throws {
         let request = TranscriptCleanupRequest(
             rawTranscript: "please fix super base auth",

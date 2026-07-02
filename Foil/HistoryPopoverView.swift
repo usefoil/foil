@@ -8,6 +8,12 @@ enum HistoryVocabularyRecleanResult: Equatable {
     case cleanupFailed
 }
 
+enum HistoryTransformResult: Equatable {
+    case added
+    case cleanupUnavailable
+    case transformFailed
+}
+
 struct HistoryPopoverView: View {
     enum Filter: String, CaseIterable {
         case all = "All"
@@ -21,7 +27,9 @@ struct HistoryPopoverView: View {
     var onSaveVocabularyTerm: ((String, String?) -> VocabularyTerm?)?
     var onSaveVocabularyCorrection: ((String, String, String?, UUID?, String?) -> VocabularyCorrection?)?
     var onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?
+    var onTransformTranscript: ((HistoryTransformKind, UUID, String, String?) async -> HistoryTransformResult)?
     var canSaveAndRecleanVocabularyCorrection = false
+    var canTransformHistoryTranscripts = false
     var showsHeader = true
 
     private struct VocabularyCorrectionDraft: Identifiable {
@@ -58,6 +66,16 @@ struct HistoryPopoverView: View {
         var range: ClosedRange<Int> {
             lowerTokenID...upperTokenID
         }
+    }
+
+    private struct PendingHistoryTransform: Equatable {
+        let recordID: UUID
+        let kind: HistoryTransformKind
+    }
+
+    private struct HistoryTransformError: Equatable {
+        let recordID: UUID
+        let message: String
     }
 
     private struct VocabularyCorrectionPopover: View {
@@ -314,6 +332,8 @@ struct HistoryPopoverView: View {
     @State private var editedText = ""
     @State private var vocabularyDraft: VocabularyCorrectionDraft?
     @State private var vocabularySelection: VocabularyTokenSelection?
+    @State private var pendingHistoryTransform: PendingHistoryTransform?
+    @State private var historyTransformError: HistoryTransformError?
 
     private var filteredRecords: [TranscriptionRecord] {
         history.records.filter { record in
@@ -463,6 +483,15 @@ struct HistoryPopoverView: View {
         case "clear":
             isShowingClearConfirmation = false
             history.clear()
+        case "transform":
+            guard filteredRecords.indices.contains(command.index),
+                  let transformKindRaw = command.transformKind,
+                  let transformKind = HistoryTransformKind(rawValue: transformKindRaw),
+                  let text = filteredRecords[command.index].text else {
+                return
+            }
+            let record = filteredRecords[command.index]
+            transformTranscript(record: record, text: text, kind: transformKind)
         default:
             break
         }
@@ -669,6 +698,10 @@ struct HistoryPopoverView: View {
                         Text("·")
                         Text(sourceAppName)
                     }
+                    if let transformKind = record.transformKind {
+                        Text("·")
+                        Label(transformKind.displayName, systemImage: transformKind.systemImage)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -748,6 +781,24 @@ struct HistoryPopoverView: View {
                         .accessibilityIdentifier("history.vocabulary.clearSelectionButton")
                     }
                 }
+
+                if pendingHistoryTransform?.recordID == record.id {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Transforming with \(pendingHistoryTransform?.kind.displayName ?? "selected action")...")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("history.transform.progress")
+                }
+
+                if historyTransformError?.recordID == record.id, let message = historyTransformError?.message {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("history.transform.error")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
@@ -796,6 +847,24 @@ struct HistoryPopoverView: View {
                 .help("Copy")
                 .frame(minWidth: 24, minHeight: 18)
 
+                Menu {
+                    ForEach(HistoryTransformKind.allCases) { transformKind in
+                        Button {
+                            transformTranscript(record: record, text: text, kind: transformKind)
+                        } label: {
+                            Label(transformKind.displayName, systemImage: transformKind.systemImage)
+                        }
+                        .accessibilityIdentifier("history.transform.\(transformKind.rawValue)")
+                    }
+                } label: {
+                    Image(systemName: "wand.and.stars")
+                }
+                .accessibilityLabel("Transform")
+                .accessibilityIdentifier("history.row.transformMenu")
+                .help("Transform")
+                .disabled(!canTransformHistoryTranscripts || pendingHistoryTransform != nil)
+                .frame(minWidth: 24, minHeight: 18)
+
                 Button {
                     onPaste?(text)
                 } label: {
@@ -832,6 +901,40 @@ struct HistoryPopoverView: View {
         .buttonStyle(.borderless)
     }
 
+    private func transformTranscript(record: TranscriptionRecord, text: String, kind: HistoryTransformKind) {
+        guard pendingHistoryTransform == nil else { return }
+        guard let onTransformTranscript else {
+            historyTransformError = HistoryTransformError(
+                recordID: record.id,
+                message: "Choose a cleanup provider before transforming this transcript."
+            )
+            return
+        }
+
+        pendingHistoryTransform = PendingHistoryTransform(recordID: record.id, kind: kind)
+        historyTransformError = nil
+        Task {
+            let result = await onTransformTranscript(kind, record.id, text, record.sourceAppName)
+            await MainActor.run {
+                pendingHistoryTransform = nil
+                switch result {
+                case .added:
+                    historyTransformError = nil
+                case .cleanupUnavailable:
+                    historyTransformError = HistoryTransformError(
+                        recordID: record.id,
+                        message: "Choose a cleanup provider before transforming this transcript."
+                    )
+                case .transformFailed:
+                    historyTransformError = HistoryTransformError(
+                        recordID: record.id,
+                        message: "Could not transform this transcript. The original was left unchanged."
+                    )
+                }
+            }
+        }
+    }
+
     private func copy(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
@@ -849,10 +952,11 @@ struct HistoryPopoverView: View {
             }
 
             if let text = record.text {
-                TextEditor(text: $editedText)
-                    .font(.body)
+                EditableTranscriptTextView(
+                    text: $editedText,
+                    accessibilityIdentifier: "history.detail.editor"
+                )
                     .frame(minHeight: 180)
-                    .accessibilityIdentifier("history.detail.editor")
 
                 HStack {
                     Button {
@@ -1051,6 +1155,70 @@ struct HistoryPopoverView: View {
 
     private func transcriptNeedsEllipsis(_ text: String) -> Bool {
         text.split(whereSeparator: \.isWhitespace).count > 28
+    }
+}
+
+private struct EditableTranscriptTextView: NSViewRepresentable {
+    @Binding var text: String
+    let accessibilityIdentifier: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .textBackgroundColor
+        scrollView.borderType = .bezelBorder
+
+        let textView = NSTextView()
+        textView.delegate = context.coordinator
+        textView.string = text
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.allowsUndo = true
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
+        textView.textColor = .labelColor
+        textView.backgroundColor = .textBackgroundColor
+        textView.drawsBackground = true
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.autoresizingMask = [.width]
+        textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
+        textView.textContainer?.widthTracksTextView = true
+        textView.setAccessibilityIdentifier(accessibilityIdentifier)
+
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else { return }
+        if textView.string != text {
+            textView.string = text
+        }
+        textView.font = .systemFont(ofSize: NSFont.systemFontSize)
+        textView.textColor = .labelColor
+        textView.backgroundColor = .textBackgroundColor
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        private var text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text.wrappedValue = textView.string
+        }
     }
 }
 
