@@ -41,3 +41,56 @@ enum TranscriptProcessingMode: String, CaseIterable, Identifiable {
         return defaultPrompt + "\nReturn only the final processed transcript."
     }
 }
+
+enum HistoryTransformKind: String, CaseIterable, Codable, Identifiable {
+    case polish
+    case bulletize
+    case summarize
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .polish:
+            "Polish"
+        case .bulletize:
+            "Bulletize"
+        case .summarize:
+            "Summarize"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .polish:
+            "sparkles"
+        case .bulletize:
+            "list.bullet"
+        case .summarize:
+            "text.justify.left"
+        }
+    }
+
+    var prompt: String {
+        switch self {
+        case .polish:
+            """
+            Polish this transcript into clear, natural writing.
+            Preserve the speaker's meaning, facts, names, numbers, technical terms, and intent.
+            Fix punctuation, capitalization, filler, and awkward phrasing only when doing so does not change meaning.
+            """
+        case .bulletize:
+            """
+            Convert this transcript into concise bullet points.
+            Preserve every important fact, name, number, task, and decision.
+            Group related ideas together and avoid adding information that was not in the transcript.
+            """
+        case .summarize:
+            """
+            Summarize this transcript briefly.
+            Preserve the key facts, decisions, names, numbers, and next actions.
+            Do not add information that was not in the transcript.
+            """
+        }
+    }
+}

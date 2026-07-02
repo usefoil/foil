@@ -286,6 +286,52 @@ final class TranscriptionController {
         }
     }
 
+    func transformTranscript(
+        rawText: String,
+        transformKind: HistoryTransformKind,
+        service: TranscriptionService? = nil,
+        context: String
+    ) async -> (text: String, transformFailed: Bool) {
+        let cleanupProvider = appState.selectedTranscriptCleanupProvider
+        guard cleanupProvider.id != .none else {
+            DiagnosticLog.write("\(context): history transform skipped because cleanup provider is none")
+            return (rawText, true)
+        }
+
+        let cleanupApiKey: String?
+        switch cleanupProvider.id {
+        case .none:
+            cleanupApiKey = nil
+        case .groq:
+            cleanupApiKey = resolveCleanupApiKey(for: .groq)
+        case .openAI:
+            cleanupApiKey = resolveCleanupApiKey(for: .openAI)
+        case .customOpenAICompatibleChat:
+            cleanupApiKey = resolveCleanupApiKey(for: .customOpenAICompatibleChat)
+        }
+
+        let service = service ?? transcriptionService
+        let cleanupRequest = TranscriptCleanupRequest(
+            rawTranscript: rawText,
+            mode: .rewriteClearly,
+            customPrompt: transformKind.prompt,
+            vocabularyCorrections: appState.vocabularyCorrections,
+            preferredTerms: appState.preferredTerms,
+            provider: cleanupProvider
+        )
+        do {
+            let text = try await service.processTranscript(
+                request: cleanupRequest,
+                apiKey: cleanupApiKey,
+            )
+            DiagnosticLog.write("\(context): history transform applied kind=\(transformKind.rawValue) provider=\(cleanupProvider.id.rawValue) inputLength=\(rawText.count) outputLength=\(text.count)")
+            return (text, false)
+        } catch {
+            DiagnosticLog.write("\(context): history transform failed kind=\(transformKind.rawValue) mappedMessage=\(errorMessage(from: error))")
+            return (rawText, true)
+        }
+    }
+
     private func writeE2ECleanupReceipt(
         status: String,
         provider: TranscriptCleanupProvider,

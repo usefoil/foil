@@ -28,6 +28,46 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertNil(history.records.first?.error)
     }
 
+    func testAddTransformResultPreservesSourceAndInsertsLinkedRecord() throws {
+        history.addSuccess(text: "original transcript", sourceAppName: "Mail")
+        let sourceRecord = try XCTUnwrap(history.records.first)
+
+        history.addTransformResult(
+            text: "polished transcript",
+            sourceRecordID: sourceRecord.id,
+            transformKind: .polish,
+            sourceAppName: sourceRecord.sourceAppName
+        )
+
+        XCTAssertEqual(history.records.count, 2)
+        XCTAssertEqual(history.records.first?.text, "polished transcript")
+        XCTAssertEqual(history.records.first?.sourceRecordID, sourceRecord.id)
+        XCTAssertEqual(history.records.first?.transformKind, .polish)
+        XCTAssertEqual(history.records.first?.sourceAppName, "Mail")
+        XCTAssertEqual(history.records.last?.id, sourceRecord.id)
+        XCTAssertEqual(history.records.last?.text, "original transcript")
+    }
+
+    func testTransformResultPersistsAndExportsAsTransform() throws {
+        history.addSuccess(text: "original transcript")
+        let sourceRecord = try XCTUnwrap(history.records.first)
+
+        history.addTransformResult(
+            text: "summary transcript",
+            sourceRecordID: sourceRecord.id,
+            transformKind: .summarize
+        )
+
+        let reloaded = TranscriptionHistory(storageDirectory: testDir)
+        XCTAssertEqual(reloaded.records.first?.text, "summary transcript")
+        XCTAssertEqual(reloaded.records.first?.sourceRecordID, sourceRecord.id)
+        XCTAssertEqual(reloaded.records.first?.transformKind, .summarize)
+
+        let markdown = reloaded.exportMarkdown()
+        XCTAssertTrue(markdown.contains("Summarize Transform"), markdown)
+        XCTAssertTrue(markdown.contains("summary transcript"), markdown)
+    }
+
     func testCleanupSuccessStoresOnlyFinalCleanedText() throws {
         history.addSuccess(text: "Cleaned final text")
 

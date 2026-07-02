@@ -542,6 +542,10 @@ final class AppState {
         effectiveTranscriptProcessingMode != .raw && selectedTranscriptCleanupProvider.id != .none
     }
 
+    var canTransformHistoryTranscripts: Bool {
+        selectedTranscriptCleanupProvider.id != .none
+    }
+
     var preferredTerms: [String] {
         Self.normalizedVocabularyTerms(vocabularyTerms).map(\.term)
     }

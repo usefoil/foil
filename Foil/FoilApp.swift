@@ -55,6 +55,15 @@ struct FoilApp: App {
                         sourceAppName: sourceAppName
                     )
                 },
+                onTransformTranscript: { [weak appDelegate] transformKind, sourceRecordID, text, sourceAppName in
+                    guard let appDelegate else { return .cleanupUnavailable }
+                    return await appDelegate.transformHistoryRecord(
+                        transformKind: transformKind,
+                        sourceRecordID: sourceRecordID,
+                        text: text,
+                        sourceAppName: sourceAppName
+                    )
+                },
                 onHotkeyChanged: { [weak appDelegate] in appDelegate?.applyHotkeyConfig() },
                 onCopySetupReport: { [weak appDelegate] in appDelegate?.copySetupReportToClipboard() },
                 onExportDiagnostics: { [weak appDelegate] in appDelegate?.exportDiagnostics() },
@@ -128,7 +137,17 @@ struct FoilApp: App {
                         sourceAppName: sourceAppName
                     )
                 },
+                onTransformTranscript: { [weak appDelegate] transformKind, sourceRecordID, text, sourceAppName in
+                    guard let appDelegate else { return .cleanupUnavailable }
+                    return await appDelegate.transformHistoryRecord(
+                        transformKind: transformKind,
+                        sourceRecordID: sourceRecordID,
+                        text: text,
+                        sourceAppName: sourceAppName
+                    )
+                },
                 canSaveAndRecleanVocabularyCorrection: appDelegate.appState.canRecleanHistoryTranscripts,
+                canTransformHistoryTranscripts: appDelegate.appState.canTransformHistoryTranscripts,
                 showsHeader: true
             )
         }
@@ -1463,6 +1482,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         history.updateSuccess(id: sourceRecordID, text: processed.text)
         return .updated
+    }
+
+    func transformHistoryRecord(
+        transformKind: HistoryTransformKind,
+        sourceRecordID: UUID,
+        text: String,
+        sourceAppName: String?
+    ) async -> HistoryTransformResult {
+        guard appState.canTransformHistoryTranscripts else {
+            return .cleanupUnavailable
+        }
+        guard history.records.contains(where: { $0.id == sourceRecordID && !$0.isFailure }) else {
+            return .transformFailed
+        }
+
+        let processed = await transcriptionController.transformTranscript(
+            rawText: text,
+            transformKind: transformKind,
+            context: "historyTransform"
+        )
+        guard !processed.transformFailed else {
+            return .transformFailed
+        }
+
+        history.addTransformResult(
+            text: processed.text,
+            sourceRecordID: sourceRecordID,
+            transformKind: transformKind,
+            sourceAppName: sourceAppName
+        )
+        return .added
     }
 }
 

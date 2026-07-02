@@ -7,6 +7,7 @@ struct FoilAppShellView: View {
     var onRetryRecord: ((TranscriptionRecord) -> Void)?
     var onPasteText: ((String) -> Void)?
     var onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?
+    var onTransformTranscript: ((HistoryTransformKind, UUID, String, String?) async -> HistoryTransformResult)?
     var onHotkeyChanged: (() -> Void)?
     var onCopySetupReport: (() -> Void)?
     var onExportDiagnostics: (() -> Void)?
@@ -27,6 +28,7 @@ struct FoilAppShellView: View {
         onRetryRecord: ((TranscriptionRecord) -> Void)? = nil,
         onPasteText: ((String) -> Void)? = nil,
         onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)? = nil,
+        onTransformTranscript: ((HistoryTransformKind, UUID, String, String?) async -> HistoryTransformResult)? = nil,
         onHotkeyChanged: (() -> Void)? = nil,
         onCopySetupReport: (() -> Void)? = nil,
         onExportDiagnostics: (() -> Void)? = nil,
@@ -43,6 +45,7 @@ struct FoilAppShellView: View {
         self.onRetryRecord = onRetryRecord
         self.onPasteText = onPasteText
         self.onSaveAndRecleanVocabularyCorrection = onSaveAndRecleanVocabularyCorrection
+        self.onTransformTranscript = onTransformTranscript
         self.onHotkeyChanged = onHotkeyChanged
         self.onCopySetupReport = onCopySetupReport
         self.onExportDiagnostics = onExportDiagnostics
@@ -112,7 +115,9 @@ struct FoilAppShellView: View {
                     )
                 },
                 onSaveAndRecleanVocabularyCorrection: onSaveAndRecleanVocabularyCorrection,
+                onTransformTranscript: onTransformTranscript,
                 canSaveAndRecleanVocabularyCorrection: appState.canRecleanHistoryTranscripts,
+                canTransformHistoryTranscripts: appState.canTransformHistoryTranscripts,
                 showsHeader: true
             )
             .padding(28)

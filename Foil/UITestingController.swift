@@ -16,6 +16,7 @@ struct HistoryUITestCommand: Equatable {
     let query: String?
     let filter: String?
     let appName: String?
+    let transformKind: String?
     let index: Int
 
     init?(notification: Notification) {
@@ -24,6 +25,7 @@ struct HistoryUITestCommand: Equatable {
         self.query = notification.userInfo?["query"] as? String
         self.filter = notification.userInfo?["filter"] as? String
         self.appName = notification.userInfo?["appName"] as? String
+        self.transformKind = notification.userInfo?["transformKind"] as? String
         self.index = notification.userInfo?["index"] as? Int
             ?? (notification.userInfo?["index"] as? NSNumber)?.intValue
             ?? 0
@@ -304,6 +306,12 @@ final class UITestingController {
             appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
             appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
             appState.customTranscriptCleanupModel = "deterministic-ui-test-cleanup"
+        }
+
+        if args.contains("--seed-history-transform-enabled") {
+            appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+            appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+            appState.customTranscriptCleanupModel = "deterministic-ui-test-transform"
         }
 
         if args.contains("--seed-floating-status-enabled") {
@@ -1218,6 +1226,7 @@ final class UITestingController {
             onRetryRecord: { [weak self] record in self?.onRetryRecord(record) },
             onPasteText: { [weak self] text in self?.onPasteText(text) },
             onSaveAndRecleanVocabularyCorrection: historyRecleanUITestAction,
+            onTransformTranscript: historyTransformUITestAction,
             onHotkeyChanged: onHotkeyChanged,
             onStartRecording: onStartRecording,
             onStopRecording: onStopRecording,
@@ -1260,7 +1269,9 @@ final class UITestingController {
                 )
             },
             onSaveAndRecleanVocabularyCorrection: historyRecleanUITestAction,
+            onTransformTranscript: historyTransformUITestAction,
             canSaveAndRecleanVocabularyCorrection: historyRecleanUITestAction != nil,
+            canTransformHistoryTranscripts: historyTransformUITestAction != nil,
             showsHeader: true
         )
         .accessibilityIdentifier("history.testHost")
@@ -1319,6 +1330,53 @@ final class UITestingController {
         let corrected = correctVersion.trimmingCharacters(in: .whitespacesAndNewlines)
         history.updateSuccess(id: sourceRecordID, text: "Re-cleaned History transcript uses \(corrected).")
         return .updated
+    }
+
+    private var historyTransformUITestAction: ((HistoryTransformKind, UUID, String, String?) async -> HistoryTransformResult)? {
+        guard ProcessInfo.processInfo.arguments.contains("--seed-history-transform-enabled") else {
+            return nil
+        }
+        return { [weak self] transformKind, sourceRecordID, text, sourceAppName in
+            guard let self else { return .cleanupUnavailable }
+            return await self.transformHistoryRecordForUITesting(
+                transformKind: transformKind,
+                sourceRecordID: sourceRecordID,
+                text: text,
+                sourceAppName: sourceAppName
+            )
+        }
+    }
+
+    private func transformHistoryRecordForUITesting(
+        transformKind: HistoryTransformKind,
+        sourceRecordID: UUID,
+        text: String,
+        sourceAppName: String?
+    ) async -> HistoryTransformResult {
+        guard history.records.contains(where: { $0.id == sourceRecordID && !$0.isFailure }) else {
+            return .transformFailed
+        }
+
+        let transformedText: String
+        switch transformKind {
+        case .polish:
+            transformedText = "Polish transform: \(text)"
+        case .bulletize:
+            transformedText = """
+            - Alpha action from \(text)
+            - Beta action preserves the original transcript context.
+            """
+        case .summarize:
+            transformedText = "Summary: \(text)"
+        }
+
+        history.addTransformResult(
+            text: transformedText,
+            sourceRecordID: sourceRecordID,
+            transformKind: transformKind,
+            sourceAppName: sourceAppName
+        )
+        return .added
     }
 
     private func showUITestSettingsWindow() {

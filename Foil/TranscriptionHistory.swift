@@ -5,6 +5,8 @@ struct TranscriptionRecord: Codable, Identifiable {
     let id: UUID
     let timestamp: Date
     var sourceAppName: String?
+    var sourceRecordID: UUID?
+    var transformKind: HistoryTransformKind?
     var outcome: Outcome
 
     enum Outcome: Codable {
@@ -103,6 +105,23 @@ final class TranscriptionHistory {
             id: UUID(),
             timestamp: Date(),
             sourceAppName: Self.normalizedSourceAppName(sourceAppName),
+            outcome: .success(text: text)
+        )
+        insert(record)
+    }
+
+    func addTransformResult(
+        text: String,
+        sourceRecordID: UUID,
+        transformKind: HistoryTransformKind,
+        sourceAppName: String? = nil
+    ) {
+        let record = TranscriptionRecord(
+            id: UUID(),
+            timestamp: Date(),
+            sourceAppName: Self.normalizedSourceAppName(sourceAppName),
+            sourceRecordID: sourceRecordID,
+            transformKind: transformKind,
             outcome: .success(text: text)
         )
         insert(record)
@@ -244,7 +263,13 @@ final class TranscriptionHistory {
 
     func exportMarkdown() -> String {
         records.map { record in
-            let kind = record.isFailure ? "Failure" : "Transcript"
+            let kind = if record.isFailure {
+                "Failure"
+            } else if let transformKind = record.transformKind {
+                "\(transformKind.displayName) Transform"
+            } else {
+                "Transcript"
+            }
             let body = record.text ?? record.error ?? ""
             return """
             ## \(kind) - \(Self.exportDateFormatter.string(from: record.timestamp))
