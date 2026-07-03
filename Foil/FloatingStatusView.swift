@@ -114,7 +114,7 @@ struct LiveAudioSignifierView: View {
         case .idle:
             "Ready"
         case .recording:
-            "Recording audio level"
+            "Recording audio level, \(appState.effectiveTranscriptProcessingMode.displayName)"
         case .processing:
             "Processing recording"
         case .success:

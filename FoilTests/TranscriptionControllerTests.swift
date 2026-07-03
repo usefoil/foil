@@ -297,21 +297,22 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertTrue(receipt.contains("output_length=10"), receipt)
     }
 
-    func testActiveNumberedModeChangesCleanupPromptAndReceiptMode() async throws {
-        let receiptURL = keychainStorageDirectory.appendingPathComponent("numbered-cleanup-receipt.txt")
+    func testActiveCleanupProfileUsesUnifiedPromptAndReceiptMode() async throws {
+        let receiptURL = keychainStorageDirectory.appendingPathComponent("cleanup-profile-receipt.txt")
         setenv("E2E_CLEANUP_RECEIPT_PATH", receiptURL.path, 1)
-        appState.transcriptProcessingMode = .numbered
+        appState.transcriptProcessingMode = .cleanUp
         appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
         appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
         appState.customTranscriptCleanupModel = "qwen2.5:7b"
 
         let transport = ControllerStubTransport { request in
             let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
-            XCTAssertTrue(body.contains("Convert the transcript into a concise numbered list."), body)
-            XCTAssertTrue(body.contains("Start each item with \\\"1. \\\""), body)
+            XCTAssertTrue(body.contains("Clean up the transcript"), body)
+            XCTAssertTrue(body.contains("Turn clearly enumerated spoken points into numbered or bulleted lists when that structure is obvious"), body)
+            XCTAssertTrue(body.contains("Remove obvious filler, stutters, repeated words, and false starts"), body)
             XCTAssertTrue(body.contains("launch checklist then assign follow ups"), body)
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (Data(#"{"choices":[{"message":{"content":"1. Confirm checklist.\n2. Assign follow ups."}}]}"#.utf8), response)
+            return (Data(#"{"choices":[{"message":{"content":"Confirm checklist, then assign follow ups."}}]}"#.utf8), response)
         }
 
         let result = await controller.processTranscriptOrRaw(
@@ -321,10 +322,10 @@ final class TranscriptionControllerTests: XCTestCase {
             context: "test"
         )
 
-        XCTAssertEqual(result.text, "1. Confirm checklist.\n2. Assign follow ups.")
+        XCTAssertEqual(result.text, "Confirm checklist, then assign follow ups.")
         XCTAssertFalse(result.cleanupFailed)
         let receipt = try String(contentsOf: receiptURL, encoding: .utf8)
-        XCTAssertTrue(receipt.contains("mode=numbered"), receipt)
+        XCTAssertTrue(receipt.contains("mode=cleanUp"), receipt)
         XCTAssertEqual(transport.requests.count, 1)
     }
 
@@ -588,7 +589,7 @@ final class TranscriptionControllerTests: XCTestCase {
 
     func testCustomChatCleanupFailureFallsBackToRaw() async {
         appState.selectedTranscriptionProviderPresetID = .customOpenAICompatible
-        appState.transcriptProcessingMode = .rewriteClearly
+        appState.transcriptProcessingMode = .cleanUp
         appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
         appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
         appState.customTranscriptCleanupModel = "llama3.1:8b"

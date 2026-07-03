@@ -601,7 +601,7 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(presentation.title, "Recording")
         XCTAssertEqual(presentation.timerText, "0:07")
-        XCTAssertEqual(presentation.detail, "Target: Notes · Release Right Command to send")
+        XCTAssertEqual(presentation.detail, "Target: Notes · Raw transcript · Release Right Command to send")
         XCTAssertEqual(presentation.tone, .active)
     }
 
@@ -655,7 +655,7 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .cleanUp)
-        XCTAssertEqual(presentation.detail, "Custom OpenAI-compatible · Clean up transcript formatting next · Target: current app")
+        XCTAssertEqual(presentation.detail, "Custom OpenAI-compatible · Cleanup profile next · Target: current app")
     }
 
     func testCleaningSessionPresentationShowsCleanupModel() {
@@ -672,7 +672,7 @@ final class AppStateTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.title, "Cleaning up")
-        XCTAssertEqual(presentation.detail, "llama-3.3-70b-versatile · Clean up transcript formatting · Target: current app")
+        XCTAssertEqual(presentation.detail, "llama-3.3-70b-versatile · Cleanup profile · Target: current app")
         XCTAssertEqual(presentation.systemImage, "sparkles")
         XCTAssertEqual(presentation.tone, .progress)
     }
@@ -872,6 +872,39 @@ final class AppStateTests: XCTestCase {
         let state = AppState()
         state.setStatus(.recording)
         XCTAssertTrue(state.shouldShowFloatingStatus)
+    }
+
+    func testRecordingSessionPresentationIncludesActiveCleanupMode() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+        state.setStatus(.recording)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Recording")
+        XCTAssertTrue(presentation.detail.contains("Cleanup profile"))
+        XCTAssertTrue(presentation.detail.contains("Release Right Command to send"))
+    }
+
+    func testRecordingSessionPresentationUsesEffectiveCleanupModeWhenCleanupUnavailable() {
+        let state = AppState()
+        state.transcriptProcessingMode = .cleanUp
+        state.transcriptCleanupProviderID = .none
+        state.setStatus(.recording)
+
+        let presentation = state.sessionPresentation(
+            hotkeyLabel: "Right Command",
+            hasRetryableFailure: false,
+            hasLastSuccess: false
+        )
+
+        XCTAssertEqual(presentation.title, "Recording")
+        XCTAssertTrue(presentation.detail.contains("Raw transcript"))
+        XCTAssertFalse(presentation.detail.contains("Cleanup profile"))
     }
 
     func testFloatingStatusVisibleWhileTranscribingWhenEnabled() {
@@ -1329,42 +1362,45 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.transcriptCleanupModel, "llama-3.1-8b-instant")
     }
 
+    func testActiveCleanupModeChoicesOnlyExposeRawAndCleanupProfile() {
+        XCTAssertEqual(TranscriptProcessingMode.allCases, [.raw, .cleanUp])
+    }
+
     func testCleanupPromptDefaultsAndReset() {
         let state = AppState()
 
         XCTAssertNil(state.customPrompt(for: .cleanUp))
         XCTAssertEqual(state.resolvedPrompt(for: .cleanUp), TranscriptProcessingMode.cleanUp.defaultPrompt)
-        XCTAssertNil(state.customPrompt(for: .bulletize))
-        XCTAssertEqual(state.resolvedPrompt(for: .bulletize), TranscriptProcessingMode.bulletize.defaultPrompt)
 
         state.setCustomPrompt("Custom cleanup instructions", for: .cleanUp)
         XCTAssertEqual(state.customPrompt(for: .cleanUp), "Custom cleanup instructions")
         XCTAssertEqual(state.resolvedPrompt(for: .cleanUp), "Custom cleanup instructions")
-        state.setCustomPrompt("Use compact numbered steps", for: .numbered)
-        XCTAssertEqual(state.customPrompt(for: .numbered), "Use compact numbered steps")
-        XCTAssertEqual(state.resolvedPrompt(for: .numbered), "Use compact numbered steps")
 
         state.resetCustomPrompt(for: .cleanUp)
         XCTAssertNil(state.customPrompt(for: .cleanUp))
         XCTAssertEqual(state.resolvedPrompt(for: .cleanUp), TranscriptProcessingMode.cleanUp.defaultPrompt)
-        state.resetCustomPrompt(for: .numbered)
-        XCTAssertNil(state.customPrompt(for: .numbered))
-        XCTAssertEqual(state.resolvedPrompt(for: .numbered), TranscriptProcessingMode.numbered.defaultPrompt)
     }
 
-    func testActiveCleanupModesPersistAndResolvePrompts() {
+    func testActiveCleanupProfilePersistsAndResolvesPrompt() {
         let state = AppState()
-        state.transcriptProcessingMode = .numbered
-        state.setCustomPrompt("Number every action.", for: .numbered)
-        state.setCustomPrompt("Summarize in one sentence.", for: .summarize)
+        state.transcriptProcessingMode = .cleanUp
+        state.setCustomPrompt("Correct rambling, preserve tasks, and format obvious lists.", for: .cleanUp)
 
         let reloaded = AppState()
 
-        XCTAssertEqual(reloaded.transcriptProcessingMode, .numbered)
-        XCTAssertEqual(reloaded.customPrompt(for: .numbered), "Number every action.")
-        XCTAssertEqual(reloaded.customPrompt(for: .summarize), "Summarize in one sentence.")
-        XCTAssertEqual(UserDefaults.standard.string(forKey: "transcriptProcessingMode"), "numbered")
-        XCTAssertEqual(UserDefaults.standard.string(forKey: "customCleanupPrompt.numbered"), "Number every action.")
+        XCTAssertEqual(reloaded.transcriptProcessingMode, .cleanUp)
+        XCTAssertEqual(reloaded.customPrompt(for: .cleanUp), "Correct rambling, preserve tasks, and format obvious lists.")
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "transcriptProcessingMode"), "cleanUp")
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "customCleanupPrompt.cleanUp"), "Correct rambling, preserve tasks, and format obvious lists.")
+    }
+
+    func testLegacyActiveCleanupModeMigratesToCleanupProfile() {
+        UserDefaults.standard.set("numbered", forKey: "transcriptProcessingMode")
+
+        let reloaded = AppState()
+
+        XCTAssertEqual(reloaded.transcriptProcessingMode, .cleanUp)
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "transcriptProcessingMode"), "cleanUp")
     }
 
     func testPreferredTermsNormalizePersistAndReload() {

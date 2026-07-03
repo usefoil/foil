@@ -44,7 +44,7 @@ make qa-local
 make test-cleanup-quality
 ```
 
-`make test-cleanup-quality` may require a local Groq API key. If credentials or permissions are missing, record that explicitly in the release notes or QA log.
+`swift tests/test_cleanup_quality.swift` runs local structural checks without credentials. `make test-cleanup-quality` requires a local Groq or OpenAI API key for live cleanup QA. If credentials or permissions are missing, record that explicitly in the release notes or QA log.
 
 ### Workstream Evidence Template
 

@@ -488,7 +488,7 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(json?["temperature"] as? Double, 0.2)
         XCTAssertEqual(json?["max_completion_tokens"] as? Int, 1024)
         XCTAssertEqual(messages?.first?["role"], "system")
-        XCTAssertTrue(messages?.first?["content"]?.contains("Clean up transcript formatting") == true)
+        XCTAssertTrue(messages?.first?["content"]?.contains("Clean up the transcript") == true)
         XCTAssertEqual(messages?.last?["role"], "user")
         XCTAssertEqual(messages?.last?["content"], "um this is teh thing")
     }
@@ -510,7 +510,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let bodyString = String(data: body, encoding: .utf8)!
 
         XCTAssertTrue(bodyString.contains(#""model":"qwen2.5:7b""#), bodyString)
-        XCTAssertTrue(bodyString.contains("Add punctuation and capitalization"), bodyString)
+        XCTAssertTrue(bodyString.contains("Correct punctuation and capitalization"), bodyString)
         XCTAssertTrue(bodyString.contains("Preferred terms"), bodyString)
         XCTAssertTrue(bodyString.contains("Supabase"), bodyString)
         XCTAssertTrue(bodyString.contains("Vercel"), bodyString)
@@ -907,7 +907,7 @@ final class TranscriptionServiceTests: XCTestCase {
             XCTAssertEqual(body["max_output_tokens"] as? Int, 1024)
             XCTAssertNil(body["messages"])
             XCTAssertNil(body["max_completion_tokens"])
-            XCTAssertTrue((body["instructions"] as? String)?.contains("Clean up transcript formatting") == true)
+            XCTAssertTrue((body["instructions"] as? String)?.contains("Clean up the transcript") == true)
             XCTAssertTrue((body["instructions"] as? String)?.contains("Return only the final processed transcript.") == true)
 
             return (
