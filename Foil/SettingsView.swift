@@ -543,8 +543,8 @@ struct SettingsView: View {
 
     private var cleanupSettings: some View {
         Form {
-            Section("Active cleanup mode") {
-                Picker("Active mode", selection: $appState.transcriptProcessingMode) {
+            Section("Cleanup profile") {
+                Picker("Profile", selection: $appState.transcriptProcessingMode) {
                     ForEach(TranscriptProcessingMode.allCases) { mode in
                         Text(mode.displayName).tag(mode)
                     }
@@ -557,7 +557,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("settings.activeCleanupModeDescription")
 
-                Text("When an active cleanup mode is selected, transcript text is sent to the cleanup provider selected below; audio still follows the transcription provider.")
+                Text("When Cleanup profile is selected, transcript text is sent to the cleanup provider selected below; audio still follows the transcription provider.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -566,8 +566,9 @@ struct SettingsView: View {
                 if appState.transcriptProcessingMode.usesCleanupProvider {
                     cleanupProviderSettings
                     cleanupPromptSettings
-                    vocabularySettings
                 }
+
+                vocabularySettings(isCleanupEnabled: appState.transcriptProcessingMode.usesCleanupProvider)
             }
         }
         .formStyle(.grouped)
@@ -634,7 +635,7 @@ struct SettingsView: View {
         )
     }
 
-    private var vocabularySettings: some View {
+    private func vocabularySettings(isCleanupEnabled: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Divider()
 
@@ -642,10 +643,11 @@ struct SettingsView: View {
                 Text("Vocabulary")
                     .font(.headline)
                     .accessibilityIdentifier("settings.vocabularySection")
-                Text("Corrections teach Cleanup what Foil wrote and what it should use instead. Preferred terms tell Cleanup which names and phrases to preserve.")
+                Text(vocabularyHelpText(isCleanupEnabled: isCleanupEnabled))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.vocabularyHelp")
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -723,6 +725,13 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settings.preferredTermsEditor")
             }
         }
+    }
+
+    private func vocabularyHelpText(isCleanupEnabled: Bool) -> String {
+        if isCleanupEnabled {
+            return "Corrections teach Cleanup what Foil wrote and what it should use instead. Preferred terms tell Cleanup which names and phrases to preserve."
+        }
+        return "Vocabulary is saved now and applied when you choose Cleanup profile. Corrections teach Cleanup replacements; preferred terms tell it which names and phrases to preserve."
     }
 
     private var groqCleanupModelPicker: some View {
@@ -824,13 +833,13 @@ struct SettingsView: View {
     private var providerPrivacySummary: String {
         switch appState.selectedTranscriptionProviderPresetID {
         case .groq:
-            "Audio is sent to Groq for transcription. Raw transcript is the default; active cleanup modes send transcript text to the cleanup provider selected below."
+            "Audio is sent to Groq for transcription. Raw transcript is the default; Cleanup profile sends transcript text to the cleanup provider selected below."
         case .openAIWhisper:
-            "Audio is sent to OpenAI for Whisper transcription. Raw transcript is the default; active cleanup modes send transcript text to the cleanup provider selected below."
+            "Audio is sent to OpenAI for Whisper transcription. Raw transcript is the default; Cleanup profile sends transcript text to the cleanup provider selected below."
         case .localWhisperCPP:
-            "Audio stays on this Mac when whisper.cpp is running at the local 127.0.0.1 endpoint shown below. Raw transcript is the default; active cleanup modes send transcript text to the cleanup provider selected below."
+            "Audio stays on this Mac when whisper.cpp is running at the local 127.0.0.1 endpoint shown below. Raw transcript is the default; Cleanup profile sends transcript text to the cleanup provider selected below."
         case .customOpenAICompatible:
-            "Audio is sent to the OpenAI-compatible endpoint you configure below. Raw transcript is the default; active cleanup modes send transcript text to the cleanup provider selected below."
+            "Audio is sent to the OpenAI-compatible endpoint you configure below. Raw transcript is the default; Cleanup profile sends transcript text to the cleanup provider selected below."
         }
     }
 

@@ -1,5 +1,6 @@
 # Xcode
 DerivedData/
+LocalCLIE2EDerivedData/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 

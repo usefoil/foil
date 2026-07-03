@@ -294,15 +294,19 @@ final class UITestingController {
         }
 
         if args.contains("--seed-active-mode-bullets") {
-            appState.transcriptProcessingMode = .bulletize
+            appState.transcriptProcessingMode = .cleanUp
         }
 
         if args.contains("--seed-active-mode-numbered") {
-            appState.transcriptProcessingMode = .numbered
+            appState.transcriptProcessingMode = .cleanUp
         }
 
         if args.contains("--seed-active-mode-summary") {
-            appState.transcriptProcessingMode = .summarize
+            appState.transcriptProcessingMode = .cleanUp
+        }
+
+        if args.contains("--seed-cleanup-provider-none") {
+            appState.transcriptCleanupProviderID = .none
         }
 
         if args.contains("--seed-openai-cleanup-provider") {
@@ -1699,21 +1703,7 @@ final class UITestingController {
 
     private func simulatedSuccessTranscriptText() -> String {
         switch appState.effectiveTranscriptProcessingMode {
-        case .numbered:
-            """
-            1. Confirm the launch checklist.
-            2. Assign follow ups for Chrome, Terminal, and TextEdit.
-            3. Record the Foil demo.
-            """
-        case .bulletize:
-            """
-            - Confirm the launch checklist.
-            - Assign follow ups for Chrome, Terminal, and TextEdit.
-            - Record the Foil demo.
-            """
-        case .summarize:
-            "Confirm the launch checklist, assign follow ups for Chrome, Terminal, and TextEdit, then record the Foil demo."
-        case .cleanUp, .rewriteClearly, .raw:
+        case .raw, .cleanUp, .rewriteClearly, .bulletize, .numbered, .summarize:
             "Mock async paste transcript"
         }
     }

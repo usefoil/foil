@@ -840,14 +840,15 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(activeCleanupModePickerValueContains("Raw transcript"), app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.cleanupProviderPicker", timeout: 1), app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.cleanupPromptEditor", timeout: 1), app.debugDescription)
-        XCTAssertFalse(elementExists(id: "settings.vocabularySection", timeout: 1), app.debugDescription)
-        XCTAssertFalse(elementExists(id: "settings.preferredTermsEditor", timeout: 1), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.vocabularySection", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.preferredTermsEditor", timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("applied when you choose Cleanup profile").waitForExistence(timeout: 2), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup", "--seed-cleanup-formatting-enabled"])
         openSettingsPanel()
 
         XCTAssertTrue(activeCleanupModePicker.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(activeCleanupModePickerValueContains("Clean up transcript formatting"), app.debugDescription)
+        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
 
         XCTAssertTrue(elementExists(id: "settings.cleanupProviderPicker", timeout: 4), app.debugDescription)
         XCTAssertTrue((app.popUpButtons["settings.cleanupModelPicker"].value as? String) == "Llama 3.1 8B Instant" || app.staticTexts["Llama 3.1 8B Instant"].exists, app.debugDescription)
@@ -869,22 +870,76 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(activeCleanupModePickerValueContains("Raw transcript"), app.debugDescription)
         writeActiveModeScreenshot(name: "selector-raw")
 
-        selectActiveCleanupMode("Numbered list")
-        XCTAssertTrue(activeCleanupModePickerValueContains("Numbered list"), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Paste the transcript as a numbered list").waitForExistence(timeout: 2), app.debugDescription)
+        selectActiveCleanupMode("Cleanup profile")
+        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Fix punctuation, capitalization, filler, stutters").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.cleanupProviderPicker", timeout: 4), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.cleanupPromptEditor", timeout: 4), app.debugDescription)
-        XCTAssertTrue(cleanupPromptEditorValueContains("Convert the transcript into a concise numbered list."), app.debugDescription)
-        writeActiveModeScreenshot(name: "selector-numbered")
+        XCTAssertTrue(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
+        writeActiveModeScreenshot(name: "selector-cleanup-profile")
 
         relaunchWithArguments(["--ui-testing", "--seed-history", "--settings-tab-cleanup"])
         openAppShellCleanupSettings()
         XCTAssertTrue(activeCleanupModePicker.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(activeCleanupModePickerValueContains("Numbered list"), app.debugDescription)
+        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--seed-history", "--simulate-success-after-launch"])
-        XCTAssertTrue(staticTextLabelOrValueContaining("1. Confirm").waitForExistence(timeout: 6), app.debugDescription)
-        writeActiveModeScreenshot(name: "numbered-result")
+        XCTAssertTrue(staticTextLabelOrValueContaining("Mock async paste transcript").waitForExistence(timeout: 6), app.debugDescription)
+        writeActiveModeScreenshot(name: "cleanup-profile-result")
+    }
+
+    func testHomeActiveCleanupModeSelectorDrivesSimulatedOutput() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
+        openAppShellHome()
+
+        let pickerID = "appShell.home.activeCleanupModePicker"
+        XCTAssertTrue(cleanupModePicker(id: pickerID).waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Raw transcript"), app.debugDescription)
+
+        selectCleanupMode("Cleanup profile", pickerID: pickerID)
+        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Fix punctuation, capitalization, filler, stutters").waitForExistence(timeout: 2), app.debugDescription)
+
+        relaunchWithArguments(["--ui-testing", "--seed-history", "--simulate-success-after-launch"])
+        XCTAssertTrue(staticTextLabelOrValueContaining("Mock async paste transcript").waitForExistence(timeout: 6), app.debugDescription)
+    }
+
+    func testHomeActiveCleanupModeSelectorShowsUnavailableCleanupFallback() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-cleanup-formatting-enabled",
+            "--seed-cleanup-provider-none"
+        ])
+        openAppShellHome()
+
+        let pickerID = "appShell.home.activeCleanupModePicker"
+        XCTAssertTrue(cleanupModePicker(id: pickerID).waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(
+            staticTextLabelOrValueContaining("cleanup is unavailable").waitForExistence(timeout: 2),
+            app.debugDescription
+        )
+        XCTAssertTrue(
+            staticTextLabelOrValueContaining("paste raw transcripts").waitForExistence(timeout: 2),
+            app.debugDescription
+        )
+    }
+
+    func testMenuBarActiveCleanupModeSelectorDrivesSimulatedOutput() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
+
+        let pickerID = "menu.recording.activeCleanupModePicker"
+        XCTAssertTrue(cleanupModePicker(id: pickerID).waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Raw transcript"), app.debugDescription)
+
+        selectCleanupMode("Cleanup profile", pickerID: pickerID)
+        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Fix punctuation, capitalization, filler, stutters").waitForExistence(timeout: 2), app.debugDescription)
+
+        relaunchWithArguments(["--ui-testing", "--seed-history", "--simulate-success-after-launch"])
+        XCTAssertTrue(staticTextLabelOrValueContaining("Mock async paste transcript").waitForExistence(timeout: 6), app.debugDescription)
     }
 
     func testActiveCleanupPromptEditorPersistsAndResetsCustomPrompt() {
@@ -898,29 +953,29 @@ final class FoilUITests: XCTestCase {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup"])
         openAppShellCleanupSettings()
 
-        selectActiveCleanupMode("Numbered list")
-        XCTAssertTrue(cleanupPromptEditorValueContains("Convert the transcript into a concise numbered list."), app.debugDescription)
+        selectActiveCleanupMode("Cleanup profile")
+        XCTAssertTrue(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
 
         replaceText(in: cleanupPromptEditor, with: customPrompt)
         XCTAssertTrue(cleanupPromptEditorValueContains("CUSTOM-1:"), app.debugDescription)
-        XCTAssertFalse(cleanupPromptEditorValueContains("Convert the transcript into a concise numbered list."), app.debugDescription)
+        XCTAssertFalse(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
         writeActiveModeScreenshot(name: "selector-custom-prompt")
 
         relaunchWithArguments(["--ui-testing", "--seed-history", "--settings-tab-cleanup"])
         openAppShellCleanupSettings()
-        XCTAssertTrue(activeCleanupModePickerValueContains("Numbered list"), app.debugDescription)
+        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
         XCTAssertTrue(cleanupPromptEditorValueContains("CUSTOM-1:"), app.debugDescription)
-        XCTAssertFalse(cleanupPromptEditorValueContains("Convert the transcript into a concise numbered list."), app.debugDescription)
+        XCTAssertFalse(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
 
         let resetButton = app.buttons["settings.resetCleanupPromptButton"]
         XCTAssertTrue(resetButton.waitForExistence(timeout: 4), app.debugDescription)
         clickElement(resetButton)
-        XCTAssertTrue(cleanupPromptEditorValueContains("Convert the transcript into a concise numbered list."), app.debugDescription)
+        XCTAssertTrue(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
         XCTAssertFalse(cleanupPromptEditorValueContains("CUSTOM-1:"), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--seed-history", "--settings-tab-cleanup"])
         openAppShellCleanupSettings()
-        XCTAssertTrue(cleanupPromptEditorValueContains("Convert the transcript into a concise numbered list."), app.debugDescription)
+        XCTAssertTrue(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
         XCTAssertFalse(cleanupPromptEditorValueContains("CUSTOM-1:"), app.debugDescription)
     }
 
@@ -939,7 +994,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(app.buttons["Cleanup"].value as? String, "Selected")
 
         XCTAssertTrue(activeCleanupModePicker.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(activeCleanupModePickerValueContains("Clean up transcript formatting"), app.debugDescription)
+        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
 
         XCTAssertTrue(elementExists(id: "settings.cleanupProviderPicker", timeout: 4), app.debugDescription)
         XCTAssertTrue(
@@ -1247,6 +1302,16 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(staticTextLabelOrValueContaining("Recording").waitForExistence(timeout: 2), app.debugDescription)
     }
 
+    func testFloatingStatusShowsActiveCleanupModeWhileRecording() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-cleanup-formatting-enabled", "--seed-recording"])
+
+        XCTAssertTrue(app.descendants(matching: .any)["floatingStatus.window"].waitForExistence(timeout: 4), app.debugDescription)
+        let liveFeedback = app.descendants(matching: .any)["liveFeedback.hud"]
+        XCTAssertTrue(liveFeedback.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Cleanup profile", in: liveFeedback).waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Release Right Command", in: liveFeedback).exists, app.debugDescription)
+    }
+
     func testLiveAudioSignifierShowsIdleAndRecordingStates() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
 
@@ -1260,7 +1325,32 @@ final class FoilUITests: XCTestCase {
         signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
         XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertEqual(signifier.label, "Recording audio level")
+        XCTAssertEqual(signifier.label, "Recording audio level, Raw transcript")
+    }
+
+    func testLiveAudioSignifierIncludesActiveCleanupModeWhileRecording() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-cleanup-formatting-enabled", "--seed-recording"])
+
+        let signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
+        XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(signifier.label, "Recording audio level, Cleanup profile")
+    }
+
+    func testLiveAudioSignifierUsesEffectiveCleanupModeWhenCleanupUnavailable() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-cleanup-formatting-enabled",
+            "--seed-cleanup-provider-none",
+            "--seed-recording"
+        ])
+
+        let signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
+        XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(signifier.label, "Recording audio level, Raw transcript")
     }
 
     func testFloatingStatusAutoHidesAfterSuccessWhenEnabled() {
@@ -1780,11 +1870,22 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(historyNavItem.value as? String, "Selected")
     }
 
+    private func openAppShellHome() {
+        let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
+        XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)
+        openFoilButton.click()
+
+        XCTAssertTrue(elementExists(id: "appShell.root", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "appShell.home", timeout: 2), app.debugDescription)
+    }
+
     private func openAppShellCleanupSettings() {
         openAppShellSettings(navID: "appShell.nav.settings.cleanup")
     }
 
     private func openAppShellSettings(navID: String) {
+        closeWindowIfPresent(named: "History")
+
         let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
         if openFoilButton.waitForExistence(timeout: 2) {
             openFoilButton.click()
@@ -1800,6 +1901,19 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(elementExists(id: "appShell.preferences", timeout: 4), app.debugDescription)
         XCTAssertEqual(navItem.value as? String, "Selected", app.debugDescription)
         XCTAssertFalse(app.windows["Settings"].exists, app.debugDescription)
+    }
+
+    private func closeWindowIfPresent(named title: String) {
+        let window = app.windows[title]
+        guard window.exists else { return }
+
+        let closeButton = window.buttons[XCUIIdentifierCloseWindow]
+        if closeButton.exists {
+            clickElement(closeButton)
+        } else {
+            window.typeKey("w", modifierFlags: .command)
+        }
+        XCTAssertFalse(window.waitForExistence(timeout: 2), app.debugDescription)
     }
 
     private func settingsNavIDForLaunchArguments() -> String {
@@ -2149,14 +2263,38 @@ final class FoilUITests: XCTestCase {
     }
 
     private var activeCleanupModePicker: XCUIElement {
-        if app.popUpButtons["settings.activeCleanupModePicker"].exists {
-            return app.popUpButtons["settings.activeCleanupModePicker"]
-        }
-        return app.descendants(matching: .any)["settings.activeCleanupModePicker"]
+        cleanupModePicker(id: "settings.activeCleanupModePicker")
     }
 
     private func activeCleanupModePickerValueContains(_ text: String) -> Bool {
-        let value = String(describing: activeCleanupModePicker.value ?? "")
+        cleanupModePickerValueContains(id: "settings.activeCleanupModePicker", text)
+    }
+
+    private func cleanupModePicker(id: String) -> XCUIElement {
+        if app.popUpButtons[id].exists {
+            return app.popUpButtons[id]
+        }
+        if let label = cleanupModePickerAccessibilityLabel(for: id),
+           app.popUpButtons[label].exists {
+            return app.popUpButtons[label]
+        }
+        return app.descendants(matching: .any)[id]
+    }
+
+    private func cleanupModePickerAccessibilityLabel(for id: String) -> String? {
+        switch id {
+        case "appShell.home.activeCleanupModePicker":
+            "Home cleanup profile"
+        case "menu.recording.activeCleanupModePicker":
+            "Menu cleanup profile"
+        default:
+            nil
+        }
+    }
+
+    private func cleanupModePickerValueContains(id: String, _ text: String) -> Bool {
+        let picker = cleanupModePicker(id: id)
+        let value = String(describing: picker.value ?? "")
         return value.contains(text) || app.staticTexts[text].exists || app.descendants(matching: .any)[text].exists
     }
 
@@ -2175,7 +2313,11 @@ final class FoilUITests: XCTestCase {
     }
 
     private func selectActiveCleanupMode(_ name: String) {
-        let picker = activeCleanupModePicker
+        selectCleanupMode(name, pickerID: "settings.activeCleanupModePicker")
+    }
+
+    private func selectCleanupMode(_ name: String, pickerID: String) {
+        let picker = cleanupModePicker(id: pickerID)
         XCTAssertTrue(picker.waitForExistence(timeout: 4), app.debugDescription)
         clickElement(picker)
 
@@ -2191,16 +2333,7 @@ final class FoilUITests: XCTestCase {
             return
         }
 
-        if name == "Numbered list" {
-            for _ in 0..<4 {
-                typeKeyDirectly(125)
-            }
-            typeKeyDirectly(36)
-            RunLoop.current.run(until: Date().addingTimeInterval(0.4))
-            return
-        }
-
-        XCTFail("Could not select active cleanup mode \(name): \(app.debugDescription)")
+        XCTFail("Could not select cleanup profile \(name): \(app.debugDescription)")
     }
 
     private func selectProviderPreset(_ name: String) {
@@ -2486,7 +2619,7 @@ final class FoilUITests: XCTestCase {
     private func writeActiveModeScreenshot(name: String) {
         let screenshot = screenshot(preferredElements: activeModeScreenshotTargets(for: name))
         let attachment = XCTAttachment(screenshot: screenshot)
-        attachment.name = "Active mode \(name)"
+        attachment.name = "Cleanup profile \(name)"
         attachment.lifetime = .keepAlways
         add(attachment)
 

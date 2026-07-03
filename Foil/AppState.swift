@@ -221,7 +221,14 @@ final class AppState {
     }
 
     var transcriptProcessingMode: TranscriptProcessingMode = .raw {
-        didSet { Self.defaults.set(transcriptProcessingMode.rawValue, forKey: "transcriptProcessingMode") }
+        didSet {
+            let normalizedMode = transcriptProcessingMode.normalizedActiveMode
+            guard transcriptProcessingMode == normalizedMode else {
+                transcriptProcessingMode = normalizedMode
+                return
+            }
+            Self.defaults.set(transcriptProcessingMode.rawValue, forKey: "transcriptProcessingMode")
+        }
     }
 
     var transcriptCleanupModel: String = "llama-3.1-8b-instant" {
@@ -650,22 +657,10 @@ final class AppState {
     }
 
     func customPrompt(for mode: TranscriptProcessingMode) -> String? {
-        let value: String
-        switch mode {
-        case .raw:
+        guard mode.normalizedActiveMode != .raw else {
             return nil
-        case .cleanUp:
-            value = customCleanupPrompt
-        case .rewriteClearly:
-            value = customRewritePrompt
-        case .bulletize:
-            value = customBulletPrompt
-        case .numbered:
-            value = customNumberedPrompt
-        case .summarize:
-            value = customSummaryPrompt
         }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = customCleanupPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
@@ -674,21 +669,9 @@ final class AppState {
     }
 
     func setCustomPrompt(_ prompt: String, for mode: TranscriptProcessingMode) {
+        guard mode.normalizedActiveMode != .raw else { return }
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch mode {
-        case .raw:
-            return
-        case .cleanUp:
-            customCleanupPrompt = trimmed
-        case .rewriteClearly:
-            customRewritePrompt = trimmed
-        case .bulletize:
-            customBulletPrompt = trimmed
-        case .numbered:
-            customNumberedPrompt = trimmed
-        case .summarize:
-            customSummaryPrompt = trimmed
-        }
+        customCleanupPrompt = trimmed
     }
 
     func resetCustomPrompt(for mode: TranscriptProcessingMode) {
@@ -886,7 +869,7 @@ final class AppState {
             let target = capturedTargetName.map { "Target: \($0)" }
             return SessionPresentation(
                 title: "Recording",
-                detail: [target, instruction].compactMap { $0 }.joined(separator: " · "),
+                detail: [target, effectiveTranscriptProcessingMode.displayName, instruction].compactMap { $0 }.joined(separator: " · "),
                 timerText: formattedRecordingDuration,
                 systemImage: "record.circle",
                 tone: .active,
@@ -1264,7 +1247,13 @@ final class AppState {
         customTranscriptionModel = defaults.string(forKey: "customTranscriptionModel") ?? "whisper-1"
         selectedAudioFormat = AudioFormat(rawValue: defaults.string(forKey: "audioFormat") ?? "") ?? .m4a
         selectedLanguage = Language(rawValue: defaults.string(forKey: "language") ?? "") ?? .auto
-        transcriptProcessingMode = TranscriptProcessingMode(rawValue: defaults.string(forKey: "transcriptProcessingMode") ?? "") ?? .raw
+        let persistedTranscriptProcessingMode = TranscriptProcessingMode(
+            rawValue: defaults.string(forKey: "transcriptProcessingMode") ?? ""
+        ) ?? .raw
+        transcriptProcessingMode = persistedTranscriptProcessingMode.normalizedActiveMode
+        if persistedTranscriptProcessingMode != transcriptProcessingMode {
+            defaults.set(transcriptProcessingMode.rawValue, forKey: "transcriptProcessingMode")
+        }
         transcriptCleanupModel = defaults.string(forKey: "transcriptCleanupModel") ?? "llama-3.1-8b-instant"
         openAITranscriptCleanupModel = defaults.string(forKey: "openAITranscriptCleanupModel") ?? "gpt-5.4-mini"
         transcriptCleanupProviderID = TranscriptCleanupProviderID(

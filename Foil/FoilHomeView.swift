@@ -83,6 +83,14 @@ struct FoilHomeView: View {
                     .disabled(history.successfulRecords.isEmpty)
                     .accessibilityIdentifier("appShell.home.pasteLastButton")
                 }
+
+                ActiveCleanupModePicker(
+                    selection: $appState.transcriptProcessingMode,
+                    effectiveSelection: appState.effectiveTranscriptProcessingMode,
+                    accessibilityIdentifier: "appShell.home.activeCleanupModePicker",
+                    descriptionAccessibilityIdentifier: "appShell.home.activeCleanupModeDescription",
+                    accessibilityLabel: "Home cleanup profile"
+                )
             }
         }
     }
@@ -214,5 +222,44 @@ struct FoilHomeView: View {
         case .globeFn: "Globe/Fn"
         case .custom: appState.customHotkeyLabel.isEmpty ? "Custom" : appState.customHotkeyLabel
         }
+    }
+}
+
+struct ActiveCleanupModePicker: View {
+    @Binding var selection: TranscriptProcessingMode
+    var effectiveSelection: TranscriptProcessingMode
+    var accessibilityIdentifier: String
+    var descriptionAccessibilityIdentifier: String
+    var accessibilityLabel: String = "Cleanup profile"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Cleanup profile")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            Picker("Mode", selection: $selection) {
+                ForEach(TranscriptProcessingMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier(accessibilityIdentifier)
+            .accessibilityLabel(accessibilityLabel)
+
+            Text(descriptionText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier(descriptionAccessibilityIdentifier)
+        }
+    }
+
+    private var descriptionText: String {
+        guard effectiveSelection == selection else {
+            return "\(selection.displayName) is selected, but cleanup is unavailable. Recordings will paste raw transcripts."
+        }
+        return selection.activeModeDescription
     }
 }

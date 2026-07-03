@@ -1,9 +1,9 @@
 #!/usr/bin/env swift
 //
-// Real cleanup-quality smoke test.
+// Cleanup profile quality smoke test.
 //
-// Reads GROQ_API_KEY and/or OPENAI_API_KEY, then runs short active cleanup mode
-// prompts against fixed samples. Prints model outputs, never keys.
+// With no provider key, this script runs structural prompt/assertion checks only.
+// Pass --require-live-provider to require a real Groq or OpenAI cleanup call.
 
 import Foundation
 
@@ -80,66 +80,17 @@ struct ResponsesResponse: Decodable {
     }
 }
 
-enum CleanupMode: String, CaseIterable {
-    case cleanUp
-    case rewriteClearly
-    case bulletize
-    case numbered
-    case summarize
-
-    var displayName: String {
-        switch self {
-        case .cleanUp: "Clean up"
-        case .rewriteClearly: "Rewrite clearly"
-        case .bulletize: "Bullets"
-        case .numbered: "Numbered list"
-        case .summarize: "Summary"
-        }
-    }
-
-    var instruction: String {
-        switch self {
-        case .cleanUp:
-            """
-            Clean up transcript formatting while preserving the speaker's meaning, facts, voice, and intent.
-            Add punctuation and capitalization.
-            Add paragraph breaks where they improve readability.
-            Turn clearly enumerated spoken points into numbered or bulleted lists.
-            Remove obvious filler and false starts only when doing so does not change meaning.
-            Preserve names, numbers, technical terms, code-like strings, URLs, and intent.
-            Return only the final processed transcript.
-            """
-        case .rewriteClearly:
-            "Rewrite the transcript into clear, concise prose. Preserve all concrete facts, names, numbers, and intent. Do not add new information. Return only the rewritten text."
-        case .bulletize:
-            """
-            Convert the transcript into concise bullet points.
-            Preserve every important fact, name, number, task, decision, and next action.
-            Use one bullet per important idea.
-            Start every bullet line with "- ".
-            Do not add information that was not in the transcript.
-            Return only the final processed transcript.
-            """
-        case .numbered:
-            """
-            Convert the transcript into a concise numbered list.
-            Preserve every important fact, name, number, task, decision, and next action.
-            Use one numbered item per important idea.
-            Start each item with "1. ", "2. ", "3. ", and so on.
-            Do not add information that was not in the transcript.
-            Return only the final processed transcript.
-            """
-        case .summarize:
-            """
-            Summarize the transcript briefly as one short paragraph.
-            Preserve the key facts, decisions, names, numbers, and next actions.
-            Keep the summary concise and readable.
-            Do not use bullet points, numbered lists, headings, or labels.
-            Do not add information that was not in the transcript.
-            Return only the final processed transcript.
-            """
-        }
-    }
+enum CleanupProfile {
+    static let displayName = "Cleanup profile"
+    static let instruction = """
+    Clean up the transcript while preserving the speaker's meaning, facts, voice, and intent.
+    Correct punctuation and capitalization.
+    Add paragraph breaks where they improve readability.
+    Turn clearly enumerated spoken points into ordered or unordered lists when that structure is obvious from the transcript.
+    Remove obvious filler, stutters, repeated words, and false starts only when doing so does not change meaning.
+    Preserve names, numbers, technical terms, code-like strings, URLs, and intent.
+    Return only the final processed transcript.
+    """
 }
 
 enum CleanupProvider: String {
@@ -154,31 +105,57 @@ enum CleanupProvider: String {
     }
 }
 
+struct QualitySample {
+    let name: String
+    let transcript: String
+    let requiredTerms: [String]
+    let forbiddenTerms: [String]
+    let requiresStructure: Bool
+}
+
 enum CleanupQualityTest {
-    static let activeModeSample = "first confirm the launch checklist then assign follow ups for chrome terminal and textedit before the foil demo"
-    static let cleanupSample = "um so i think tomorrow before the demo we should maybe test async paste in chrome terminal and textedit and then record a short video for foil"
-    static let historyBulletizeInstruction = CleanupMode.bulletize.instruction
-    static let customPromptInstruction = """
-    Return exactly two non-empty lines and nothing else.
-    Line 1 must start with CUSTOM-1: and mention the launch checklist.
-    Line 2 must start with CUSTOM-2: and mention Chrome, Terminal, TextEdit, and the Foil demo.
-    Do not use bullets, numbering, headings, explanations, or extra lines.
-    """
+    static let samples = [
+        QualitySample(
+            name: "filler-stutter",
+            transcript: "um I I think tomorrow before the demo we should maybe test async paste in Chrome Terminal and TextEdit and then record a short video for Foil",
+            requiredTerms: ["tomorrow", "demo", "async paste", "Chrome", "Terminal", "TextEdit", "video", "Foil"],
+            forbiddenTerms: ["um", "i i"],
+            requiresStructure: false
+        ),
+        QualitySample(
+            name: "obvious-structure",
+            transcript: "first confirm the launch checklist second assign follow ups for Chrome Terminal and TextEdit third record the Foil demo",
+            requiredTerms: ["launch checklist", "follow up", "Chrome", "Terminal", "TextEdit", "Foil demo"],
+            forbiddenTerms: [],
+            requiresStructure: true
+        )
+    ]
 
     static func run() async -> Int32 {
+        let requireLiveProvider = ProcessInfo.processInfo.arguments.contains("--require-live-provider")
         let groqKey = envKey("GROQ_API_KEY")
         let openAIKey = envKey("OPENAI_API_KEY")
 
-        guard groqKey != nil || openAIKey != nil else {
-            print("ERROR: Missing GROQ_API_KEY and OPENAI_API_KEY environment variables.")
-            print("This live QA check intentionally avoids legacy plaintext app key files.")
+        print("=== Cleanup Profile Quality Smoke Test ===")
+        print("Profile: \(CleanupProfile.displayName)")
+        print("Samples: \(samples.map(\.name).joined(separator: ", "))")
+        print()
+
+        guard runStructuralChecks() else {
             return 1
         }
 
-        print("=== Cleanup Quality Smoke Test ===")
-        print("Raw active-mode sample:")
-        print(activeModeSample)
-        print()
+        guard groqKey != nil || openAIKey != nil else {
+            if requireLiveProvider {
+                print("ERROR: Missing GROQ_API_KEY and OPENAI_API_KEY environment variables.")
+                print("Live cleanup QA intentionally avoids legacy plaintext app key files.")
+                return 1
+            }
+
+            print("SKIP: No provider key set; structural checks passed without live cleanup calls.")
+            print("Run GROQ_API_KEY=... make test-cleanup-quality before release sign-off.")
+            return 0
+        }
 
         var failed = false
         if let groqKey {
@@ -198,157 +175,90 @@ enum CleanupQualityTest {
         return failed ? 1 : 0
     }
 
-    static func runGroq(apiKey: String) async -> Bool {
-        let endpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
-        let model = "llama-3.3-70b-versatile"
+    static func runStructuralChecks() -> Bool {
         var failed = false
 
-        failed = await runActiveModeChecks(
-            provider: .groq,
-            process: { mode, transcript in
-                try await processChat(endpoint: endpoint, apiKey: apiKey, model: model, mode: mode, transcript: transcript)
+        if CleanupProfile.displayName != "Cleanup profile" {
+            print("FAIL: cleanup display name drifted.")
+            failed = true
+        }
+
+        let instruction = CleanupProfile.instruction.lowercased()
+        for term in ["filler", "stutters", "false starts", "preserve names", "return only"] {
+            if !instruction.contains(term) {
+                print("FAIL: cleanup instruction missing required term: \(term)")
+                failed = true
             }
-        ) || failed
+        }
 
-        failed = await runHistoryBulletizeCheck(provider: .groq) { transcript in
-            try await processChat(
-                endpoint: endpoint,
-                apiKey: apiKey,
-                model: model,
-                instruction: historyBulletizeInstruction,
-                transcript: transcript
-            )
-        } || failed
+        for sample in samples {
+            if sample.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                print("FAIL: sample \(sample.name) is empty.")
+                failed = true
+            }
+            if sample.requiredTerms.isEmpty {
+                print("FAIL: sample \(sample.name) has no required terms.")
+                failed = true
+            }
+        }
 
-        failed = await runCustomPromptCheck(provider: .groq) { transcript in
-            try await processChat(
-                endpoint: endpoint,
-                apiKey: apiKey,
-                model: model,
-                instruction: customPromptInstruction,
-                transcript: transcript
-            )
-        } || failed
+        if !failed {
+            print("PASS: structural cleanup profile checks passed.")
+            print()
+        }
+        return !failed
+    }
 
-        return failed
+    static func runGroq(apiKey: String) async -> Bool {
+        let endpoint = URL(string: "https://api.groq.com/openai/v1/chat/completions")!
+        let model = ProcessInfo.processInfo.environment["GROQ_CLEANUP_QUALITY_MODEL"] ?? "llama-3.3-70b-versatile"
+
+        return await runProviderChecks(provider: .groq) { transcript in
+            try await processChat(endpoint: endpoint, apiKey: apiKey, model: model, transcript: transcript)
+        }
     }
 
     static func runOpenAI(apiKey: String) async -> Bool {
         let endpoint = URL(string: "https://api.openai.com/v1/responses")!
         let model = ProcessInfo.processInfo.environment["OPENAI_CLEANUP_QUALITY_MODEL"] ?? "gpt-5.4-mini"
 
-        var failed = false
-        failed = await runActiveModeChecks(
-            provider: .openAI,
-            process: { mode, transcript in
-                try await processResponses(endpoint: endpoint, apiKey: apiKey, model: model, mode: mode, transcript: transcript)
-            }
-        ) || failed
-
-        failed = await runCustomPromptCheck(provider: .openAI) { transcript in
-            try await processResponses(
-                endpoint: endpoint,
-                apiKey: apiKey,
-                model: model,
-                instruction: customPromptInstruction,
-                transcript: transcript
-            )
-        } || failed
-
-        return failed
+        return await runProviderChecks(provider: .openAI) { transcript in
+            try await processResponses(endpoint: endpoint, apiKey: apiKey, model: model, transcript: transcript)
+        }
     }
 
-    static func runActiveModeChecks(
+    static func runProviderChecks(
         provider: CleanupProvider,
-        process: (CleanupMode, String) async throws -> String
+        process: (String) async throws -> String
     ) async -> Bool {
         var failed = false
-        for mode in [CleanupMode.bulletize, .numbered, .summarize] {
+        for sample in samples {
             do {
-                let output = try await process(mode, activeModeSample)
-                print("\(provider.displayName) \(mode.displayName):")
+                let output = try await process(sample.transcript)
+                print("\(provider.displayName) \(CleanupProfile.displayName) \(sample.name):")
                 print(output)
                 print()
 
-                if !validates(output: output, for: mode) {
+                if !validates(output: output, sample: sample) {
                     failed = true
-                    print("FAIL: \(provider.displayName) \(mode.displayName) failed structure or fact-preservation check.")
+                    print("FAIL: \(provider.displayName) \(sample.name) failed cleanup profile quality checks.")
                 } else {
-                    print("PASS: \(provider.displayName) \(mode.displayName) preserved core facts with expected structure.")
+                    print("PASS: \(provider.displayName) \(sample.name) preserved facts and cleaned transcript shape.")
                 }
                 print()
             } catch {
                 failed = true
-                print("FAIL: \(provider.displayName) \(mode.displayName) failed: \(error)")
+                print("FAIL: \(provider.displayName) \(sample.name) failed: \(error)")
                 print()
             }
         }
         return failed
     }
 
-    static func runHistoryBulletizeCheck(
-        provider: CleanupProvider,
-        process: (String) async throws -> String
-    ) async -> Bool {
-        do {
-            let output = try await process(activeModeSample)
-            print("\(provider.displayName) History Bulletize:")
-            print(output)
-            print()
-
-            if !validates(output: output, for: .bulletize) {
-                print("FAIL: \(provider.displayName) History Bulletize failed list-format or fact-preservation check.")
-                return true
-            }
-            print("PASS: \(provider.displayName) History Bulletize returned list format and preserved core facts.")
-            print()
-            return false
-        } catch {
-            print("FAIL: \(provider.displayName) History Bulletize failed: \(error)")
-            print()
-            return true
-        }
-    }
-
-    static func runCustomPromptCheck(
-        provider: CleanupProvider,
-        process: (String) async throws -> String
-    ) async -> Bool {
-        do {
-            let output = try await process(activeModeSample)
-            print("\(provider.displayName) Custom Prompt:")
-            print(output)
-            print()
-
-            if !validatesCustomPromptOutput(output) {
-                print("FAIL: \(provider.displayName) Custom Prompt did not follow the requested custom line markers.")
-                return true
-            }
-            print("PASS: \(provider.displayName) Custom Prompt followed requested custom markers and preserved core facts.")
-            print()
-            return false
-        } catch {
-            print("FAIL: \(provider.displayName) Custom Prompt failed: \(error)")
-            print()
-            return true
-        }
-    }
-
     static func processChat(
         endpoint: URL,
         apiKey: String,
         model: String,
-        mode: CleanupMode,
-        transcript: String
-    ) async throws -> String {
-        try await processChat(endpoint: endpoint, apiKey: apiKey, model: model, instruction: mode.instruction, transcript: transcript)
-    }
-
-    static func processChat(
-        endpoint: URL,
-        apiKey: String,
-        model: String,
-        instruction: String,
         transcript: String
     ) async throws -> String {
         var request = URLRequest(url: endpoint)
@@ -359,7 +269,7 @@ enum CleanupQualityTest {
             ChatRequest(
                 model: model,
                 messages: [
-                    Message(role: "system", content: instruction),
+                    Message(role: "system", content: CleanupProfile.instruction),
                     Message(role: "user", content: transcript)
                 ],
                 temperature: 0.2,
@@ -382,17 +292,6 @@ enum CleanupQualityTest {
         endpoint: URL,
         apiKey: String,
         model: String,
-        mode: CleanupMode,
-        transcript: String
-    ) async throws -> String {
-        try await processResponses(endpoint: endpoint, apiKey: apiKey, model: model, instruction: mode.instruction, transcript: transcript)
-    }
-
-    static func processResponses(
-        endpoint: URL,
-        apiKey: String,
-        model: String,
-        instruction: String,
         transcript: String
     ) async throws -> String {
         var request = URLRequest(url: endpoint)
@@ -402,7 +301,7 @@ enum CleanupQualityTest {
         request.httpBody = try JSONEncoder().encode(
             ResponsesRequest(
                 model: model,
-                instructions: instruction,
+                instructions: CleanupProfile.instruction,
                 input: transcript,
                 maxOutputTokens: 1024
             )
@@ -419,64 +318,35 @@ enum CleanupQualityTest {
         return decoded.resolvedText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    static func validatesCustomPromptOutput(_ output: String) -> Bool {
-        let lines = meaningfulLines(output)
-        guard lines.count == 2 else { return false }
-        let first = lines[0].lowercased()
-        let second = lines[1].lowercased()
-        return first.hasPrefix("custom-1:")
-            && first.contains("launch checklist")
-            && second.hasPrefix("custom-2:")
-            && second.contains("chrome")
-            && second.contains("terminal")
-            && second.contains("textedit")
-            && second.contains("foil demo")
+    static func validates(output: String, sample: QualitySample) -> Bool {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard preservesRequiredTerms(trimmed, requiredTerms: sample.requiredTerms) else { return false }
+        guard omitsForbiddenTerms(trimmed, forbiddenTerms: sample.forbiddenTerms) else { return false }
+        if sample.requiresStructure && !hasUsefulStructure(trimmed) {
+            return false
+        }
+        return trimmed.count <= max(sample.transcript.count * 2, 80)
     }
 
-    static func validates(output: String, for mode: CleanupMode) -> Bool {
-        guard preservesCoreFacts(output) else { return false }
-        switch mode {
-        case .bulletize:
-            return hasBulletFormat(output)
-        case .numbered:
-            return hasNumberedFormat(output)
-        case .summarize:
-            return !output.isEmpty
-                && output.split(whereSeparator: \.isNewline).count <= 3
-                && !containsListMarker(output)
-        case .cleanUp, .rewriteClearly:
-            return !output.isEmpty
+    static func preservesRequiredTerms(_ text: String, requiredTerms: [String]) -> Bool {
+        let normalized = normalize(text)
+        return requiredTerms.allSatisfy { term in
+            normalized.contains(normalize(term))
         }
     }
 
-    static func preservesCoreFacts(_ text: String) -> Bool {
-        let lower = text
-            .lowercased()
-            .replacingOccurrences(of: "-", with: " ")
-        return lower.contains("launch checklist")
-            && (lower.contains("follow up") || lower.contains("follow ups"))
-            && lower.contains("chrome")
-            && lower.contains("terminal")
-            && lower.contains("textedit")
-            && lower.contains("foil demo")
-    }
-
-    static func hasBulletFormat(_ text: String) -> Bool {
-        let lines = meaningfulLines(text)
-        guard lines.count >= 2 else { return false }
-        return lines.allSatisfy { $0.hasPrefix("- ") || $0.hasPrefix("* ") }
-    }
-
-    static func hasNumberedFormat(_ text: String) -> Bool {
-        let lines = meaningfulLines(text)
-        guard lines.count >= 2 else { return false }
-        return lines.allSatisfy { line in
-            line.range(of: #"^\d+[\.)]\s+"#, options: .regularExpression) != nil
+    static func omitsForbiddenTerms(_ text: String, forbiddenTerms: [String]) -> Bool {
+        let normalized = " \(normalize(text)) "
+        return forbiddenTerms.allSatisfy { term in
+            !normalized.contains(" \(normalize(term)) ")
         }
     }
 
-    static func containsListMarker(_ text: String) -> Bool {
-        meaningfulLines(text).contains { line in
+    static func hasUsefulStructure(_ text: String) -> Bool {
+        let lines = meaningfulLines(text)
+        guard lines.count >= 2 else { return false }
+        return lines.contains { line in
             line.hasPrefix("- ")
                 || line.hasPrefix("* ")
                 || line.range(of: #"^\d+[\.)]\s+"#, options: .regularExpression) != nil
@@ -488,6 +358,14 @@ enum CleanupQualityTest {
             .split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    static func normalize(_ text: String) -> String {
+        String(text.lowercased().map { character in
+            character.isLetter || character.isNumber || character.isWhitespace ? character : " "
+        })
+        .split(separator: " ")
+        .joined(separator: " ")
     }
 
     static func envKey(_ name: String) -> String? {
