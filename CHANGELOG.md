@@ -1,3 +1,10 @@
+## [1.13.10](https://github.com/usefoil/foil/compare/v1.13.9...v1.13.10) (2026-07-03)
+
+- Ship the new Foil home app shell and vocabulary history workflow so the public build matches the current app UI.
+- Consolidate transcript cleanup into a single cleanup profile with updated settings, menu/status UI, and persistence behavior.
+- Add live Apple-voice audio cleanup quality QA coverage with Groq transcription and OpenAI cleanup evidence.
+
+
 ## [1.13.9](https://github.com/usefoil/foil/compare/v1.13.8...v1.13.9) (2026-06-28)
 
 - Fixed microphone permission setup recovery so stale or timed-out macOS microphone prompts no longer leave onboarding stuck indefinitely.
