@@ -1,4 +1,5 @@
 import AVFoundation
+import AVFAudio
 import XCTest
 @testable import Foil
 
@@ -200,6 +201,21 @@ final class SingleInstanceGuardTests: XCTestCase {
         XCTAssertEqual(
             delegate.appState.microphoneState,
             .needsAction(AppState.microphonePromptTimedOutMessage)
+        )
+    }
+
+    func testSystemPermissionProviderMapsAudioApplicationRecordPermission() {
+        XCTAssertEqual(
+            SystemSetupPermissionProvider.microphoneAuthorizationStatus(for: .granted),
+            .authorized
+        )
+        XCTAssertEqual(
+            SystemSetupPermissionProvider.microphoneAuthorizationStatus(for: .denied),
+            .denied
+        )
+        XCTAssertEqual(
+            SystemSetupPermissionProvider.microphoneAuthorizationStatus(for: .undetermined),
+            .notDetermined
         )
     }
 

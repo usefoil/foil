@@ -1,4 +1,5 @@
 import AVFoundation
+import AVFAudio
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -201,7 +202,23 @@ struct SystemSetupPermissionProvider: SetupPermissionProviding {
     }
 
     var microphoneAuthorizationStatus: AVAuthorizationStatus {
-        AVCaptureDevice.authorizationStatus(for: .audio)
+        Self.microphoneAuthorizationStatus(for: AVAudioApplication.shared.recordPermission)
+    }
+
+    static func microphoneAuthorizationStatus(
+        for recordPermission: AVAudioApplication.recordPermission,
+        fallbackStatus: @autoclosure () -> AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    ) -> AVAuthorizationStatus {
+        switch recordPermission {
+        case .granted:
+            return .authorized
+        case .denied:
+            return .denied
+        case .undetermined:
+            return .notDetermined
+        @unknown default:
+            return fallbackStatus()
+        }
     }
 
     func requestMicrophoneAccess() async -> MicrophoneAccessRequestResult {
@@ -217,7 +234,7 @@ struct SystemSetupPermissionProvider: SetupPermissionProviding {
                 continuation.resume(returning: result)
             }
 
-            AVCaptureDevice.requestAccess(for: .audio) { granted in
+            AVAudioApplication.requestRecordPermission { granted in
                 resumeOnce(granted ? .granted : .denied)
             }
 
