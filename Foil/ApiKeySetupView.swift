@@ -15,79 +15,98 @@ struct ApiKeySetupView: View {
     @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
-        VStack(spacing: 16) {
-            FoilCylinderMark(size: 48)
+        FoilSetupSurface(width: 430, minHeight: 330) {
+            VStack(alignment: .leading, spacing: 18) {
+                header
 
-            Text("\(AppBrand.name) Setup")
-                .font(.headline)
+                FoilSetupPanel {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(provider.requiresAPIKey ? "Enter your \(provider.displayName) API key to enable speech-to-text." : "\(provider.displayName) can run without a real API key when your server allows it.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
 
-            Text(provider.requiresAPIKey ? "Enter your \(provider.displayName) API key to enable speech-to-text." : "\(provider.displayName) can run without a real API key when your server allows it.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                        SecureField(apiKeyPlaceholder, text: $apiKey)
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("\(provider.displayName) API Key")
+                            .accessibilityIdentifier("apiKeySetup.apiKeyField")
 
-            SecureField(apiKeyPlaceholder, text: $apiKey)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 320)
-                .accessibilityLabel("\(provider.displayName) API Key")
-                .accessibilityIdentifier("apiKeySetup.apiKeyField")
+                        if let errorMessage {
+                            Label(errorMessage, systemImage: "exclamationmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityLabel("Error: \(errorMessage)")
+                                .accessibilityIdentifier("apiKeySetup.errorMessage")
+                        }
 
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .accessibilityLabel("Error: \(errorMessage)")
-                    .accessibilityIdentifier("apiKeySetup.errorMessage")
-            }
+                        if saved {
+                            Label("API key saved", systemImage: "checkmark.circle.fill")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(FoilTheme.midTeal)
+                                .accessibilityLabel("API key is valid")
+                                .accessibilityIdentifier("apiKeySetup.validIndicator")
+                        }
 
-            if saved {
-                Label("API key saved", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.caption)
-                    .accessibilityLabel("API key is valid")
-                    .accessibilityIdentifier("apiKeySetup.validIndicator")
-            }
-
-            if isValidating {
-                ProgressView("Checking key...")
-                    .controlSize(.small)
-                    .font(.caption)
-                    .accessibilityLabel("Validating API key")
-                    .accessibilityIdentifier("apiKeySetup.progress")
-            }
-
-            HStack {
-                if let apiKeyURL {
-                    Link("Get API Key", destination: apiKeyURL)
-                        .font(.caption)
-                        .accessibilityIdentifier("apiKeySetup.getKeyLink")
-                }
-
-                Spacer()
-
-                if canSaveWithoutValidation {
-                    Button("Save Anyway") {
-                        saveKeyWithoutValidation()
+                        if isValidating {
+                            ProgressView("Checking key...")
+                                .controlSize(.small)
+                                .font(.caption)
+                                .accessibilityLabel("Validating API key")
+                                .accessibilityIdentifier("apiKeySetup.progress")
+                        }
                     }
-                    .accessibilityIdentifier("apiKeySetup.saveAnywayButton")
                 }
 
-                Button(isValidating ? "Checking..." : "Save & Test") {
-                    saveKey()
+                HStack(spacing: 10) {
+                    if let apiKeyURL {
+                        Link("Get API Key", destination: apiKeyURL)
+                            .font(.caption)
+                            .accessibilityIdentifier("apiKeySetup.getKeyLink")
+                    }
+
+                    Spacer()
+
+                    if canSaveWithoutValidation {
+                        Button("Save Anyway") {
+                            saveKeyWithoutValidation()
+                        }
+                        .accessibilityIdentifier("apiKeySetup.saveAnywayButton")
+                    }
+
+                    Button {
+                        saveKey()
+                    } label: {
+                        Label(isValidating ? "Checking..." : "Save & Test", systemImage: "checkmark.circle")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(FoilTheme.deepTeal)
+                    .disabled(apiKey.isEmpty || isValidating)
+                    .accessibilityIdentifier("apiKeySetup.saveTestButton")
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(apiKey.isEmpty || isValidating)
-                .accessibilityIdentifier("apiKeySetup.saveTestButton")
             }
         }
-        .padding(24)
-        .frame(width: 380)
         .accessibilityIdentifier("apiKeySetup.root")
         .onAppear {
             guard !ProcessInfo.processInfo.arguments.contains("--ui-testing") else { return }
             if let existing = KeychainHelper.readApiKey(for: provider.id) {
                 apiKey = existing
             }
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            FoilCylinderMark(size: 38)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(AppBrand.name) Setup")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(FoilTheme.deepTeal)
+                Text("\(provider.displayName) credentials")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
         }
     }
 

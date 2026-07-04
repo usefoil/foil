@@ -35,75 +35,32 @@ struct OnboardingView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Step indicator
-            HStack(spacing: 8) {
-                ForEach(steps.indices, id: \.self) { index in
-                    Circle()
-                        .fill(index == currentStep ? Color.accentColor : Color.secondary.opacity(0.3))
-                        .frame(width: 8, height: 8)
-                        .animation(.easeInOut, value: currentStep)
-                        .accessibilityLabel("Step \(index + 1) of \(steps.count)\(index == currentStep ? ", current" : "")")
-                }
-            }
-            .padding(.top, 24)
+        FoilSetupSurface(width: 520, minHeight: 430) {
+            VStack(alignment: .leading, spacing: 18) {
+                header
+                stepIndicator
 
-            Spacer()
-
-            // Step content
-            Group {
-                switch currentStep {
-                case 0:
-                    providerStep
-                case 1:
-                    credentialStep
-                case 2:
-                    accessibilityStep
-                case 3:
-                    microphoneStep
-                default:
-                    EmptyView()
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 32)
-
-            Spacer()
-
-            // Navigation buttons
-            HStack {
-                if currentStep > 0 {
-                    Button("Back") {
-                        withAnimation {
-                            currentStep -= 1
+                FoilSetupPanel {
+                    Group {
+                        switch currentStep {
+                        case 0:
+                            providerStep
+                        case 1:
+                            credentialStep
+                        case 2:
+                            accessibilityStep
+                        case 3:
+                            microphoneStep
+                        default:
+                            EmptyView()
                         }
                     }
-                    .accessibilityIdentifier("onboarding.backButton")
+                    .frame(maxWidth: .infinity, minHeight: 208, alignment: .top)
                 }
 
-                Spacer()
-
-                if currentStep < steps.count - 1 {
-                    Button("Next") {
-                        withAnimation {
-                            currentStep += 1
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("onboarding.nextButton")
-                } else {
-                    Button("Get Started") {
-                        onComplete()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!appState.areSystemPermissionsReady)
-                    .accessibilityIdentifier("onboarding.getStartedButton")
-                }
+                navigationBar
             }
-            .padding(.horizontal, 32)
-            .padding(.bottom, 24)
         }
-        .frame(width: 420, height: 340)
         .accessibilityIdentifier("onboarding.root")
         .onAppear {
             onRefreshSetupHealth?()
@@ -133,17 +90,12 @@ struct OnboardingView: View {
     // MARK: - Step Views
 
     private var providerStep: some View {
-        VStack(spacing: 16) {
-            FoilCylinderMark(size: 52)
-
-            Text("Transcription Provider")
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text("Choose where \(AppBrand.name) sends audio for transcription. You can change this later in Settings.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        VStack(alignment: .leading, spacing: 14) {
+            stepHeading(
+                title: "Transcription Provider",
+                description: "Choose where \(AppBrand.name) sends audio for transcription. You can change this later in Settings.",
+                systemImage: "waveform.path.ecg"
+            )
 
             Picker("Provider", selection: $appState.selectedTranscriptionProviderPresetID) {
                 Text("Groq").tag(TranscriptionProviderPresetID.groq)
@@ -151,40 +103,36 @@ struct OnboardingView: View {
                 Text("Local whisper.cpp").tag(TranscriptionProviderPresetID.localWhisperCPP)
                 Text("Custom OpenAI-compatible").tag(TranscriptionProviderPresetID.customOpenAICompatible)
             }
-            .frame(width: 260)
+            .frame(maxWidth: 300, alignment: .leading)
             .accessibilityIdentifier("onboarding.providerPicker")
 
             Text(providerPrivacySummary)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("onboarding.providerPrivacySummary")
         }
     }
 
     private var credentialStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "key.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.tint)
-
-            Text(credentialTitle)
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text(credentialDescription)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        VStack(alignment: .leading, spacing: 14) {
+            stepHeading(
+                title: credentialTitle,
+                description: credentialDescription,
+                systemImage: "key.fill"
+            )
 
             permissionStatusBadge(state: appState.apiKeyState, readyLabel: credentialReadyLabel)
 
             if appState.selectedTranscriptionProvider.requiresAPIKey {
-                Button("Add API Key") {
+                Button {
                     openWindow(id: "api-key-setup")
+                } label: {
+                    Label("Add API Key", systemImage: "key")
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(FoilTheme.deepTeal)
                 .accessibilityIdentifier("onboarding.addApiKeyButton")
 
                 if let url = apiKeyURL {
@@ -202,24 +150,19 @@ struct OnboardingView: View {
     }
 
     private var accessibilityStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "hand.point.up.left.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.tint)
-
-            Text("Accessibility Permission")
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text("\(AppBrand.name) needs Accessibility access to paste transcribed text into other apps.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        VStack(alignment: .leading, spacing: 14) {
+            stepHeading(
+                title: "Accessibility Permission",
+                description: "\(AppBrand.name) needs Accessibility access to paste transcribed text into other apps.",
+                systemImage: "hand.point.up.left.fill"
+            )
 
             permissionStatusBadge(state: appState.accessibilityState, readyLabel: "Accessibility enabled")
 
-            Button("Open Privacy & Security Settings") {
+            Button {
                 onOpenAccessibility?()
+            } label: {
+                Label("Open Privacy & Security Settings", systemImage: "gearshape")
             }
             .font(.caption)
             .accessibilityIdentifier("onboarding.openAccessibilityButton")
@@ -227,32 +170,29 @@ struct OnboardingView: View {
     }
 
     private var microphoneStep: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "mic.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.tint)
-
-            Text("Microphone Access")
-                .font(.title2)
-                .fontWeight(.semibold)
-
-            Text("\(AppBrand.name) needs microphone access to record your voice for transcription.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        VStack(alignment: .leading, spacing: 14) {
+            stepHeading(
+                title: "Microphone Access",
+                description: "\(AppBrand.name) needs microphone access to record your voice for transcription.",
+                systemImage: "mic.fill"
+            )
 
             permissionStatusBadge(state: appState.microphoneState, readyLabel: "Microphone access granted")
 
             if appState.microphoneState == .unknown {
-                Button("Check Microphone Access") {
+                Button {
                     onCheckMicrophone?()
+                } label: {
+                    Label("Check Microphone Access", systemImage: "checkmark.circle")
                 }
                 .font(.caption)
                 .accessibilityIdentifier("onboarding.checkMicrophoneButton")
             }
 
-            Button("Open Privacy & Security Settings") {
+            Button {
                 onOpenMicrophone?()
+            } label: {
+                Label("Open Privacy & Security Settings", systemImage: "gearshape")
             }
             .font(.caption)
             .accessibilityIdentifier("onboarding.openMicrophoneButton")
@@ -263,6 +203,127 @@ struct OnboardingView: View {
 
     private var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains("--ui-testing")
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            FoilCylinderMark(size: 38)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Welcome to \(AppBrand.name)")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(FoilTheme.deepTeal)
+                Text("Finish setup once, then record from the menu bar.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+    }
+
+    private var stepIndicator: some View {
+        HStack(spacing: 8) {
+            ForEach(steps.indices, id: \.self) { index in
+                stepPill(title: steps[index], index: index)
+            }
+        }
+        .accessibilityIdentifier("onboarding.stepIndicator")
+    }
+
+    private func stepPill(title: String, index: Int) -> some View {
+        let isCurrent = index == currentStep
+        let isComplete = index < currentStep
+        let tint = isCurrent || isComplete ? FoilTheme.deepTeal : Color.secondary
+
+        return HStack(spacing: 6) {
+            Image(systemName: isComplete ? "checkmark.circle.fill" : "\(index + 1).circle.fill")
+                .font(.caption.weight(.semibold))
+                .symbolRenderingMode(.hierarchical)
+            Text(title)
+                .font(.caption.weight(isCurrent ? .semibold : .medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isCurrent ? FoilTheme.deepTeal.opacity(0.1) : Color.clear)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isCurrent ? FoilTheme.deepTeal.opacity(0.18) : FoilTheme.separator)
+        }
+        .accessibilityLabel("Step \(index + 1) of \(steps.count): \(title)\(isCurrent ? ", current" : "")")
+    }
+
+    private var navigationBar: some View {
+        HStack(spacing: 10) {
+            if currentStep > 0 {
+                Button {
+                    withAnimation {
+                        currentStep -= 1
+                    }
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .accessibilityIdentifier("onboarding.backButton")
+            }
+
+            Spacer()
+
+            Text("Step \(currentStep + 1) of \(steps.count)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if currentStep < steps.count - 1 {
+                Button {
+                    withAnimation {
+                        currentStep += 1
+                    }
+                } label: {
+                    Label("Next", systemImage: "chevron.right")
+                }
+                .labelStyle(.titleAndIcon)
+                .buttonStyle(.borderedProminent)
+                .tint(FoilTheme.deepTeal)
+                .accessibilityIdentifier("onboarding.nextButton")
+            } else {
+                Button {
+                    onComplete()
+                } label: {
+                    Label("Get Started", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(FoilTheme.deepTeal)
+                .disabled(!appState.areSystemPermissionsReady)
+                .accessibilityIdentifier("onboarding.getStartedButton")
+            }
+        }
+    }
+
+    private func stepHeading(title: String, description: String, systemImage: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(FoilTheme.deepTeal.opacity(0.1))
+                Image(systemName: systemImage)
+                    .font(.system(size: 21, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(FoilTheme.deepTeal)
+            }
+            .frame(width: 42, height: 42)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(FoilTheme.deepTeal)
+                Text(description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     private func handleUITestOnboardingCommand(_ command: OnboardingUITestCommand) {
@@ -359,20 +420,58 @@ struct OnboardingView: View {
         switch state {
         case .ready:
             Label(readyLabel, systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.caption)
+                .setupStatusBadge(foreground: FoilTheme.midTeal, background: FoilTheme.midTeal.opacity(0.1))
                 .accessibilityLabel("Ready")
         case .needsAction(let message):
             Label(message, systemImage: "exclamationmark.circle.fill")
-                .foregroundStyle(.orange)
-                .font(.caption)
+                .setupStatusBadge(foreground: .orange, background: Color.orange.opacity(0.11))
                 .accessibilityLabel("Needs attention: \(message)")
         case .unknown:
             Label("Checking...", systemImage: "circle.dotted")
-                .foregroundStyle(.secondary)
-                .font(.caption)
+                .setupStatusBadge(foreground: .secondary, background: Color.secondary.opacity(0.09))
                 .accessibilityLabel("Checking status")
         }
+    }
+}
+
+struct FoilSetupSurface<Content: View>: View {
+    var width: CGFloat
+    var minHeight: CGFloat
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(24)
+            .frame(width: width, alignment: .top)
+            .frame(minHeight: minHeight, alignment: .top)
+            .background(FoilTheme.windowBackground)
+            .environment(\.colorScheme, .light)
+    }
+}
+
+struct FoilSetupPanel<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(FoilTheme.panelBackground, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(FoilTheme.separator)
+            }
+    }
+}
+
+private extension View {
+    func setupStatusBadge(foreground: Color, background: Color) -> some View {
+        self
+            .font(.caption.weight(.medium))
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(background, in: RoundedRectangle(cornerRadius: 6))
     }
 }
 
