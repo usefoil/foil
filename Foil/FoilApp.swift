@@ -93,17 +93,29 @@ struct FoilApp: App {
                     }
                 )
             } else {
-                VStack(spacing: 16) {
-                    FoilCylinderMark(size: 48)
-                    Text("Local whisper.cpp")
-                        .font(.headline)
-                    Text("This preset uses the local server configured in Settings and does not save or send credentials.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                FoilSetupSurface(width: 430, minHeight: 260) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        HStack(alignment: .center, spacing: 12) {
+                            FoilCylinderMark(size: 38)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Local whisper.cpp")
+                                    .font(.title2.weight(.semibold))
+                                    .foregroundStyle(FoilTheme.deepTeal)
+                                Text("Local transcription setup")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+
+                        FoilSetupPanel {
+                            Text("This preset uses the local server configured in Settings and does not save or send credentials.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
-                .padding(24)
-                .frame(width: 380)
                 .accessibilityIdentifier("apiKeySetup.localServerMessage")
             }
         }
@@ -641,7 +653,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 450),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 430),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
