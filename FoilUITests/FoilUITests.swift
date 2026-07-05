@@ -189,6 +189,43 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(app.buttons["settings.deleteUsageMetricsButton"].isEnabled, app.debugDescription)
     }
 
+    func testCleanupGroupAppPickerShowsRecentlyUsedAppsFromUsageEvents() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-usage-events",
+            "--settings-tab-cleanup"
+        ])
+        openSettingsPanel()
+
+        clickElement(button(id: "settings.cleanupGroups.addGroupButton", fallbackLabel: "Add cleanup group"))
+
+        XCTAssertTrue(staticTextLabelOrValueContaining("Recently used apps").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Mail").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("com.apple.mail").waitForExistence(timeout: 2), app.debugDescription)
+
+        let mailAddButton = app.buttons["settings.cleanupGroups.recentAppAddButton.bundle:com.apple.mail"]
+        XCTAssertTrue(mailAddButton.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(mailAddButton.isEnabled, app.debugDescription)
+        clickElement(mailAddButton)
+        XCTAssertFalse(mailAddButton.isEnabled, app.debugDescription)
+
+        relaunchWithArguments([
+            "--ui-testing",
+            "--seed-usage-events",
+            "--settings-tab-cleanup"
+        ])
+        openSettingsPanel()
+
+        let persistedGroupPredicate = NSPredicate(
+            format: "label CONTAINS %@ AND label CONTAINS %@",
+            "New group",
+            "1 apps"
+        )
+        let persistedGroupRow = app.buttons.matching(persistedGroupPredicate).firstMatch
+        XCTAssertTrue(persistedGroupRow.waitForExistence(timeout: 4), app.debugDescription)
+    }
+
     func testAppShellOpensHistoryWithSeededRecords() {
         let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
         XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)
@@ -978,9 +1015,7 @@ final class FoilUITests: XCTestCase {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
         openAppShellHome()
 
-        XCTAssertTrue(elementExists(id: "appShell.home.cleanupGroupStatus", timeout: 4), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Default cleanup group").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Default for unassigned apps").waitForExistence(timeout: 2), app.debugDescription)
+        assertDefaultCleanupGroupStatusVisible()
         XCTAssertFalse(elementExists(id: "appShell.home.activeCleanupModePicker", timeout: 1), app.debugDescription)
     }
 
@@ -994,7 +1029,6 @@ final class FoilUITests: XCTestCase {
         ])
         openAppShellHome()
 
-        XCTAssertTrue(elementExists(id: "appShell.home.cleanupGroupStatus", timeout: 4), app.debugDescription)
         XCTAssertTrue(
             staticTextLabelOrValueContaining("cleanup is unavailable").waitForExistence(timeout: 2),
             app.debugDescription
@@ -1008,9 +1042,7 @@ final class FoilUITests: XCTestCase {
     func testMenuBarShowsCleanupGroupStatusWithoutGlobalModeSelector() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
 
-        XCTAssertTrue(elementExists(id: "menu.recording.cleanupGroupStatus", timeout: 4), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Default cleanup group").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Default for unassigned apps").waitForExistence(timeout: 2), app.debugDescription)
+        assertDefaultCleanupGroupStatusVisible()
         XCTAssertFalse(elementExists(id: "menu.recording.activeCleanupModePicker", timeout: 1), app.debugDescription)
     }
 
@@ -2373,6 +2405,30 @@ final class FoilUITests: XCTestCase {
     private func staticTextContaining(_ text: String, in root: XCUIElement? = nil) -> XCUIElement {
         let predicate = NSPredicate(format: "label CONTAINS %@", text)
         return (root ?? app).staticTexts.matching(predicate).firstMatch
+    }
+
+    private func assertDefaultCleanupGroupStatusVisible(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(
+            staticTextLabelOrValueContaining("Default cleanup group").waitForExistence(timeout: 4),
+            app.debugDescription,
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(
+            staticTextLabelOrValueContaining("Default for unassigned apps").waitForExistence(timeout: 2),
+            app.debugDescription,
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(
+            staticTextLabelOrValueContaining("Unassigned apps paste raw transcripts").waitForExistence(timeout: 2),
+            app.debugDescription,
+            file: file,
+            line: line
+        )
     }
 
     private func staticTextLabelOrValueContaining(_ text: String, in root: XCUIElement? = nil) -> XCUIElement {

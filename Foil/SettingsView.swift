@@ -815,6 +815,7 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settings.cleanupGroups.defaultAppsHelp")
             } else {
                 cleanupGroupAssignedApps(group)
+                recentAppsPicker(group)
                 runningAppsPicker(group)
             }
         }
@@ -858,37 +859,57 @@ struct SettingsView: View {
         }
     }
 
+    private func recentAppsPicker(_ group: CleanupGroup) -> some View {
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Recently used apps")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if recentAppCandidates.isEmpty {
+                Text("No recent apps yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settings.cleanupGroups.emptyRecentApps")
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(recentAppCandidates.prefix(12)) { candidate in
+                            cleanupAppCandidateRow(
+                                candidate,
+                                group: group,
+                                addButtonIdentifier: "settings.cleanupGroups.recentAppAddButton.\(candidate.id)"
+                            )
+                        }
+                    }
+                }
+                .frame(maxHeight: 126)
+            }
+        }
+        .accessibilityIdentifier("settings.cleanupGroups.recentApps")
+    }
+
     private func runningAppsPicker(_ group: CleanupGroup) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let recentCandidateIDs = Set(recentAppCandidates.map(\.id))
+        let candidates = runningAppCandidates.filter { !recentCandidateIDs.contains($0.id) }
+
+        return VStack(alignment: .leading, spacing: 6) {
             Text("Running apps")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            if runningAppCandidates.isEmpty {
+            if candidates.isEmpty {
                 Text("No running apps available.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 6) {
-                        ForEach(runningAppCandidates.prefix(12)) { candidate in
-                            HStack(alignment: .top, spacing: 8) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(candidate.displayName)
-                                        .font(.callout)
-                                        .lineLimit(1)
-                                    Text(candidate.detail)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(2)
-                                }
-                                Spacer()
-                                Button("Add") {
-                                    appState.addAppMatcher(candidate.matcher, toCleanupGroupID: group.id)
-                                }
-                                .disabled(group.appMatchers.contains { $0.membershipKey == candidate.matcher.membershipKey })
-                            }
-                            .accessibilityIdentifier("settings.cleanupGroups.runningAppRow")
+                        ForEach(candidates.prefix(12)) { candidate in
+                            cleanupAppCandidateRow(
+                                candidate,
+                                group: group,
+                                addButtonIdentifier: "settings.cleanupGroups.runningAppAddButton.\(candidate.id)"
+                            )
                         }
                     }
                 }
@@ -896,6 +917,30 @@ struct SettingsView: View {
             }
         }
         .accessibilityIdentifier("settings.cleanupGroups.runningApps")
+    }
+
+    private func cleanupAppCandidateRow(
+        _ candidate: CleanupAppCandidate,
+        group: CleanupGroup,
+        addButtonIdentifier: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(candidate.displayName)
+                    .font(.callout)
+                    .lineLimit(1)
+                Text(candidate.detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer()
+            Button("Add") {
+                appState.addAppMatcher(candidate.matcher, toCleanupGroupID: group.id)
+            }
+            .disabled(group.appMatchers.contains { $0.membershipKey == candidate.matcher.membershipKey })
+            .accessibilityIdentifier(addButtonIdentifier)
+        }
     }
 
     private var cleanupOpenAIKeySettings: some View {
@@ -1091,6 +1136,19 @@ struct SettingsView: View {
         return candidates.sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
+    }
+
+    private var recentAppCandidates: [CleanupAppCandidate] {
+        var candidates: [CleanupAppCandidate] = []
+        var seenKeys: Set<String> = []
+        for topApp in usageEventStore.topApps(limit: 24) {
+            guard let candidate = CleanupAppCandidate(topApp: topApp),
+                  seenKeys.insert(candidate.id).inserted else {
+                continue
+            }
+            candidates.append(candidate)
+        }
+        return candidates
     }
 
     private func chooseAppForCleanupGroup(_ groupID: String) {
@@ -1838,6 +1896,21 @@ private struct CleanupAppCandidate: Identifiable {
         self.detail = [normalizedMatcher.bundleIdentifier, normalizedMatcher.appPath]
             .compactMap { $0 }
             .joined(separator: " · ")
+        self.matcher = normalizedMatcher
+    }
+
+    init?(topApp: UsageTopApp) {
+        let matcher = CleanupAppMatcher(
+            displayName: topApp.displayName,
+            bundleIdentifier: topApp.bundleIdentifier
+        )
+        guard let normalizedMatcher = matcher.normalized(),
+              let membershipKey = normalizedMatcher.membershipKey else {
+            return nil
+        }
+        self.id = membershipKey
+        self.displayName = normalizedMatcher.displayName
+        self.detail = normalizedMatcher.bundleIdentifier ?? "Usage metrics"
         self.matcher = normalizedMatcher
     }
 }
