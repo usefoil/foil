@@ -44,6 +44,7 @@ struct FoilApp: App {
                 appState: appDelegate.appState,
                 queuedPasteQueue: appDelegate.queuedPasteQueue,
                 history: appDelegate.history,
+                usageEventStore: appDelegate.usageEventStore,
                 onRetryRecord: { [weak appDelegate] record in appDelegate?.retryRecord(record) },
                 onPasteText: { [weak appDelegate] text in appDelegate?.paste(text: text) },
                 onSaveAndRecleanVocabularyCorrection: { [weak appDelegate] writtenAs, correctVersion, note, sourceRecordID, sourceAppName in
@@ -262,6 +263,7 @@ struct SystemSetupPermissionProvider: SetupPermissionProviding {
 class AppDelegate: NSObject, NSApplicationDelegate {
     let appState: AppState
     let history: TranscriptionHistory
+    let usageEventStore: UsageEventStore
 
     private let hotkeyMonitor = HotkeyMonitor()
     private let audioRecorder = AudioRecorder()
@@ -292,6 +294,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var transientSuccessAutoHideTimer: Timer?
     private var setupRefreshTask: Task<Void, Never>?
     private var transcriptionTask: Task<Void, Never>?
+    private var recordingCleanupAppContext: CleanupAppContext?
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
     private var appShellWindow: NSWindow?
@@ -319,8 +322,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 .appendingPathComponent("FoilUITests", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             self.history = TranscriptionHistory(storageDirectory: dir)
+            self.usageEventStore = UsageEventStore(
+                storageDirectory: dir.appendingPathComponent("usage", isDirectory: true),
+                isEnabled: self.appState.usageMetricsEnabled
+            )
         } else {
             self.history = TranscriptionHistory()
+            self.usageEventStore = UsageEventStore(isEnabled: self.appState.usageMetricsEnabled)
         }
         super.init()
         self.localWhisperServerController.onTermination = { [weak self] in
@@ -432,7 +440,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
         recordingController.delegate = self
-        transcriptionController = TranscriptionController(transcriptionService: transcriptionService, appState: appState)
+        transcriptionController = TranscriptionController(
+            transcriptionService: transcriptionService,
+            appState: appState,
+            usageEventStore: usageEventStore
+        )
         transcriptionController.delegate = self
         pasteController = PasteController(textInserter: textInserter, appState: appState)
         pasteController.delegate = self
@@ -441,6 +453,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState: appState,
             queuedPasteQueue: queuedPasteQueue,
             history: history,
+            usageEventStore: usageEventStore,
             pasteController: pasteController,
             startTranscribingAnimation: { [weak self] in self?.startTranscribingAnimation() },
             stopTranscribingAnimation: { [weak self] in self?.stopTranscribingAnimation() },
@@ -696,6 +709,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState: appState,
             queuedPasteQueue: queuedPasteQueue,
             history: history,
+            usageEventStore: usageEventStore,
             initialSelection: initialSelection,
             onRetryRecord: { [weak self] record in self?.retryRecord(record) },
             onPasteText: { [weak self] text in self?.paste(text: text) },
@@ -1065,7 +1079,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func captureTargetThenStartRecording() {
         pasteController.captureTarget()
-        let capturedTarget = pasteController.pendingTarget
+        let capturedTarget = pasteController.pendingTarget ?? PasteTarget.captureCurrentTarget()
+        recordingCleanupAppContext = capturedTarget?.cleanupAppContext
         DiagnosticLog.write("captureTargetThenStartRecording: asyncEnabled=\(appState.asyncPasteEnabled) capturedTarget=\(String(describing: capturedTarget))")
         appState.recordTargetCapture(capturedTarget)
         appState.clearError()
@@ -1710,20 +1725,24 @@ extension AppDelegate: RecordingControllerDelegate {
     ) {
         DiagnosticLog.write("AppDelegate: recordingController didStopWithURL=\(audioURL.lastPathComponent)")
         browserMediaController.recordingDidEnd(reason: .stopped)
+        let appContext = recordingCleanupAppContext
+        recordingCleanupAppContext = nil
         transcriptionTask = Task { @MainActor in
-            await transcriptionController.transcribe(audioURL: audioURL, format: format)
+            await transcriptionController.transcribe(audioURL: audioURL, format: format, appContext: appContext)
         }
     }
 
     func recordingControllerDidStopWithNoAudio(_ controller: RecordingController) {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStopWithNoAudio")
         browserMediaController.recordingDidEnd(reason: .noAudio)
+        recordingCleanupAppContext = nil
         stopTranscribingAnimation()
     }
 
     func recordingControllerDidCancel(_ controller: RecordingController) {
         DiagnosticLog.write("AppDelegate: recordingControllerDidCancel")
         browserMediaController.recordingDidEnd(reason: .cancelled)
+        recordingCleanupAppContext = nil
         appState.setStatus(.idle)
         appState.feedbackMessage = "Recording cancelled"
         pasteController.clearPendingTarget()
@@ -1732,6 +1751,7 @@ extension AppDelegate: RecordingControllerDelegate {
     func recordingController(_ controller: RecordingController, didFailWithError error: Error) {
         DiagnosticLog.write("AppDelegate: recordingController didFailWithError=\(error)")
         browserMediaController.recordingDidEnd(reason: .failed)
+        recordingCleanupAppContext = nil
         pasteController.clearPendingTarget()
         appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
         if AudioRecorder.availableInputDevices().isEmpty {

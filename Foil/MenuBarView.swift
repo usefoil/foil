@@ -617,12 +617,12 @@ struct MenuBarView: View {
             Text("Record")
                 .font(.subheadline.weight(.semibold))
             recordingControls
-            ActiveCleanupModePicker(
-                selection: $appState.transcriptProcessingMode,
-                effectiveSelection: appState.effectiveTranscriptProcessingMode,
-                accessibilityIdentifier: "menu.recording.activeCleanupModePicker",
-                descriptionAccessibilityIdentifier: "menu.recording.activeCleanupModeDescription",
-                accessibilityLabel: "Menu cleanup profile"
+            CleanupGroupStatusView(
+                group: appState.defaultCleanupGroup,
+                effectiveMode: appState.effectiveTranscriptProcessingMode,
+                title: "Default cleanup group",
+                accessibilityIdentifier: "menu.recording.cleanupGroupStatus",
+                descriptionAccessibilityIdentifier: "menu.recording.cleanupGroupDescription"
             )
             if let blocker = recordingBlocker {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {

@@ -42,6 +42,7 @@ final class DiagnosticLogTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "customTranscriptCleanupModel")
         UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.cleanUp")
         UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.rewriteClearly")
+        UserDefaults.standard.removeObject(forKey: "cleanupGroups")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupPreferredTerms")
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")

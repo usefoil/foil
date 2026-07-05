@@ -84,12 +84,12 @@ struct FoilHomeView: View {
                     .accessibilityIdentifier("appShell.home.pasteLastButton")
                 }
 
-                ActiveCleanupModePicker(
-                    selection: $appState.transcriptProcessingMode,
-                    effectiveSelection: appState.effectiveTranscriptProcessingMode,
-                    accessibilityIdentifier: "appShell.home.activeCleanupModePicker",
-                    descriptionAccessibilityIdentifier: "appShell.home.activeCleanupModeDescription",
-                    accessibilityLabel: "Home cleanup profile"
+                CleanupGroupStatusView(
+                    group: appState.defaultCleanupGroup,
+                    effectiveMode: appState.effectiveTranscriptProcessingMode,
+                    title: "Default cleanup group",
+                    accessibilityIdentifier: "appShell.home.cleanupGroupStatus",
+                    descriptionAccessibilityIdentifier: "appShell.home.cleanupGroupDescription"
                 )
             }
         }
@@ -225,27 +225,27 @@ struct FoilHomeView: View {
     }
 }
 
-struct ActiveCleanupModePicker: View {
-    @Binding var selection: TranscriptProcessingMode
-    var effectiveSelection: TranscriptProcessingMode
+struct CleanupGroupStatusView: View {
+    var group: CleanupGroup
+    var effectiveMode: TranscriptProcessingMode
+    var title: String
     var accessibilityIdentifier: String
     var descriptionAccessibilityIdentifier: String
-    var accessibilityLabel: String = "Cleanup profile"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Cleanup profile")
+            Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-            Picker("Mode", selection: $selection) {
-                ForEach(TranscriptProcessingMode.allCases) { mode in
-                    Text(mode.displayName).tag(mode)
-                }
+            HStack(spacing: 6) {
+                Image(systemName: group.processingMode == .raw ? "text.quote" : "wand.and.stars")
+                    .foregroundStyle(FoilTheme.midTeal)
+                Text(group.name)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
             }
-            .pickerStyle(.menu)
             .accessibilityIdentifier(accessibilityIdentifier)
-            .accessibilityLabel(accessibilityLabel)
 
             Text(descriptionText)
                 .font(.caption)
@@ -257,9 +257,12 @@ struct ActiveCleanupModePicker: View {
     }
 
     private var descriptionText: String {
-        guard effectiveSelection == selection else {
-            return "\(selection.displayName) is selected, but cleanup is unavailable. Recordings will paste raw transcripts."
+        guard effectiveMode == group.processingMode else {
+            return "\(group.processingMode.displayName) is configured, but cleanup is unavailable. Recordings will paste raw transcripts."
         }
-        return selection.activeModeDescription
+        if group.processingMode == .raw {
+            return "Unassigned apps paste raw transcripts."
+        }
+        return "\(group.cleanupProviderID.displayName) · \(group.cleanupModel)"
     }
 }

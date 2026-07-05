@@ -150,6 +150,8 @@ final class AppState {
 
     private static let vocabularyCorrectionsKey = "transcriptCleanupVocabularyCorrections"
     private static let vocabularyTermsKey = "transcriptCleanupVocabularyTerms"
+    private static let cleanupGroupsKey = "cleanupGroups"
+    private static let usageMetricsEnabledKey = "usageMetricsEnabled"
 
     private static var localBridgeDeviceName: String {
         Host.current().localizedName ?? "This Mac"
@@ -228,6 +230,7 @@ final class AppState {
                 return
             }
             Self.defaults.set(transcriptProcessingMode.rawValue, forKey: "transcriptProcessingMode")
+            updateDefaultCleanupGroupFromLegacySettings()
         }
     }
 
@@ -235,6 +238,7 @@ final class AppState {
         didSet {
             Self.defaults.set(transcriptCleanupModel, forKey: "transcriptCleanupModel")
             resetCleanupConnectionTest()
+            updateDefaultCleanupGroupFromLegacySettings()
         }
     }
 
@@ -242,6 +246,7 @@ final class AppState {
         didSet {
             Self.defaults.set(openAITranscriptCleanupModel, forKey: "openAITranscriptCleanupModel")
             resetCleanupConnectionTest()
+            updateDefaultCleanupGroupFromLegacySettings()
         }
     }
 
@@ -249,6 +254,7 @@ final class AppState {
         didSet {
             Self.defaults.set(transcriptCleanupProviderID.rawValue, forKey: "transcriptCleanupProvider")
             resetCleanupConnectionTest()
+            updateDefaultCleanupGroupFromLegacySettings()
         }
     }
 
@@ -256,6 +262,7 @@ final class AppState {
         didSet {
             Self.defaults.set(customTranscriptCleanupBaseURL, forKey: "customTranscriptCleanupBaseURL")
             resetCleanupConnectionTest()
+            updateDefaultCleanupGroupFromLegacySettings()
         }
     }
 
@@ -263,11 +270,15 @@ final class AppState {
         didSet {
             Self.defaults.set(customTranscriptCleanupModel, forKey: "customTranscriptCleanupModel")
             resetCleanupConnectionTest()
+            updateDefaultCleanupGroupFromLegacySettings()
         }
     }
 
     var customCleanupPrompt: String = "" {
-        didSet { Self.defaults.set(customCleanupPrompt, forKey: "customCleanupPrompt.cleanUp") }
+        didSet {
+            Self.defaults.set(customCleanupPrompt, forKey: "customCleanupPrompt.cleanUp")
+            updateDefaultCleanupGroupFromLegacySettings()
+        }
     }
 
     var customRewritePrompt: String = "" {
@@ -327,9 +338,28 @@ final class AppState {
     }
 
     private var isSynchronizingVocabularyText = false
+    private var isSynchronizingCleanupGroups = false
+
+    var cleanupGroups: [CleanupGroup] = [] {
+        didSet {
+            guard !isSynchronizingCleanupGroups else { return }
+            isSynchronizingCleanupGroups = true
+            let normalized = CleanupGroupResolver.normalizedGroups(cleanupGroups)
+            if cleanupGroups != normalized {
+                cleanupGroups = normalized
+            }
+            Self.saveCleanupGroups(cleanupGroups)
+            syncLegacyCleanupFieldsFromDefaultGroup()
+            isSynchronizingCleanupGroups = false
+        }
+    }
 
     var keepOnClipboard: Bool = false {
         didSet { Self.defaults.set(keepOnClipboard, forKey: "keepOnClipboard") }
+    }
+
+    var usageMetricsEnabled: Bool = true {
+        didSet { Self.defaults.set(usageMetricsEnabled, forKey: Self.usageMetricsEnabledKey) }
     }
 
     var showFloatingStatus: Bool = false {
@@ -530,21 +560,36 @@ final class AppState {
         return url
     }
 
+    private func customCleanupBaseURLValue(for group: CleanupGroup) -> URL? {
+        let trimmed = group.customCleanupBaseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              url.host != nil else {
+            return nil
+        }
+        return url
+    }
+
     var selectedTranscriptCleanupProvider: TranscriptCleanupProvider {
-        switch transcriptCleanupProviderID {
+        provider(for: defaultCleanupGroup)
+    }
+
+    private func provider(for group: CleanupGroup) -> TranscriptCleanupProvider {
+        switch group.cleanupProviderID {
         case .none:
             return .none
         case .groq:
-            return .groq(model: transcriptCleanupModel)
+            return .groq(model: group.cleanupModel)
         case .openAI:
-            return .openAI(model: openAITranscriptCleanupModel)
+            return .openAI(model: group.cleanupModel)
         case .customOpenAICompatibleChat:
-            guard let baseURL = customTranscriptCleanupBaseURLValue else {
+            guard let baseURL = customCleanupBaseURLValue(for: group) else {
                 return .none
             }
             return .customOpenAICompatibleChat(
                 baseURL: baseURL,
-                model: customTranscriptCleanupModel
+                model: group.cleanupModel
             )
         }
     }
@@ -554,7 +599,7 @@ final class AppState {
     }
 
     var effectiveTranscriptProcessingMode: TranscriptProcessingMode {
-        transcriptProcessingMode == .raw || !supportsSelectedTranscriptProcessing ? .raw : transcriptProcessingMode
+        defaultCleanupGroup.processingMode == .raw || !supportsSelectedTranscriptProcessing ? .raw : defaultCleanupGroup.processingMode
     }
 
     var canRecleanHistoryTranscripts: Bool {
@@ -567,6 +612,113 @@ final class AppState {
 
     var preferredTerms: [String] {
         Self.normalizedVocabularyTerms(vocabularyTerms).map(\.term)
+    }
+
+    var defaultCleanupGroup: CleanupGroup {
+        cleanupGroups.first(where: \.isDefault) ?? CleanupGroup.defaultGroup()
+    }
+
+    func defaultCleanupModel(for providerID: TranscriptCleanupProviderID) -> String {
+        switch providerID {
+        case .none:
+            ""
+        case .groq:
+            "llama-3.1-8b-instant"
+        case .openAI:
+            "gpt-5.4-mini"
+        case .customOpenAICompatibleChat:
+            "llama3.1:8b"
+        }
+    }
+
+    func resolveCleanupGroup(for appContext: CleanupAppContext?) -> CleanupGroupResolution {
+        CleanupGroupResolver.resolve(
+            appContext: appContext,
+            groups: cleanupGroups,
+            providerFactory: { [weak self] group in
+                self?.provider(for: group) ?? .none
+            }
+        )
+    }
+
+    func setCleanupGroups(_ groups: [CleanupGroup]) {
+        cleanupGroups = groups
+    }
+
+    @discardableResult
+    func createCleanupGroup(named name: String) -> CleanupGroup {
+        let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nextSortOrder = (cleanupGroups.map(\.sortOrder).max() ?? 0) + 1
+        let group = CleanupGroup(
+            name: normalizedName.isEmpty ? "Cleanup Group" : normalizedName,
+            sortOrder: max(1, nextSortOrder)
+        )
+        cleanupGroups.append(group)
+        return cleanupGroups.first { $0.id == group.id } ?? group
+    }
+
+    @discardableResult
+    func updateCleanupGroup(id groupID: String, mutate: (inout CleanupGroup) -> Void) -> Bool {
+        var updatedGroups = cleanupGroups
+        guard let index = updatedGroups.firstIndex(where: { $0.id == groupID }) else { return false }
+        let wasDefault = updatedGroups[index].isDefault
+        mutate(&updatedGroups[index])
+        updatedGroups[index].isDefault = wasDefault
+        updatedGroups[index].updatedAt = Date()
+        cleanupGroups = updatedGroups
+        return true
+    }
+
+    @discardableResult
+    func deleteCleanupGroup(id groupID: String) -> Bool {
+        guard groupID != CleanupGroup.defaultGroupID,
+              let index = cleanupGroups.firstIndex(where: { $0.id == groupID && !$0.isDefault }) else {
+            return false
+        }
+        var updatedGroups = cleanupGroups
+        updatedGroups.remove(at: index)
+        cleanupGroups = updatedGroups
+        return true
+    }
+
+    func moveCleanupGroup(id groupID: String, toNonDefaultIndex targetIndex: Int) {
+        guard groupID != CleanupGroup.defaultGroupID else { return }
+        var nonDefaultGroups = cleanupGroups
+            .filter { !$0.isDefault && $0.id != CleanupGroup.defaultGroupID }
+            .sorted { $0.sortOrder < $1.sortOrder }
+        guard let currentIndex = nonDefaultGroups.firstIndex(where: { $0.id == groupID }) else { return }
+        let group = nonDefaultGroups.remove(at: currentIndex)
+        let boundedIndex = min(max(0, targetIndex), nonDefaultGroups.count)
+        nonDefaultGroups.insert(group, at: boundedIndex)
+        var reorderedGroups = [defaultCleanupGroup]
+        for index in nonDefaultGroups.indices {
+            nonDefaultGroups[index].sortOrder = index + 1
+            nonDefaultGroups[index].updatedAt = Date()
+            reorderedGroups.append(nonDefaultGroups[index])
+        }
+        cleanupGroups = reorderedGroups
+    }
+
+    func addAppMatcher(_ matcher: CleanupAppMatcher, toCleanupGroupID groupID: String) {
+        var updatedGroups = cleanupGroups
+        guard let normalizedMatcher = matcher.normalized(),
+              let matcherKey = normalizedMatcher.membershipKey else { return }
+        guard let index = updatedGroups.firstIndex(where: { $0.id == groupID }) else { return }
+        for groupIndex in updatedGroups.indices {
+            updatedGroups[groupIndex].appMatchers.removeAll { $0.membershipKey == matcherKey }
+        }
+        updatedGroups[index].appMatchers.append(normalizedMatcher)
+        updatedGroups[index].updatedAt = Date()
+        cleanupGroups = updatedGroups
+    }
+
+    func removeAppMatcher(membershipKey: String, fromCleanupGroupID groupID: String) {
+        guard !membershipKey.isEmpty else { return }
+        var updatedGroups = cleanupGroups
+        guard let index = updatedGroups.firstIndex(where: { $0.id == groupID }) else { return }
+        updatedGroups[index].appMatchers.removeAll { $0.membershipKey == membershipKey }
+        updatedGroups[index].updatedAt = Date()
+        cleanupGroups = updatedGroups
     }
 
     @discardableResult
@@ -660,7 +812,7 @@ final class AppState {
         guard mode.normalizedActiveMode != .raw else {
             return nil
         }
-        let trimmed = customCleanupPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = defaultCleanupGroup.customPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? nil : trimmed
     }
 
@@ -1180,6 +1332,8 @@ final class AppState {
                 "transcriptCleanupPreferredTerms",
                 Self.vocabularyCorrectionsKey,
                 Self.vocabularyTermsKey,
+                Self.cleanupGroupsKey,
+                Self.usageMetricsEnabledKey,
                 "selectedInputDeviceUID"
             ] {
                 defaults.removeObject(forKey: key)
@@ -1202,6 +1356,7 @@ final class AppState {
             "asyncPasteEnabled": false,
             "queuedPasteEnabled": false,
             "queuedPasteMode": QueuedPasteMode.stepThrough.rawValue,
+            Self.usageMetricsEnabledKey: true,
             "experimentalSkyLightPasteEnabled": false,
             "pauseBrowserMediaWhileRecording": false,
             "localBridgeEnabled": false,
@@ -1280,7 +1435,18 @@ final class AppState {
                 preserving: []
             )
             : storedVocabularyTerms
+        cleanupGroups = Self.loadCleanupGroups(
+            legacyProcessingMode: transcriptProcessingMode,
+            legacyCleanupProviderID: transcriptCleanupProviderID,
+            legacyGroqModel: transcriptCleanupModel,
+            legacyOpenAIModel: openAITranscriptCleanupModel,
+            legacyCustomModel: customTranscriptCleanupModel,
+            legacyCustomBaseURL: customTranscriptCleanupBaseURL,
+            legacyCustomPrompt: customCleanupPrompt
+        )
+        syncLegacyCleanupFieldsFromDefaultGroup()
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
+        usageMetricsEnabled = defaults.bool(forKey: Self.usageMetricsEnabledKey)
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
         queuedPasteEnabled = defaults.bool(forKey: "queuedPasteEnabled")
@@ -1389,6 +1555,104 @@ final class AppState {
     private static func saveVocabularyTerms(_ terms: [VocabularyTerm]) {
         guard let data = try? JSONEncoder().encode(normalizedVocabularyTerms(terms)) else { return }
         defaults.set(data, forKey: vocabularyTermsKey)
+    }
+
+    private static func loadCleanupGroups(
+        legacyProcessingMode: TranscriptProcessingMode,
+        legacyCleanupProviderID: TranscriptCleanupProviderID,
+        legacyGroqModel: String,
+        legacyOpenAIModel: String,
+        legacyCustomModel: String,
+        legacyCustomBaseURL: String,
+        legacyCustomPrompt: String
+    ) -> [CleanupGroup] {
+        if let data = defaults.data(forKey: cleanupGroupsKey),
+           let groups = try? JSONDecoder().decode([CleanupGroup].self, from: data),
+           !groups.isEmpty {
+            let normalized = CleanupGroupResolver.normalizedGroups(groups)
+            saveCleanupGroups(normalized)
+            return normalized
+        }
+
+        let cleanupModel: String
+        switch legacyCleanupProviderID {
+        case .none:
+            cleanupModel = ""
+        case .groq:
+            cleanupModel = legacyGroqModel
+        case .openAI:
+            cleanupModel = legacyOpenAIModel
+        case .customOpenAICompatibleChat:
+            cleanupModel = legacyCustomModel
+        }
+
+        let defaultGroup = CleanupGroup.defaultGroup(
+            processingMode: legacyProcessingMode,
+            cleanupProviderID: legacyCleanupProviderID,
+            cleanupModel: cleanupModel,
+            customCleanupBaseURL: legacyCleanupProviderID == .customOpenAICompatibleChat ? legacyCustomBaseURL : nil,
+            customPrompt: legacyCustomPrompt
+        )
+        let normalized = CleanupGroupResolver.normalizedGroups([defaultGroup])
+        saveCleanupGroups(normalized)
+        return normalized
+    }
+
+    private static func saveCleanupGroups(_ groups: [CleanupGroup]) {
+        guard let data = try? JSONEncoder().encode(CleanupGroupResolver.normalizedGroups(groups)) else { return }
+        defaults.set(data, forKey: cleanupGroupsKey)
+    }
+
+    private func updateDefaultCleanupGroupFromLegacySettings() {
+        guard !isSynchronizingCleanupGroups, !cleanupGroups.isEmpty else { return }
+        isSynchronizingCleanupGroups = true
+        var updatedGroups = cleanupGroups
+        let defaultIndex = updatedGroups.firstIndex(where: \.isDefault) ?? 0
+        var defaultGroup = updatedGroups[defaultIndex]
+        defaultGroup.processingMode = transcriptProcessingMode.normalizedActiveMode
+        defaultGroup.cleanupProviderID = transcriptCleanupProviderID
+        defaultGroup.cleanupModel = cleanupModel(for: transcriptCleanupProviderID)
+        defaultGroup.customCleanupBaseURL = transcriptCleanupProviderID == .customOpenAICompatibleChat
+            ? customTranscriptCleanupBaseURL
+            : nil
+        defaultGroup.customPrompt = customCleanupPrompt
+        defaultGroup.updatedAt = Date()
+        updatedGroups[defaultIndex] = defaultGroup
+        cleanupGroups = CleanupGroupResolver.normalizedGroups(updatedGroups)
+        Self.saveCleanupGroups(cleanupGroups)
+        isSynchronizingCleanupGroups = false
+    }
+
+    private func syncLegacyCleanupFieldsFromDefaultGroup() {
+        guard !cleanupGroups.isEmpty else { return }
+        let group = defaultCleanupGroup
+        transcriptProcessingMode = group.processingMode
+        transcriptCleanupProviderID = group.cleanupProviderID
+        switch group.cleanupProviderID {
+        case .none:
+            break
+        case .groq:
+            transcriptCleanupModel = group.cleanupModel
+        case .openAI:
+            openAITranscriptCleanupModel = group.cleanupModel
+        case .customOpenAICompatibleChat:
+            customTranscriptCleanupModel = group.cleanupModel
+            customTranscriptCleanupBaseURL = group.customCleanupBaseURL ?? customTranscriptCleanupBaseURL
+        }
+        customCleanupPrompt = group.customPrompt ?? ""
+    }
+
+    private func cleanupModel(for providerID: TranscriptCleanupProviderID) -> String {
+        switch providerID {
+        case .none:
+            defaultCleanupModel(for: providerID)
+        case .groq:
+            transcriptCleanupModel
+        case .openAI:
+            openAITranscriptCleanupModel
+        case .customOpenAICompatibleChat:
+            customTranscriptCleanupModel
+        }
     }
 
     private static func normalizedVocabularyCorrections(_ corrections: [VocabularyCorrection]) -> [VocabularyCorrection] {

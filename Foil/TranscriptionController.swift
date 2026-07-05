@@ -1,5 +1,15 @@
 import Foundation
 
+struct TranscriptProcessingResult: Equatable {
+    let text: String
+    let cleanupFailed: Bool
+    let cleanupGroupID: String
+    let cleanupGroupName: String
+    let processingMode: TranscriptProcessingMode
+    let cleanupProviderID: TranscriptCleanupProviderID?
+    let cleanupModel: String?
+}
+
 // MARK: - Delegate protocol
 
 @MainActor
@@ -42,18 +52,28 @@ final class TranscriptionController {
 
     private let transcriptionService: TranscriptionService
     private let appState: AppState
+    private let usageEventStore: UsageEventStore?
 
     // MARK: Init
 
-    init(transcriptionService: TranscriptionService, appState: AppState) {
+    init(
+        transcriptionService: TranscriptionService,
+        appState: AppState,
+        usageEventStore: UsageEventStore? = nil
+    ) {
         self.transcriptionService = transcriptionService
         self.appState = appState
+        self.usageEventStore = usageEventStore
     }
 
     // MARK: - Public API
 
     /// Main transcription flow. Called after recording stops with a valid audio URL.
-    func transcribe(audioURL: URL, format: AudioFormat) async {
+    func transcribe(
+        audioURL: URL,
+        format: AudioFormat,
+        appContext: CleanupAppContext? = nil
+    ) async {
         DiagnosticLog.write("TranscriptionController.transcribe: url=\(audioURL.lastPathComponent) format=\(format.rawValue)")
 
         delegate?.transcriptionController(self, didStartTranscribing: audioURL)
@@ -88,6 +108,7 @@ final class TranscriptionController {
 
         do {
             let text: String
+            var processingResult: TranscriptProcessingResult?
             var cleanupFailed = false
             let service = transcriptionService.withProvider(provider)
 
@@ -108,14 +129,19 @@ final class TranscriptionController {
                     rawText: rawText,
                     apiKey: apiKey,
                     service: service,
-                    context: "transcription"
+                    context: "transcription",
+                    appContext: appContext
                 )
                 text = processed.text
                 cleanupFailed = processed.cleanupFailed
+                processingResult = processed
             }
 
             DiagnosticLog.write("TranscriptionController: success textLength=\(text.count) cleanupFailed=\(cleanupFailed)")
             delegate?.transcriptionController(self, didTranscribe: text, audioURL: audioURL, cleanupFailed: cleanupFailed)
+            if let processingResult {
+                recordUsageEvent(for: processingResult, appContext: appContext)
+            }
         } catch is CancellationError {
             DiagnosticLog.write("TranscriptionController: cancelled")
             return
@@ -202,39 +228,57 @@ final class TranscriptionController {
 
     // MARK: - Internal helpers
 
-    /// Apply transcript processing mode (cleanup/raw). Returns (text, cleanupFailed).
+    /// Apply transcript processing mode (cleanup/raw).
     func recleanTranscript(
         rawText: String,
         service: TranscriptionService? = nil,
-        context: String = "historyReclean"
-    ) async -> (text: String, cleanupFailed: Bool) {
+        context: String = "historyReclean",
+        appContext: CleanupAppContext? = nil
+    ) async -> TranscriptProcessingResult {
         await processTranscriptOrRaw(
             rawText: rawText,
             apiKey: nil,
             service: service,
-            context: context
+            context: context,
+            appContext: appContext
         )
     }
 
-    /// Apply transcript processing mode (cleanup/raw). Returns (text, cleanupFailed).
+    /// Apply transcript processing mode (cleanup/raw).
     func processTranscriptOrRaw(
         rawText: String,
         apiKey: String?,
         service: TranscriptionService? = nil,
-        context: String
-    ) async -> (text: String, cleanupFailed: Bool) {
-        let processingMode = appState.effectiveTranscriptProcessingMode
+        context: String,
+        appContext: CleanupAppContext? = nil
+    ) async -> TranscriptProcessingResult {
+        let resolution = appState.resolveCleanupGroup(for: appContext)
+        let processingMode = resolution.processingMode
         guard processingMode != .raw else {
-            if appState.transcriptProcessingMode != .raw {
-                DiagnosticLog.write("\(context): transcript processing skipped for cleanupProvider=\(appState.selectedTranscriptCleanupProvider.id.rawValue)")
-            }
-            return (rawText, false)
+            DiagnosticLog.write("\(context): transcript processing skipped cleanupGroup=\(resolution.group.id) mode=\(processingMode.rawValue)")
+            return TranscriptProcessingResult(
+                text: rawText,
+                cleanupFailed: false,
+                cleanupGroupID: resolution.group.id,
+                cleanupGroupName: resolution.group.name,
+                processingMode: processingMode,
+                cleanupProviderID: nil,
+                cleanupModel: nil
+            )
         }
 
-        let cleanupProvider = appState.selectedTranscriptCleanupProvider
+        let cleanupProvider = resolution.provider
         guard cleanupProvider.id != .none else {
             DiagnosticLog.write("\(context): transcript processing skipped because cleanup provider is none")
-            return (rawText, false)
+            return TranscriptProcessingResult(
+                text: rawText,
+                cleanupFailed: false,
+                cleanupGroupID: resolution.group.id,
+                cleanupGroupName: resolution.group.name,
+                processingMode: processingMode,
+                cleanupProviderID: nil,
+                cleanupModel: nil
+            )
         }
 
         let cleanupApiKey: String?
@@ -254,7 +298,7 @@ final class TranscriptionController {
         let cleanupRequest = TranscriptCleanupRequest(
             rawTranscript: rawText,
             mode: processingMode,
-            customPrompt: appState.customPrompt(for: processingMode),
+            customPrompt: resolution.customPrompt,
             vocabularyCorrections: appState.vocabularyCorrections,
             preferredTerms: appState.preferredTerms,
             provider: cleanupProvider
@@ -271,7 +315,15 @@ final class TranscriptionController {
                 inputLength: rawText.count,
                 outputLength: text.count
             )
-            return (text, false)
+            return TranscriptProcessingResult(
+                text: text,
+                cleanupFailed: false,
+                cleanupGroupID: resolution.group.id,
+                cleanupGroupName: resolution.group.name,
+                processingMode: processingMode,
+                cleanupProviderID: cleanupProvider.id,
+                cleanupModel: cleanupProvider.model
+            )
         } catch {
             DiagnosticLog.write("\(context): cleanup failed mappedMessage=\(errorMessage(from: error))")
             writeE2ECleanupReceipt(
@@ -282,8 +334,41 @@ final class TranscriptionController {
                 outputLength: rawText.count,
                 error: errorMessage(from: error)
             )
-            return (rawText, true)
+            return TranscriptProcessingResult(
+                text: rawText,
+                cleanupFailed: true,
+                cleanupGroupID: resolution.group.id,
+                cleanupGroupName: resolution.group.name,
+                processingMode: processingMode,
+                cleanupProviderID: cleanupProvider.id,
+                cleanupModel: cleanupProvider.model
+            )
         }
+    }
+
+    private func recordUsageEvent(for result: TranscriptProcessingResult, appContext: CleanupAppContext?) {
+        guard let usageEventStore else { return }
+        usageEventStore.isEnabled = appState.usageMetricsEnabled
+        let event = UsageEvent(
+            wordCount: Self.wordCount(in: result.text),
+            sourceAppName: appContext?.displayName,
+            sourceBundleIdentifier: appContext?.bundleIdentifier,
+            cleanupGroupID: result.cleanupGroupID,
+            cleanupGroupName: result.cleanupGroupName,
+            processingMode: result.processingMode,
+            cleanupProviderID: result.cleanupProviderID,
+            cleanupModel: result.cleanupModel,
+            cleanupFailed: result.cleanupFailed,
+            outcome: result.cleanupFailed ? .cleanupFailedFallback : .success
+        )
+        let mutationResult = usageEventStore.record(event)
+        if case .failed(let error) = mutationResult {
+            DiagnosticLog.write("TranscriptionController: usage event record failed error=\(error.rawValue)")
+        }
+    }
+
+    private static func wordCount(in text: String) -> Int {
+        text.split { $0.isWhitespace || $0.isNewline }.count
     }
 
     func transformTranscript(

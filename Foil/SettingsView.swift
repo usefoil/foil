@@ -1,6 +1,7 @@
 import AppKit
 import CoreImage.CIFilterBuiltins
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     enum Tab: Hashable, CaseIterable {
@@ -87,6 +88,7 @@ struct SettingsView: View {
 
     @Bindable var appState: AppState
     var history: TranscriptionHistory
+    var usageEventStore: UsageEventStore
     var onHotkeyChanged: (() -> Void)?
     var onCopySetupReport: (() -> Void)?
     var onExportDiagnostics: (() -> Void)?
@@ -102,6 +104,8 @@ struct SettingsView: View {
     @State private var selectedLocalWhisperSetupModelID = LocalWhisperSetupModel.recommendedDefaultID
     @State private var openAICleanupAPIKey = ""
     @State private var customCleanupAPIKey = ""
+    @State private var selectedCleanupGroupID = CleanupGroup.defaultGroupID
+    @State private var usageMetricsRefreshCounter = 0
     @State private var vocabularyWrittenAs = ""
     @State private var vocabularyCorrectVersion = ""
     @State private var vocabularyNote = ""
@@ -111,6 +115,7 @@ struct SettingsView: View {
     init(
         appState: AppState,
         history: TranscriptionHistory,
+        usageEventStore: UsageEventStore = UsageEventStore(),
         initialTab: Tab = .general,
         onHotkeyChanged: (() -> Void)? = nil,
         onCopySetupReport: (() -> Void)? = nil,
@@ -121,6 +126,7 @@ struct SettingsView: View {
     ) {
         self.appState = appState
         self.history = history
+        self.usageEventStore = usageEventStore
         self.onHotkeyChanged = onHotkeyChanged
         self.onCopySetupReport = onCopySetupReport
         self.onExportDiagnostics = onExportDiagnostics
@@ -542,67 +548,393 @@ struct SettingsView: View {
     }
 
     private var cleanupSettings: some View {
-        Form {
-            Section("Cleanup profile") {
-                Picker("Profile", selection: $appState.transcriptProcessingMode) {
-                    ForEach(TranscriptProcessingMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .accessibilityIdentifier("settings.activeCleanupModePicker")
+        HStack(alignment: .top, spacing: 14) {
+            cleanupGroupList
 
-                Text(appState.transcriptProcessingMode.activeModeDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("settings.activeCleanupModeDescription")
+            Divider()
 
-                Text("When Cleanup profile is selected, transcript text is sent to the cleanup provider selected below; audio still follows the transcription provider.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("settings.cleanupRoutingSummary")
-
-                if appState.transcriptProcessingMode.usesCleanupProvider {
-                    cleanupProviderSettings
-                    cleanupPromptSettings
-                }
-
-                vocabularySettings(isCleanupEnabled: appState.transcriptProcessingMode.usesCleanupProvider)
+            ScrollView {
+                cleanupGroupDetail
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.trailing, 4)
             }
         }
-        .formStyle(.grouped)
+        .accessibilityIdentifier("settings.cleanupGroups.root")
+        .onAppear {
+            ensureSelectedCleanupGroupExists()
+        }
+        .onChange(of: appState.cleanupGroups.map(\.id)) { _, _ in
+            ensureSelectedCleanupGroupExists()
+        }
     }
 
-    @ViewBuilder
-    private var cleanupProviderSettings: some View {
-        Picker("Cleanup provider", selection: $appState.transcriptCleanupProviderID) {
-            ForEach(availableCleanupProviderIDs) { providerID in
-                Text(providerID.displayName).tag(providerID)
+    private var cleanupGroupList: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Groups")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    let group = appState.createCleanupGroup(named: uniqueCleanupGroupName())
+                    selectedCleanupGroupID = group.id
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .help("Add cleanup group")
+                .accessibilityLabel("Add cleanup group")
+                .accessibilityIdentifier("settings.cleanupGroups.addGroupButton")
             }
-        }
-        .accessibilityIdentifier("settings.cleanupProviderPicker")
 
-        Text("Cleanup uses the selected chat endpoint. Foil will not send local/custom transcripts to a cloud provider unless you choose one here.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier("settings.cleanupRoutingHelp")
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(appState.cleanupGroups) { group in
+                    Button {
+                        selectedCleanupGroupID = group.id
+                    } label: {
+                        cleanupGroupListRow(group)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings.cleanupGroups.groupRow.\(group.id)")
+                }
+            }
 
-        switch appState.transcriptCleanupProviderID {
-        case .groq:
-            groqCleanupModelPicker
-            cloudCleanupConnectionSettings
-        case .openAI:
-            openAICleanupSettings
-        case .customOpenAICompatibleChat:
-            customChatCleanupSettings
-        case .none:
-            Text("Foil will paste raw transcripts until a cleanup provider is selected.")
+            HStack(spacing: 8) {
+                Button {
+                    moveSelectedCleanupGroup(delta: -1)
+                } label: {
+                    Image(systemName: "chevron.up")
+                }
+                .disabled(!canMoveSelectedCleanupGroup(delta: -1))
+                .help("Move group up")
+                .accessibilityLabel("Move group up")
+                .accessibilityIdentifier("settings.cleanupGroups.moveUpButton")
+
+                Button {
+                    moveSelectedCleanupGroup(delta: 1)
+                } label: {
+                    Image(systemName: "chevron.down")
+                }
+                .disabled(!canMoveSelectedCleanupGroup(delta: 1))
+                .help("Move group down")
+                .accessibilityLabel("Move group down")
+                .accessibilityIdentifier("settings.cleanupGroups.moveDownButton")
+
+                Spacer()
+
+                Button(role: .destructive) {
+                    guard appState.deleteCleanupGroup(id: selectedCleanupGroupID) else { return }
+                    selectedCleanupGroupID = CleanupGroup.defaultGroupID
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .disabled(selectedCleanupGroup.isDefault)
+                .help("Delete cleanup group")
+                .accessibilityLabel("Delete cleanup group")
+                .accessibilityIdentifier("settings.cleanupGroups.deleteGroupButton")
+            }
+            .buttonStyle(.borderless)
+
+            Text("Default handles apps that are not assigned to another group.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("settings.transcriptProcessingUnavailable")
+        }
+        .frame(width: 218, alignment: .topLeading)
+    }
+
+    private func cleanupGroupListRow(_ group: CleanupGroup) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: group.isDefault ? "tray" : "rectangle.stack")
+                .foregroundStyle(group.id == selectedCleanupGroupID ? Color.accentColor : Color.secondary)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(group.name)
+                    .font(.callout.weight(group.id == selectedCleanupGroupID ? .semibold : .regular))
+                    .lineLimit(1)
+                Text(cleanupGroupSummary(group))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background {
+            if group.id == selectedCleanupGroupID {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.16))
+            }
+        }
+    }
+
+    private var cleanupGroupDetail: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            cleanupGroupHeader(selectedCleanupGroup)
+
+            Divider()
+
+            cleanupGroupProcessingSettings(selectedCleanupGroup)
+
+            if selectedCleanupGroup.processingMode.usesCleanupProvider {
+                cleanupGroupProviderSettings(selectedCleanupGroup)
+                cleanupGroupPromptSettings(selectedCleanupGroup)
+            }
+
+            cleanupGroupAppMembership(selectedCleanupGroup)
+
+            Divider()
+
+            vocabularySettings(isCleanupEnabled: selectedCleanupGroup.processingMode.usesCleanupProvider)
+        }
+        .accessibilityIdentifier("settings.cleanupGroups.detail")
+    }
+
+    private func cleanupGroupHeader(_ group: CleanupGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if group.isDefault {
+                LabeledContent("Name", value: group.name)
+                    .accessibilityIdentifier("settings.cleanupGroups.defaultName")
+            } else {
+                TextField("Group name", text: cleanupGroupNameBinding(group.id))
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("settings.cleanupGroups.nameField")
+            }
+
+            Toggle("Enabled", isOn: cleanupGroupEnabledBinding(group.id))
+                .disabled(group.isDefault)
+                .accessibilityIdentifier("settings.cleanupGroups.enabledToggle")
+
+            Text(group.isDefault ? "Applies when the recording app is not assigned to another group." : "Applies when one of this group's apps is the recording target.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func cleanupGroupProcessingSettings(_ group: CleanupGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Cleanup")
+                .font(.headline)
+            Picker("Mode", selection: cleanupGroupModeBinding(group.id)) {
+                ForEach(TranscriptProcessingMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .accessibilityIdentifier("settings.cleanupGroups.modePicker")
+
+            Text(group.processingMode.activeModeDescription)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.cleanupGroups.modeDescription")
+        }
+    }
+
+    @ViewBuilder
+    private func cleanupGroupProviderSettings(_ group: CleanupGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Provider")
+                .font(.headline)
+            Picker("Cleanup provider", selection: cleanupGroupProviderBinding(group.id)) {
+                ForEach(availableCleanupProviderIDs) { providerID in
+                    Text(providerID.displayName).tag(providerID)
+                }
+            }
+            .accessibilityIdentifier("settings.cleanupGroups.providerPicker")
+
+            switch group.cleanupProviderID {
+            case .groq:
+                Picker("Model", selection: cleanupGroupModelBinding(group.id)) {
+                    Text("Llama 3.1 8B Instant").tag("llama-3.1-8b-instant")
+                    Text("Llama 3.3 70B Versatile").tag("llama-3.3-70b-versatile")
+                }
+                .accessibilityIdentifier("settings.cleanupGroups.groqModelPicker")
+            case .openAI:
+                Picker("Model", selection: cleanupGroupModelBinding(group.id)) {
+                    Text("GPT-5.4 mini").tag("gpt-5.4-mini")
+                    Text("GPT-5.4").tag("gpt-5.4")
+                    Text("GPT-5.5").tag("gpt-5.5")
+                }
+                .accessibilityIdentifier("settings.cleanupGroups.openAIModelPicker")
+                cleanupOpenAIKeySettings
+            case .customOpenAICompatibleChat:
+                TextField("Chat base URL", text: cleanupGroupBaseURLBinding(group.id))
+                    .accessibilityIdentifier("settings.cleanupGroups.customBaseURLField")
+                TextField("Chat model", text: cleanupGroupModelBinding(group.id))
+                    .accessibilityIdentifier("settings.cleanupGroups.customModelField")
+                cleanupCustomKeySettings
+            case .none:
+                Text("This group will paste raw transcripts until a cleanup provider is selected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.cleanupGroups.noProviderHelp")
+            }
+        }
+    }
+
+    private func cleanupGroupPromptSettings(_ group: CleanupGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Prompt")
+                    .font(.headline)
+                Spacer()
+                Button("Reset") {
+                    appState.updateCleanupGroup(id: group.id) { updatedGroup in
+                        updatedGroup.customPrompt = nil
+                    }
+                }
+                .accessibilityIdentifier("settings.cleanupGroups.resetPromptButton")
+            }
+
+            TextEditor(text: cleanupGroupPromptBinding(group.id))
+                .font(.body)
+                .frame(minHeight: 92)
+                .accessibilityIdentifier("settings.cleanupGroups.promptEditor")
+        }
+    }
+
+    private func cleanupGroupAppMembership(_ group: CleanupGroup) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Apps")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    chooseAppForCleanupGroup(group.id)
+                } label: {
+                    Label("Choose .app...", systemImage: "folder")
+                }
+                .accessibilityIdentifier("settings.cleanupGroups.chooseAppButton")
+            }
+
+            if group.isDefault {
+                Text("Unassigned apps use this group automatically.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("settings.cleanupGroups.defaultAppsHelp")
+            } else {
+                cleanupGroupAssignedApps(group)
+                runningAppsPicker(group)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cleanupGroupAssignedApps(_ group: CleanupGroup) -> some View {
+        if group.appMatchers.isEmpty {
+            Text("No apps assigned.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("settings.cleanupGroups.emptyApps")
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(group.appMatchers) { matcher in
+                    HStack(alignment: .top, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(matcher.displayName)
+                                .font(.callout)
+                                .lineLimit(1)
+                            Text(appMatcherDetail(matcher))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        Spacer()
+                        Button(role: .destructive) {
+                            if let membershipKey = matcher.membershipKey {
+                                appState.removeAppMatcher(membershipKey: membershipKey, fromCleanupGroupID: group.id)
+                            }
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Remove \(matcher.displayName)")
+                    }
+                    .padding(.vertical, 4)
+                    .accessibilityIdentifier("settings.cleanupGroups.assignedAppRow")
+                }
+            }
+        }
+    }
+
+    private func runningAppsPicker(_ group: CleanupGroup) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Running apps")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if runningAppCandidates.isEmpty {
+                Text("No running apps available.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(runningAppCandidates.prefix(12)) { candidate in
+                            HStack(alignment: .top, spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(candidate.displayName)
+                                        .font(.callout)
+                                        .lineLimit(1)
+                                    Text(candidate.detail)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                                Button("Add") {
+                                    appState.addAppMatcher(candidate.matcher, toCleanupGroupID: group.id)
+                                }
+                                .disabled(group.appMatchers.contains { $0.membershipKey == candidate.matcher.membershipKey })
+                            }
+                            .accessibilityIdentifier("settings.cleanupGroups.runningAppRow")
+                        }
+                    }
+                }
+                .frame(maxHeight: 126)
+            }
+        }
+        .accessibilityIdentifier("settings.cleanupGroups.runningApps")
+    }
+
+    private var cleanupOpenAIKeySettings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SecureField("OpenAI API key", text: $openAICleanupAPIKey)
+                .accessibilityIdentifier("settings.cleanupGroups.openAIAPIKey")
+            HStack {
+                Button("Save OpenAI key") {
+                    saveOpenAICleanupAPIKey()
+                }
+                .disabled(openAICleanupAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("settings.cleanupGroups.saveOpenAIAPIKeyButton")
+
+                Button("Delete OpenAI key") {
+                    KeychainHelper.delete(for: .openAI)
+                    openAICleanupAPIKey = ""
+                }
+                .accessibilityIdentifier("settings.cleanupGroups.deleteOpenAIAPIKeyButton")
+            }
+        }
+    }
+
+    private var cleanupCustomKeySettings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SecureField("Optional cleanup API key", text: $customCleanupAPIKey)
+                .accessibilityIdentifier("settings.cleanupGroups.customAPIKey")
+            HStack {
+                Button("Save cleanup key") {
+                    saveCustomCleanupAPIKey()
+                }
+                .disabled(customCleanupAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("settings.cleanupGroups.saveCustomAPIKeyButton")
+
+                Button("Delete cleanup key") {
+                    KeychainHelper.deleteCleanupApiKey(for: .customOpenAICompatibleChat)
+                    customCleanupAPIKey = ""
+                }
+                .accessibilityIdentifier("settings.cleanupGroups.deleteCustomAPIKeyButton")
+            }
         }
     }
 
@@ -610,29 +942,189 @@ struct SettingsView: View {
         [.groq, .openAI, .none, .customOpenAICompatibleChat]
     }
 
-    private var cleanupPromptSettings: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("\(appState.transcriptProcessingMode.displayName) prompt")
-                Spacer()
-                Button("Reset") {
-                    appState.resetCustomPrompt(for: appState.transcriptProcessingMode)
-                }
-                .accessibilityIdentifier("settings.resetCleanupPromptButton")
-            }
+    private var selectedCleanupGroup: CleanupGroup {
+        appState.cleanupGroups.first { $0.id == selectedCleanupGroupID }
+            ?? appState.defaultCleanupGroup
+    }
 
-            TextEditor(text: customPromptBinding(for: appState.transcriptProcessingMode))
-                .font(.body)
-                .frame(minHeight: 88)
-                .accessibilityIdentifier("settings.cleanupPromptEditor")
+    private func ensureSelectedCleanupGroupExists() {
+        guard !appState.cleanupGroups.contains(where: { $0.id == selectedCleanupGroupID }) else { return }
+        selectedCleanupGroupID = appState.defaultCleanupGroup.id
+    }
+
+    private func uniqueCleanupGroupName() -> String {
+        let baseName = "New group"
+        let existingNames = Set(appState.cleanupGroups.map { $0.name.lowercased() })
+        guard existingNames.contains(baseName.lowercased()) else { return baseName }
+        var suffix = 2
+        while existingNames.contains("\(baseName) \(suffix)".lowercased()) {
+            suffix += 1
+        }
+        return "\(baseName) \(suffix)"
+    }
+
+    private func cleanupGroupSummary(_ group: CleanupGroup) -> String {
+        let mode = group.processingMode == .raw ? "Raw" : group.cleanupProviderID.displayName
+        let appCount = group.isDefault ? "unassigned apps" : "\(group.appMatchers.count) apps"
+        return "\(mode) · \(appCount)"
+    }
+
+    private func cleanupGroupNameBinding(_ groupID: String) -> Binding<String> {
+        Binding(
+            get: { appState.cleanupGroups.first { $0.id == groupID }?.name ?? "" },
+            set: { name in
+                appState.updateCleanupGroup(id: groupID) { group in
+                    group.name = name
+                }
+            }
+        )
+    }
+
+    private func cleanupGroupEnabledBinding(_ groupID: String) -> Binding<Bool> {
+        Binding(
+            get: { appState.cleanupGroups.first { $0.id == groupID }?.isEnabled ?? true },
+            set: { isEnabled in
+                appState.updateCleanupGroup(id: groupID) { group in
+                    group.isEnabled = group.isDefault ? true : isEnabled
+                }
+            }
+        )
+    }
+
+    private func cleanupGroupModeBinding(_ groupID: String) -> Binding<TranscriptProcessingMode> {
+        Binding(
+            get: { appState.cleanupGroups.first { $0.id == groupID }?.processingMode ?? .raw },
+            set: { mode in
+                appState.updateCleanupGroup(id: groupID) { group in
+                    group.processingMode = mode.normalizedActiveMode
+                    if group.processingMode.usesCleanupProvider, group.cleanupProviderID == .none {
+                        group.cleanupProviderID = .groq
+                        group.cleanupModel = appState.defaultCleanupModel(for: .groq)
+                    }
+                }
+            }
+        )
+    }
+
+    private func cleanupGroupProviderBinding(_ groupID: String) -> Binding<TranscriptCleanupProviderID> {
+        Binding(
+            get: { appState.cleanupGroups.first { $0.id == groupID }?.cleanupProviderID ?? .groq },
+            set: { providerID in
+                appState.updateCleanupGroup(id: groupID) { group in
+                    group.cleanupProviderID = providerID
+                    group.cleanupModel = appState.defaultCleanupModel(for: providerID)
+                    group.customCleanupBaseURL = providerID == .customOpenAICompatibleChat
+                        ? group.customCleanupBaseURL ?? appState.customTranscriptCleanupBaseURL
+                        : nil
+                }
+            }
+        )
+    }
+
+    private func cleanupGroupModelBinding(_ groupID: String) -> Binding<String> {
+        Binding(
+            get: { appState.cleanupGroups.first { $0.id == groupID }?.cleanupModel ?? "" },
+            set: { model in
+                appState.updateCleanupGroup(id: groupID) { group in
+                    group.cleanupModel = model
+                }
+            }
+        )
+    }
+
+    private func cleanupGroupBaseURLBinding(_ groupID: String) -> Binding<String> {
+        Binding(
+            get: { appState.cleanupGroups.first { $0.id == groupID }?.customCleanupBaseURL ?? "" },
+            set: { baseURL in
+                appState.updateCleanupGroup(id: groupID) { group in
+                    group.customCleanupBaseURL = baseURL
+                }
+            }
+        )
+    }
+
+    private func cleanupGroupPromptBinding(_ groupID: String) -> Binding<String> {
+        Binding(
+            get: {
+                let group = appState.cleanupGroups.first { $0.id == groupID }
+                let trimmedPrompt = group?.customPrompt?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return trimmedPrompt.isEmpty ? TranscriptProcessingMode.cleanUp.defaultPrompt : trimmedPrompt
+            },
+            set: { prompt in
+                appState.updateCleanupGroup(id: groupID) { group in
+                    group.customPrompt = prompt
+                }
+            }
+        )
+    }
+
+    private func canMoveSelectedCleanupGroup(delta: Int) -> Bool {
+        guard !selectedCleanupGroup.isDefault else { return false }
+        let nonDefaultIDs = appState.cleanupGroups
+            .filter { !$0.isDefault }
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .map(\.id)
+        guard let index = nonDefaultIDs.firstIndex(of: selectedCleanupGroupID) else { return false }
+        return nonDefaultIDs.indices.contains(index + delta)
+    }
+
+    private func moveSelectedCleanupGroup(delta: Int) {
+        guard !selectedCleanupGroup.isDefault else { return }
+        let nonDefaultIDs = appState.cleanupGroups
+            .filter { !$0.isDefault }
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .map(\.id)
+        guard let index = nonDefaultIDs.firstIndex(of: selectedCleanupGroupID) else { return }
+        appState.moveCleanupGroup(id: selectedCleanupGroupID, toNonDefaultIndex: index + delta)
+    }
+
+    private var runningAppCandidates: [CleanupAppCandidate] {
+        var candidates: [CleanupAppCandidate] = []
+        var seenKeys: Set<String> = []
+        for application in NSWorkspace.shared.runningApplications where application.activationPolicy == .regular {
+            guard let candidate = CleanupAppCandidate(application: application),
+                  seenKeys.insert(candidate.id).inserted else {
+                continue
+            }
+            candidates.append(candidate)
+        }
+        return candidates.sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
     }
 
-    private func customPromptBinding(for mode: TranscriptProcessingMode) -> Binding<String> {
-        Binding(
-            get: { appState.resolvedPrompt(for: mode) },
-            set: { appState.setCustomPrompt($0, for: mode) }
+    private func chooseAppForCleanupGroup(_ groupID: String) {
+        let panel = NSOpenPanel()
+        panel.title = "Choose app"
+        panel.prompt = "Add"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.applicationBundle]
+        guard panel.runModal() == .OK, let appURL = panel.url else { return }
+        let displayName = appDisplayName(for: appURL)
+        let matcher = CleanupAppMatcher(
+            displayName: displayName,
+            bundleIdentifier: Bundle(url: appURL)?.bundleIdentifier,
+            appPath: appURL.path
         )
+        appState.addAppMatcher(matcher, toCleanupGroupID: groupID)
+    }
+
+    private func appDisplayName(for appURL: URL) -> String {
+        let bundle = Bundle(url: appURL)
+        let displayName = bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+        let bundleName = bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
+        let fileName = appURL.deletingPathExtension().lastPathComponent
+        return [displayName, bundleName, fileName]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty } ?? "Selected app"
+    }
+
+    private func appMatcherDetail(_ matcher: CleanupAppMatcher) -> String {
+        [matcher.bundleIdentifier, matcher.appPath]
+            .compactMap { $0 }
+            .joined(separator: " · ")
     }
 
     private func vocabularySettings(isCleanupEnabled: Bool) -> some View {
@@ -732,98 +1224,6 @@ struct SettingsView: View {
             return "Corrections teach Cleanup what Foil wrote and what it should use instead. Preferred terms tell Cleanup which names and phrases to preserve."
         }
         return "Vocabulary is saved now and applied when you choose Cleanup profile. Corrections teach Cleanup replacements; preferred terms tell it which names and phrases to preserve."
-    }
-
-    private var groqCleanupModelPicker: some View {
-        Picker("Cleanup model", selection: $appState.transcriptCleanupModel) {
-            Text("Llama 3.1 8B Instant").tag("llama-3.1-8b-instant")
-            Text("Llama 3.3 70B Versatile").tag("llama-3.3-70b-versatile")
-        }
-        .accessibilityIdentifier("settings.cleanupModelPicker")
-    }
-
-    private var openAICleanupSettings: some View {
-        Group {
-            Picker("Cleanup model", selection: $appState.openAITranscriptCleanupModel) {
-                Text("GPT-5.4 mini").tag("gpt-5.4-mini")
-                Text("GPT-5.4").tag("gpt-5.4")
-                Text("GPT-5.5").tag("gpt-5.5")
-            }
-            .accessibilityIdentifier("settings.openAICleanupModelPicker")
-
-            cloudCleanupConnectionSettings
-
-            Text("Uses your OpenAI API key. Saving here updates the same OpenAI key used by OpenAI Whisper.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("settings.openAICleanupHelp")
-
-            SecureField("OpenAI API key", text: $openAICleanupAPIKey)
-                .accessibilityIdentifier("settings.openAICleanupAPIKey")
-
-            HStack {
-                Button("Save OpenAI key") {
-                    saveOpenAICleanupAPIKey()
-                }
-                .disabled(openAICleanupAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier("settings.saveOpenAICleanupAPIKeyButton")
-
-                Button("Delete OpenAI key") {
-                    KeychainHelper.delete(for: .openAI)
-                    openAICleanupAPIKey = ""
-                }
-                .accessibilityIdentifier("settings.deleteOpenAICleanupAPIKeyButton")
-            }
-        }
-    }
-
-    private var cloudCleanupConnectionSettings: some View {
-        HStack {
-            Button("Test cleanup connection") {
-                Task {
-                    await appState.testSelectedCleanupProviderConnection()
-                }
-            }
-            .disabled(appState.cleanupConnectionTestState.isRunning)
-            .accessibilityIdentifier("settings.testCleanupConnectionButton")
-
-            cleanupConnectionStatus
-        }
-    }
-
-    private var customChatCleanupSettings: some View {
-        Group {
-            TextField("Chat base URL", text: $appState.customTranscriptCleanupBaseURL)
-                .accessibilityIdentifier("settings.customTranscriptCleanupBaseURL")
-            TextField("Chat model", text: $appState.customTranscriptCleanupModel)
-                .accessibilityIdentifier("settings.customTranscriptCleanupModel")
-
-            cloudCleanupConnectionSettings
-
-            Text("API key is optional. If your endpoint requires one, save it for custom cleanup before testing.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("settings.customCleanupHelp")
-
-            SecureField("Optional cleanup API key", text: $customCleanupAPIKey)
-                .accessibilityIdentifier("settings.customCleanupAPIKey")
-
-            HStack {
-                Button("Save cleanup key") {
-                    saveCustomCleanupAPIKey()
-                }
-                .disabled(customCleanupAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier("settings.saveCustomCleanupAPIKeyButton")
-
-                Button("Delete cleanup key") {
-                    KeychainHelper.deleteCleanupApiKey(for: .customOpenAICompatibleChat)
-                    customCleanupAPIKey = ""
-                }
-                .accessibilityIdentifier("settings.deleteCustomCleanupAPIKeyButton")
-            }
-        }
     }
 
     private var selectedLocalWhisperSetupModel: LocalWhisperSetupModel {
@@ -1044,30 +1444,6 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private var cleanupConnectionStatus: some View {
-        switch appState.cleanupConnectionTestState {
-        case .idle:
-            EmptyView()
-        case .running:
-            ProgressView()
-                .controlSize(.small)
-                .accessibilityIdentifier("settings.cleanupConnectionProgress")
-        case .succeeded(let message):
-            Label(message, systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .accessibilityIdentifier("settings.cleanupConnectionSucceeded")
-        case .warning(let message):
-            Label(message, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .accessibilityIdentifier("settings.cleanupConnectionWarning")
-        case .failed(let message):
-            Label(message, systemImage: "xmark.circle.fill")
-                .foregroundStyle(.red)
-                .accessibilityIdentifier("settings.cleanupConnectionFailed")
-        }
-    }
-
     private func saveCustomCleanupAPIKey() {
         do {
             try KeychainHelper.saveCleanupApiKey(customCleanupAPIKey, for: .customOpenAICompatibleChat)
@@ -1109,6 +1485,22 @@ struct SettingsView: View {
 
     private var privacySettings: some View {
         Form {
+            Section("Usage Metrics") {
+                Toggle("Collect usage metrics", isOn: usageMetricsBinding)
+                    .accessibilityIdentifier("settings.usageMetricsToggle")
+                LabeledContent("Retained usage sessions", value: "\(usageMetricsSummary.totalSessions)")
+                    .accessibilityIdentifier("settings.usageMetricsRetainedSessions")
+                Text("Usage metrics store local word counts, session counts, and app names for Insights. This control is separate from transcript history retention.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.usageMetricsHelp")
+                Button("Delete Usage Metrics", action: deleteUsageMetrics)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("settings.deleteUsageMetricsButton")
+                    .disabled(usageMetricsSummary.totalSessions == 0)
+            }
+
             Section("Local Data") {
                 Picker("History retention", selection: retentionBinding) {
                     Text("Off").tag(0)
@@ -1162,6 +1554,27 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var usageMetricsBinding: Binding<Bool> {
+        Binding(
+            get: { appState.usageMetricsEnabled },
+            set: { enabled in
+                appState.usageMetricsEnabled = enabled
+                usageEventStore.isEnabled = enabled
+                usageMetricsRefreshCounter += 1
+            }
+        )
+    }
+
+    private func deleteUsageMetrics() {
+        _ = usageEventStore.deleteAll()
+        usageMetricsRefreshCounter += 1
+    }
+
+    private var usageMetricsSummary: UsageSummary {
+        _ = usageMetricsRefreshCounter
+        return usageEventStore.summary()
     }
 
     private var whatsNewSettings: some View {
@@ -1397,5 +1810,34 @@ struct SettingsView: View {
         ).first else { return }
         let dir = appSupport.appendingPathComponent(AppBrand.applicationSupportDirectoryName, isDirectory: true)
         NSWorkspace.shared.activateFileViewerSelecting([dir])
+    }
+}
+
+private struct CleanupAppCandidate: Identifiable {
+    let id: String
+    let displayName: String
+    let detail: String
+    let matcher: CleanupAppMatcher
+
+    init?(application: NSRunningApplication) {
+        let displayName = (application.localizedName ?? application.bundleURL?.deletingPathExtension().lastPathComponent ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let bundleIdentifier = application.bundleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let appPath = application.bundleURL?.path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matcher = CleanupAppMatcher(
+            displayName: displayName.isEmpty ? bundleIdentifier ?? appPath ?? "Running app" : displayName,
+            bundleIdentifier: bundleIdentifier,
+            appPath: appPath
+        )
+        guard let normalizedMatcher = matcher.normalized(),
+              let membershipKey = normalizedMatcher.membershipKey else {
+            return nil
+        }
+        self.id = membershipKey
+        self.displayName = normalizedMatcher.displayName
+        self.detail = [normalizedMatcher.bundleIdentifier, normalizedMatcher.appPath]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+        self.matcher = normalizedMatcher
     }
 }
