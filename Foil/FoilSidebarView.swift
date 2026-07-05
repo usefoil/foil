@@ -2,6 +2,7 @@ import SwiftUI
 
 enum FoilAppSection: String, Hashable, CaseIterable {
     case home
+    case insights
     case history
     case general
     case recording
@@ -15,6 +16,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
     var title: String {
         switch self {
         case .home: "Home"
+        case .insights: "Insights"
         case .history: "History"
         case .general: "General"
         case .recording: "Recording"
@@ -30,6 +32,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
     var systemImage: String {
         switch self {
         case .home: "house"
+        case .insights: "chart.bar.xaxis"
         case .history: "clock"
         case .general: "gearshape"
         case .recording: "mic"
@@ -45,6 +48,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
     var accessibilityIdentifier: String {
         switch self {
         case .home: "appShell.nav.home"
+        case .insights: "appShell.nav.insights"
         case .history: "appShell.nav.history"
         case .general: "appShell.nav.settings.general"
         case .recording: "appShell.nav.settings.recording"
@@ -57,7 +61,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
         }
     }
 
-    static let workspace: [FoilAppSection] = [.home, .history]
+    static let workspace: [FoilAppSection] = [.home, .insights, .history]
     static let preferences: [FoilAppSection] = [.general, .recording, .transcription, .cleanup, .paste, .storage, .whatsNew, .experimental]
 
     private static let pendingSelectionKey = "FoilAppShell.pendingSelection"

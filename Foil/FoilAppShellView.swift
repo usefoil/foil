@@ -4,6 +4,7 @@ struct FoilAppShellView: View {
     @Bindable var appState: AppState
     @Bindable var queuedPasteQueue: QueuedPasteQueue
     var history: TranscriptionHistory
+    var usageEventStore: UsageEventStore
     var onRetryRecord: ((TranscriptionRecord) -> Void)?
     var onPasteText: ((String) -> Void)?
     var onSaveAndRecleanVocabularyCorrection: ((String, String, String?, UUID, String?) async -> HistoryVocabularyRecleanResult)?
@@ -24,6 +25,7 @@ struct FoilAppShellView: View {
         appState: AppState,
         queuedPasteQueue: QueuedPasteQueue,
         history: TranscriptionHistory,
+        usageEventStore: UsageEventStore,
         initialSelection: FoilAppSection = .home,
         onRetryRecord: ((TranscriptionRecord) -> Void)? = nil,
         onPasteText: ((String) -> Void)? = nil,
@@ -42,6 +44,7 @@ struct FoilAppShellView: View {
         self.appState = appState
         self.queuedPasteQueue = queuedPasteQueue
         self.history = history
+        self.usageEventStore = usageEventStore
         self.onRetryRecord = onRetryRecord
         self.onPasteText = onPasteText
         self.onSaveAndRecleanVocabularyCorrection = onSaveAndRecleanVocabularyCorrection
@@ -97,6 +100,12 @@ struct FoilAppShellView: View {
                 onCancelTranscription: onCancelTranscription,
                 onPasteLast: onPasteLast
             )
+        case .insights:
+            UsageInsightsView(
+                appState: appState,
+                usageEventStore: usageEventStore
+            )
+            .accessibilityIdentifier("appShell.insights")
         case .history:
             HistoryPopoverView(
                 history: history,
@@ -129,6 +138,7 @@ struct FoilAppShellView: View {
             SettingsView(
                 appState: appState,
                 history: history,
+                usageEventStore: usageEventStore,
                 initialTab: settingsTab(for: selection),
                 onHotkeyChanged: onHotkeyChanged,
                 onCopySetupReport: onCopySetupReport,
@@ -148,7 +158,7 @@ struct FoilAppShellView: View {
 
     private func settingsTab(for section: FoilAppSection) -> SettingsView.Tab {
         switch section {
-        case .home, .history:
+        case .home, .insights, .history:
             .general
         case .general:
             .general

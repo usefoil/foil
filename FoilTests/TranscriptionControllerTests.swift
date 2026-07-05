@@ -210,6 +210,93 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 0)
     }
 
+    func testAssignedRawCleanupGroupSkipsCleanupRequestWhenDefaultGroupCleansUp() async {
+        let terminalMatcher = CleanupAppMatcher(
+            displayName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal"
+        )
+        appState.setCleanupGroups([
+            CleanupGroup.defaultGroup(
+                processingMode: .cleanUp,
+                cleanupProviderID: .groq,
+                cleanupModel: "default-cleanup-model"
+            ),
+            CleanupGroup(
+                id: "terminal",
+                name: "Terminal",
+                sortOrder: 1,
+                appMatchers: [terminalMatcher],
+                processingMode: .raw,
+                cleanupProviderID: .groq,
+                cleanupModel: "terminal-cleanup-model"
+            )
+        ])
+        let transport = ControllerStubTransport { request in
+            XCTFail("Unexpected cleanup request to \(request.url?.absoluteString ?? "<nil>")")
+            throw URLError(.badURL)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "agent command with typos",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test",
+            appContext: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+        )
+
+        XCTAssertEqual(result.text, "agent command with typos")
+        XCTAssertFalse(result.cleanupFailed)
+        XCTAssertEqual(transport.requests.count, 0)
+    }
+
+    func testAssignedCleanupGroupUsesGroupProviderModelBaseURLAndPrompt() async throws {
+        try KeychainHelper.saveCleanupApiKey("cleanup-secret", for: .customOpenAICompatibleChat)
+        appState.setCleanupGroups([
+            CleanupGroup.defaultGroup(
+                processingMode: .raw,
+                cleanupProviderID: .groq,
+                cleanupModel: "default-groq-model",
+                customPrompt: "Default prompt should not be used"
+            ),
+            CleanupGroup(
+                id: "messages",
+                name: "Messages",
+                sortOrder: 1,
+                appMatchers: [
+                    CleanupAppMatcher(displayName: "Messages", bundleIdentifier: "com.apple.MobileSMS")
+                ],
+                processingMode: .cleanUp,
+                cleanupProviderID: .customOpenAICompatibleChat,
+                cleanupModel: "messages-cleanup-model",
+                customCleanupBaseURL: "http://127.0.0.1:11434/v1",
+                customPrompt: "Messages cleanup prompt"
+            )
+        ])
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/chat/completions")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer cleanup-secret")
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains(#""model":"messages-cleanup-model""#), body)
+            XCTAssertTrue(body.contains("Messages cleanup prompt"), body)
+            XCTAssertFalse(body.contains("Default prompt should not be used"), body)
+            XCTAssertFalse(body.contains("default-groq-model"), body)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"choices":[{"message":{"content":"clean message"}}]}"#.utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw message",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test",
+            appContext: CleanupAppContext(displayName: "Messages", bundleIdentifier: "com.apple.MobileSMS")
+        )
+
+        XCTAssertEqual(result.text, "clean message")
+        XCTAssertFalse(result.cleanupFailed)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
     func testGroqCleanupUsesGroqKeyEvenWhenTranscriptionProviderIsOpenAI() async throws {
         appState.selectedTranscriptionProviderPresetID = .openAIWhisper
         appState.transcriptProcessingMode = .cleanUp
@@ -687,6 +774,247 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 1)
     }
 
+    func testTranscribeUsesSourceAppContextForCleanupGroupResolution() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.setCleanupGroups([
+            CleanupGroup.defaultGroup(
+                processingMode: .cleanUp,
+                cleanupProviderID: .customOpenAICompatibleChat,
+                cleanupModel: "default-cleanup-model",
+                customCleanupBaseURL: "http://127.0.0.1:11434/v1",
+                customPrompt: "Default cleanup prompt"
+            ),
+            CleanupGroup(
+                id: "terminal",
+                name: "Terminal",
+                sortOrder: 1,
+                appMatchers: [
+                    CleanupAppMatcher(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+                ],
+                processingMode: .raw
+            )
+        ])
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("terminal raw transcript".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState
+        )
+        controller.delegate = spy
+
+        await controller.transcribe(
+            audioURL: tempURL,
+            format: .wav,
+            appContext: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+        )
+
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "terminal raw transcript")
+        XCTAssertEqual(spy.didFailCalls.count, 0)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testTranscribeRecordsUsageEventForResolvedCleanupGroup() async throws {
+        try KeychainHelper.saveCleanupApiKey("cleanup-secret", for: .customOpenAICompatibleChat)
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.setCleanupGroups([
+            CleanupGroup.defaultGroup(processingMode: .raw),
+            CleanupGroup(
+                id: "messages",
+                name: "Messages",
+                sortOrder: 1,
+                appMatchers: [
+                    CleanupAppMatcher(displayName: "Messages", bundleIdentifier: "com.apple.MobileSMS")
+                ],
+                processingMode: .cleanUp,
+                cleanupProviderID: .customOpenAICompatibleChat,
+                cleanupModel: "messages-cleanup-model",
+                customCleanupBaseURL: "http://127.0.0.1:11434/v1",
+                customPrompt: "Messages cleanup prompt"
+            )
+        ])
+        let usageStore = UsageEventStore(storageDirectory: temporaryUsageDirectory())
+        let transport = ControllerStubTransport { request in
+            if request.url?.absoluteString == "http://127.0.0.1:8080/v1/audio/transcriptions" {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (Data("hello from messages".utf8), response)
+            }
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/chat/completions")
+            let body = #"{"choices":[{"message":{"content":"Hello from Messages."}}]}"#
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(body.utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState,
+            usageEventStore: usageStore
+        )
+        controller.delegate = spy
+        let tempURL = try temporaryAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        await controller.transcribe(
+            audioURL: tempURL,
+            format: .wav,
+            appContext: CleanupAppContext(displayName: "Messages", bundleIdentifier: "com.apple.MobileSMS")
+        )
+
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "Hello from Messages.")
+        XCTAssertEqual(usageStore.events.count, 1)
+        let event = try XCTUnwrap(usageStore.events.first)
+        XCTAssertEqual(event.wordCount, 3)
+        XCTAssertEqual(event.sourceAppName, "Messages")
+        XCTAssertEqual(event.sourceBundleIdentifier, "com.apple.MobileSMS")
+        XCTAssertEqual(event.cleanupGroupID, "messages")
+        XCTAssertEqual(event.cleanupGroupName, "Messages")
+        XCTAssertEqual(event.processingMode, .cleanUp)
+        XCTAssertEqual(event.cleanupProviderID, .customOpenAICompatibleChat)
+        XCTAssertEqual(event.cleanupModel, "messages-cleanup-model")
+        XCTAssertFalse(event.cleanupFailed)
+        XCTAssertEqual(event.outcome, .success)
+    }
+
+    func testTranscribeRecordsCleanupFailedFallbackUsageEvent() async throws {
+        try KeychainHelper.saveCleanupApiKey("cleanup-secret", for: .customOpenAICompatibleChat)
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.setCleanupGroups([
+            CleanupGroup.defaultGroup(
+                processingMode: .cleanUp,
+                cleanupProviderID: .customOpenAICompatibleChat,
+                cleanupModel: "fallback-cleanup-model",
+                customCleanupBaseURL: "http://127.0.0.1:11434/v1"
+            )
+        ])
+        let usageStore = UsageEventStore(storageDirectory: temporaryUsageDirectory())
+        let transport = ControllerStubTransport { request in
+            if request.url?.absoluteString == "http://127.0.0.1:8080/v1/audio/transcriptions" {
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (Data("raw fallback transcript".utf8), response)
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
+            return (Data("cleanup failed".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState,
+            usageEventStore: usageStore
+        )
+        controller.delegate = spy
+        let tempURL = try temporaryAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        await controller.transcribe(audioURL: tempURL, format: .wav)
+
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "raw fallback transcript")
+        XCTAssertEqual(spy.didTranscribeCalls.first?.cleanupFailed, true)
+        let event = try XCTUnwrap(usageStore.events.first)
+        XCTAssertTrue(event.cleanupFailed)
+        XCTAssertEqual(event.outcome, .cleanupFailedFallback)
+        XCTAssertEqual(event.cleanupProviderID, .customOpenAICompatibleChat)
+        XCTAssertEqual(event.cleanupModel, "fallback-cleanup-model")
+        XCTAssertEqual(event.processingMode, .cleanUp)
+        XCTAssertEqual(event.wordCount, 3)
+    }
+
+    func testTranscribeRecordsRawUsageEventWithoutCleanupProviderRequest() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.setCleanupGroups([
+            CleanupGroup.defaultGroup(processingMode: .cleanUp),
+            CleanupGroup(
+                id: "terminal",
+                name: "Terminal",
+                sortOrder: 1,
+                appMatchers: [
+                    CleanupAppMatcher(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+                ],
+                processingMode: .raw
+            )
+        ])
+        let usageStore = UsageEventStore(storageDirectory: temporaryUsageDirectory())
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("terminal raw words".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState,
+            usageEventStore: usageStore
+        )
+        controller.delegate = spy
+        let tempURL = try temporaryAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        await controller.transcribe(
+            audioURL: tempURL,
+            format: .wav,
+            appContext: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+        )
+
+        XCTAssertEqual(transport.requests.count, 1)
+        let event = try XCTUnwrap(usageStore.events.first)
+        XCTAssertEqual(event.processingMode, .raw)
+        XCTAssertNil(event.cleanupProviderID)
+        XCTAssertNil(event.cleanupModel)
+        XCTAssertEqual(event.cleanupGroupID, "terminal")
+        XCTAssertEqual(event.wordCount, 3)
+    }
+
+    func testTranscribeDoesNotRecordUsageWhenMetricsDisabled() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.usageMetricsEnabled = false
+        let usageStore = UsageEventStore(storageDirectory: temporaryUsageDirectory())
+        let transport = ControllerStubTransport { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("disabled metrics transcript".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState,
+            usageEventStore: usageStore
+        )
+        controller.delegate = spy
+        let tempURL = try temporaryAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        await controller.transcribe(audioURL: tempURL, format: .wav)
+
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "disabled metrics transcript")
+        XCTAssertTrue(usageStore.events.isEmpty)
+    }
+
+    func testUsageStoreFailureDoesNotBlockSuccessfulTranscription() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        let blockedFile = keychainStorageDirectory.appendingPathComponent("not-a-directory")
+        try Data([0x00]).write(to: blockedFile)
+        let usageStore = UsageEventStore(storageDirectory: blockedFile)
+        let transport = ControllerStubTransport { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("still returns transcript".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState,
+            usageEventStore: usageStore
+        )
+        controller.delegate = spy
+        let tempURL = try temporaryAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        await controller.transcribe(audioURL: tempURL, format: .wav)
+
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "still returns transcript")
+        XCTAssertEqual(spy.didFailCalls.count, 0)
+        XCTAssertEqual(usageStore.lastError, .saveFailed)
+    }
+
     func testLocalWhisperRetryDoesNotSendSharedOpenAICompatibleApiKey() async throws {
         try KeychainHelper.save(apiKey: "custom-compatible-key", for: .openAICompatible)
         appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
@@ -780,5 +1108,18 @@ final class TranscriptionControllerTests: XCTestCase {
         // didStart should be fired first regardless of outcome
         XCTAssertEqual(spy.didStartCalls.count, 1)
         XCTAssertEqual(spy.didStartCalls.first, tempURL)
+    }
+
+    private func temporaryAudioFile() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("wav")
+        try Data([0x00]).write(to: url)
+        return url
+    }
+
+    private func temporaryUsageDirectory() -> URL {
+        keychainStorageDirectory
+            .appendingPathComponent("usage-\(UUID().uuidString)", isDirectory: true)
     }
 }

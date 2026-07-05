@@ -20,6 +20,41 @@ final class PasteTargetTests: XCTestCase {
         XCTAssertNil(target.windowElement)
     }
 
+    func testManualInitBuildsCleanupAppContext() {
+        let target = PasteTarget(
+            windowElement: nil,
+            windowID: nil,
+            pid: 12345,
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            appPath: "/System/Applications/Utilities/Terminal.app"
+        )
+
+        XCTAssertEqual(
+            target.cleanupAppContext,
+            CleanupAppContext(
+                displayName: "Terminal",
+                bundleIdentifier: "com.apple.Terminal",
+                appPath: "/System/Applications/Utilities/Terminal.app"
+            )
+        )
+    }
+
+    func testDescriptionOmitsAppPath() {
+        let target = PasteTarget(
+            windowElement: nil,
+            windowID: 7,
+            pid: 12345,
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            appPath: "/System/Applications/Utilities/Terminal.app"
+        )
+
+        XCTAssertTrue(target.description.contains("Terminal"))
+        XCTAssertTrue(target.description.contains("com.apple.Terminal"))
+        XCTAssertFalse(target.description.contains("/System/Applications/Utilities/Terminal.app"))
+    }
+
     func testTargetWithZeroPidIsInvalid() {
         let target = PasteTarget(windowElement: nil, windowID: nil, pid: 0, appName: "")
         XCTAssertFalse(target.isValid)

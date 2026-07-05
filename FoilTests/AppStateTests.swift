@@ -97,6 +97,8 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupPreferredTerms")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupVocabularyCorrections")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupVocabularyTerms")
+        UserDefaults.standard.removeObject(forKey: "cleanupGroups")
+        UserDefaults.standard.removeObject(forKey: "usageMetricsEnabled")
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
@@ -129,6 +131,21 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertFalse(state.pauseBrowserMediaWhileRecording)
         XCTAssertEqual(state.otherAudioPolicyDiagnosticDescription, "unaffected")
+    }
+
+    func testUsageMetricsEnabledDefaultsToTrue() {
+        let state = AppState()
+
+        XCTAssertTrue(state.usageMetricsEnabled)
+    }
+
+    func testUsageMetricsEnabledPersists() {
+        let state = AppState()
+        state.usageMetricsEnabled = false
+
+        let reloaded = AppState()
+
+        XCTAssertFalse(reloaded.usageMetricsEnabled)
     }
 
     func testOtherAudioPolicyPreservesPersistedBrowserMediaOptIn() {
@@ -1401,6 +1418,172 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(reloaded.transcriptProcessingMode, .cleanUp)
         XCTAssertEqual(UserDefaults.standard.string(forKey: "transcriptProcessingMode"), "cleanUp")
+    }
+
+    func testLegacyRawSettingsMigrateToRawDefaultCleanupGroup() {
+        UserDefaults.standard.set("raw", forKey: "transcriptProcessingMode")
+        UserDefaults.standard.set("groq", forKey: "transcriptCleanupProvider")
+        UserDefaults.standard.set("legacy-groq-model", forKey: "transcriptCleanupModel")
+
+        let state = AppState()
+        let defaultGroup = state.defaultCleanupGroup
+
+        XCTAssertEqual(state.cleanupGroups.count, 1)
+        XCTAssertEqual(defaultGroup.id, CleanupGroup.defaultGroupID)
+        XCTAssertTrue(defaultGroup.isDefault)
+        XCTAssertTrue(defaultGroup.isEnabled)
+        XCTAssertEqual(defaultGroup.processingMode, .raw)
+        XCTAssertEqual(defaultGroup.cleanupProviderID, .groq)
+        XCTAssertEqual(defaultGroup.cleanupModel, "legacy-groq-model")
+        XCTAssertEqual(state.resolveCleanupGroup(for: nil).group.id, CleanupGroup.defaultGroupID)
+        XCTAssertEqual(state.resolveCleanupGroup(for: nil).provider.id, .none)
+        XCTAssertNotNil(UserDefaults.standard.data(forKey: "cleanupGroups"))
+    }
+
+    func testLegacyCleanupSettingsMigrateToCleanupDefaultGroup() {
+        UserDefaults.standard.set("cleanUp", forKey: "transcriptProcessingMode")
+        UserDefaults.standard.set("custom-openai-compatible-chat", forKey: "transcriptCleanupProvider")
+        UserDefaults.standard.set("http://localhost:11434/v1", forKey: "customTranscriptCleanupBaseURL")
+        UserDefaults.standard.set("mistral-small", forKey: "customTranscriptCleanupModel")
+        UserDefaults.standard.set("Keep legal citations exact.", forKey: "customCleanupPrompt.cleanUp")
+
+        let state = AppState()
+        let defaultGroup = state.defaultCleanupGroup
+        let resolution = state.resolveCleanupGroup(for: nil)
+
+        XCTAssertEqual(defaultGroup.id, CleanupGroup.defaultGroupID)
+        XCTAssertTrue(defaultGroup.isDefault)
+        XCTAssertTrue(defaultGroup.isEnabled)
+        XCTAssertEqual(defaultGroup.processingMode, .cleanUp)
+        XCTAssertEqual(defaultGroup.cleanupProviderID, .customOpenAICompatibleChat)
+        XCTAssertEqual(defaultGroup.cleanupModel, "mistral-small")
+        XCTAssertEqual(defaultGroup.customCleanupBaseURL, "http://localhost:11434/v1")
+        XCTAssertEqual(defaultGroup.customPrompt, "Keep legal citations exact.")
+        XCTAssertEqual(resolution.provider.id, .customOpenAICompatibleChat)
+        XCTAssertEqual(resolution.provider.model, "mistral-small")
+        XCTAssertEqual(resolution.provider.chatCompletionsEndpoint?.absoluteString, "http://localhost:11434/v1/chat/completions")
+        XCTAssertEqual(resolution.customPrompt, "Keep legal citations exact.")
+    }
+
+    func testAddAppMatcherMovesMatcherToTargetGroupIndependentOfGroupOrder() {
+        let state = AppState()
+        let terminalMatcher = CleanupAppMatcher(
+            displayName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal"
+        )
+        let targetGroup = CleanupGroup(
+            id: "agentic-ides",
+            name: "Agentic IDEs",
+            sortOrder: 1,
+            processingMode: .raw
+        )
+        let previousGroup = CleanupGroup(
+            id: "messaging",
+            name: "Messaging",
+            sortOrder: 2,
+            appMatchers: [terminalMatcher],
+            processingMode: .cleanUp
+        )
+        state.setCleanupGroups([
+            CleanupGroup.defaultGroup(),
+            targetGroup,
+            previousGroup
+        ])
+
+        state.addAppMatcher(terminalMatcher, toCleanupGroupID: targetGroup.id)
+
+        let updatedTargetGroup = state.cleanupGroups.first { $0.id == targetGroup.id }
+        let updatedPreviousGroup = state.cleanupGroups.first { $0.id == previousGroup.id }
+        let resolution = state.resolveCleanupGroup(
+            for: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+        )
+        XCTAssertEqual(updatedTargetGroup?.appMatchers.map(\.membershipKey), [terminalMatcher.membershipKey])
+        XCTAssertEqual(updatedPreviousGroup?.appMatchers, [])
+        XCTAssertEqual(resolution.group.id, targetGroup.id)
+    }
+
+    func testCleanupGroupCRUDPreservesDefaultAndPersistsCanonicalGroups() {
+        let state = AppState()
+
+        let created = state.createCleanupGroup(named: "Agentic IDEs")
+        state.updateCleanupGroup(id: created.id) { group in
+            group.processingMode = .cleanUp
+            group.cleanupProviderID = .customOpenAICompatibleChat
+            group.cleanupModel = "qwen2.5-coder"
+            group.customCleanupBaseURL = " http://127.0.0.1:11434/v1 "
+            group.customPrompt = " Keep commands literal. "
+        }
+
+        let updated = state.cleanupGroups.first { $0.id == created.id }
+        XCTAssertEqual(updated?.name, "Agentic IDEs")
+        XCTAssertEqual(updated?.processingMode, .cleanUp)
+        XCTAssertEqual(updated?.cleanupProviderID, .customOpenAICompatibleChat)
+        XCTAssertEqual(updated?.cleanupModel, "qwen2.5-coder")
+        XCTAssertEqual(updated?.customCleanupBaseURL, "http://127.0.0.1:11434/v1")
+        XCTAssertEqual(updated?.customPrompt, "Keep commands literal.")
+
+        let reloaded = AppState()
+        XCTAssertNotNil(reloaded.cleanupGroups.first { $0.id == created.id })
+        XCTAssertEqual(reloaded.cleanupGroups.first?.id, CleanupGroup.defaultGroupID)
+        XCTAssertFalse(reloaded.deleteCleanupGroup(id: CleanupGroup.defaultGroupID))
+        XCTAssertTrue(reloaded.deleteCleanupGroup(id: created.id))
+        XCTAssertEqual(reloaded.cleanupGroups.map(\.id), [CleanupGroup.defaultGroupID])
+    }
+
+    func testDeletingCleanupGroupRemovesOwnedAppsAndFallsBackToDefault() {
+        let state = AppState()
+        let matcher = CleanupAppMatcher(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+        let group = CleanupGroup(
+            id: "terminal",
+            name: "Terminal",
+            sortOrder: 1,
+            appMatchers: [matcher],
+            processingMode: .cleanUp
+        )
+        state.setCleanupGroups([
+            CleanupGroup.defaultGroup(processingMode: .raw),
+            group
+        ])
+
+        XCTAssertTrue(state.deleteCleanupGroup(id: group.id))
+
+        XCTAssertNil(state.cleanupGroups.first { $0.id == group.id })
+        let resolution = state.resolveCleanupGroup(
+            for: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+        )
+        XCTAssertEqual(resolution.group.id, CleanupGroup.defaultGroupID)
+        XCTAssertEqual(resolution.processingMode, .raw)
+    }
+
+    func testRemoveAppMatcherFromCleanupGroupLeavesOtherGroupsUntouched() {
+        let state = AppState()
+        let terminalMatcher = CleanupAppMatcher(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+        let messagesMatcher = CleanupAppMatcher(displayName: "Messages", bundleIdentifier: "com.apple.MobileSMS")
+        state.setCleanupGroups([
+            CleanupGroup.defaultGroup(),
+            CleanupGroup(
+                id: "agentic-ides",
+                name: "Agentic IDEs",
+                sortOrder: 1,
+                appMatchers: [terminalMatcher],
+                processingMode: .raw
+            ),
+            CleanupGroup(
+                id: "messaging",
+                name: "Messaging",
+                sortOrder: 2,
+                appMatchers: [messagesMatcher],
+                processingMode: .cleanUp
+            )
+        ])
+
+        state.removeAppMatcher(membershipKey: terminalMatcher.membershipKey!, fromCleanupGroupID: "agentic-ides")
+
+        XCTAssertEqual(state.cleanupGroups.first { $0.id == "agentic-ides" }?.appMatchers, [])
+        XCTAssertEqual(
+            state.cleanupGroups.first { $0.id == "messaging" }?.appMatchers.map(\.membershipKey),
+            [messagesMatcher.membershipKey]
+        )
     }
 
     func testPreferredTermsNormalizePersistAndReload() {

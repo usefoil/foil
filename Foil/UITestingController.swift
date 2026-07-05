@@ -88,6 +88,7 @@ final class UITestingController {
     private let appState: AppState
     private let queuedPasteQueue: QueuedPasteQueue
     private let history: TranscriptionHistory
+    private let usageEventStore: UsageEventStore
     private let pasteController: PasteController
 
     /// Starts the transcribing spinner animation in the host (AppDelegate).
@@ -146,6 +147,7 @@ final class UITestingController {
         appState: AppState,
         queuedPasteQueue: QueuedPasteQueue,
         history: TranscriptionHistory,
+        usageEventStore: UsageEventStore,
         pasteController: PasteController,
         startTranscribingAnimation: @escaping () -> Void,
         stopTranscribingAnimation: @escaping () -> Void,
@@ -167,6 +169,7 @@ final class UITestingController {
         self.appState = appState
         self.queuedPasteQueue = queuedPasteQueue
         self.history = history
+        self.usageEventStore = usageEventStore
         self.pasteController = pasteController
         self.startTranscribingAnimation = startTranscribingAnimation
         self.stopTranscribingAnimation = stopTranscribingAnimation
@@ -198,8 +201,11 @@ final class UITestingController {
 
         if args.contains("--reset-defaults") {
             history.clear()
+            _ = usageEventStore.deleteAll()
             appState.soundEffectsEnabled = true
             appState.keepOnClipboard = false
+            appState.usageMetricsEnabled = true
+            usageEventStore.isEnabled = true
             appState.asyncPasteEnabled = false
             appState.queuedPasteEnabled = false
             appState.queuedPasteMode = .stepThrough
@@ -255,6 +261,24 @@ final class UITestingController {
             history.addSuccess(text: "Seeded transcript for UI testing.", sourceAppName: "Messages")
             history.addSuccess(text: "Second searchable transcript.", sourceAppName: "Mail")
             history.addFailure(error: "Seeded network failure", audioFileURL: nil)
+        }
+
+        if args.contains("--seed-usage-events") {
+            seedUsageEvents()
+        }
+
+        if args.contains("--seed-usage-empty") {
+            _ = usageEventStore.deleteAll()
+            appState.usageMetricsEnabled = true
+            usageEventStore.isEnabled = true
+        }
+
+        if args.contains("--seed-usage-disabled") {
+            if usageEventStore.events.isEmpty {
+                seedUsageEvents()
+            }
+            appState.usageMetricsEnabled = false
+            usageEventStore.isEnabled = false
         }
 
         if args.contains("--seed-local-provider") {
@@ -433,6 +457,53 @@ final class UITestingController {
             DiagnosticLog.write("E2E: stopping simulated recording")
             onStopRecording()
         }
+    }
+
+    private func seedUsageEvents() {
+        _ = usageEventStore.deleteAll()
+        appState.usageMetricsEnabled = true
+        usageEventStore.isEnabled = true
+        let events = [
+            UsageEvent(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000101")!,
+                timestamp: usageSeedDate("2026-01-05T10:00:00Z"),
+                wordCount: 120,
+                sourceAppName: "Mail",
+                sourceBundleIdentifier: "com.apple.mail",
+                cleanupGroupID: CleanupGroup.defaultGroupID,
+                cleanupGroupName: CleanupGroup.defaultGroupName,
+                processingMode: .cleanUp,
+                cleanupProviderID: .groq,
+                cleanupModel: "llama-3.1-8b-instant"
+            ),
+            UsageEvent(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000102")!,
+                timestamp: usageSeedDate("2026-01-06T11:00:00Z"),
+                wordCount: 80,
+                sourceAppName: "Terminal",
+                sourceBundleIdentifier: "com.apple.Terminal",
+                cleanupGroupID: "terminal",
+                cleanupGroupName: "Terminal",
+                processingMode: .raw
+            ),
+            UsageEvent(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000103")!,
+                timestamp: usageSeedDate("2026-01-06T12:00:00Z"),
+                wordCount: 40,
+                sourceAppName: "Terminal",
+                sourceBundleIdentifier: "com.apple.Terminal",
+                cleanupGroupID: "terminal",
+                cleanupGroupName: "Terminal",
+                processingMode: .raw
+            )
+        ]
+        for event in events {
+            _ = usageEventStore.record(event)
+        }
+    }
+
+    private func usageSeedDate(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value) ?? Date(timeIntervalSince1970: 0)
     }
 
     private func configureE2EProviderOverrides() {
@@ -1241,6 +1312,7 @@ final class UITestingController {
             appState: appState,
             queuedPasteQueue: queuedPasteQueue,
             history: history,
+            usageEventStore: usageEventStore,
             initialSelection: selection,
             onRetryRecord: { [weak self] record in self?.onRetryRecord(record) },
             onPasteText: { [weak self] text in self?.onPasteText(text) },

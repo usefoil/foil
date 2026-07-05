@@ -84,6 +84,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(homeNavItem.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertEqual(homeNavItem.value as? String, "Selected")
         XCTAssertTrue(elementExists(id: "appShell.nav.history", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "appShell.nav.insights", timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "appShell.nav.settings.general", timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "appShell.nav.settings.recording", timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "appShell.nav.settings.transcription", timeout: 2), app.debugDescription)
@@ -102,6 +103,90 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["Seeded transcript for UI testing."].exists, app.debugDescription)
         XCTAssertFalse(app.staticTexts["Seeded network failure"].exists, app.debugDescription)
+    }
+
+    func testUsageInsightsShowsPopulatedMetricsFromUsageEventStore() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-usage-events"
+        ])
+        openAppShellInsights()
+
+        XCTAssertTrue(elementExists(id: "appShell.insights", timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Total words").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("240").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Sessions").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("3").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("6 min").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Daily Trend").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Top Apps").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Terminal").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Mail").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(staticTextLabelOrValueContaining("recommend", in: app).exists, app.debugDescription)
+        add(XCTAttachment(screenshot: app.screenshot()))
+    }
+
+    func testUsageInsightsShowsEmptyDisabledAndDeleteStates() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-usage-empty"
+        ])
+        openAppShellInsights()
+
+        XCTAssertTrue(elementExists(id: "usageInsights.emptyState", timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["No usage metrics yet"].exists, app.debugDescription)
+
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-usage-disabled"
+        ])
+        openAppShellInsights()
+
+        XCTAssertTrue(elementExists(id: "usageInsights.disabledState", timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("240").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Future usage metrics are paused").waitForExistence(timeout: 2), app.debugDescription)
+        add(XCTAttachment(screenshot: app.screenshot()))
+
+        clickElement(app.buttons["usageInsights.deleteButton"])
+        XCTAssertTrue(elementExists(id: "usageInsights.emptyState", timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["No usage metrics yet"].exists, app.debugDescription)
+        XCTAssertTrue(elementExists(id: "usageInsights.disabledState", timeout: 2), app.debugDescription)
+
+        let storageNavItem = app.descendants(matching: .any)["appShell.nav.settings.storage"]
+        XCTAssertTrue(storageNavItem.waitForExistence(timeout: 4), app.debugDescription)
+        clickElement(storageNavItem)
+        XCTAssertTrue(elementExists(id: "settings.usageMetricsToggle", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.deleteUsageMetricsButton", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.historyRetentionPicker", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.clearHistoryButton", timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Retained usage sessions"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Stored records"].exists, app.debugDescription)
+        add(XCTAttachment(screenshot: app.screenshot()))
+    }
+
+    func testUsageMetricsSettingsDeleteRefreshesRetainedCount() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-usage-events",
+            "--settings-tab-privacy"
+        ])
+        openSettingsPanel()
+
+        let retainedSessions = app.descendants(matching: .any)["settings.usageMetricsRetainedSessions"]
+        XCTAssertTrue(retainedSessions.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementLabelOrValueContains(retainedSessions, "3"), app.debugDescription)
+
+        clickElement(app.buttons["settings.deleteUsageMetricsButton"])
+
+        XCTAssertTrue(
+            waitForElementLabelOrValue(retainedSessions, containing: "0", timeout: 4),
+            app.debugDescription
+        )
+        XCTAssertFalse(app.buttons["settings.deleteUsageMetricsButton"].isEnabled, app.debugDescription)
     }
 
     func testAppShellOpensHistoryWithSeededRecords() {
@@ -291,7 +376,7 @@ final class FoilUITests: XCTestCase {
         )
         assertAppShellSettingsPane(
             navID: "appShell.nav.settings.cleanup",
-            requiredID: "settings.activeCleanupModePicker"
+            requiredID: "settings.cleanupGroups.root"
         )
         assertAppShellSettingsPane(
             navID: "appShell.nav.settings.paste",
@@ -836,75 +921,70 @@ final class FoilUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Cleanup"].exists, app.debugDescription)
         XCTAssertEqual(app.buttons["Cleanup"].value as? String, "Selected")
-        XCTAssertTrue(activeCleanupModePicker.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(activeCleanupModePickerValueContains("Raw transcript"), app.debugDescription)
-        XCTAssertFalse(elementExists(id: "settings.cleanupProviderPicker", timeout: 1), app.debugDescription)
-        XCTAssertFalse(elementExists(id: "settings.cleanupPromptEditor", timeout: 1), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.vocabularySection", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.preferredTermsEditor", timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePicker.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePickerValueContains("Raw transcript"), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "settings.cleanupGroups.providerPicker", timeout: 1), app.debugDescription)
+        XCTAssertFalse(staticTextLabelOrValueContaining("Prompt").exists, app.debugDescription)
+        XCTAssertFalse(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Vocabulary").waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Preferred terms").waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("applied when you choose Cleanup profile").waitForExistence(timeout: 2), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup", "--seed-cleanup-formatting-enabled"])
         openSettingsPanel()
 
-        XCTAssertTrue(activeCleanupModePicker.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePicker.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePickerValueContains("Cleanup profile"), app.debugDescription)
 
-        XCTAssertTrue(elementExists(id: "settings.cleanupProviderPicker", timeout: 4), app.debugDescription)
-        XCTAssertTrue((app.popUpButtons["settings.cleanupModelPicker"].value as? String) == "Llama 3.1 8B Instant" || app.staticTexts["Llama 3.1 8B Instant"].exists, app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.cleanupPromptEditor", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.resetCleanupPromptButton", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.vocabularySection", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.vocabularyCorrectionWrittenAs", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.vocabularyCorrectionCorrectVersion", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.addVocabularyCorrectionButton", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.preferredTermsEditor", timeout: 4), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("transcript text is sent to the cleanup provider").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(cleanupGroupProviderPicker.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupGroqModelPickerValueContains("Llama 3.1 8B Instant"), app.debugDescription)
+        XCTAssertTrue(cleanupPromptEditor.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupResetPromptButton.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Vocabulary").waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.textFields["Foil wrote"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.textFields["Use this instead"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.buttons["Add correction"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Preferred terms").waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Fix punctuation, capitalization, filler, stutters").waitForExistence(timeout: 2), app.debugDescription)
     }
 
     func testActiveCleanupModeSelectorPersistsAndScreenshotsResult() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup"])
         openAppShellCleanupSettings()
 
-        XCTAssertTrue(activeCleanupModePicker.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(activeCleanupModePickerValueContains("Raw transcript"), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePicker.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePickerValueContains("Raw transcript"), app.debugDescription)
         writeActiveModeScreenshot(name: "selector-raw")
 
         selectActiveCleanupMode("Cleanup profile")
-        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePickerValueContains("Cleanup profile"), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Fix punctuation, capitalization, filler, stutters").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.cleanupProviderPicker", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.cleanupPromptEditor", timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupProviderPicker.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupPromptEditor.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
         writeActiveModeScreenshot(name: "selector-cleanup-profile")
 
         relaunchWithArguments(["--ui-testing", "--seed-history", "--settings-tab-cleanup"])
         openAppShellCleanupSettings()
-        XCTAssertTrue(activeCleanupModePicker.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePicker.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePickerValueContains("Cleanup profile"), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--seed-history", "--simulate-success-after-launch"])
         XCTAssertTrue(staticTextLabelOrValueContaining("Mock async paste transcript").waitForExistence(timeout: 6), app.debugDescription)
         writeActiveModeScreenshot(name: "cleanup-profile-result")
     }
 
-    func testHomeActiveCleanupModeSelectorDrivesSimulatedOutput() {
+    func testHomeShowsCleanupGroupStatusWithoutGlobalModeSelector() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
         openAppShellHome()
 
-        let pickerID = "appShell.home.activeCleanupModePicker"
-        XCTAssertTrue(cleanupModePicker(id: pickerID).waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Raw transcript"), app.debugDescription)
-
-        selectCleanupMode("Cleanup profile", pickerID: pickerID)
-        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Cleanup profile"), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Fix punctuation, capitalization, filler, stutters").waitForExistence(timeout: 2), app.debugDescription)
-
-        relaunchWithArguments(["--ui-testing", "--seed-history", "--simulate-success-after-launch"])
-        XCTAssertTrue(staticTextLabelOrValueContaining("Mock async paste transcript").waitForExistence(timeout: 6), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "appShell.home.cleanupGroupStatus", timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Default cleanup group").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Default for unassigned apps").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "appShell.home.activeCleanupModePicker", timeout: 1), app.debugDescription)
     }
 
-    func testHomeActiveCleanupModeSelectorShowsUnavailableCleanupFallback() {
+    func testHomeCleanupGroupStatusShowsUnavailableCleanupFallback() {
         relaunchWithArguments([
             "--ui-testing",
             "--reset-defaults",
@@ -914,9 +994,7 @@ final class FoilUITests: XCTestCase {
         ])
         openAppShellHome()
 
-        let pickerID = "appShell.home.activeCleanupModePicker"
-        XCTAssertTrue(cleanupModePicker(id: pickerID).waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "appShell.home.cleanupGroupStatus", timeout: 4), app.debugDescription)
         XCTAssertTrue(
             staticTextLabelOrValueContaining("cleanup is unavailable").waitForExistence(timeout: 2),
             app.debugDescription
@@ -927,19 +1005,13 @@ final class FoilUITests: XCTestCase {
         )
     }
 
-    func testMenuBarActiveCleanupModeSelectorDrivesSimulatedOutput() {
+    func testMenuBarShowsCleanupGroupStatusWithoutGlobalModeSelector() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
 
-        let pickerID = "menu.recording.activeCleanupModePicker"
-        XCTAssertTrue(cleanupModePicker(id: pickerID).waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Raw transcript"), app.debugDescription)
-
-        selectCleanupMode("Cleanup profile", pickerID: pickerID)
-        XCTAssertTrue(cleanupModePickerValueContains(id: pickerID, "Cleanup profile"), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Fix punctuation, capitalization, filler, stutters").waitForExistence(timeout: 2), app.debugDescription)
-
-        relaunchWithArguments(["--ui-testing", "--seed-history", "--simulate-success-after-launch"])
-        XCTAssertTrue(staticTextLabelOrValueContaining("Mock async paste transcript").waitForExistence(timeout: 6), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "menu.recording.cleanupGroupStatus", timeout: 4), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Default cleanup group").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Default for unassigned apps").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "menu.recording.activeCleanupModePicker", timeout: 1), app.debugDescription)
     }
 
     func testActiveCleanupPromptEditorPersistsAndResetsCustomPrompt() {
@@ -963,11 +1035,11 @@ final class FoilUITests: XCTestCase {
 
         relaunchWithArguments(["--ui-testing", "--seed-history", "--settings-tab-cleanup"])
         openAppShellCleanupSettings()
-        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePickerValueContains("Cleanup profile"), app.debugDescription)
         XCTAssertTrue(cleanupPromptEditorValueContains("CUSTOM-1:"), app.debugDescription)
         XCTAssertFalse(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
 
-        let resetButton = app.buttons["settings.resetCleanupPromptButton"]
+        let resetButton = cleanupGroupResetPromptButton
         XCTAssertTrue(resetButton.waitForExistence(timeout: 4), app.debugDescription)
         clickElement(resetButton)
         XCTAssertTrue(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
@@ -993,23 +1065,18 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Cleanup"].exists, app.debugDescription)
         XCTAssertEqual(app.buttons["Cleanup"].value as? String, "Selected")
 
-        XCTAssertTrue(activeCleanupModePicker.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(activeCleanupModePickerValueContains("Cleanup profile"), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePicker.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupModePickerValueContains("Cleanup profile"), app.debugDescription)
 
-        XCTAssertTrue(elementExists(id: "settings.cleanupProviderPicker", timeout: 4), app.debugDescription)
+        XCTAssertTrue(cleanupGroupProviderPicker.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(
-            (app.popUpButtons["settings.openAICleanupModelPicker"].value as? String) == "GPT-5.4 mini"
+            cleanupGroupOpenAIModelPickerValueContains("GPT-5.4 mini")
                 || app.staticTexts["GPT-5.4 mini"].exists,
             app.debugDescription
         )
-        XCTAssertTrue(elementExists(id: "settings.testCleanupConnectionButton", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.openAICleanupAPIKey", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.saveOpenAICleanupAPIKeyButton", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.deleteOpenAICleanupAPIKeyButton", timeout: 4), app.debugDescription)
-        XCTAssertTrue(
-            staticTextLabelOrValueContaining("same OpenAI key used by OpenAI Whisper").waitForExistence(timeout: 2),
-            app.debugDescription
-        )
+        XCTAssertTrue(elementExists(id: "settings.cleanupGroups.openAIAPIKey", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.cleanupGroups.saveOpenAIAPIKeyButton", timeout: 4), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.cleanupGroups.deleteOpenAIAPIKeyButton", timeout: 4), app.debugDescription)
     }
 
     func testProviderQAOpenAIWhisperPresetShowsCloudSettings() {
@@ -1389,7 +1456,8 @@ final class FoilUITests: XCTestCase {
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup"])
         openSettingsPanel()
-        XCTAssertTrue(activeCleanupModePicker.exists)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Groups").waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.buttons["Add cleanup group"].waitForExistence(timeout: 4), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-experimental"])
         openSettingsPanel()
@@ -1759,6 +1827,7 @@ final class FoilUITests: XCTestCase {
         removeUITestStateSnapshot()
         removeUITestCommandInbox()
         removeOpenedURLRecord()
+        clearPendingAppShellSelection()
         app.launch()
         dismissSystemSetupAssistant()
 
@@ -1870,6 +1939,19 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(historyNavItem.value as? String, "Selected")
     }
 
+    private func openAppShellInsights() {
+        let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
+        XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)
+        openFoilButton.click()
+
+        let insightsNavItem = app.descendants(matching: .any)["appShell.nav.insights"]
+        XCTAssertTrue(insightsNavItem.waitForExistence(timeout: 4), app.debugDescription)
+        insightsNavItem.click()
+
+        XCTAssertTrue(elementExists(id: "appShell.insights", timeout: 4), app.debugDescription)
+        XCTAssertEqual(insightsNavItem.value as? String, "Selected")
+    }
+
     private func openAppShellHome() {
         let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
         XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)
@@ -1885,6 +1967,7 @@ final class FoilUITests: XCTestCase {
 
     private func openAppShellSettings(navID: String) {
         closeWindowIfPresent(named: "History")
+        setPendingAppShellSelection(navID: navID)
 
         let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
         if openFoilButton.waitForExistence(timeout: 2) {
@@ -1896,10 +1979,7 @@ final class FoilUITests: XCTestCase {
             activateAppForInteraction()
         }
         XCTAssertTrue(navItem.waitForExistence(timeout: 4), app.debugDescription)
-        clickElement(navItem)
-
-        XCTAssertTrue(elementExists(id: "appShell.preferences", timeout: 4), app.debugDescription)
-        XCTAssertEqual(navItem.value as? String, "Selected", app.debugDescription)
+        XCTAssertTrue(selectAppShellSettingsPane(navID: navID, timeout: 5), app.debugDescription)
         XCTAssertFalse(app.windows["Settings"].exists, app.debugDescription)
     }
 
@@ -1930,6 +2010,64 @@ final class FoilUITests: XCTestCase {
         return "appShell.nav.settings.transcription"
     }
 
+    private func setPendingAppShellSelection(navID: String) {
+        guard let section = appShellSectionRawValue(for: navID) else { return }
+        for domain in appShellSelectionDefaultsDomains {
+            runQuietProcess("/usr/bin/defaults", arguments: [
+                "write",
+                domain,
+                "FoilAppShell.pendingSelection",
+                section
+            ])
+        }
+    }
+
+    private func clearPendingAppShellSelection() {
+        for domain in appShellSelectionDefaultsDomains {
+            runQuietProcess("/usr/bin/defaults", arguments: [
+                "delete",
+                domain,
+                "FoilAppShell.pendingSelection"
+            ])
+        }
+    }
+
+    private var appShellSelectionDefaultsDomains: [String] {
+        [
+            "com.neonwatty.Foil",
+            "com.neonwatty.Foil.Dev"
+        ]
+    }
+
+    private func appShellSectionRawValue(for navID: String) -> String? {
+        switch navID {
+        case "appShell.nav.home":
+            return "home"
+        case "appShell.nav.insights":
+            return "insights"
+        case "appShell.nav.history":
+            return "history"
+        case "appShell.nav.settings.general":
+            return "general"
+        case "appShell.nav.settings.recording":
+            return "recording"
+        case "appShell.nav.settings.transcription":
+            return "transcription"
+        case "appShell.nav.settings.cleanup":
+            return "cleanup"
+        case "appShell.nav.settings.paste":
+            return "paste"
+        case "appShell.nav.settings.storage":
+            return "storage"
+        case "appShell.nav.settings.whatsNew":
+            return "whatsNew"
+        case "appShell.nav.settings.experimental":
+            return "experimental"
+        default:
+            return nil
+        }
+    }
+
     private func selectAppShellHistoryVocabularyToken(_ token: String) {
         let tokenElement = app.descendants(matching: .any)["Select \(token) for Vocabulary"]
         XCTAssertTrue(tokenElement.waitForExistence(timeout: 2), app.debugDescription)
@@ -1939,12 +2077,54 @@ final class FoilUITests: XCTestCase {
     private func assertAppShellSettingsPane(navID: String, requiredID: String) {
         let navItem = app.descendants(matching: .any)[navID]
         XCTAssertTrue(navItem.waitForExistence(timeout: 4), app.debugDescription)
-        navItem.click()
-
-        XCTAssertTrue(elementExists(id: "appShell.preferences", timeout: 4), app.debugDescription)
-        XCTAssertEqual(navItem.value as? String, "Selected", app.debugDescription)
-        XCTAssertTrue(elementExists(id: requiredID, timeout: 4), app.debugDescription)
+        XCTAssertTrue(
+            selectAppShellSettingsPane(navID: navID, requiredID: requiredID, timeout: 5),
+            app.debugDescription
+        )
         XCTAssertFalse(app.windows["Settings"].exists, app.debugDescription)
+    }
+
+    private func selectAppShellSettingsPane(
+        navID: String,
+        requiredID: String? = nil,
+        timeout: TimeInterval
+    ) -> Bool {
+        let navItem = app.descendants(matching: .any)[navID]
+        let deadline = Date().addingTimeInterval(timeout)
+
+        repeat {
+            if appShellSettingsPaneIsSelected(navItem: navItem, requiredID: requiredID) {
+                return true
+            }
+
+            if navItem.exists {
+                if navItem.isHittable {
+                    navItem.click()
+                } else {
+                    clickElementDirectly(navItem)
+                }
+            } else {
+                activateAppForInteraction()
+            }
+
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+
+        return appShellSettingsPaneIsSelected(navItem: navItem, requiredID: requiredID)
+    }
+
+    private func appShellSettingsPaneIsSelected(navItem: XCUIElement, requiredID: String?) -> Bool {
+        guard app.descendants(matching: .any)["appShell.preferences"].exists else {
+            return false
+        }
+        let value = String(describing: navItem.value ?? "")
+        guard value.contains("Selected") else {
+            return false
+        }
+        guard let requiredID else {
+            return true
+        }
+        return app.descendants(matching: .any)[requiredID].exists
     }
 
     private func openHistoryWindow() {
@@ -2199,6 +2379,27 @@ final class FoilUITests: XCTestCase {
         return (root ?? app).staticTexts.matching(predicate).firstMatch
     }
 
+    private func elementLabelOrValueContains(_ element: XCUIElement, _ text: String) -> Bool {
+        let label = String(describing: element.label)
+        let value = String(describing: element.value ?? "")
+        return label.contains(text) || value.contains(text)
+    }
+
+    private func waitForElementLabelOrValue(
+        _ element: XCUIElement,
+        containing text: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if element.exists && elementLabelOrValueContains(element, text) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return element.exists && elementLabelOrValueContains(element, text)
+    }
+
     private func replaceText(in element: XCUIElement, with text: String) {
         clickElement(element)
         NSPasteboard.general.clearContents()
@@ -2262,40 +2463,73 @@ final class FoilUITests: XCTestCase {
             : app.popUpButtons["menu.settings.transcriptionProviderPicker"]
     }
 
-    private var activeCleanupModePicker: XCUIElement {
-        cleanupModePicker(id: "settings.activeCleanupModePicker")
+    private var cleanupGroupModePicker: XCUIElement {
+        cleanupPopUpButton(
+            id: "settings.cleanupGroups.modePicker",
+            valueOptions: ["Raw transcript", "Cleanup profile"]
+        )
     }
 
-    private func activeCleanupModePickerValueContains(_ text: String) -> Bool {
-        cleanupModePickerValueContains(id: "settings.activeCleanupModePicker", text)
+    private var cleanupGroupProviderPicker: XCUIElement {
+        cleanupPopUpButton(
+            id: "settings.cleanupGroups.providerPicker",
+            valueOptions: ["Groq", "OpenAI", "Custom", "None"]
+        )
+    }
+
+    private func cleanupGroupGroqModelPickerValueContains(_ text: String) -> Bool {
+        let picker = cleanupPopUpButton(
+            id: "settings.cleanupGroups.groqModelPicker",
+            valueOptions: ["Llama 3.1 8B Instant", "Llama 3.3 70B Versatile"]
+        )
+        return elementValueContains(picker, text)
+    }
+
+    private func cleanupGroupOpenAIModelPickerValueContains(_ text: String) -> Bool {
+        let picker = cleanupPopUpButton(
+            id: "settings.cleanupGroups.openAIModelPicker",
+            valueOptions: ["GPT-5.4 mini", "GPT-5.4", "GPT-5.5"]
+        )
+        return elementValueContains(picker, text)
+    }
+
+    private func cleanupGroupModePickerValueContains(_ text: String) -> Bool {
+        elementValueContains(cleanupGroupModePicker, text)
     }
 
     private func cleanupModePicker(id: String) -> XCUIElement {
         if app.popUpButtons[id].exists {
             return app.popUpButtons[id]
         }
-        if let label = cleanupModePickerAccessibilityLabel(for: id),
-           app.popUpButtons[label].exists {
-            return app.popUpButtons[label]
-        }
         return app.descendants(matching: .any)[id]
-    }
-
-    private func cleanupModePickerAccessibilityLabel(for id: String) -> String? {
-        switch id {
-        case "appShell.home.activeCleanupModePicker":
-            "Home cleanup profile"
-        case "menu.recording.activeCleanupModePicker":
-            "Menu cleanup profile"
-        default:
-            nil
-        }
     }
 
     private func cleanupModePickerValueContains(id: String, _ text: String) -> Bool {
         let picker = cleanupModePicker(id: id)
-        let value = String(describing: picker.value ?? "")
+        return elementValueContains(picker, text)
+    }
+
+    private func elementValueContains(_ element: XCUIElement, _ text: String) -> Bool {
+        let value = String(describing: element.value ?? "")
         return value.contains(text) || app.staticTexts[text].exists || app.descendants(matching: .any)[text].exists
+    }
+
+    private func cleanupPopUpButton(id: String, valueOptions: [String]) -> XCUIElement {
+        if app.popUpButtons[id].exists {
+            return app.popUpButtons[id]
+        }
+        let identified = app.descendants(matching: .any)[id]
+        if identified.exists {
+            return identified
+        }
+        for option in valueOptions {
+            let predicate = NSPredicate(format: "value CONTAINS %@", option)
+            let matchingPicker = app.popUpButtons.matching(predicate).firstMatch
+            if matchingPicker.exists {
+                return matchingPicker
+            }
+        }
+        return app.popUpButtons[id]
     }
 
     private func cleanupPromptEditorValueContains(_ text: String) -> Bool {
@@ -2306,14 +2540,30 @@ final class FoilUITests: XCTestCase {
     }
 
     private var cleanupPromptEditor: XCUIElement {
-        if app.textViews["settings.cleanupPromptEditor"].exists {
-            return app.textViews["settings.cleanupPromptEditor"]
+        if app.textViews["settings.cleanupGroups.promptEditor"].exists {
+            return app.textViews["settings.cleanupGroups.promptEditor"]
         }
-        return app.descendants(matching: .any)["settings.cleanupPromptEditor"]
+        let promptPredicate = NSPredicate(
+            format: "value CONTAINS %@ OR label CONTAINS %@",
+            "Clean up the transcript",
+            "Clean up the transcript"
+        )
+        let promptEditor = app.textViews.matching(promptPredicate).firstMatch
+        if promptEditor.exists {
+            return promptEditor
+        }
+        return app.descendants(matching: .any)["settings.cleanupGroups.promptEditor"]
+    }
+
+    private var cleanupGroupResetPromptButton: XCUIElement {
+        if app.buttons["settings.cleanupGroups.resetPromptButton"].exists {
+            return app.buttons["settings.cleanupGroups.resetPromptButton"]
+        }
+        return app.buttons["Reset"].firstMatch
     }
 
     private func selectActiveCleanupMode(_ name: String) {
-        selectCleanupMode(name, pickerID: "settings.activeCleanupModePicker")
+        selectCleanupMode(name, pickerID: "settings.cleanupGroups.modePicker")
     }
 
     private func selectCleanupMode(_ name: String, pickerID: String) {
@@ -2657,7 +2907,7 @@ final class FoilUITests: XCTestCase {
                 app.descendants(matching: .any)["appShell.root"],
                 app.descendants(matching: .any)["appShell.preferences"],
                 app.descendants(matching: .any)["settings.root"],
-                activeCleanupModePicker
+                cleanupGroupModePicker
             ]
         }
         return [

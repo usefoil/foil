@@ -1,6 +1,6 @@
 import Foundation
 
-enum TranscriptProcessingMode: String, CaseIterable, Identifiable {
+enum TranscriptProcessingMode: String, CaseIterable, Codable, Identifiable {
     case raw
     case cleanUp
     case rewriteClearly
