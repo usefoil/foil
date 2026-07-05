@@ -80,6 +80,83 @@ struct CleanupAppMatcher: Codable, Equatable, Identifiable {
     }
 }
 
+enum RunningAppCandidatePolicy {
+    private static let foilBundleIdentifiers: Set<String> = [
+        AppBrand.productionBundleIdentifier.lowercased(),
+        AppBrand.developmentBundleIdentifier.lowercased(),
+        "com.neonwatty.FoilE2E".lowercased()
+    ]
+
+    private static let nonTextBundleIdentifiers: Set<String> = [
+        "com.apple.ActivityMonitor".lowercased(),
+        "com.apple.AppStore".lowercased(),
+        "com.apple.Console".lowercased(),
+        "com.apple.DiskUtility".lowercased(),
+        "com.apple.Preview".lowercased(),
+        "com.apple.finder".lowercased(),
+        "com.apple.Photos".lowercased(),
+        "com.apple.systempreferences".lowercased()
+    ]
+
+    private static let nonTextDisplayNames: Set<String> = [
+        "activity monitor",
+        "app store",
+        "console",
+        "disk utility",
+        "finder",
+        "foil",
+        "foil dev",
+        "photos",
+        "preview",
+        "system preferences",
+        "system settings"
+    ]
+
+    static func allows(
+        displayName: String,
+        bundleIdentifier: String?,
+        appPath: String?,
+        currentBundleIdentifier: String = AppBrand.bundleIdentifier
+    ) -> Bool {
+        let normalizedBundleIdentifier = bundleIdentifier?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalizedCurrentBundleIdentifier = currentBundleIdentifier
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if let normalizedBundleIdentifier,
+           normalizedBundleIdentifier == normalizedCurrentBundleIdentifier
+                || foilBundleIdentifiers.contains(normalizedBundleIdentifier)
+                || nonTextBundleIdentifiers.contains(normalizedBundleIdentifier) {
+            return false
+        }
+
+        let normalizedDisplayName = displayName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if nonTextDisplayNames.contains(normalizedDisplayName) {
+            return false
+        }
+
+        let appFileName = appPath
+            .map { URL(fileURLWithPath: $0).lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        if appFileName == "foil.app" || appFileName == "foil dev.app" {
+            return false
+        }
+
+        return true
+    }
+
+    static func allows(_ matcher: CleanupAppMatcher, currentBundleIdentifier: String = AppBrand.bundleIdentifier) -> Bool {
+        allows(
+            displayName: matcher.displayName,
+            bundleIdentifier: matcher.bundleIdentifier,
+            appPath: matcher.appPath,
+            currentBundleIdentifier: currentBundleIdentifier
+        )
+    }
+}
+
 struct CleanupGroup: Codable, Equatable, Identifiable {
     static let defaultGroupID = "default-unassigned-apps"
     static let defaultGroupName = "Default for unassigned apps"
