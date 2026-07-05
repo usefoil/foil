@@ -470,31 +470,89 @@ final class UITestingController {
                 wordCount: 120,
                 sourceAppName: "Mail",
                 sourceBundleIdentifier: "com.apple.mail",
-                cleanupGroupID: CleanupGroup.defaultGroupID,
-                cleanupGroupName: CleanupGroup.defaultGroupName,
+                cleanupGroupID: "writing-comms",
+                cleanupGroupName: "Writing and comms",
                 processingMode: .cleanUp,
                 cleanupProviderID: .groq,
                 cleanupModel: "llama-3.1-8b-instant"
             ),
             UsageEvent(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000102")!,
+                timestamp: usageSeedDate("2026-01-05T13:00:00Z"),
+                wordCount: 90,
+                sourceAppName: "Messages (iMessage)",
+                sourceBundleIdentifier: "com.apple.MobileSMS",
+                cleanupGroupID: "writing-comms",
+                cleanupGroupName: "Writing and comms",
+                processingMode: .cleanUp,
+                cleanupProviderID: .customOpenAICompatibleChat,
+                cleanupModel: "gpt-5.4-mini"
+            ),
+            UsageEvent(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000103")!,
                 timestamp: usageSeedDate("2026-01-06T11:00:00Z"),
                 wordCount: 80,
                 sourceAppName: "Terminal",
                 sourceBundleIdentifier: "com.apple.Terminal",
-                cleanupGroupID: "terminal",
-                cleanupGroupName: "Terminal",
+                cleanupGroupID: "terminal-workflows",
+                cleanupGroupName: "Terminal workflows",
                 processingMode: .raw
             ),
             UsageEvent(
-                id: UUID(uuidString: "00000000-0000-0000-0000-000000000103")!,
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000104")!,
                 timestamp: usageSeedDate("2026-01-06T12:00:00Z"),
                 wordCount: 40,
                 sourceAppName: "Terminal",
                 sourceBundleIdentifier: "com.apple.Terminal",
-                cleanupGroupID: "terminal",
-                cleanupGroupName: "Terminal",
+                cleanupGroupID: "terminal-workflows",
+                cleanupGroupName: "Terminal workflows",
                 processingMode: .raw
+            ),
+            UsageEvent(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000105")!,
+                timestamp: usageSeedDate("2026-01-06T15:00:00Z"),
+                wordCount: 110,
+                sourceAppName: "Ghostty",
+                sourceBundleIdentifier: "com.mitchellh.ghostty",
+                cleanupGroupID: "terminal-workflows",
+                cleanupGroupName: "Terminal workflows",
+                processingMode: .raw
+            ),
+            UsageEvent(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000106")!,
+                timestamp: usageSeedDate("2026-01-07T09:00:00Z"),
+                wordCount: 130,
+                sourceAppName: "Google Chrome",
+                sourceBundleIdentifier: "com.google.Chrome",
+                cleanupGroupID: "browser-research",
+                cleanupGroupName: "Browser research",
+                processingMode: .cleanUp,
+                cleanupProviderID: .groq,
+                cleanupModel: "llama-3.1-8b-instant"
+            ),
+            UsageEvent(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000107")!,
+                timestamp: usageSeedDate("2026-01-07T10:30:00Z"),
+                wordCount: 95,
+                sourceAppName: "Codex",
+                sourceBundleIdentifier: "com.openai.codex",
+                cleanupGroupID: "terminal-workflows",
+                cleanupGroupName: "Terminal workflows",
+                processingMode: .cleanUp,
+                cleanupProviderID: .customOpenAICompatibleChat,
+                cleanupModel: "gpt-5.4-mini"
+            ),
+            UsageEvent(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000108")!,
+                timestamp: usageSeedDate("2026-01-07T14:00:00Z"),
+                wordCount: 45,
+                sourceAppName: "Messages (iMessage)",
+                sourceBundleIdentifier: "com.apple.MobileSMS",
+                cleanupGroupID: "writing-comms",
+                cleanupGroupName: "Writing and comms",
+                processingMode: .cleanUp,
+                cleanupProviderID: .customOpenAICompatibleChat,
+                cleanupModel: "gpt-5.4-mini"
             )
         ]
         for event in events {

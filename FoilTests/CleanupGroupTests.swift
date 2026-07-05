@@ -2,6 +2,55 @@ import XCTest
 @testable import Foil
 
 final class CleanupGroupTests: XCTestCase {
+    func testRunningAppCandidatePolicyExcludesFoilAndCommonNonTextApps() {
+        let blockedCandidates: [(name: String, bundleID: String?, path: String?)] = [
+            ("Foil", "com.neonwatty.Foil", "/Applications/Foil.app"),
+            ("Foil Dev", "com.neonwatty.Foil.Dev", "/Applications/Foil Dev.app"),
+            ("Foil", nil, "/Users/me/DerivedData/Foil.app"),
+            ("Finder", "com.apple.finder", "/System/Library/CoreServices/Finder.app"),
+            ("Photos", "com.apple.Photos", "/System/Applications/Photos.app"),
+            ("System Settings", "com.apple.systempreferences", "/System/Applications/System Settings.app"),
+            ("Activity Monitor", "com.apple.ActivityMonitor", "/System/Applications/Utilities/Activity Monitor.app"),
+            ("Preview", "com.apple.Preview", "/System/Applications/Preview.app"),
+            ("App Store", "com.apple.AppStore", "/System/Applications/App Store.app")
+        ]
+
+        for candidate in blockedCandidates {
+            XCTAssertFalse(
+                RunningAppCandidatePolicy.allows(
+                    displayName: candidate.name,
+                    bundleIdentifier: candidate.bundleID,
+                    appPath: candidate.path,
+                    currentBundleIdentifier: "com.neonwatty.Foil"
+                ),
+                "\(candidate.name) should not be offered as a running app candidate"
+            )
+        }
+    }
+
+    func testRunningAppCandidatePolicyAllowsTextLikelyApps() {
+        let allowedCandidates: [(name: String, bundleID: String?, path: String?)] = [
+            ("Ghostty", "com.mitchellh.ghostty", "/Applications/Ghostty.app"),
+            ("Terminal", "com.apple.Terminal", "/System/Applications/Utilities/Terminal.app"),
+            ("Codex", "com.openai.codex", "/Applications/Codex.app"),
+            ("Google Chrome", "com.google.Chrome", "/Applications/Google Chrome.app"),
+            ("Messages (iMessage)", "com.apple.MobileSMS", "/System/Applications/Messages.app"),
+            ("Mail", "com.apple.mail", "/System/Applications/Mail.app")
+        ]
+
+        for candidate in allowedCandidates {
+            XCTAssertTrue(
+                RunningAppCandidatePolicy.allows(
+                    displayName: candidate.name,
+                    bundleIdentifier: candidate.bundleID,
+                    appPath: candidate.path,
+                    currentBundleIdentifier: "com.neonwatty.Foil"
+                ),
+                "\(candidate.name) should remain available when it is running"
+            )
+        }
+    }
+
     func testAppMatcherMembershipIsUniqueAcrossGroupsMostRecentWins() {
         let originalGroup = CleanupGroup(
             id: "agentic-ides",

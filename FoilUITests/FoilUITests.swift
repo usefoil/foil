@@ -115,13 +115,16 @@ final class FoilUITests: XCTestCase {
 
         XCTAssertTrue(elementExists(id: "appShell.insights", timeout: 4), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Total words").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("240").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("710").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Sessions").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("3").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("6 min").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("8").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("17 min").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Daily Trend").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Top Apps").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Messages (iMessage)").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Google Chrome").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Terminal").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Ghostty").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Mail").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertFalse(staticTextLabelOrValueContaining("recommend", in: app).exists, app.debugDescription)
         add(XCTAttachment(screenshot: app.screenshot()))
@@ -146,7 +149,7 @@ final class FoilUITests: XCTestCase {
         openAppShellInsights()
 
         XCTAssertTrue(elementExists(id: "usageInsights.disabledState", timeout: 4), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("240").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("710").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Future usage metrics are paused").waitForExistence(timeout: 2), app.debugDescription)
         add(XCTAttachment(screenshot: app.screenshot()))
 
@@ -178,7 +181,7 @@ final class FoilUITests: XCTestCase {
 
         let retainedSessions = app.descendants(matching: .any)["settings.usageMetricsRetainedSessions"]
         XCTAssertTrue(retainedSessions.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementLabelOrValueContains(retainedSessions, "3"), app.debugDescription)
+        XCTAssertTrue(elementLabelOrValueContains(retainedSessions, "8"), app.debugDescription)
 
         clickElement(app.buttons["settings.deleteUsageMetricsButton"])
 
@@ -201,14 +204,20 @@ final class FoilUITests: XCTestCase {
         clickElement(button(id: "settings.cleanupGroups.addGroupButton", fallbackLabel: "Add cleanup group"))
 
         XCTAssertTrue(staticTextLabelOrValueContaining("Recently used apps").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Mail").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("com.apple.mail").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Messages (iMessage)").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("com.apple.MobileSMS").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Google Chrome").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("com.google.Chrome").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Ghostty").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("com.mitchellh.ghostty").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Codex").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("com.openai.codex").waitForExistence(timeout: 2), app.debugDescription)
 
-        let mailAddButton = app.buttons["settings.cleanupGroups.recentAppAddButton.bundle:com.apple.mail"]
-        XCTAssertTrue(mailAddButton.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(mailAddButton.isEnabled, app.debugDescription)
-        clickElement(mailAddButton)
-        XCTAssertFalse(mailAddButton.isEnabled, app.debugDescription)
+        let messagesAddButton = app.buttons["settings.cleanupGroups.recentAppAddButton.bundle:com.apple.mobilesms"]
+        XCTAssertTrue(messagesAddButton.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(messagesAddButton.isEnabled, app.debugDescription)
+        clickElement(messagesAddButton)
+        XCTAssertFalse(messagesAddButton.isEnabled, app.debugDescription)
 
         relaunchWithArguments([
             "--ui-testing",
@@ -224,6 +233,46 @@ final class FoilUITests: XCTestCase {
         )
         let persistedGroupRow = app.buttons.matching(persistedGroupPredicate).firstMatch
         XCTAssertTrue(persistedGroupRow.waitForExistence(timeout: 4), app.debugDescription)
+    }
+
+    func testCleanupGroupRunningAppsFilterExcludesFalsePositiveApps() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-usage-events",
+            "--settings-tab-cleanup"
+        ])
+        openSettingsPanel()
+
+        clickElement(button(id: "settings.cleanupGroups.addGroupButton", fallbackLabel: "Add cleanup group"))
+
+        XCTAssertTrue(
+            button(id: "settings.cleanupGroups.chooseAppButton", fallbackLabel: "Choose .app...").waitForExistence(timeout: 2),
+            app.debugDescription
+        )
+        XCTAssertTrue(staticTextLabelOrValueContaining("Other running apps").waitForExistence(timeout: 6), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("No other running apps available.").waitForExistence(timeout: 6), app.debugDescription)
+
+        XCTAssertFalse(
+            app.buttons["settings.cleanupGroups.runningAppAddButton.bundle:com.neonwatty.foil"].exists,
+            app.debugDescription
+        )
+        XCTAssertFalse(
+            app.buttons["settings.cleanupGroups.runningAppAddButton.bundle:com.neonwatty.foil.dev"].exists,
+            app.debugDescription
+        )
+        XCTAssertFalse(
+            app.buttons["settings.cleanupGroups.runningAppAddButton.bundle:com.apple.finder"].exists,
+            app.debugDescription
+        )
+        XCTAssertFalse(
+            app.buttons["settings.cleanupGroups.runningAppAddButton.bundle:com.apple.photos"].exists,
+            app.debugDescription
+        )
+
+        XCTAssertTrue(staticTextLabelOrValueContaining("Recently used apps").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Messages (iMessage)").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Google Chrome").waitForExistence(timeout: 2), app.debugDescription)
     }
 
     func testAppShellOpensHistoryWithSeededRecords() {

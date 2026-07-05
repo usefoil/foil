@@ -893,12 +893,12 @@ struct SettingsView: View {
         let candidates = runningAppCandidates.filter { !recentCandidateIDs.contains($0.id) }
 
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Running apps")
+            Text("Other running apps")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             if candidates.isEmpty {
-                Text("No running apps available.")
+                Text("No other running apps available.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -1128,6 +1128,7 @@ struct SettingsView: View {
         var seenKeys: Set<String> = []
         for application in NSWorkspace.shared.runningApplications where application.activationPolicy == .regular {
             guard let candidate = CleanupAppCandidate(application: application),
+                  RunningAppCandidatePolicy.allows(candidate.matcher),
                   seenKeys.insert(candidate.id).inserted else {
                 continue
             }

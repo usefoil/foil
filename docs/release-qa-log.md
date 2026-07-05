@@ -6,14 +6,15 @@ publishing.
 
 ## Current Public Install Status
 
-- Current public beta: Foil `v1.13.9` build `44`.
+- Current public beta: Foil `v1.13.10` build `45`.
 - Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
 - Verified command:
   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
   then `brew install --cask foil`.
-- Manual fallback: GitHub release asset `Foil-1.13.9-macos.dmg`, verified against `Foil-1.13.9-macos.dmg.sha256` and release asset digest.
-- Public cask status: `Casks/foil.rb` version `1.13.9`, SHA-256 `aff1b812f184604478b1463d7e40a358bb889fbef9d20e6ccf91e45311bca83e`, matching the GitHub release DMG digest.
-- Latest recorded public cask smoke: `REQUIRED_COMMIT=0dcc3287327ae91767bcfe3f806de4ce8fc852d5 make check-production-permissions-cask` passed version/build, required commit inclusion, Gatekeeper, deep strict codesign, and Developer ID identity checks for the public cask extraction.
+- Manual fallback: GitHub release asset `Foil-1.13.10-macos.dmg`, verified against `Foil-1.13.10-macos.dmg.sha256` and release asset digest.
+- Public cask status: `Casks/foil.rb` version `1.13.10`, SHA-256 `1d025a1fb0cecabd472df6e986fc0b6555635f98de1f2a850030597a21a5d0f6`, matching the GitHub release DMG digest.
+- Release/cask metadata verified on 2026-07-05 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
+- Latest recorded public cask extraction smoke in this log remains the v1.13.9 `REQUIRED_COMMIT=0dcc3287327ae91767bcfe3f806de4ce8fc852d5 make check-production-permissions-cask` run; v1.13.10 installed-app identity evidence is recorded under "v1.13.10 TCC Matrix Continuation."
 - Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; tracked in issue #154 with the runbook in `docs/fresh-machine-homebrew-onboarding-smoke.md`.
 
 ## Test Command Policy
@@ -26,6 +27,21 @@ publishing.
   key into this log, PRs, issues, or CI summaries.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
+
+## Pre-Release Feature Hardening: Cleanup Groups, Usage Insights, Recent Apps
+
+Date: 2026-07-05
+
+Scope: unreleased production-code hardening after PR #357 and PR #358 merged into `origin/main` at `bfa0b34`. This section does not claim a packaged public release exists.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| Transcription-derived usage metadata can drive later cleanup group routing. | Seeded UI tests pass, but a real controller usage event cannot become a recent-app assignment that affects the next transcription. | Added `FoilTests/TranscriptionControllerTests.testUsageTopAppCanDriveCleanupGroupAssignmentAndLaterRouting`; focused run passed 1 test in `Test-Foil-2026.07.05_14-15-51--0700.xcresult`. The broader focused controller run passed 4 tests in `Test-Foil-2026.07.05_14-16-01--0700.xcresult`. | PASS |
+| Usage Insights and Cleanup Settings render the seeded user-facing states. | Controller/model tests pass, but Insights or Recently used apps UI is missing or inaccessible. | `xcodebuild test -project Foil.xcodeproj -scheme Foil -only-testing:FoilUITests/FoilUITests/testCleanupGroupAppPickerShowsRecentlyUsedAppsFromUsageEvents -only-testing:FoilUITests/FoilUITests/testUsageInsightsShowsPopulatedMetricsFromUsageEventStore` passed 2 UI tests in `Test-Foil-2026.07.05_14-16-07--0700.xcresult`. | PASS |
+| Usage metrics remain metadata-only and independent from transcript history. | Usage events retain transcript/prompt/vocabulary/API key/audio path/app path/base URL/error content, depend on transcript history, or delete transcript history when cleared. | Source scans of `UsageEventStore`, usage write callers, UI seeds, Insights, Settings, and tests; `xcodebuild test -project Foil.xcodeproj -scheme Foil -only-testing:FoilTests/UsageEventStoreTests/testEncodedUsageEventsAreMetadataOnly -only-testing:FoilTests/UsageEventStoreTests/testPersistsUsageEventsWhenTranscriptHistoryPersistenceIsDisabled -only-testing:FoilTests/UsageEventStoreTests/testDeleteUsageEventsDoesNotTouchTranscriptHistoryFiles` passed 3 tests in `Test-Foil-2026.07.05_14-19-18--0700.xcresult`. | PASS |
+| Insights stays factual-only for v1 and does not introduce cleanup recommendations before release. | UX polish expands scope into unproved recommendations or cleanup advice. | Direct inspection of `docs/superpowers/specs/2026-07-05-usage-insights-cleanup-groups-design.md`, `Foil/UsageInsightsView.swift`, `Foil/SettingsView.swift`, and `FoilUITests/FoilUITests.swift`; UI test asserts populated Insights does not contain `recommend`. | PASS |
+
+Residual risk: this tranche has deterministic fixture/controller/UI proof, not a live microphone/provider smoke against a packaged Developer ID build. Run final broad local gates and package/release verification before publishing the next release.
 
 ## Setup Permission Release Gate
 
@@ -234,6 +250,12 @@ Do not set `ALLOW_LOCAL_QA_SKIP=1` unless the skipped result is recorded here.
 | Dev app Recording settings visual check | Launch debug app with `--ui-testing --reset-defaults --seed-history --settings-tab-recording`, open Settings via UI, inspect Recording pane | PARTIAL | Verified the other-audio toggle is off by default and the help copy is bounded to Chrome/Chromium. Bluetooth warning could not be visually executed because the local audio state had changed: `system_profiler SPAudioDataType` reported only Mac mini Speakers and a Core Audio default-input query returned device `0`. Debug app process was quit afterward. |
 | Dev app setup report runtime check | Launch debug app with `--ui-testing --reset-defaults --seed-history --settings-tab-recording`, click `Copy Setup Report`, inspect copied report lines | PASS | Runtime setup report included `Input Device UID: System Default`, `Input Device Transport: Unknown`, and `Other Audio While Recording: unaffected`. No recording was started and the debug app process was quit afterward. |
 | Manual audio smoke matrix | `docs/goals/other-audio-recording-policy/notes/T007-manual-audio-smoke-matrix.md` | PENDING OPERATOR | Remaining proof requires human auditory confirmation for browser media with the setting off/on, non-browser audio with non-Bluetooth input when available, and Bluetooth headset mic warning/behavior. |
+
+## Pre-Release Feature Hardening
+
+| Gate | Command / steps | Result | Artifact / notes |
+| --- | --- | --- | --- |
+| Cleanup group running-app picker filter | `git diff --check`; `xcodebuild test -project Foil.xcodeproj -scheme Foil -only-testing:FoilTests/CleanupGroupTests -only-testing:FoilUITests/FoilUITests/testCleanupGroupAppPickerShowsRecentlyUsedAppsFromUsageEvents -only-testing:FoilUITests/FoilUITests/testCleanupGroupRunningAppsFilterExcludesFalsePositiveApps`; launch Debug app with `--ui-testing --reset-defaults --seed-usage-events --show-app-shell`; capture app-shell screenshot. | PASS | Unit tests prove Foil/self, Finder, Photos, System Settings, Activity Monitor, Preview, and App Store are filtered from running-app suggestions while Ghostty, Terminal, Codex, Google Chrome, Messages (iMessage), and Mail are not denylisted. UI tests prove seeded recent apps and `Choose .app...` remain available. Screenshot: `/tmp/foil-feature-screenshots/cleanup-filtered-running-apps.png`. Debug screenshot process was quit; installed `/Applications/Foil.app` remained running as pid `19814`. |
 
 ## Sign-Off
 
