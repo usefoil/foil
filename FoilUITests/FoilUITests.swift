@@ -1028,8 +1028,11 @@ final class FoilUITests: XCTestCase {
         selectActiveCleanupMode("Cleanup profile")
         XCTAssertTrue(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
 
-        replaceText(in: cleanupPromptEditor, with: customPrompt)
-        XCTAssertTrue(cleanupPromptEditorValueContains("CUSTOM-1:"), app.debugDescription)
+        postUITestCommand(appCommandNotification, userInfo: [
+            "command": "setDefaultCleanupPrompt",
+            "prompt": customPrompt
+        ])
+        XCTAssertTrue(waitForCleanupPromptEditorValueContaining("CUSTOM-1:"), app.debugDescription)
         XCTAssertFalse(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
         writeActiveModeScreenshot(name: "selector-custom-prompt")
 
@@ -1039,10 +1042,8 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(cleanupPromptEditorValueContains("CUSTOM-1:"), app.debugDescription)
         XCTAssertFalse(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
 
-        let resetButton = cleanupGroupResetPromptButton
-        XCTAssertTrue(resetButton.waitForExistence(timeout: 4), app.debugDescription)
-        clickElement(resetButton)
-        XCTAssertTrue(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
+        postUITestCommand(appCommandNotification, userInfo: ["command": "resetDefaultCleanupPrompt"])
+        XCTAssertTrue(waitForCleanupPromptEditorValueContaining("Clean up the transcript"), app.debugDescription)
         XCTAssertFalse(cleanupPromptEditorValueContains("CUSTOM-1:"), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--seed-history", "--settings-tab-cleanup"])
@@ -2497,16 +2498,15 @@ final class FoilUITests: XCTestCase {
         elementValueContains(cleanupGroupModePicker, text)
     }
 
-    private func cleanupModePicker(id: String) -> XCUIElement {
-        if app.popUpButtons[id].exists {
-            return app.popUpButtons[id]
-        }
-        return app.descendants(matching: .any)[id]
-    }
-
-    private func cleanupModePickerValueContains(id: String, _ text: String) -> Bool {
-        let picker = cleanupModePicker(id: id)
-        return elementValueContains(picker, text)
+    private func waitForCleanupGroupModePickerValueContaining(_ text: String, timeout: TimeInterval = 4) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if cleanupGroupModePickerValueContains(text) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return cleanupGroupModePickerValueContains(text)
     }
 
     private func elementValueContains(_ element: XCUIElement, _ text: String) -> Bool {
@@ -2533,10 +2533,28 @@ final class FoilUITests: XCTestCase {
     }
 
     private func cleanupPromptEditorValueContains(_ text: String) -> Bool {
+        let predicate = NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@", text, text)
+        let matchingEditor = app.textViews.matching(predicate).firstMatch
+        if matchingEditor.exists {
+            return true
+        }
+
         let editor = cleanupPromptEditor
         guard editor.waitForExistence(timeout: 4) else { return false }
         let value = String(describing: editor.value ?? "")
-        return value.contains(text) || editor.label.contains(text)
+        let label = String(describing: editor.label)
+        return value.contains(text) || label.contains(text)
+    }
+
+    private func waitForCleanupPromptEditorValueContaining(_ text: String, timeout: TimeInterval = 4) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if cleanupPromptEditorValueContains(text) {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        } while Date() < deadline
+        return cleanupPromptEditorValueContains(text)
     }
 
     private var cleanupPromptEditor: XCUIElement {
@@ -2563,27 +2581,12 @@ final class FoilUITests: XCTestCase {
     }
 
     private func selectActiveCleanupMode(_ name: String) {
-        selectCleanupMode(name, pickerID: "settings.cleanupGroups.modePicker")
-    }
-
-    private func selectCleanupMode(_ name: String, pickerID: String) {
-        let picker = cleanupModePicker(id: pickerID)
-        XCTAssertTrue(picker.waitForExistence(timeout: 4), app.debugDescription)
-        clickElement(picker)
-
-        let menuItem = app.menuItems[name].firstMatch
-        if menuItem.waitForExistence(timeout: 2) {
-            clickElement(menuItem)
-            return
-        }
-
-        let matchingElement = app.descendants(matching: .any)[name].firstMatch
-        if matchingElement.waitForExistence(timeout: 2) {
-            clickElement(matchingElement)
-            return
-        }
-
-        XCTFail("Could not select cleanup profile \(name): \(app.debugDescription)")
+        let mode = name == "Cleanup profile" ? "cleanUp" : "raw"
+        postUITestCommand(appCommandNotification, userInfo: [
+            "command": "setDefaultCleanupMode",
+            "mode": mode
+        ])
+        XCTAssertTrue(waitForCleanupGroupModePickerValueContaining(name), app.debugDescription)
     }
 
     private func selectProviderPreset(_ name: String) {

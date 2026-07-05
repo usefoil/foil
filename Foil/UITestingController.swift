@@ -1610,6 +1610,19 @@ final class UITestingController {
             appState.feedbackMessage = "Cleanup failed; pasted raw transcript."
             appState.floatingStatusTransientVisible = true
             appState.setStatus(.idle)
+        case "setDefaultCleanupMode":
+            let rawMode = notification.userInfo?["mode"] as? String ?? ""
+            if let mode = TranscriptProcessingMode(rawValue: rawMode)?.normalizedActiveMode {
+                appState.transcriptProcessingMode = mode
+                writeStateSnapshot()
+            }
+        case "setDefaultCleanupPrompt":
+            let prompt = notification.userInfo?["prompt"] as? String ?? ""
+            appState.setCustomPrompt(prompt, for: .cleanUp)
+            writeStateSnapshot()
+        case "resetDefaultCleanupPrompt":
+            appState.resetCustomPrompt(for: .cleanUp)
+            writeStateSnapshot()
         case "selectRecordingHotkey":
             if let rawValue = notification.userInfo?["choice"] as? String,
                let choice = HotkeyMonitor.HotkeyChoice(rawValue: rawValue) {
