@@ -89,6 +89,35 @@ Scope: approved Notarized QA Build artifact verification for `e02b81564f08bc104c
 
 Residual risk: this QA artifact is not a public release, public cask, `/Applications` install, setup/TCC proof, or packaged feature smoke. Continue release-readiness gates against this exact artifact before making release claims.
 
+## Release Readiness Verification: Merge Queue And Mainline QA Artifact For `550506a`
+
+Date: 2026-07-06
+
+Scope: post-repair merge queue and mainline notarized QA artifact proof after PR #360 landed. This is still not a public release or cask update.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| Route-resolution repair landed on `main` with required merge-queue checks green. | Branch CI and packaged smoke passed, but the merge queue either did not merge the repair or left required mainline checks pending/failing. | PR #360 merged at `2026-07-06T21:27:00Z` with merge commit `550506a0f7c2f38da21b1eaa8cfeab9d2fa5b26f`. Merge-group CI run `28823900947` passed Detect Changed Paths, Build, Unit Tests, Audio UX Snapshots, Focused UI Smoke, and CI Gate. Merge-group E2E runs passed for Groq (`28823901017`), Local macOS E2E (`28823900927`), and OpenAI after rerun (`28823900965`, attempt 2); attempt 1 failed with provider 404 `Invalid URL (POST /v1/audio/transcriptions)`. Post-merge `main` runs then passed CodeQL (`28824420693`) and Local macOS E2E (`28824421220`) on `550506a`. | PASS |
+| A notarized QA artifact exists for the actual post-merge `main` commit. | The available QA artifact could be the pre-merge branch build, leaving the merge commit unproved as an installable artifact. | Notarized QA Build run `28824524390` was dispatched for `550506a0f7c2f38da21b1eaa8cfeab9d2fa5b26f`, completed successfully, and uploaded `Foil-1.13.10-28824524390-550506a0f7c2f38da21b1eaa8cfeab9d2fa5b26f-18-macos.dmg`. | PASS |
+| Downloaded mainline QA DMG matches checksum and is notarized/stapled. | Artifact download could be corrupt, unsigned, unstapled, or mismatched with the checksum file. | Downloaded to `/tmp/foil-notarized-qa-550506a`; uploaded checksum and local `shasum -a 256` both reported `83a5d0040a04082d99a3af685692f3e76ff15abd251707696f20346b7b028065`. `spctl -a -vv -t open --context context:primary-signature` accepted the DMG as `Notarized Developer ID`; `xcrun stapler validate` reported success. | PASS |
+| Mounted mainline QA app has the expected signed identity. | DMG trust could pass while the contained app has the wrong bundle id, version/build, Sparkle key, or signing identity. | Read-only mount `/Volumes/Foil QA` contained `.background/dmg-background.png`, `.DS_Store`, `Applications`, and `Foil.app`. The app reported bundle id `com.neonwatty.Foil`, version `1.13.10`, build `28824524390`, and a 32-byte `SUPublicEDKey`; `spctl -a -vv -t execute` accepted it as `Notarized Developer ID`; `codesign --verify --deep --strict --verbose=2` passed; `codesign -dv --verbose=4` reported Developer ID Application authority, team `B3A6AN2HA4`, and hardened runtime. | PASS |
+
+Residual risk: `/Applications/Foil.app` is still the earlier QA branch artifact unless replaced again. Public release, appcast, Homebrew cask update, public cask extraction/install, `/Applications` public cask install, and fresh-user/TCC matrix are not proven for `550506a` yet.
+
+## Release Readiness Verification: Release Prep For `v1.13.11`
+
+Date: 2026-07-06
+
+Scope: release-prep branch `codex/prepare-v1.13.11-release` for Foil `1.13.11` build `46`. This section does not claim the release tag, public Release workflow, appcast, or public cask has been published.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| Release-prep metadata points at the next public patch release. | The prep could accidentally reuse `1.13.10`/build `45`, conflict with the current tag, or update only one metadata source. | `make prepare-release VERSION=1.13.11 BUILD=46 NOTES=/tmp/foil-v1.13.11-release-notes.md` completed successfully. Diff inspection showed `CHANGELOG.md`, `package.json`, `package-lock.json`, `Foil.xcodeproj/project.pbxproj`, and `project.yml` updated to `1.13.11`/`46` where applicable. | PASS |
+| Release helper defaults remain valid after version/build updates. | Version changes could break notarized QA/release helper defaults before signing/notarization. | `scripts/test-build-notarized-qa-dmg.sh` passed with `PASS: build-notarized-qa-dmg defaults`. | PASS |
+| Release-prep branch is warning-clean and deterministic tests still pass. | The release metadata/changelog prep could hide project-file drift, warnings, or unit regressions. | `git diff --check` passed; `make build-warnings-as-errors` passed with `** BUILD SUCCEEDED **`; `make test` passed with `** TEST SUCCEEDED **` and xcresult `/Users/jeremywatt/Library/Developer/Xcode/DerivedData/Foil-ebuxbvgmspyykabsrfclwquwxbdi/Logs/Test/Test-Foil-2026.07.06_14-34-27--0700.xcresult`. | PASS |
+
+Residual risk: release-prep changes still need PR review/merge queue, then tag `v1.13.11`, the Release workflow, public DMG/appcast/cask verification, production `/Applications` cask install, and fresh-user/TCC matrix proof before release readiness is complete.
+
 ## Release Readiness Verification: Public Cask Gate For `e02b815`
 
 Date: 2026-07-06

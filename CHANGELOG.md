@@ -1,3 +1,14 @@
+## [1.13.11](https://github.com/usefoil/foil/compare/v1.13.10...v1.13.11) (2026-07-06)
+
+Add Usage Insights with local metadata-only usage metrics for dictated words, sessions, estimated time saved, daily trends, and top apps.
+
+Replace the global cleanup toggle with app-specific Cleanup Groups, including a default group for unassigned apps and per-group cleanup mode/provider/model/prompt settings.
+
+Add recently used apps from usage metrics to cleanup group app assignment, alongside running apps and manual app selection.
+
+Harden pre-release and packaged-app coverage for transcription-derived usage events, recent-app assignment, later cleanup-group routing, and usage-metrics privacy.
+
+
 ## Unreleased
 
 - Add Usage Insights with local metadata-only usage metrics for dictated words, sessions, estimated time saved, daily trends, and top apps.
