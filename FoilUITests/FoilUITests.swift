@@ -233,6 +233,24 @@ final class FoilUITests: XCTestCase {
         )
         let persistedGroupRow = app.buttons.matching(persistedGroupPredicate).firstMatch
         XCTAssertTrue(persistedGroupRow.waitForExistence(timeout: 4), app.debugDescription)
+
+        postUITestCommand(appCommandNotification, userInfo: [
+            "command": "resolveCleanupGroup",
+            "displayName": "Messages (iMessage)",
+            "bundleIdentifier": "com.apple.MobileSMS"
+        ])
+        let state = waitForUITestStateSnapshot { snapshot in
+            snapshot.recordingEvents.contains { $0.name == "cleanupGroupResolution" }
+        }
+        guard let events = state?.recordingEvents else {
+            XCTFail("Expected cleanup group resolution event in UI-test state snapshot")
+            return
+        }
+        let resolution = requireRecordingEvent(named: "cleanupGroupResolution", in: events)
+        XCTAssertTrue(resolution.detail?.contains("groupName=New group") == true, "\(resolution)")
+        XCTAssertTrue(resolution.detail?.contains("isDefault=false") == true, "\(resolution)")
+        XCTAssertTrue(resolution.detail?.contains("appMatcherCount=1") == true, "\(resolution)")
+        XCTAssertTrue(resolution.detail?.contains("bundleIdentifier=com.apple.MobileSMS") == true, "\(resolution)")
     }
 
     func testCleanupGroupRunningAppsFilterExcludesFalsePositiveApps() {

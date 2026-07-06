@@ -1681,6 +1681,8 @@ final class UITestingController {
         case "resetDefaultCleanupPrompt":
             appState.resetCustomPrompt(for: .cleanUp)
             writeStateSnapshot()
+        case "resolveCleanupGroup":
+            recordCleanupGroupResolutionForUITest(notification.userInfo)
         case "selectRecordingHotkey":
             if let rawValue = notification.userInfo?["choice"] as? String,
                let choice = HotkeyMonitor.HotkeyChoice(rawValue: rawValue) {
@@ -1703,6 +1705,30 @@ final class UITestingController {
         default:
             break
         }
+    }
+
+    private func recordCleanupGroupResolutionForUITest(_ userInfo: [AnyHashable: Any]?) {
+        let appContext = CleanupAppContext(
+            displayName: userInfo?["displayName"] as? String,
+            bundleIdentifier: userInfo?["bundleIdentifier"] as? String,
+            appPath: userInfo?["appPath"] as? String
+        )
+        let resolution = appState.resolveCleanupGroup(for: appContext)
+        let group = resolution.group
+        appendRecordingEvent(
+            "cleanupGroupResolution",
+            detail: [
+                "displayName=\(appContext.displayName ?? "")",
+                "bundleIdentifier=\(appContext.bundleIdentifier ?? "")",
+                "appPath=\(appContext.appPath ?? "")",
+                "groupID=\(group.id)",
+                "groupName=\(group.name)",
+                "isDefault=\(group.isDefault)",
+                "appMatcherCount=\(group.appMatchers.count)",
+                "processingMode=\(group.processingMode.rawValue)",
+                "providerID=\(resolution.provider.id.rawValue)"
+            ].joined(separator: " ")
+        )
     }
 
     func writeStateSnapshot() {
