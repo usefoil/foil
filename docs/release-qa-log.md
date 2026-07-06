@@ -175,6 +175,20 @@ tccutil reset Microphone com.neonwatty.Foil
 
 Residual risk: the fresh-user/TCC matrix remains open until those rows are run outside this daily-driver account and the results are appended to this log or issue #154.
 
+## Release Readiness Verification: `v1.13.11` Post-Merge Local E2E Route-Settle Repair
+
+Date: 2026-07-06
+
+Scope: post-merge `main` Local macOS E2E failure after PR #363 merged at `7b89f45d33112e273b35822b4e01650189cf7dcd`.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| The fresh-user/TCC packet merge itself passed required queue checks. | The packet could have merged without the required merge-group proof. | PR #363 merged at `2026-07-06T23:16:30Z` with merge commit `7b89f45d33112e273b35822b4e01650189cf7dcd`. Merge-group runs passed for Local macOS E2E `28829437689`, E2E OpenAI `28829437622`, E2E Groq `28829437623`, and CI `28829437614`; CI included Focused UI Smoke in `8m2s` and CI Gate. | PASS |
+| Post-merge `main` Local macOS E2E remained green. | A runner-specific audio route state could fail only after merge, leaving `main` with a red required signal. | Post-merge push Local macOS E2E run `28829825202` failed, and rerun job `85501413239` reproduced the same failure. Logs showed default input `Jeremy's AirPods`, Foil switching to `USB PnP Sound Device`, `RecordingController.startRecording: waiting for input route settle ns=500000000`, then `E2E: stopping simulated recording` about `210ms` later and `RecordingController.stopRecording: cancelling pending recording start`. | FAIL / REPRODUCED |
+| The repair makes the E2E harness wait past the route-settle window before stopping. | The harness could still stop during route settle, masking a live transcription failure as a timeout. | Patch increases the `--e2e-transcribe` simulated recording hold from `200ms` to `800ms`, exceeding the production `500ms` input-route settle. Focused proof: `xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' -only-testing:FoilTests/RecordingControllerMockTests -enableCodeCoverage NO` passed 14 tests, including new `testStopAfterDefaultInputRouteSettleStopsAudioRecorder`; the existing `testStopDuringDefaultInputRouteSettleCancelsAudioRecorderStart` still proves the prior failure mode. | LOCAL PASS / CI PENDING |
+
+Residual risk: live post-merge Local macOS E2E must pass again on the self-hosted Mac after this repair lands; local focused tests prove the route-settle timing contract but do not call the live Groq API.
+
 ## Release Readiness Verification: Public Cask Gate For `e02b815`
 
 Date: 2026-07-06

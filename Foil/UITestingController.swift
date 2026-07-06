@@ -453,7 +453,7 @@ final class UITestingController {
             try? await Task.sleep(for: .seconds(3))
             DiagnosticLog.write("E2E: starting simulated recording")
             onStartRecording()
-            try? await Task.sleep(for: .milliseconds(200))
+            try? await Task.sleep(for: .milliseconds(800))
             DiagnosticLog.write("E2E: stopping simulated recording")
             onStopRecording()
         }
