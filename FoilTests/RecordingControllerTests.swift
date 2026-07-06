@@ -300,6 +300,41 @@ final class RecordingControllerMockTests: XCTestCase {
         XCTAssertEqual(spy.didCancelCount, 1)
     }
 
+    func testStopAfterDefaultInputRouteSettleStopsAudioRecorder() async throws {
+        let expectedURL = URL(fileURLWithPath: "/tmp/route-settle-audio.wav")
+        var events: [String] = []
+        mock.stopRecordingResult = expectedURL
+        mock.onStartRecording = {
+            events.append("audioRecorderStart")
+        }
+        controller = RecordingController(
+            audioRecorder: mock,
+            appState: appState,
+            prepareInputRouteForRecording: { _ in
+                events.append("prepareRoute")
+                return AudioRecorder.InputPreparationResult(
+                    deviceID: 246,
+                    didChangeDefaultInput: true
+                )
+            },
+            inputRouteSettleNanoseconds: 50_000_000
+        )
+        controller.delegate = spy
+
+        controller.startRecording()
+        try await Task.sleep(nanoseconds: 80_000_000)
+        controller.stopRecording()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertEqual(events, ["prepareRoute", "audioRecorderStart"])
+        XCTAssertEqual(mock.startRecordingCallCount, 1)
+        XCTAssertEqual(mock.stopRecordingCallCount, 1)
+        XCTAssertFalse(controller.isRecording)
+        XCTAssertEqual(spy.didStartCount, 1)
+        XCTAssertEqual(spy.didCancelCount, 0)
+        XCTAssertEqual(spy.didStopCalls.first?.url, expectedURL)
+    }
+
     func testStartCuePlaysBeforeAudioRecorderStarts() {
         var events: [String] = []
         mock.onStartRecording = {
