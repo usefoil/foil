@@ -138,6 +138,43 @@ Scope: public release, appcast, Homebrew cask, `/Applications` install, and pack
 
 Residual risk: fresh-user/fresh-machine setup and TCC matrix rows were not rerun for `v1.13.11` on a disposable macOS account, VM, spare Mac, or erased machine. This daily-driver account retained prior Accessibility/Microphone history and exposed a local `/Applications/Foil.app` path-state issue during repeated QA replacements; keep that as operator-owned follow-up rather than treating this release log as fresh-user proof.
 
+## Release Readiness Verification: `v1.13.11` Fresh-User/TCC Matrix Packet
+
+Date: 2026-07-06
+
+Scope: T013 fresh-user/TCC setup proof for Foil `v1.13.11` build `46`. This section intentionally separates non-fresh local sanity evidence from the still-required disposable fresh-user matrix.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| The installed production app is still the intended public build before any fresh-user run is attempted. | Local `/Applications/Foil.app` could have drifted back to an old QA build or stale cask install after the release work. | `/Applications/Foil.app` reports bundle id `com.neonwatty.Foil`, version `1.13.11`, build `46`. `brew info --cask mean-weasel/foil/foil` reports cask `1.13.11`. `gh release view v1.13.11` reports a published, non-draft, non-prerelease release with `Foil-1.13.11-macos.dmg`, `.sha256`, and `appcast.xml`; the DMG asset digest is `sha256:4805e6ca60d7bc8597673dbbee89289997363a8c4fe2e0b6c428c6d245fecd57`. | PASS |
+| The installed production app still satisfies macOS trust checks. | A local path-state or quarantine issue could leave the canonical app untrusted even though the release asset is valid. | `spctl -a -vv -t execute /Applications/Foil.app` accepted the app as `source=Notarized Developer ID`, origin `Developer ID Application: Mean Weasel LLC (B3A6AN2HA4)`. `codesign --verify --deep --strict --verbose=2 /Applications/Foil.app` passed for the app and embedded Sparkle components. | PASS |
+| This daily-driver account can be used as fresh-user proof. | Retained app defaults, Keychain state, or TCC grants could make first-run setup appear ready before a real new user grants permissions. | Freshness was disproven. `defaults export com.neonwatty.Foil -` shows `SUHasLaunchedBefore=true`; diagnostics already show `SetupHealth: accessibilityTrusted=true`, `SetupHealth: microphone=authorized`, `SetupHealth: inputDevices count=3 selectedUID=systemDefault microphoneState=ready`, and `KeychainHelper: read status=success`. Therefore this account can only provide non-fresh sanity evidence. | BLOCKED |
+| Fresh-user/TCC matrix is ready for execution by an operator. | The real run could be under-specified and produce ambiguous screenshots or logs that cannot close the release gap. | Use `docs/fresh-machine-homebrew-onboarding-smoke.md` against `v1.13.11` build `46` in a disposable macOS user, VM, spare Mac, or freshly erased machine. Required rows: fresh install; Accessibility already granted; Accessibility granted while onboarding is open; Microphone prompt grant; Microphone already granted; permission revoked while running; quit/relaunch persistence. Record macOS version, architecture, install commands, version/build, `spctl`, `codesign`, screenshots or visible state notes, diagnostics, and any follow-up issue links. | READY / EXTERNAL ENV REQUIRED |
+
+Operator packet for the external run:
+
+```sh
+brew untap mean-weasel/foil || true
+brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil
+brew info --cask mean-weasel/foil/foil
+brew install --cask mean-weasel/foil/foil
+/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' /Applications/Foil.app/Contents/Info.plist
+/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Applications/Foil.app/Contents/Info.plist
+/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' /Applications/Foil.app/Contents/Info.plist
+spctl -a -vv -t execute /Applications/Foil.app
+codesign --verify --deep --strict --verbose=2 /Applications/Foil.app
+```
+
+Optional Foil-scoped resets are allowed only inside that disposable environment:
+
+```sh
+tccutil reset Accessibility com.neonwatty.Foil
+tccutil reset ListenEvent com.neonwatty.Foil
+tccutil reset Microphone com.neonwatty.Foil
+```
+
+Residual risk: the fresh-user/TCC matrix remains open until those rows are run outside this daily-driver account and the results are appended to this log or issue #154.
+
 ## Release Readiness Verification: Public Cask Gate For `e02b815`
 
 Date: 2026-07-06
