@@ -742,10 +742,16 @@ final class UITestingController {
     // MARK: - Live microphone smoke
 
     private func configureLiveMicrophoneSmokeIfNeeded(args: [String]) {
-        #if DEBUG
         guard args.contains("--live-microphone-smoke") else { return }
 
         let env = ProcessInfo.processInfo.environment
+        #if !DEBUG
+        guard env["FOIL_ENABLE_RELEASE_LIVE_MICROPHONE_SMOKE"] == "1" else {
+            DiagnosticLog.write("live microphone smoke: skipped outside DEBUG without explicit release gate")
+            return
+        }
+        #endif
+
         let resultPath = env["LIVE_MICROPHONE_RESULT_PATH"] ?? "/tmp/foil-live-microphone-result.txt"
         let duration = TimeInterval(env["LIVE_MICROPHONE_DURATION_SECONDS"] ?? "") ?? 2
         let signingIdentity = env["LIVE_MICROPHONE_SIGNING_IDENTITY"] ?? "unknown"
@@ -1001,7 +1007,6 @@ final class UITestingController {
                 )
             }
         }
-        #endif
     }
 
     @MainActor

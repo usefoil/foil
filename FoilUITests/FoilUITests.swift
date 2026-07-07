@@ -2818,7 +2818,10 @@ final class FoilUITests: XCTestCase {
     }
 
     private func liveMicrophoneEnvironment(resultPath: String) -> [String: String] {
-        var environment = ["LIVE_MICROPHONE_RESULT_PATH": resultPath]
+        var environment = [
+            "FOIL_ENABLE_RELEASE_LIVE_MICROPHONE_SMOKE": "1",
+            "LIVE_MICROPHONE_RESULT_PATH": resultPath
+        ]
         if let signingIdentity = ProcessInfo.processInfo.environment["LIVE_MICROPHONE_SIGNING_IDENTITY"] {
             environment["LIVE_MICROPHONE_SIGNING_IDENTITY"] = signingIdentity
         }
