@@ -779,7 +779,7 @@ final class UITestingController {
             }
             let startedAt = Date()
             let appPath = Bundle.main.bundlePath
-            var permissionStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+            var permissionStatus = Self.liveMicrophoneAuthorizationStatus()
             Self.writeLiveMicrophoneResult(
                 path: resultPath,
                 status: "started",
@@ -810,7 +810,7 @@ final class UITestingController {
                     inputRouteRequest: inputRouteRequest
                 )
                 _ = await Self.requestMicrophoneAccessForLiveSmoke(timeoutSeconds: 15)
-                permissionStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+                permissionStatus = Self.liveMicrophoneAuthorizationStatus()
             }
             guard permissionStatus == .authorized else {
                 Self.writeLiveMicrophoneResult(
@@ -1238,7 +1238,7 @@ final class UITestingController {
                 }
             }
 
-            AVCaptureDevice.requestAccess(for: .audio) { granted in
+            AVAudioApplication.requestRecordPermission { granted in
                 DiagnosticLog.write("live microphone smoke: requestAccess granted=\(granted)")
                 resumeOnce(granted)
             }
@@ -1248,6 +1248,12 @@ final class UITestingController {
                 resumeOnce(false)
             }
         }
+    }
+
+    nonisolated private static func liveMicrophoneAuthorizationStatus() -> AVAuthorizationStatus {
+        SystemSetupPermissionProvider.microphoneAuthorizationStatus(
+            for: AVAudioApplication.shared.recordPermission
+        )
     }
 
     nonisolated private static func microphonePermissionDescription(_ status: AVAuthorizationStatus) -> String {
