@@ -22,6 +22,12 @@ To collect evidence without failing on the currently installed app version:
 scripts/fresh-user-tcc-qa.sh collect --host mm2
 ```
 
+To collect read-only managed-lab diagnostics after launching Foil:
+
+```sh
+scripts/fresh-user-tcc-qa.sh collect-diagnostics --host mm2
+```
+
 The script writes a timestamped evidence folder under `/tmp` unless
 `--evidence-dir` is provided. The packet includes:
 
@@ -34,6 +40,13 @@ The script writes a timestamped evidence folder under `/tmp` unless
 - `operator-notes.md`
 - `manifest.json`
 
+`collect-diagnostics` also adds:
+
+- `process.txt`
+- `diagnostics-tail.txt`
+- `audio-hardware.txt`
+- `tcc-readonly.txt`
+
 ## Current Scope
 
 Automated:
@@ -45,6 +58,8 @@ Automated:
 - Expected hostname, bundle id, architecture, version, and build checks when
   requested. The default expected bundle id is `com.neonwatty.Foil`.
 - Structured evidence bundle and manual TCC row template.
+- Read-only managed-lab diagnostics capture for process state, recent Foil log
+  lines, audio hardware, and user TCC rows.
 - Private-artifact warning in the summary and manifest because the packet can
   include local usernames, hostnames, hardware UUIDs, paths, and operator-added
   screenshots.

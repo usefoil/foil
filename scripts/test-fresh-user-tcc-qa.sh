@@ -77,6 +77,44 @@ github_ref=
 github_sha=
 OUT
     ;;
+  *"pgrep -x Foil"*)
+    cat <<'OUT'
+collected_at=2026-07-07T00:00:00Z
+console_user=jeremywatt
+foil_running=yes
+pid=123
+123 /Applications/Foil.app/Contents/MacOS/Foil
+OUT
+    ;;
+  *"tail -120"*)
+    cat <<'OUT'
+log_path=/Users/jeremywatt/Library/Application Support/Foil/Diagnostics/foil.log
+log_exists=yes
+log_size=12345
+2026-07-07T00:00:00Z SetupHealth: accessibilityTrusted=true
+2026-07-07T00:00:00Z SetupHealth: microphone=authorized
+2026-07-07T00:00:00Z SetupHealth: inputDevices count=0 selectedUID=systemDefault microphoneState=needsAction(No microphone detected)
+OUT
+    ;;
+  *"system_profiler SPAudioDataType"*)
+    cat <<'OUT'
+Audio:
+
+    Devices:
+
+        Mac mini Speakers:
+
+          Default Output Device: Yes
+          Manufacturer: Apple Inc.
+OUT
+    ;;
+  *"sqlite3"*)
+    cat <<'OUT'
+db_path=/Users/jeremywatt/Library/Application Support/com.apple.TCC/TCC.db
+db_exists=yes
+kTCCServiceMicrophone|com.neonwatty.Foil|2|3|1780000000
+OUT
+    ;;
   *"PlistBuddy"*)
     cat <<'OUT'
 app_path=/Applications/Foil.app
@@ -208,6 +246,27 @@ expect_operator_rows_not_automated() {
   assert_not_contains "$output" "microphone-prompt-grant: automated"
 }
 
+expect_collect_diagnostics() {
+  local name="collect-diagnostics"
+  local dir="$TMP_ROOT/$name"
+  local ssh_log="$dir/ssh.log"
+  local output="$dir/output.txt"
+  mkdir -p "$dir"
+  make_ssh_shim "$dir/ssh" "$ssh_log"
+
+  SSH="$dir/ssh" "$SCRIPT" collect-diagnostics --host mm2 --evidence-dir "$dir/evidence" >"$output" 2>&1
+
+  assert_contains "$output" "Diagnostics: $dir/evidence"
+  assert_contains "$dir/evidence/process.txt" "foil_running=yes"
+  assert_contains "$dir/evidence/process.txt" "/Applications/Foil.app/Contents/MacOS/Foil"
+  assert_contains "$dir/evidence/diagnostics-tail.txt" "SetupHealth: microphone=authorized"
+  assert_contains "$dir/evidence/diagnostics-tail.txt" "No microphone detected"
+  assert_contains "$dir/evidence/audio-hardware.txt" "Mac mini Speakers"
+  assert_contains "$dir/evidence/tcc-readonly.txt" "kTCCServiceMicrophone|com.neonwatty.Foil"
+  assert_not_contains "$ssh_log" "tccutil reset"
+  assert_not_contains "$ssh_log" "rm -rf"
+}
+
 expect_preflight_success
 expect_wrong_host_refused
 expect_stale_app_fails_expected_version
@@ -215,5 +274,6 @@ expect_wrong_arch_fails
 expect_wrong_bundle_id_fails
 expect_privileged_lifecycle_blocked
 expect_operator_rows_not_automated
+expect_collect_diagnostics
 
 echo "fresh-user-tcc-qa shell tests passed."
