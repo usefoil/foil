@@ -264,33 +264,34 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: setup
+          - shard: balanced-a
             tests: >-
-              -only-testing:FoilUITests/FoilUITests/testControlCenterShowsSeededReadyState
-              -only-testing:FoilUITests/FoilUITests/testSetupCheckCanBeRunInline
               -only-testing:FoilUITests/FoilUITests/testMicrophoneUnknownShowsCheckAction
-              -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction
-              -only-testing:FoilUITests/FoilUITests/testSettingsButtonOpensSettingsWindow
               -only-testing:FoilUITests/FoilUITests/testMovedPreferencesLiveInSettingsPanes
-              -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL
-          - shard: provider-history
-            tests: >-
-              -only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset
-              -only-testing:FoilUITests/FoilUITests/testProviderQAOpenAIWhisperPresetShowsCloudSettings
-              -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings
-              -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands
-              -only-testing:FoilUITests/FoilUITests/testActiveCleanupModeSelectorPersistsAndScreenshotsResult
-              -only-testing:FoilUITests/FoilUITests/testAppShellHistoryBulletizeTransformPreservesBulletFormatInDetail
-              -only-testing:FoilUITests/FoilUITests/testCustomHotkeyRecorderIsAccessibleButton
-          - shard: recording-status
-            tests: >-
               -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff
-              -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled
-              -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory
-              -only-testing:FoilUITests/FoilUITests/testFloatingWarningShowsExpandedClipboardContext
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled
+              -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL
+          - shard: balanced-b
+            tests: >-
+              -only-testing:FoilUITests/FoilUITests/testProviderQAOpenAIWhisperPresetShowsCloudSettings
+              -only-testing:FoilUITests/FoilUITests/testActiveCleanupModeSelectorPersistsAndScreenshotsResult
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusIsDisabledByDefault
+              -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction
+          - shard: balanced-c
+            tests: >-
+              -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands
+              -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings
+              -only-testing:FoilUITests/FoilUITests/testCustomHotkeyRecorderIsAccessibleButton
+              -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory
               -only-testing:FoilUITests/FoilUITests/testSelectedStartCueIsUsedBeforeRecorderStarts
+          - shard: balanced-d
+            tests: >-
+              -only-testing:FoilUITests/FoilUITests/testAppShellHistoryBulletizeTransformPreservesBulletFormatInDetail
+              -only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset
+              -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled
+              -only-testing:FoilUITests/FoilUITests/testSetupCheckCanBeRunInline
+              -only-testing:FoilUITests/FoilUITests/testFloatingWarningShowsExpandedClipboardContext
+              -only-testing:FoilUITests/FoilUITests/testControlCenterShowsSeededReadyState
 
     steps:
       - name: Checkout code
