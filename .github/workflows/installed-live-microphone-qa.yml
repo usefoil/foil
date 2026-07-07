@@ -1,0 +1,170 @@
+name: Installed App Live Microphone QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      host:
+        description: "SSH host that has Foil installed"
+        required: true
+        default: "mm2"
+        type: string
+      app_path:
+        description: "Installed Foil.app path on the remote host"
+        required: true
+        default: "/Applications/Foil.app"
+        type: string
+      expected_version:
+        description: "Expected CFBundleShortVersionString"
+        required: true
+        type: string
+      expected_build:
+        description: "Expected CFBundleVersion"
+        required: true
+        type: string
+      input_route:
+        description: "Microphone route to request"
+        required: true
+        default: "system-default"
+        type: choice
+        options:
+          - system-default
+          - built-in
+      duration_seconds:
+        description: "Capture duration in seconds"
+        required: true
+        default: "4"
+        type: string
+      apple_voice_text:
+        description: "Apple-generated speech phrase; leave empty to disable"
+        required: false
+        default: "Foil microphone test."
+        type: string
+      kill_existing_foil:
+        description: "Quit any existing Foil process before the smoke"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installed-live-microphone-qa-${{ inputs.host }}
+  cancel-in-progress: false
+
+jobs:
+  installed-live-microphone-qa:
+    name: Installed app live microphone proof
+    runs-on: [self-hosted, macOS, ARM64, trusted-macos-e2e, e2e, gui, browser]
+    timeout-minutes: 45
+
+    steps:
+      - name: Host proof
+        run: |
+          hostname
+          sw_vers
+          uname -m
+
+      - name: Workspace cleanup before
+        working-directory: /
+        run: |
+          set -euo pipefail
+
+          case "${GITHUB_WORKSPACE:-}" in
+            "$HOME/actions-runner/_work/"*)
+              rm -rf "$GITHUB_WORKSPACE"
+              mkdir -p "$GITHUB_WORKSPACE"
+              ;;
+            *)
+              echo "Refusing to clean unexpected GITHUB_WORKSPACE: ${GITHUB_WORKSPACE:-<unset>}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Healthcheck before
+        working-directory: /
+        run: |
+          RUNNER_HOME="$HOME" \
+          RUNNER_WORK="$HOME/actions-runner/_work" \
+          /usr/local/ci/bin/macos-runner-healthcheck --json
+
+      - uses: actions/checkout@v6
+
+      - name: Remote GUI session proof
+        env:
+          HOST: ${{ inputs.host }}
+        run: |
+          set -euo pipefail
+
+          ssh -o BatchMode=yes -o AddressFamily=inet6 "$HOST" '
+            set -euo pipefail
+            echo "console_user=$(stat -f %Su /dev/console)"
+            scutil <<< "show State:/Users/ConsoleUser"
+            launchctl print "gui/$(id -u)" >/dev/null
+          '
+
+      - name: Run installed app live microphone QA
+        timeout-minutes: 20
+        env:
+          RUN_INSTALLED_LIVE_MICROPHONE_TESTS: "1"
+          HOST: ${{ inputs.host }}
+          APP_PATH: ${{ inputs.app_path }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          EXPECTED_BUILD: ${{ inputs.expected_build }}
+          LIVE_MICROPHONE_INPUT_ROUTE: ${{ inputs.input_route }}
+          LIVE_MICROPHONE_DURATION_SECONDS: ${{ inputs.duration_seconds }}
+          LIVE_MICROPHONE_APPLE_VOICE_TEXT: ${{ inputs.apple_voice_text }}
+          KILL_EXISTING_FOIL: ${{ inputs.kill_existing_foil && '1' || '0' }}
+          EVIDENCE_DIR: /tmp/foil-installed-live-microphone-qa-${{ github.run_id }}
+        run: scripts/run-installed-live-microphone-qa.sh
+
+      - name: Collect remote evidence
+        if: always()
+        env:
+          HOST: ${{ inputs.host }}
+          EVIDENCE_DIR: /tmp/foil-installed-live-microphone-qa-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          rm -rf installed-live-microphone-artifacts
+          mkdir -p installed-live-microphone-artifacts
+          if ! scp -o BatchMode=yes -o AddressFamily=inet6 -r \
+            "$HOST:$EVIDENCE_DIR/." \
+            installed-live-microphone-artifacts/; then
+            {
+              echo "remote evidence collection failed"
+              echo "host=$HOST"
+              echo "evidence_dir=$EVIDENCE_DIR"
+              date -u '+collected_at=%Y-%m-%dT%H:%M:%SZ'
+            } > installed-live-microphone-artifacts/collection-failed.txt
+          fi
+
+      - name: Upload installed live microphone artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: installed-live-microphone-qa
+          path: installed-live-microphone-artifacts
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Workspace cleanup after
+        if: always()
+        run: |
+          set -euo pipefail
+
+          ssh -o BatchMode=yes -o AddressFamily=inet6 "${{ inputs.host }}" \
+            "pkill -x Foil >/dev/null 2>&1 || true" || true
+
+          cleanup="$HOME/Library/Application Support/macos-e2e-runner/macos-runner-cleanup"
+          RUNNER_HOME="$HOME" \
+          RUNNER_WORK="$HOME/actions-runner/_work" \
+          "$cleanup" --github-actions-safe --json
+
+      - name: Healthcheck after
+        if: always()
+        working-directory: /
+        run: |
+          RUNNER_HOME="$HOME" \
+          RUNNER_WORK="$HOME/actions-runner/_work" \
+          /usr/local/ci/bin/macos-runner-healthcheck --json
