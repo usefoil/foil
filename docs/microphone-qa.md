@@ -14,6 +14,25 @@ Run the opt-in live microphone smoke locally:
 RUN_LIVE_MICROPHONE_TESTS=1 make test-microphone-live
 ```
 
+Run the opt-in installed-app live microphone smoke against Mac mini 2:
+
+```bash
+RUN_INSTALLED_LIVE_MICROPHONE_TESTS=1 \
+HOST=mm2 \
+APP_PATH=/Applications/Foil.app \
+scripts/run-installed-live-microphone-qa.sh
+```
+
+This installed-app smoke connects over SSH, verifies the installed Foil bundle
+identity, Developer ID signature, and Gatekeeper notarization state, then
+launches the app with LaunchServices `open --env`. It defaults to the
+`system-default` input route because the Mac mini 2 QA host uses a USB
+microphone. The script fails unless the receipt reports `status=pass`,
+authorized microphone permission, matching input route, Apple voice playback
+when enabled, nonzero captured bytes, and a nonzero live or file audio level.
+Evidence is written on the remote host under
+`/tmp/foil-installed-live-microphone-qa-<timestamp>/` by default.
+
 The live smoke launches a debug-only app hook that starts the real recorder,
 uses the system default input route by default, plays Apple-generated speech
 with `/usr/bin/say`, captures about eight seconds of audio, writes
