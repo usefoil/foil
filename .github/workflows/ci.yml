@@ -253,13 +253,44 @@ jobs:
           if-no-files-found: error
 
   ui-tests:
-    name: Focused UI Smoke
+    name: Focused UI Smoke (${{ matrix.shard }})
     runs-on: macos-15
     timeout-minutes: 15
     needs: [detect-changes]
     if: >-
       always() && !cancelled() &&
       needs.detect-changes.outputs.code == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: setup
+            tests: >-
+              -only-testing:FoilUITests/FoilUITests/testControlCenterShowsSeededReadyState
+              -only-testing:FoilUITests/FoilUITests/testSetupCheckCanBeRunInline
+              -only-testing:FoilUITests/FoilUITests/testMicrophoneUnknownShowsCheckAction
+              -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction
+              -only-testing:FoilUITests/FoilUITests/testSettingsButtonOpensSettingsWindow
+              -only-testing:FoilUITests/FoilUITests/testMovedPreferencesLiveInSettingsPanes
+              -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL
+          - shard: provider-history
+            tests: >-
+              -only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset
+              -only-testing:FoilUITests/FoilUITests/testProviderQAOpenAIWhisperPresetShowsCloudSettings
+              -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings
+              -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands
+              -only-testing:FoilUITests/FoilUITests/testActiveCleanupModeSelectorPersistsAndScreenshotsResult
+              -only-testing:FoilUITests/FoilUITests/testAppShellHistoryBulletizeTransformPreservesBulletFormatInDetail
+              -only-testing:FoilUITests/FoilUITests/testCustomHotkeyRecorderIsAccessibleButton
+          - shard: recording-status
+            tests: >-
+              -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff
+              -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled
+              -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory
+              -only-testing:FoilUITests/FoilUITests/testFloatingWarningShowsExpandedClipboardContext
+              -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled
+              -only-testing:FoilUITests/FoilUITests/testFloatingStatusIsDisabledByDefault
+              -only-testing:FoilUITests/FoilUITests/testSelectedStartCueIsUsedBeforeRecorderStarts
 
     steps:
       - name: Checkout code
@@ -272,6 +303,8 @@ jobs:
         env:
           ACTIVE_MODE_SCREENSHOT_DIR: /tmp/foil-active-mode-screenshots
           HISTORY_TRANSFORM_SCREENSHOT_DIR: /tmp/foil-history-transform-screenshots
+          RESULT_BUNDLE_PATH: UITestResults-${{ matrix.shard }}.xcresult
+          UI_TESTS: ${{ matrix.tests }}
         run: |
           xcodebuild test \
             -scheme Foil \
@@ -280,28 +313,8 @@ jobs:
             -parallel-testing-enabled NO \
             -maximum-concurrent-test-device-destinations 1 \
             -enableCodeCoverage NO \
-            -only-testing:FoilUITests/FoilUITests/testControlCenterShowsSeededReadyState \
-            -only-testing:FoilUITests/FoilUITests/testSetupCheckCanBeRunInline \
-            -only-testing:FoilUITests/FoilUITests/testMicrophoneUnknownShowsCheckAction \
-            -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction \
-            -only-testing:FoilUITests/FoilUITests/testSettingsButtonOpensSettingsWindow \
-            -only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset \
-            -only-testing:FoilUITests/FoilUITests/testProviderQAOpenAIWhisperPresetShowsCloudSettings \
-            -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
-            -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
-            -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff \
-            -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled \
-            -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory \
-            -only-testing:FoilUITests/FoilUITests/testActiveCleanupModeSelectorPersistsAndScreenshotsResult \
-            -only-testing:FoilUITests/FoilUITests/testAppShellHistoryBulletizeTransformPreservesBulletFormatInDetail \
-            -only-testing:FoilUITests/FoilUITests/testFloatingWarningShowsExpandedClipboardContext \
-            -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled \
-            -only-testing:FoilUITests/FoilUITests/testFloatingStatusIsDisabledByDefault \
-            -only-testing:FoilUITests/FoilUITests/testMovedPreferencesLiveInSettingsPanes \
-            -only-testing:FoilUITests/FoilUITests/testCustomHotkeyRecorderIsAccessibleButton \
-            -only-testing:FoilUITests/FoilUITests/testSelectedStartCueIsUsedBeforeRecorderStarts \
-            -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL \
-            -resultBundlePath UITestResults.xcresult \
+            $UI_TESTS \
+            -resultBundlePath "$RESULT_BUNDLE_PATH" \
             | xcpretty --color && exit ${PIPESTATUS[0]}
 
       - name: UI test summary
@@ -326,10 +339,10 @@ jobs:
           }
 
           echo "## UI Test Results" >> "$GITHUB_STEP_SUMMARY"
-          if [ -d UITestResults.xcresult ]; then
+          if [ -d "$RESULT_BUNDLE_PATH" ]; then
             UI_SUMMARY_FILE="$(mktemp)"
             if xcrun xcresulttool get test-results summary \
-              --path UITestResults.xcresult \
+              --path "$RESULT_BUNDLE_PATH" \
               --compact > "$UI_SUMMARY_FILE" 2>/dev/null; then
               append_capped_summary "$UI_SUMMARY_FILE"
             else
@@ -344,8 +357,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: ui-test-results
-          path: UITestResults.xcresult
+          name: ui-test-results-${{ matrix.shard }}
+          path: UITestResults-${{ matrix.shard }}.xcresult
           retention-days: 14
 
   ci-gate:
@@ -357,17 +370,19 @@ jobs:
       - detect-changes
       - build
       - unit-tests
+      - audio-ux-snapshots
       - ui-tests
     steps:
       - name: Check required jobs
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           TEST_RESULT: ${{ needs.unit-tests.result }}
+          AUDIO_UX_RESULT: ${{ needs.audio-ux-snapshots.result }}
           UI_TEST_RESULT: ${{ needs.ui-tests.result }}
           CODE_CHANGED: ${{ needs.detect-changes.outputs.code }}
         run: |
-          echo "Build: $BUILD_RESULT, Tests: $TEST_RESULT, UI Tests: $UI_TEST_RESULT, Code changed: $CODE_CHANGED"
-          for result in "$BUILD_RESULT" "$TEST_RESULT" "$UI_TEST_RESULT"; do
+          echo "Build: $BUILD_RESULT, Tests: $TEST_RESULT, Audio UX: $AUDIO_UX_RESULT, UI Tests: $UI_TEST_RESULT, Code changed: $CODE_CHANGED"
+          for result in "$BUILD_RESULT" "$TEST_RESULT" "$AUDIO_UX_RESULT" "$UI_TEST_RESULT"; do
             if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
               echo "A required job reported: $result"
               exit 1
