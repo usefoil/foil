@@ -279,7 +279,6 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testProviderQAOpenAIWhisperPresetShowsCloudSettings
               -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings
               -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands
-              -only-testing:FoilUITests/FoilUITests/testActiveCleanupModeSelectorPersistsAndScreenshotsResult
               -only-testing:FoilUITests/FoilUITests/testAppShellHistoryBulletizeTransformPreservesBulletFormatInDetail
               -only-testing:FoilUITests/FoilUITests/testCustomHotkeyRecorderIsAccessibleButton
           - shard: recording-status
@@ -287,6 +286,7 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff
               -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesAsyncPasteWhenEnabled
               -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory
+              -only-testing:FoilUITests/FoilUITests/testActiveCleanupModeSelectorPersistsAndScreenshotsResult
               -only-testing:FoilUITests/FoilUITests/testFloatingWarningShowsExpandedClipboardContext
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusIsDisabledByDefault
