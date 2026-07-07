@@ -21,11 +21,13 @@ EXPECTED_RUNNER_NAME="${EXPECTED_RUNNER_NAME:-foil-mac-mini-2}"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") <preflight|collect|plan|print-operator-checklist> [options]
+Usage: $(basename "$0") <preflight|collect|collect-diagnostics|plan|print-operator-checklist> [options]
 
 Commands:
   preflight                 Collect evidence and fail if explicit expectations are not met.
   collect                   Collect the same evidence packet without expectation checks.
+  collect-diagnostics       Collect preflight plus read-only process, diagnostics, audio,
+                            and user TCC evidence.
   plan                      Print current phases and blocked privileged work.
   print-operator-checklist  Print manual fresh-user/TCC rows.
 
@@ -137,6 +139,43 @@ if [ -d \"\$app\" ]; then
 else
   echo \"exists=no\"
 fi" >"$EVIDENCE_DIR/app-identity.txt"
+}
+
+collect_diagnostics_facts() {
+  run_remote 'set -e
+echo "collected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "console_user=$(stat -f %Su /dev/console 2>/dev/null || true)"
+if pgrep -x Foil >/dev/null 2>&1; then
+  echo "foil_running=yes"
+  pgrep -x Foil | sed "s/^/pid=/"
+  ps -axo pid,command | grep "/Applications/Foil.app/Contents/MacOS/Foil" | grep -v grep || true
+else
+  echo "foil_running=no"
+fi' >"$EVIDENCE_DIR/process.txt"
+
+  run_remote 'set -e
+log="$HOME/Library/Application Support/Foil/Diagnostics/foil.log"
+echo "log_path=$log"
+if [ -f "$log" ]; then
+  echo "log_exists=yes"
+  echo "log_size=$(stat -f %z "$log" 2>/dev/null || true)"
+  tail -120 "$log"
+else
+  echo "log_exists=no"
+fi' >"$EVIDENCE_DIR/diagnostics-tail.txt"
+
+  run_remote 'system_profiler SPAudioDataType 2>/dev/null | sed -n "1,220p" || true' \
+    >"$EVIDENCE_DIR/audio-hardware.txt"
+
+  run_remote 'set -e
+db="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+echo "db_path=$db"
+if [ -f "$db" ]; then
+  echo "db_exists=yes"
+  sqlite3 "$db" "select service,client,auth_value,auth_reason,last_modified from access where client like '\''%Foil%'\'' or client='\''com.neonwatty.Foil'\'' order by service;" 2>/dev/null || true
+else
+  echo "db_exists=no"
+fi' >"$EVIDENCE_DIR/tcc-readonly.txt"
 }
 
 write_operator_notes() {
@@ -278,6 +317,12 @@ collect_evidence() {
   echo "Evidence: $EVIDENCE_DIR"
 }
 
+collect_diagnostics_evidence() {
+  collect_evidence
+  collect_diagnostics_facts
+  echo "Diagnostics: $EVIDENCE_DIR"
+}
+
 expect_value() {
   local file="$1"
   local key="$2"
@@ -398,14 +443,16 @@ while [ "$#" -gt 0 ]; do
 done
 
 case "$SUBCOMMAND" in
-  preflight|collect)
+  preflight|collect|collect-diagnostics)
     if [ "$LOCAL_MODE" -eq 0 ] && ! allowed_host "$HOST"; then
       fail "refusing to contact non-allowlisted host '$HOST'"
     fi
     if [ "$SUBCOMMAND" = "preflight" ]; then
       run_preflight
-    else
+    elif [ "$SUBCOMMAND" = "collect" ]; then
       collect_evidence
+    else
+      collect_diagnostics_evidence
     fi
     ;;
   plan)
