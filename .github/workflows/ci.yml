@@ -270,7 +270,6 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testSetupCheckCanBeRunInline
               -only-testing:FoilUITests/FoilUITests/testMicrophoneUnknownShowsCheckAction
               -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction
-              -only-testing:FoilUITests/FoilUITests/testSettingsButtonOpensSettingsWindow
               -only-testing:FoilUITests/FoilUITests/testMovedPreferencesLiveInSettingsPanes
               -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL
           - shard: provider-history
@@ -278,7 +277,6 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset
               -only-testing:FoilUITests/FoilUITests/testProviderQAOpenAIWhisperPresetShowsCloudSettings
               -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings
-              -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands
               -only-testing:FoilUITests/FoilUITests/testActiveCleanupModeSelectorPersistsAndScreenshotsResult
               -only-testing:FoilUITests/FoilUITests/testAppShellHistoryBulletizeTransformPreservesBulletFormatInDetail
               -only-testing:FoilUITests/FoilUITests/testCustomHotkeyRecorderIsAccessibleButton
@@ -291,6 +289,7 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusIsDisabledByDefault
               -only-testing:FoilUITests/FoilUITests/testSelectedStartCueIsUsedBeforeRecorderStarts
+              -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands
 
     steps:
       - name: Checkout code
