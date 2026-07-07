@@ -12,13 +12,14 @@ DESTINATION="${DESTINATION:-platform=macOS}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-/tmp/foil-live-microphone-derived-data}"
 LIVE_MICROPHONE_RESULT_PATH="${LIVE_MICROPHONE_RESULT_PATH:-/tmp/foil-live-microphone-result.txt}"
 LIVE_MICROPHONE_DURATION_SECONDS="${LIVE_MICROPHONE_DURATION_SECONDS:-8}"
-LIVE_MICROPHONE_INPUT_ROUTE="${LIVE_MICROPHONE_INPUT_ROUTE:-built-in}"
+LIVE_MICROPHONE_INPUT_ROUTE="${LIVE_MICROPHONE_INPUT_ROUTE:-system-default}"
 LIVE_MICROPHONE_APPLE_VOICE_TEXT="${LIVE_MICROPHONE_APPLE_VOICE_TEXT:-Foil microphone test.}"
 LIVE_MICROPHONE_SCREENSHOT_DIR="${LIVE_MICROPHONE_SCREENSHOT_DIR:-/tmp/foil-live-microphone-screenshots}"
 LIVE_MICROPHONE_XCTRUNNER_SCREENSHOT_DIR="${LIVE_MICROPHONE_XCTRUNNER_SCREENSHOT_DIR:-${HOME}/Library/Containers/com.neonwatty.FoilUITests.xctrunner/Data/tmp/foil-live-microphone-screenshots}"
 LIVE_MICROPHONE_DIRECT_LOG_PATH="${LIVE_MICROPHONE_DIRECT_LOG_PATH:-/tmp/foil-live-microphone-direct.log}"
 LIVE_MICROPHONE_ARTIFACT_DIR="${LIVE_MICROPHONE_ARTIFACT_DIR:-/tmp/foil-live-microphone-artifacts}"
 PLISTBUDDY="/usr/libexec/PlistBuddy"
+OPEN="${OPEN:-/usr/bin/open}"
 patched=""
 
 cleanup() {
@@ -147,7 +148,7 @@ print_screenshots_status() {
 
 echo "Live microphone QA prerequisites:"
 echo "- A working input device is selected in macOS Sound settings."
-echo "- By default this smoke forces Foil to record from a built-in input route."
+echo "- By default this smoke records from the system default input route."
 echo "- By default this smoke plays Apple-generated speech with /usr/bin/say."
 echo "- The Xcode-built Foil test app can be granted Microphone permission when prompted."
 echo "- This target is local-only; regular CI should use make test-ui."
@@ -262,14 +263,28 @@ fi
 rm -f "${LIVE_MICROPHONE_RESULT_PATH}" "${LIVE_MICROPHONE_DIRECT_LOG_PATH}"
 pkill -x Foil >/dev/null 2>&1 || true
 
-LIVE_MICROPHONE_RESULT_PATH="${LIVE_MICROPHONE_RESULT_PATH}" \
-FOIL_ENABLE_RELEASE_LIVE_MICROPHONE_SMOKE=1 \
-LIVE_MICROPHONE_DURATION_SECONDS="${LIVE_MICROPHONE_DURATION_SECONDS}" \
-LIVE_MICROPHONE_INPUT_ROUTE="${LIVE_MICROPHONE_INPUT_ROUTE}" \
-LIVE_MICROPHONE_APPLE_VOICE_TEXT="${LIVE_MICROPHONE_APPLE_VOICE_TEXT}" \
-LIVE_MICROPHONE_SIGNING_IDENTITY="${signing_identity}" \
-"${executable}" --ui-testing --reset-defaults --seed-setup-ready --live-microphone-smoke \
-  >"${LIVE_MICROPHONE_DIRECT_LOG_PATH}" 2>&1 &
+if "${OPEN}" -h 2>&1 | grep -q -- "--env"; then
+  echo "Attempting direct app-hook fallback via LaunchServices open --env."
+  "${OPEN}" -n -W -a "${test_host}" \
+    --env "LIVE_MICROPHONE_RESULT_PATH=${LIVE_MICROPHONE_RESULT_PATH}" \
+    --env "FOIL_ENABLE_RELEASE_LIVE_MICROPHONE_SMOKE=1" \
+    --env "LIVE_MICROPHONE_DURATION_SECONDS=${LIVE_MICROPHONE_DURATION_SECONDS}" \
+    --env "LIVE_MICROPHONE_INPUT_ROUTE=${LIVE_MICROPHONE_INPUT_ROUTE}" \
+    --env "LIVE_MICROPHONE_APPLE_VOICE_TEXT=${LIVE_MICROPHONE_APPLE_VOICE_TEXT}" \
+    --env "LIVE_MICROPHONE_SIGNING_IDENTITY=${signing_identity}" \
+    -o "${LIVE_MICROPHONE_DIRECT_LOG_PATH}.stdout" --stderr "${LIVE_MICROPHONE_DIRECT_LOG_PATH}" \
+    --args --ui-testing --reset-defaults --seed-setup-ready --live-microphone-smoke &
+else
+  echo "LaunchServices open --env unavailable; running raw executable fallback."
+  LIVE_MICROPHONE_RESULT_PATH="${LIVE_MICROPHONE_RESULT_PATH}" \
+  FOIL_ENABLE_RELEASE_LIVE_MICROPHONE_SMOKE=1 \
+  LIVE_MICROPHONE_DURATION_SECONDS="${LIVE_MICROPHONE_DURATION_SECONDS}" \
+  LIVE_MICROPHONE_INPUT_ROUTE="${LIVE_MICROPHONE_INPUT_ROUTE}" \
+  LIVE_MICROPHONE_APPLE_VOICE_TEXT="${LIVE_MICROPHONE_APPLE_VOICE_TEXT}" \
+  LIVE_MICROPHONE_SIGNING_IDENTITY="${signing_identity}" \
+  "${executable}" --ui-testing --reset-defaults --seed-setup-ready --live-microphone-smoke \
+    >"${LIVE_MICROPHONE_DIRECT_LOG_PATH}" 2>&1 &
+fi
 direct_pid=$!
 
 ( sleep 1.5; capture_direct_screenshot "${LIVE_MICROPHONE_SCREENSHOT_DIR}/direct-recording-ui.png" ) &
