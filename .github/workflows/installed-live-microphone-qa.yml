@@ -8,6 +8,11 @@ on:
         required: true
         default: "Jeremys-Mac-mini-2.local"
         type: string
+      ssh_user:
+        description: "SSH user for the installed-app host"
+        required: true
+        default: "jeremywatt"
+        type: string
       app_path:
         description: "Installed Foil.app path on the remote host"
         required: true
@@ -104,10 +109,11 @@ jobs:
       - name: Remote GUI session proof
         env:
           HOST: ${{ inputs.host }}
+          SSH_USER: ${{ inputs.ssh_user }}
         run: |
           set -euo pipefail
 
-          ssh -o BatchMode=yes -o AddressFamily=inet6 "$HOST" '
+          ssh -o BatchMode=yes -o AddressFamily=inet6 "$SSH_USER@$HOST" '
             set -euo pipefail
             echo "console_user=$(stat -f %Su /dev/console)"
             scutil <<< "show State:/Users/ConsoleUser"
@@ -118,7 +124,7 @@ jobs:
         timeout-minutes: 20
         env:
           RUN_INSTALLED_LIVE_MICROPHONE_TESTS: "1"
-          HOST: ${{ inputs.host }}
+          HOST: ${{ inputs.ssh_user }}@${{ inputs.host }}
           APP_PATH: ${{ inputs.app_path }}
           EXPECTED_VERSION: ${{ inputs.expected_version }}
           EXPECTED_BUILD: ${{ inputs.expected_build }}
@@ -133,6 +139,7 @@ jobs:
         if: always()
         env:
           HOST: ${{ inputs.host }}
+          SSH_USER: ${{ inputs.ssh_user }}
           EVIDENCE_DIR: /tmp/foil-installed-live-microphone-qa-${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -140,7 +147,7 @@ jobs:
           rm -rf installed-live-microphone-artifacts
           mkdir -p installed-live-microphone-artifacts
           if ! scp -o BatchMode=yes -o AddressFamily=inet6 -r \
-            "$HOST:$EVIDENCE_DIR/." \
+            "$SSH_USER@$HOST:$EVIDENCE_DIR/." \
             installed-live-microphone-artifacts/; then
             {
               echo "remote evidence collection failed"
@@ -164,7 +171,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          ssh -o BatchMode=yes -o AddressFamily=inet6 "${{ inputs.host }}" \
+          ssh -o BatchMode=yes -o AddressFamily=inet6 "${{ inputs.ssh_user }}@${{ inputs.host }}" \
             "pkill -x Foil >/dev/null 2>&1 || true" || true
 
           cleanup="$HOME/Library/Application Support/macos-e2e-runner/macos-runner-cleanup"
