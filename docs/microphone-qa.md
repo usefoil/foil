@@ -24,11 +24,12 @@ scripts/run-installed-live-microphone-qa.sh
 ```
 
 To run the same installed-app smoke from GitHub Actions, manually dispatch the
-`Installed App Live Microphone QA` workflow. Set `host=mm2`, `app_path` to the
-installed app under test, and provide the expected version/build. The workflow
-collects the remote evidence directory into an `installed-live-microphone-qa`
-artifact. It still requires an active desktop login on the target Mac; if mm2 is
-at the login window after reboot, LaunchServices cannot open the installed app.
+`Installed App Live Microphone QA` workflow. Use the default
+`host=Jeremys-Mac-mini-2.local`, set `app_path` to the installed app under test,
+and provide the expected version/build. The workflow collects the remote
+evidence directory into an `installed-live-microphone-qa` artifact. It still
+requires an active desktop login on the target Mac; if mm2 is at the login
+window after reboot, LaunchServices cannot open the installed app.
 
 This installed-app smoke connects over SSH, verifies the installed Foil bundle
 identity, Developer ID signature, and Gatekeeper notarization state, then

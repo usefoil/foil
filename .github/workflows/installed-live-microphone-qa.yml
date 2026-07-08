@@ -6,7 +6,7 @@ on:
       host:
         description: "SSH host that has Foil installed"
         required: true
-        default: "mm2"
+        default: "Jeremys-Mac-mini-2.local"
         type: string
       app_path:
         description: "Installed Foil.app path on the remote host"
@@ -89,6 +89,17 @@ jobs:
           /usr/local/ci/bin/macos-runner-healthcheck --json
 
       - uses: actions/checkout@v6
+
+      - name: Trust remote SSH host key
+        env:
+          HOST: ${{ inputs.host }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          ssh-keyscan -H -t ed25519,rsa "$HOST" >> "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
 
       - name: Remote GUI session proof
         env:
