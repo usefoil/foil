@@ -154,9 +154,10 @@ jobs:
           LIVE_MICROPHONE_DURATION_SECONDS: ${{ inputs.duration_seconds }}
           LIVE_MICROPHONE_APPLE_VOICE_TEXT: ${{ inputs.apple_voice_text }}
           KILL_EXISTING_FOIL: ${{ inputs.kill_existing_foil && '1' || '0' }}
-          SSH_OPTS: "-o BatchMode=yes -o AddressFamily=inet6 -i $HOME/.ssh/installed_live_microphone_qa -o IdentitiesOnly=yes"
           EVIDENCE_DIR: /tmp/foil-installed-live-microphone-qa-${{ github.run_id }}
-        run: scripts/run-installed-live-microphone-qa.sh
+        run: |
+          export SSH_OPTS="-o BatchMode=yes -o AddressFamily=inet6 -i $HOME/.ssh/installed_live_microphone_qa -o IdentitiesOnly=yes"
+          scripts/run-installed-live-microphone-qa.sh
 
       - name: Collect remote evidence
         if: always()
