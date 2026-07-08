@@ -106,6 +106,21 @@ jobs:
           ssh-keyscan -H -t ed25519,rsa "$HOST" >> "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
 
+      - name: Configure remote SSH identity
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.INSTALLED_LIVE_MICROPHONE_QA_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SSH_PRIVATE_KEY}" ]]; then
+            echo "INSTALLED_LIVE_MICROPHONE_QA_SSH_KEY is not configured." >&2
+            exit 1
+          fi
+
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > "$HOME/.ssh/installed_live_microphone_qa"
+          chmod 600 "$HOME/.ssh/installed_live_microphone_qa"
+
       - name: Remote GUI session proof
         env:
           HOST: ${{ inputs.host }}
@@ -113,7 +128,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          ssh -o BatchMode=yes -o AddressFamily=inet6 "$SSH_USER@$HOST" '
+          ssh_args=(
+            -o BatchMode=yes
+            -o AddressFamily=inet6
+            -i "$HOME/.ssh/installed_live_microphone_qa"
+            -o IdentitiesOnly=yes
+          )
+
+          ssh "${ssh_args[@]}" "$SSH_USER@$HOST" '
             set -euo pipefail
             echo "console_user=$(stat -f %Su /dev/console)"
             scutil <<< "show State:/Users/ConsoleUser"
@@ -132,6 +154,7 @@ jobs:
           LIVE_MICROPHONE_DURATION_SECONDS: ${{ inputs.duration_seconds }}
           LIVE_MICROPHONE_APPLE_VOICE_TEXT: ${{ inputs.apple_voice_text }}
           KILL_EXISTING_FOIL: ${{ inputs.kill_existing_foil && '1' || '0' }}
+          SSH_OPTS: "-o BatchMode=yes -o AddressFamily=inet6 -i $HOME/.ssh/installed_live_microphone_qa -o IdentitiesOnly=yes"
           EVIDENCE_DIR: /tmp/foil-installed-live-microphone-qa-${{ github.run_id }}
         run: scripts/run-installed-live-microphone-qa.sh
 
@@ -144,9 +167,16 @@ jobs:
         run: |
           set -euo pipefail
 
+          scp_args=(
+            -o BatchMode=yes
+            -o AddressFamily=inet6
+            -i "$HOME/.ssh/installed_live_microphone_qa"
+            -o IdentitiesOnly=yes
+          )
+
           rm -rf installed-live-microphone-artifacts
           mkdir -p installed-live-microphone-artifacts
-          if ! scp -o BatchMode=yes -o AddressFamily=inet6 -r \
+          if ! scp "${scp_args[@]}" -r \
             "$SSH_USER@$HOST:$EVIDENCE_DIR/." \
             installed-live-microphone-artifacts/; then
             {
@@ -171,7 +201,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          ssh -o BatchMode=yes -o AddressFamily=inet6 "${{ inputs.ssh_user }}@${{ inputs.host }}" \
+          ssh_args=(
+            -o BatchMode=yes
+            -o AddressFamily=inet6
+            -i "$HOME/.ssh/installed_live_microphone_qa"
+            -o IdentitiesOnly=yes
+          )
+
+          ssh "${ssh_args[@]}" "${{ inputs.ssh_user }}@${{ inputs.host }}" \
             "pkill -x Foil >/dev/null 2>&1 || true" || true
 
           cleanup="$HOME/Library/Application Support/macos-e2e-runner/macos-runner-cleanup"
