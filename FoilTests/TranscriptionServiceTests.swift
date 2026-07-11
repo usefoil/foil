@@ -242,6 +242,8 @@ final class TranscriptionServiceTests: XCTestCase {
         ])
         XCTAssertFalse(commands.startServerArguments.joined(separator: " ").contains("~"))
         XCTAssertEqual(commands.modelsEndpointURL.absoluteString, "http://127.0.0.1:8080/v1/models")
+        XCTAssertEqual(commands.serverBinaryDisplayPath, "~/Developer/whisper.cpp/build/bin/whisper-server")
+        XCTAssertEqual(commands.modelFileDisplayPath, "~/Developer/whisper.cpp/models/ggml-base.en.bin")
     }
 
     @MainActor
@@ -265,7 +267,33 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let result = await controller.start(commands: commands)
 
-        XCTAssertEqual(result, .missingBinary(commands.serverBinaryURL.path))
+        XCTAssertEqual(result, .missingBinary(commands.serverBinaryDisplayPath))
+    }
+
+    @MainActor
+    func testCancelledInitialReachabilityProbeDoesNotLaunchOwnedServer() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        try Self.writeExecutableStub(at: commands.serverBinaryURL)
+        try Data().write(to: commands.modelFileURL)
+        let probeStarted = expectation(description: "Initial reachability probe started")
+        let controller = LocalWhisperServerController { _ in
+            probeStarted.fulfill()
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            return false
+        }
+        let startTask = Task { await controller.start(commands: commands) }
+        await fulfillment(of: [probeStarted], timeout: 1)
+
+        startTask.cancel()
+        let result = await startTask.value
+
+        XCTAssertEqual(result, .cancelled)
+        XCTAssertFalse(controller.isProcessRunning, "Cancellation during the initial probe must not launch a server")
     }
 
     @MainActor
@@ -279,7 +307,7 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let result = await controller.start(commands: commands)
 
-        XCTAssertEqual(result, .missingModel(commands.modelFileURL.path))
+        XCTAssertEqual(result, .missingModel(commands.modelFileDisplayPath))
     }
 
     @MainActor
@@ -321,6 +349,217 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(controller.isProcessRunning, "A headless server must not receive stdin EOF immediately")
         controller.terminate()
         XCTAssertFalse(controller.isProcessRunning)
+    }
+
+    @MainActor
+    func testLocalWhisperServerReadinessAllowsMoreThanPreviousFiveSecondWindow() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        try Self.writeExecutableStub(at: commands.serverBinaryURL)
+        try Data().write(to: commands.modelFileURL)
+        var reachabilityChecks = 0
+        let controller = LocalWhisperServerController(
+            delay: { _ in },
+            reachabilityCheck: { _ in
+                reachabilityChecks += 1
+                return reachabilityChecks >= 13
+            }
+        )
+
+        let startResult = await controller.start(commands: commands)
+        XCTAssertEqual(startResult, .started(commands.localBaseURL))
+        let readiness = await controller.waitForReadiness(commands: commands)
+
+        XCTAssertEqual(readiness, .reachable)
+        XCTAssertEqual(reachabilityChecks, 13)
+        XCTAssertGreaterThan(LocalWhisperServerController.defaultReadinessAttempts, 11)
+        XCTAssertEqual(
+            LocalWhisperServerController.defaultReadinessTimeoutNanoseconds,
+            30_000_000_000
+        )
+        controller.terminate()
+    }
+
+    @MainActor
+    func testLocalWhisperServerReadinessCountsSlowProbeTimeAgainstDeadline() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        try Self.writeExecutableStub(at: commands.serverBinaryURL)
+        try Data().write(to: commands.modelFileURL)
+        var elapsedNanoseconds: UInt64 = 0
+        var readinessChecks = 0
+        let controller = LocalWhisperServerController(
+            delay: { duration in elapsedNanoseconds += duration },
+            monotonicTime: { elapsedNanoseconds },
+            reachabilityCheck: { _ in
+                readinessChecks += 1
+                elapsedNanoseconds += 750_000_000
+                return false
+            }
+        )
+
+        let startResult = await controller.start(commands: commands)
+        XCTAssertEqual(startResult, .started(commands.localBaseURL))
+        elapsedNanoseconds = 0
+        readinessChecks = 0
+        let readiness = await controller.waitForReadiness(commands: commands)
+
+        XCTAssertEqual(readiness, .timedOut)
+        XCTAssertEqual(elapsedNanoseconds, LocalWhisperServerController.defaultReadinessTimeoutNanoseconds)
+        XCTAssertEqual(readinessChecks, 24, "Slow probes must consume the same 30-second deadline as retry delays")
+        XCTAssertTrue(controller.isProcessRunning)
+        controller.terminate()
+    }
+
+    @MainActor
+    func testLocalWhisperServerReadinessReportsTimedOutWhileOwnedProcessIsStillRunning() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        try Self.writeExecutableStub(at: commands.serverBinaryURL)
+        try Data().write(to: commands.modelFileURL)
+        let controller = LocalWhisperServerController(
+            delay: { _ in },
+            reachabilityCheck: { _ in false }
+        )
+
+        let startResult = await controller.start(commands: commands)
+        XCTAssertEqual(startResult, .started(commands.localBaseURL))
+        let readiness = await controller.waitForReadiness(
+            commands: commands,
+            attempts: 2,
+            delayNanoseconds: 500_000_000
+        )
+
+        XCTAssertEqual(readiness, .timedOut)
+        XCTAssertTrue(controller.isProcessRunning)
+        controller.terminate()
+        XCTAssertFalse(controller.isProcessRunning)
+    }
+
+    @MainActor
+    func testLocalWhisperServerReadinessCancellationStopsWaiting() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        try Self.writeExecutableStub(at: commands.serverBinaryURL)
+        try Data().write(to: commands.modelFileURL)
+        let controller = LocalWhisperServerController(
+            delay: { try await Task.sleep(nanoseconds: $0) },
+            reachabilityCheck: { _ in false }
+        )
+        let startResult = await controller.start(commands: commands)
+        XCTAssertEqual(startResult, .started(commands.localBaseURL))
+
+        let readinessTask = Task {
+            await controller.waitForReadiness(
+                commands: commands,
+                attempts: 100,
+                delayNanoseconds: 50_000_000
+            )
+        }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        readinessTask.cancel()
+
+        let cancelledReadiness = await readinessTask.value
+        XCTAssertEqual(cancelledReadiness, .cancelled)
+        controller.terminate()
+        XCTAssertFalse(controller.isProcessRunning)
+    }
+
+    @MainActor
+    func testLocalWhisperServerEarlyExitReturnsBoundedSanitizedStartupDetail() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        let script = """
+        #!/bin/sh
+        printf '\\033[31mAuthorization: Bearer sk-testsecret123456789\\033[0m\\n' >&2
+        printf 'model path=/Users/alice/Developer/whisper.cpp/models/ggml-base.en.bin\\n' >&2
+        printf 'startup failed safely\\n' >&2
+        exit 7
+        """
+        try Data(script.utf8).write(to: commands.serverBinaryURL)
+        chmod(commands.serverBinaryURL.path, 0o755)
+        try Data().write(to: commands.modelFileURL)
+        let controller = LocalWhisperServerController(
+            delay: { try await Task.sleep(nanoseconds: $0) },
+            reachabilityCheck: { _ in false }
+        )
+
+        let startResult = await controller.start(commands: commands)
+        XCTAssertEqual(startResult, .started(commands.localBaseURL))
+        let readiness = await controller.waitForReadiness(
+            commands: commands,
+            attempts: 100,
+            delayNanoseconds: 10_000_000
+        )
+
+        guard case .processExited(let detail?) = readiness else {
+            return XCTFail("Expected sanitized process-exit detail, got \(readiness)")
+        }
+        XCTAssertTrue(detail.contains("Authorization: Bearer <redacted>"))
+        XCTAssertTrue(detail.contains("/Users/<user>/Developer"))
+        XCTAssertTrue(detail.contains("startup failed safely"))
+        XCTAssertFalse(detail.contains("sk-testsecret123456789"))
+        XCTAssertFalse(detail.contains("/Users/alice/"))
+        XCTAssertFalse(detail.contains("\\u{001B}"))
+        XCTAssertLessThanOrEqual(detail.count, LocalWhisperServerController.maximumStartupFailureDetailCharacters)
+    }
+
+    @MainActor
+    func testLocalWhisperServerStartupDetailIsBoundedAndStopsCapturingAfterReadiness() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        let noise = String(repeating: "x", count: LocalWhisperServerController.maximumStartupOutputBytes * 2)
+        let script = """
+        #!/bin/sh
+        printf '%s\\n' '\(noise)' >&2
+        sleep 1
+        printf 'rawTranscript=SHOULD NEVER BE CAPTURED AFTER READY\\n' >&2
+        read line
+        """
+        try Data(script.utf8).write(to: commands.serverBinaryURL)
+        chmod(commands.serverBinaryURL.path, 0o755)
+        try Data().write(to: commands.modelFileURL)
+        var checks = 0
+        let controller = LocalWhisperServerController(
+            delay: { _ in },
+            reachabilityCheck: { _ in
+                checks += 1
+                return checks >= 2
+            }
+        )
+
+        let startResult = await controller.start(commands: commands)
+        XCTAssertEqual(startResult, .started(commands.localBaseURL))
+        let readiness = await controller.waitForReadiness(commands: commands)
+        XCTAssertEqual(readiness, .reachable)
+        try await Task.sleep(nanoseconds: 1_200_000_000)
+
+        XCTAssertNil(controller.startupFailureDetail)
+        controller.terminate()
     }
 
     func testLocalWhisperSetupExplanationSeparatesAPIModelFromServerModelFile() {

@@ -291,6 +291,12 @@ final class UITestingController {
             appState.localWhisperServerState = .running("http://127.0.0.1:8080/v1")
         }
 
+        if args.contains("--seed-local-server-starting") {
+            appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+            appState.localWhisperSetupModelID = .largeV3Turbo
+            appState.localWhisperServerState = .starting("Large V3 Turbo")
+        }
+
         if args.contains("--seed-openai-provider") {
             appState.selectedTranscriptionProviderPresetID = .openAIWhisper
         }

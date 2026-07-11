@@ -472,6 +472,12 @@ struct SettingsView: View {
 
             if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
                 Section("Local Server") {
+                    LabeledContent("App build") {
+                        Text(AppBrand.versionDisplay)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("settings.localWhisperBuildIdentity")
+                    }
                     providerConnectionTestRow
                     Text(providerConnectionHelp)
                         .font(.caption)
@@ -1387,12 +1393,12 @@ struct SettingsView: View {
                 }
                 .disabled(
                     appState.localWhisperServerState.isStarting
-                        || isFoilLocalWhisperServerRunning
+                        || canStopFoilLocalWhisperServer
                         || onStartLocalWhisperServer == nil
                 )
                 .accessibilityIdentifier("settings.localWhisperStartServerButton")
 
-                if isFoilLocalWhisperServerRunning {
+                if canStopFoilLocalWhisperServer {
                     Button(role: .destructive) {
                         onStopLocalWhisperServer?()
                     } label: {
@@ -1416,9 +1422,13 @@ struct SettingsView: View {
         }
     }
 
-    private var isFoilLocalWhisperServerRunning: Bool {
-        if case .running = appState.localWhisperServerState { return true }
-        return false
+    private var canStopFoilLocalWhisperServer: Bool {
+        switch appState.localWhisperServerState {
+        case .starting, .running:
+            true
+        default:
+            false
+        }
     }
 
     @ViewBuilder
