@@ -59,8 +59,9 @@ struct ApiKeySetupView: View {
                 }
 
                 HStack(spacing: 10) {
-                    if let apiKeyURL {
-                        Link("Get API Key", destination: apiKeyURL)
+                    if let apiKeyURL = provider.id.apiKeysURL,
+                       let apiKeyLinkTitle = provider.id.apiKeysLinkTitle {
+                        Link(apiKeyLinkTitle, destination: apiKeyURL)
                             .font(.caption)
                             .accessibilityIdentifier("apiKeySetup.getKeyLink")
                     }
@@ -187,14 +188,4 @@ struct ApiKeySetupView: View {
         }
     }
 
-    private var apiKeyURL: URL? {
-        switch provider.id {
-        case .groq:
-            URL(string: "https://console.groq.com/keys")
-        case .openAI:
-            URL(string: "https://platform.openai.com/api-keys")
-        case .openAICompatible:
-            nil
-        }
-    }
 }

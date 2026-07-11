@@ -285,6 +285,12 @@ final class UITestingController {
             appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         }
 
+        if args.contains("--seed-local-server-running") {
+            appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+            appState.activeLocalWhisperModelID = .baseEN
+            appState.localWhisperServerState = .running("http://127.0.0.1:8080/v1")
+        }
+
         if args.contains("--seed-openai-provider") {
             appState.selectedTranscriptionProviderPresetID = .openAIWhisper
         }
@@ -1388,6 +1394,8 @@ final class UITestingController {
             onSaveAndRecleanVocabularyCorrection: historyRecleanUITestAction,
             onTransformTranscript: historyTransformUITestAction,
             onHotkeyChanged: onHotkeyChanged,
+            onStartLocalWhisperServer: { _ in },
+            onStopLocalWhisperServer: {},
             onStartRecording: onStartRecording,
             onStopRecording: onStopRecording,
             onCancelRecording: onCancelRecording,

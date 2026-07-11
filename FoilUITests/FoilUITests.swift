@@ -1174,9 +1174,10 @@ final class FoilUITests: XCTestCase {
                 || app.staticTexts["GPT-5.4 mini"].exists,
             app.debugDescription
         )
-        XCTAssertTrue(elementExists(id: "settings.cleanupGroups.openAIAPIKey", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.cleanupGroups.saveOpenAIAPIKeyButton", timeout: 4), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "settings.cleanupGroups.deleteOpenAIAPIKeyButton", timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.secureTextFields["OpenAI API key"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.buttons["Save OpenAI key"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.buttons["Delete OpenAI key"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.links["Get or manage OpenAI API keys"].waitForExistence(timeout: 4), app.debugDescription)
     }
 
     func testProviderQAOpenAIWhisperPresetShowsCloudSettings() {
@@ -1187,6 +1188,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue((providerPicker.value as? String) == "OpenAI Whisper" || app.staticTexts["OpenAI Whisper"].exists, app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Audio is sent to OpenAI for Whisper transcription").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("OpenAI Whisper API key").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.providerApiKeysLink", timeout: 2), app.debugDescription)
         XCTAssertTrue(app.staticTexts["https://api.openai.com/v1"].exists || staticTextContaining("api.openai.com/v1").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(app.staticTexts["whisper-1"].exists || staticTextContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Audio is sent to OpenAI's cloud transcription endpoint").waitForExistence(timeout: 2), app.debugDescription)
@@ -1230,7 +1232,21 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(staticTextLabelOrValueContaining("Start the local whisper-server first").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.localWhisperStartServerButton", timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.localWhisperServerStatus", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.localWhisperAutoStartToggle", timeout: 2), app.debugDescription)
         XCTAssertTrue(app.buttons["Test connection"].exists || app.buttons["settings.testProviderConnectionButton"].exists || app.buttons["menu.settings.testProviderConnectionButton"].exists, app.debugDescription)
+    }
+
+    func testProviderQAFoilOwnedLocalServerShowsStopControl() {
+        launchForProviderQA(extraArguments: ["--seed-local-server-running"])
+        openTranscriptionSettingsPanel()
+
+        let startButton = app.buttons["Start server"]
+        let stopButton = app.buttons["Stop server"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(startButton.isEnabled, app.debugDescription)
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(stopButton.isEnabled, app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Running at http://127.0.0.1:8080/v1").waitForExistence(timeout: 2), app.debugDescription)
     }
 
     func testProviderQALocalWhisperCanBeSelectedFromDefaultSettings() {
@@ -1265,7 +1281,8 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(staticTextLabelOrValueContaining("git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git ~/Developer/whisper.cpp").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("cmake -B build -DWHISPER_BUILD_TESTS=OFF").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("download-ggml-model.sh base.en").waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("will not install, build, clone, or download files automatically").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("no Terminal window is needed for everyday use").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.localWhisperAutoStartToggle", timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("--inference-path /v1/audio/transcriptions").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.localWhisperCloneCommand.copyButton", timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.localWhisperBuildCommand.copyButton", timeout: 2), app.debugDescription)

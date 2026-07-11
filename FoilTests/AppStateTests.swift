@@ -2009,6 +2009,7 @@ final class AppStateTests: XCTestCase {
     func testProviderConnectionReportsReachableWithoutModelValidation() async {
         let state = AppState()
         state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.localWhisperSetupModelID = .baseEN
         let service = TranscriptionService(transport: StubTransport { request in
             (
                 Data("not found".utf8),
@@ -2020,7 +2021,29 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(
             state.providerConnectionTestState,
-            .warning("Server reachable. Model availability was not checked.")
+            .warning(
+                "Server reachable. Selected: Base English. whisper.cpp does not report its loaded model, so Foil cannot verify an externally started server."
+            )
+        )
+    }
+
+    func testProviderConnectionReportsFoilOwnedLocalModelWhenServerCannotListModels() async {
+        let state = AppState()
+        state.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        state.activeLocalWhisperModelID = .baseEN
+        state.localWhisperSetupModelID = .smallEN
+        let service = TranscriptionService(transport: StubTransport { request in
+            (
+                Data("not found".utf8),
+                Self.httpResponse(statusCode: 404, url: request.url!)
+            )
+        })
+
+        await state.testSelectedProviderConnection(service: service)
+
+        XCTAssertEqual(
+            state.providerConnectionTestState,
+            .succeeded("Server reachable. Foil is using Base English (ggml-base.en.bin).")
         )
     }
 
