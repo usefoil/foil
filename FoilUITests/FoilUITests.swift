@@ -1249,6 +1249,31 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(staticTextLabelOrValueContaining("Running at http://127.0.0.1:8080/v1").waitForExistence(timeout: 2), app.debugDescription)
     }
 
+    func testProviderQALocalWhisperStartingShowsStopControlAndBuildIdentity() {
+        launchForProviderQA(extraArguments: ["--seed-local-server-starting"])
+        openTranscriptionSettingsPanel()
+
+        let startButton = app.buttons["Start server"]
+        let stopButton = app.buttons["Stop server"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(startButton.isEnabled, app.debugDescription)
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(stopButton.isEnabled, app.debugDescription)
+        let startingStatus = app.descendants(matching: .any)["settings.localWhisperServerStatus"]
+        XCTAssertTrue(startingStatus.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(startingStatus.label.contains("Starting Large V3 Turbo"), startingStatus.debugDescription)
+        let versionFooter = app.descendants(matching: .any)["settings.localWhisperBuildIdentity"]
+        XCTAssertTrue(
+            versionFooter.waitForExistence(timeout: 2),
+            "Embedded Transcription settings should identify the running Foil build. \(app.debugDescription)"
+        )
+        let versionFooterText = [versionFooter.label, versionFooter.value as? String]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        XCTAssertTrue(versionFooterText.contains("Foil"), versionFooterText)
+        XCTAssertTrue(versionFooterText.localizedCaseInsensitiveContains("build"), versionFooterText)
+    }
+
     func testProviderQALocalWhisperCanBeSelectedFromDefaultSettings() {
         launchForProviderQA()
         openTranscriptionSettingsPanel()

@@ -444,10 +444,18 @@ struct LocalWhisperSetupCommands: Equatable {
             .appendingPathComponent("whisper-server", isDirectory: false)
     }
 
+    var serverBinaryDisplayPath: String {
+        Self.userFacingPath(serverBinaryURL.path)
+    }
+
     var modelFileURL: URL {
         installDirectoryURL
             .appendingPathComponent("models", isDirectory: true)
             .appendingPathComponent(model.ggmlFilename, isDirectory: false)
+    }
+
+    var modelFileDisplayPath: String {
+        Self.userFacingPath(modelFileURL.path)
     }
 
     var startServerArguments: [String] {
@@ -472,32 +480,123 @@ struct LocalWhisperSetupCommands: Equatable {
     var modelSelectionExplanation: String {
         "\(AppBrand.name) sends \(Self.apiCompatibilityModel) for OpenAI-compatible API shape; whisper-server uses --model \(model.ggmlFilename) as the real local model."
     }
+
+    private static func userFacingPath(_ path: String) -> String {
+        let homePath = NSHomeDirectory()
+        guard path == homePath || path.hasPrefix("\(homePath)/") else { return path }
+        return "~\(path.dropFirst(homePath.count))"
+    }
 }
 
 enum LocalWhisperServerStartResult: Equatable {
     case alreadyRunning(String)
     case started(String)
+    case cancelled
     case missingBinary(String)
     case missingModel(String)
     case failed(String)
 }
 
+enum LocalWhisperServerReadinessResult: Equatable {
+    case reachable
+    case processExited(String?)
+    case timedOut
+    case cancelled
+}
+
+private final class LocalWhisperStartupOutputBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private let maximumBytes: Int
+    private var data = Data()
+    private var isCapturing = true
+
+    init(maximumBytes: Int) {
+        self.maximumBytes = maximumBytes
+    }
+
+    func append(_ newData: Data) {
+        guard !newData.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        guard isCapturing else { return }
+        data.append(newData)
+        if data.count > maximumBytes {
+            data.removeFirst(data.count - maximumBytes)
+        }
+    }
+
+    func stopCapturing(clear: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        isCapturing = false
+        if clear { data.removeAll(keepingCapacity: false) }
+    }
+
+    func sanitizedSummary(maximumCharacters: Int) -> String? {
+        lock.lock()
+        let snapshot = data
+        lock.unlock()
+
+        guard !snapshot.isEmpty else { return nil }
+        var text = String(decoding: snapshot, as: UTF8.self)
+        if let ansiExpression = try? NSRegularExpression(pattern: #"\x1B\[[0-?]*[ -/]*[@-~]"#) {
+            text = ansiExpression.stringByReplacingMatches(
+                in: text,
+                range: NSRange(text.startIndex..., in: text),
+                withTemplate: ""
+            )
+        }
+        text = String(text.unicodeScalars.map { scalar in
+            if scalar.value == 9 || scalar.value == 10 || scalar.value >= 32 {
+                return Character(String(scalar))
+            }
+            return " "
+        })
+        let lines = text
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !lines.isEmpty else { return nil }
+
+        let redacted = DiagnosticLog.redacted(lines.suffix(3).joined(separator: " · "))
+        guard redacted.count > maximumCharacters else { return redacted }
+        return "…" + String(redacted.suffix(maximumCharacters - 1))
+    }
+}
+
 @MainActor
 final class LocalWhisperServerController {
     typealias ReachabilityCheck = (URL) async -> Bool
+    typealias Delay = (UInt64) async throws -> Void
+    typealias MonotonicTime = () -> UInt64
+
+    nonisolated static let defaultReadinessAttempts = 61
+    nonisolated static let defaultReadinessDelayNanoseconds: UInt64 = 500_000_000
+    nonisolated static let defaultReadinessTimeoutNanoseconds: UInt64 = 30_000_000_000
+    nonisolated static let maximumStartupOutputBytes = 16_384
+    nonisolated static let maximumStartupFailureDetailCharacters = 320
 
     private let fileManager: FileManager
     private let reachabilityCheck: ReachabilityCheck
+    private let delay: Delay
+    private let monotonicTime: MonotonicTime
     private var process: Process?
     private var standardInputPipe: Pipe?
+    private var standardErrorPipe: Pipe?
+    private var startupOutputBuffer: LocalWhisperStartupOutputBuffer?
+    private var lastStartupFailureDetail: String?
     var onTermination: (() -> Void)?
 
     init(
         fileManager: FileManager = .default,
+        delay: @escaping Delay = { try await Task.sleep(nanoseconds: $0) },
+        monotonicTime: @escaping MonotonicTime = { DispatchTime.now().uptimeNanoseconds },
         reachabilityCheck: @escaping ReachabilityCheck = LocalWhisperServerController.defaultReachabilityCheck
     ) {
         self.fileManager = fileManager
         self.reachabilityCheck = reachabilityCheck
+        self.delay = delay
+        self.monotonicTime = monotonicTime
     }
 
     var isProcessRunning: Bool {
@@ -508,15 +607,16 @@ final class LocalWhisperServerController {
         if await reachabilityCheck(commands.modelsEndpointURL) {
             return .alreadyRunning(commands.localBaseURL)
         }
+        guard !Task.isCancelled else { return .cancelled }
 
         guard fileManager.fileExists(atPath: commands.serverBinaryURL.path) else {
-            return .missingBinary(commands.serverBinaryURL.path)
+            return .missingBinary(commands.serverBinaryDisplayPath)
         }
         guard fileManager.isExecutableFile(atPath: commands.serverBinaryURL.path) else {
-            return .failed("whisper-server is not executable at \(commands.serverBinaryURL.path). Rebuild whisper.cpp and try again.")
+            return .failed("whisper-server is not executable at \(commands.serverBinaryDisplayPath). Rebuild whisper.cpp and try again.")
         }
         guard fileManager.fileExists(atPath: commands.modelFileURL.path) else {
-            return .missingModel(commands.modelFileURL.path)
+            return .missingModel(commands.modelFileDisplayPath)
         }
 
         let serverProcess = Process()
@@ -527,15 +627,27 @@ final class LocalWhisperServerController {
         // GUI apps inherit a closed stdin, so keep a pipe open for its lifetime.
         let inputPipe = Pipe()
         serverProcess.standardInput = inputPipe
-        // The server is intentionally headless. Unread pipes eventually fill and can
-        // suspend a long-running process, so discard output instead of retaining it.
+        let errorPipe = Pipe()
+        let outputBuffer = LocalWhisperStartupOutputBuffer(maximumBytes: Self.maximumStartupOutputBytes)
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            outputBuffer.append(handle.availableData)
+        }
+        // The server is intentionally headless. stdout is discarded, while stderr is
+        // continuously drained. Only a bounded startup tail is retained until the
+        // server becomes reachable so transcription-time output is never captured.
         serverProcess.standardOutput = FileHandle.nullDevice
-        serverProcess.standardError = FileHandle.nullDevice
-        serverProcess.terminationHandler = { [weak self, weak serverProcess] terminatedProcess in
+        serverProcess.standardError = errorPipe
+        serverProcess.terminationHandler = { [weak self, weak serverProcess, weak errorPipe] terminatedProcess in
             Task { @MainActor in
                 guard let self, let serverProcess, self.process === serverProcess else { return }
+                self.lastStartupFailureDetail = outputBuffer.sanitizedSummary(
+                    maximumCharacters: Self.maximumStartupFailureDetailCharacters
+                )
+                outputBuffer.stopCapturing(clear: false)
+                errorPipe?.fileHandleForReading.readabilityHandler = nil
                 self.process = nil
                 self.standardInputPipe = nil
+                self.standardErrorPipe = nil
                 DiagnosticLog.write(
                     "localWhisperServer: terminated status=\(terminatedProcess.terminationStatus) reason=\(terminatedProcess.terminationReason.rawValue)"
                 )
@@ -547,28 +659,61 @@ final class LocalWhisperServerController {
             try serverProcess.run()
             process = serverProcess
             standardInputPipe = inputPipe
+            standardErrorPipe = errorPipe
+            startupOutputBuffer = outputBuffer
+            lastStartupFailureDetail = nil
             DiagnosticLog.write("localWhisperServer: started pid=\(serverProcess.processIdentifier) binary=\(commands.serverBinaryURL.path)")
             return .started(commands.localBaseURL)
         } catch {
-            DiagnosticLog.write("localWhisperServer: failed error=\(error.localizedDescription)")
-            return .failed("Could not start whisper-server: \(error.localizedDescription)")
+            errorPipe.fileHandleForReading.readabilityHandler = nil
+            outputBuffer.stopCapturing(clear: true)
+            let safeDetail = Self.sanitizedStartupDetail(error.localizedDescription)
+            DiagnosticLog.write("localWhisperServer: failed error=\(safeDetail)")
+            return .failed("Could not start whisper-server: \(safeDetail)")
         }
     }
 
-    func waitUntilReachable(
+    func waitForReadiness(
         commands: LocalWhisperSetupCommands,
-        attempts: Int = 10,
-        delayNanoseconds: UInt64 = 500_000_000
-    ) async -> Bool {
+        attempts: Int = LocalWhisperServerController.defaultReadinessAttempts,
+        delayNanoseconds: UInt64 = LocalWhisperServerController.defaultReadinessDelayNanoseconds,
+        timeoutNanoseconds: UInt64 = LocalWhisperServerController.defaultReadinessTimeoutNanoseconds
+    ) async -> LocalWhisperServerReadinessResult {
+        let startedAt = monotonicTime()
+        let (deadline, overflow) = startedAt.addingReportingOverflow(timeoutNanoseconds)
+        let effectiveDeadline = overflow ? UInt64.max : deadline
+
         for attempt in 1...max(1, attempts) {
+            if Task.isCancelled { return .cancelled }
+            if monotonicTime() >= effectiveDeadline { return .timedOut }
             if await reachabilityCheck(commands.modelsEndpointURL) {
-                return true
+                startupOutputBuffer?.stopCapturing(clear: true)
+                lastStartupFailureDetail = nil
+                return .reachable
             }
+            await Task.yield()
+            if !isProcessRunning {
+                return .processExited(startupFailureDetail)
+            }
+            let now = monotonicTime()
+            if now >= effectiveDeadline { return .timedOut }
             if attempt < attempts {
-                try? await Task.sleep(nanoseconds: delayNanoseconds)
+                do {
+                    try await delay(min(delayNanoseconds, effectiveDeadline - now))
+                } catch {
+                    return .cancelled
+                }
             }
         }
-        return false
+        if Task.isCancelled { return .cancelled }
+        if !isProcessRunning { return .processExited(startupFailureDetail) }
+        return .timedOut
+    }
+
+    var startupFailureDetail: String? {
+        lastStartupFailureDetail ?? startupOutputBuffer?.sanitizedSummary(
+            maximumCharacters: Self.maximumStartupFailureDetailCharacters
+        )
     }
 
     func terminate() {
@@ -576,8 +721,20 @@ final class LocalWhisperServerController {
         if process.isRunning {
             process.terminate()
         }
+        startupOutputBuffer?.stopCapturing(clear: true)
+        standardErrorPipe?.fileHandleForReading.readabilityHandler = nil
         self.process = nil
         standardInputPipe = nil
+        standardErrorPipe = nil
+        startupOutputBuffer = nil
+        lastStartupFailureDetail = nil
+    }
+
+    private static func sanitizedStartupDetail(_ detail: String) -> String {
+        let buffer = LocalWhisperStartupOutputBuffer(maximumBytes: maximumStartupOutputBytes)
+        buffer.append(Data(detail.utf8))
+        return buffer.sanitizedSummary(maximumCharacters: maximumStartupFailureDetailCharacters)
+            ?? "unknown launch error"
     }
 
     private static func defaultReachabilityCheck(url: URL) async -> Bool {
