@@ -181,6 +181,7 @@ test-provider-qa:
 		-only-testing:FoilUITests/FoilUITests/testProviderQADefaultsToGroqPreset \
 		-only-testing:FoilUITests/FoilUITests/testProviderQAOpenAIWhisperPresetShowsCloudSettings \
 		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings \
+		-only-testing:FoilUITests/FoilUITests/testProviderQAFoilOwnedLocalServerShowsStopControl \
 		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperCanBeSelectedFromDefaultSettings \
 		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands \
 		-only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSelectionPersistsAcrossRelaunch \

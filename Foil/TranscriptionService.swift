@@ -23,6 +23,28 @@ enum TranscriptionProviderID: String, CaseIterable, Identifiable {
             "OpenAI-compatible"
         }
     }
+
+    var apiKeysURL: URL? {
+        switch self {
+        case .groq:
+            URL(string: "https://console.groq.com/keys")
+        case .openAI:
+            URL(string: "https://platform.openai.com/api-keys")
+        case .openAICompatible:
+            nil
+        }
+    }
+
+    var apiKeysLinkTitle: String? {
+        switch self {
+        case .groq:
+            "Get or manage Groq API keys"
+        case .openAI:
+            "Get or manage OpenAI API keys"
+        case .openAICompatible:
+            nil
+        }
+    }
 }
 
 enum TranscriptionProviderPresetID: String, CaseIterable, Identifiable {
@@ -467,6 +489,7 @@ final class LocalWhisperServerController {
     private let fileManager: FileManager
     private let reachabilityCheck: ReachabilityCheck
     private var process: Process?
+    private var standardInputPipe: Pipe?
     var onTermination: (() -> Void)?
 
     init(
@@ -500,13 +523,22 @@ final class LocalWhisperServerController {
         serverProcess.executableURL = commands.serverBinaryURL
         serverProcess.arguments = commands.startServerArguments
         serverProcess.currentDirectoryURL = commands.installDirectoryURL
-        serverProcess.standardOutput = Pipe()
-        serverProcess.standardError = Pipe()
+        // whisper-server watches stdin and exits cleanly when it reaches EOF.
+        // GUI apps inherit a closed stdin, so keep a pipe open for its lifetime.
+        let inputPipe = Pipe()
+        serverProcess.standardInput = inputPipe
+        // The server is intentionally headless. Unread pipes eventually fill and can
+        // suspend a long-running process, so discard output instead of retaining it.
+        serverProcess.standardOutput = FileHandle.nullDevice
+        serverProcess.standardError = FileHandle.nullDevice
         serverProcess.terminationHandler = { [weak self, weak serverProcess] terminatedProcess in
             Task { @MainActor in
                 guard let self, let serverProcess, self.process === serverProcess else { return }
                 self.process = nil
-                DiagnosticLog.write("localWhisperServer: terminated status=\(terminatedProcess.terminationStatus)")
+                self.standardInputPipe = nil
+                DiagnosticLog.write(
+                    "localWhisperServer: terminated status=\(terminatedProcess.terminationStatus) reason=\(terminatedProcess.terminationReason.rawValue)"
+                )
                 self.onTermination?()
             }
         }
@@ -514,6 +546,7 @@ final class LocalWhisperServerController {
         do {
             try serverProcess.run()
             process = serverProcess
+            standardInputPipe = inputPipe
             DiagnosticLog.write("localWhisperServer: started pid=\(serverProcess.processIdentifier) binary=\(commands.serverBinaryURL.path)")
             return .started(commands.localBaseURL)
         } catch {
@@ -544,6 +577,7 @@ final class LocalWhisperServerController {
             process.terminate()
         }
         self.process = nil
+        standardInputPipe = nil
     }
 
     private static func defaultReachabilityCheck(url: URL) async -> Bool {

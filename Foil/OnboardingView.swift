@@ -135,9 +135,11 @@ struct OnboardingView: View {
                 .tint(FoilTheme.deepTeal)
                 .accessibilityIdentifier("onboarding.addApiKeyButton")
 
-                if let url = apiKeyURL {
-                    Link(apiKeyLinkText, destination: url)
+                if let url = appState.selectedTranscriptionProviderID.apiKeysURL,
+                   let title = appState.selectedTranscriptionProviderID.apiKeysLinkTitle {
+                    Link(title, destination: url)
                         .font(.caption)
+                        .accessibilityIdentifier("onboarding.providerApiKeysLink")
                 }
             } else {
                 Button("Open Transcription Settings") {
@@ -391,28 +393,6 @@ struct OnboardingView: View {
         appState.selectedTranscriptionProvider.requiresAPIKey
             ? "API key saved"
             : "No API key required"
-    }
-
-    private var apiKeyURL: URL? {
-        switch appState.selectedTranscriptionProviderID {
-        case .groq:
-            URL(string: "https://console.groq.com/keys")
-        case .openAI:
-            URL(string: "https://platform.openai.com/api-keys")
-        case .openAICompatible:
-            nil
-        }
-    }
-
-    private var apiKeyLinkText: String {
-        switch appState.selectedTranscriptionProviderID {
-        case .groq:
-            "Get a free API key at console.groq.com"
-        case .openAI:
-            "Create an OpenAI API key"
-        case .openAICompatible:
-            "API key"
-        }
     }
 
     @ViewBuilder

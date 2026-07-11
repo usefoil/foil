@@ -192,6 +192,15 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(LocalWhisperSetupModel.option(id: .largeV3Turbo).languageScope, "Multilingual")
     }
 
+    func testCloudProviderAPIKeyManagementLinksPointToVendorConsoles() {
+        XCTAssertEqual(TranscriptionProviderID.groq.apiKeysURL?.absoluteString, "https://console.groq.com/keys")
+        XCTAssertEqual(TranscriptionProviderID.groq.apiKeysLinkTitle, "Get or manage Groq API keys")
+        XCTAssertEqual(TranscriptionProviderID.openAI.apiKeysURL?.absoluteString, "https://platform.openai.com/api-keys")
+        XCTAssertEqual(TranscriptionProviderID.openAI.apiKeysLinkTitle, "Get or manage OpenAI API keys")
+        XCTAssertNil(TranscriptionProviderID.openAICompatible.apiKeysURL)
+        XCTAssertNil(TranscriptionProviderID.openAICompatible.apiKeysLinkTitle)
+    }
+
     func testLocalWhisperSetupCommandsUseSelectedModelFile() {
         let model = LocalWhisperSetupModel.option(id: .smallEN)
         let commands = LocalWhisperSetupCommands(model: model)
@@ -290,6 +299,28 @@ final class TranscriptionServiceTests: XCTestCase {
         }
         XCTAssertTrue(message.contains("not executable"))
         XCTAssertTrue(message.contains(commands.serverBinaryURL.path))
+    }
+
+    @MainActor
+    func testLocalWhisperServerControllerKeepsStdinOpenForHeadlessServer() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        try Data("#!/bin/sh\nread line\n".utf8).write(to: commands.serverBinaryURL)
+        chmod(commands.serverBinaryURL.path, 0o755)
+        try Data().write(to: commands.modelFileURL)
+        let controller = LocalWhisperServerController { _ in false }
+
+        let result = await controller.start(commands: commands)
+        try await Task.sleep(nanoseconds: 150_000_000)
+
+        XCTAssertEqual(result, .started(commands.localBaseURL))
+        XCTAssertTrue(controller.isProcessRunning, "A headless server must not receive stdin EOF immediately")
+        controller.terminate()
+        XCTAssertFalse(controller.isProcessRunning)
     }
 
     func testLocalWhisperSetupExplanationSeparatesAPIModelFromServerModelFile() {

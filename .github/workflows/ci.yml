@@ -281,6 +281,7 @@ jobs:
             tests: >-
               -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands
               -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperPresetShowsExpectedSettings
+              -only-testing:FoilUITests/FoilUITests/testProviderQAFoilOwnedLocalServerShowsStopControl
               -only-testing:FoilUITests/FoilUITests/testCustomHotkeyRecorderIsAccessibleButton
               -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingFailureKeepsRetryVisibleInHistory
               -only-testing:FoilUITests/FoilUITests/testSelectedStartCueIsUsedBeforeRecorderStarts

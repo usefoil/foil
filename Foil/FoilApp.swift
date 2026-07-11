@@ -72,6 +72,9 @@ struct FoilApp: App {
                 onStartLocalWhisperServer: { [weak appDelegate] modelID in
                     appDelegate?.startLocalWhisperServer(modelID: modelID)
                 },
+                onStopLocalWhisperServer: { [weak appDelegate] in
+                    appDelegate?.stopLocalWhisperServer()
+                },
                 onStartRecording: { [weak appDelegate] in appDelegate?.startRecordingFromControl() },
                 onStopRecording: { [weak appDelegate] in appDelegate?.stopRecordingFromControl() },
                 onCancelRecording: { [weak appDelegate] in appDelegate?.cancelRecordingFromControl() },
@@ -333,6 +336,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         super.init()
         self.localWhisperServerController.onTermination = { [weak self] in
             guard let self else { return }
+            self.appState.activeLocalWhisperModelID = nil
             if case .running = self.appState.localWhisperServerState {
                 self.appState.localWhisperServerState = .failed("whisper-server exited.")
             }
@@ -503,6 +507,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         refreshSetupHealth()
         DiagnosticLog.write("applicationDidFinishLaunching: setup health refreshed")
+        if !isTesting,
+           !isE2ESmoke,
+           appState.selectedTranscriptionProviderPresetID == .localWhisperCPP,
+           appState.autoStartLocalWhisperServer {
+            startLocalWhisperServer(modelID: appState.localWhisperSetupModelID)
+        }
         if shouldDisplayOnboarding {
             showOnboarding()
         }
@@ -566,33 +576,57 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let result = await localWhisperServerController.start(commands: commands)
             switch result {
             case .alreadyRunning(let baseURL):
-                appState.localWhisperServerState = .alreadyRunning(baseURL)
+                if localWhisperServerController.isProcessRunning,
+                   appState.activeLocalWhisperModelID != nil {
+                    appState.localWhisperServerState = .running(baseURL)
+                } else {
+                    appState.activeLocalWhisperModelID = nil
+                    appState.localWhisperServerState = .alreadyRunning(baseURL)
+                }
                 await appState.testSelectedProviderConnection(service: transcriptionService)
             case .started:
                 let reachable = await localWhisperServerController.waitUntilReachable(commands: commands)
                 if reachable {
+                    appState.activeLocalWhisperModelID = modelID
                     appState.localWhisperServerState = .running(commands.localBaseURL)
                     await appState.testSelectedProviderConnection(service: transcriptionService)
                 } else if localWhisperServerController.isProcessRunning {
+                    appState.activeLocalWhisperModelID = nil
                     let message = "Started whisper-server, but \(commands.localBaseURL) did not become reachable within 5 seconds."
                     appState.localWhisperServerState = .failed(message)
                     appState.providerConnectionTestState = .failed(message)
                 } else {
+                    appState.activeLocalWhisperModelID = nil
                     let message = "whisper-server exited before \(commands.localBaseURL) became reachable."
                     appState.localWhisperServerState = .failed(message)
                     appState.providerConnectionTestState = .failed(message)
                 }
             case .missingBinary(let path):
+                appState.activeLocalWhisperModelID = nil
                 appState.localWhisperServerState = .missingBinary(path)
                 appState.providerConnectionTestState = .failed("Missing whisper-server. Build whisper.cpp first.")
             case .missingModel(let path):
+                appState.activeLocalWhisperModelID = nil
                 appState.localWhisperServerState = .missingModel(path)
                 appState.providerConnectionTestState = .failed("Missing local model. Download \(model.displayName) first.")
             case .failed(let message):
+                appState.activeLocalWhisperModelID = nil
                 appState.localWhisperServerState = .failed(message)
                 appState.providerConnectionTestState = .failed(message)
             }
         }
+    }
+
+    func stopLocalWhisperServer() {
+        guard localWhisperServerController.isProcessRunning else {
+            appState.localWhisperServerState = .failed("Foil can only stop a local server that it started.")
+            return
+        }
+        localWhisperServerController.terminate()
+        appState.activeLocalWhisperModelID = nil
+        appState.localWhisperServerState = .idle
+        appState.providerConnectionTestState = .idle
+        DiagnosticLog.write("localWhisperServer: stopped by user")
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -737,6 +771,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onExportDiagnostics: { [weak self] in self?.exportDiagnostics() },
             onStartLocalWhisperServer: { [weak self] modelID in
                 self?.startLocalWhisperServer(modelID: modelID)
+            },
+            onStopLocalWhisperServer: { [weak self] in
+                self?.stopLocalWhisperServer()
             },
             onStartRecording: { [weak self] in self?.startRecordingFromControl() },
             onStopRecording: { [weak self] in self?.stopRecordingFromControl() },

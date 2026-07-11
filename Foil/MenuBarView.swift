@@ -981,7 +981,7 @@ struct MenuBarView: View {
             onOpenHistory()
         } else {
             FoilAppSection.request(.history)
-            openWindow(id: "main")
+            openAndActivateWindow(id: "main")
         }
     }
 
@@ -990,7 +990,7 @@ struct MenuBarView: View {
             onOpenFoil()
         } else {
             FoilAppSection.request(.home)
-            openWindow(id: "main")
+            openAndActivateWindow(id: "main")
         }
     }
 
@@ -999,7 +999,19 @@ struct MenuBarView: View {
             onOpenSettings()
         } else {
             FoilAppSection.request(.general)
-            openWindow(id: "main")
+            openAndActivateWindow(id: "main")
+        }
+    }
+
+    private func openAndActivateWindow(id: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: id)
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            if id == "main",
+               let window = NSApp.windows.first(where: { $0.title == AppBrand.name && $0.canBecomeKey }) {
+                window.makeKeyAndOrderFront(nil)
+            }
         }
     }
 }

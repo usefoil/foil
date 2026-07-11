@@ -13,6 +13,7 @@ struct FoilAppShellView: View {
     var onCopySetupReport: (() -> Void)?
     var onExportDiagnostics: (() -> Void)?
     var onStartLocalWhisperServer: ((LocalWhisperSetupModelID) -> Void)?
+    var onStopLocalWhisperServer: (() -> Void)?
     var onStartRecording: (() -> Void)?
     var onStopRecording: (() -> Void)?
     var onCancelRecording: (() -> Void)?
@@ -35,6 +36,7 @@ struct FoilAppShellView: View {
         onCopySetupReport: (() -> Void)? = nil,
         onExportDiagnostics: (() -> Void)? = nil,
         onStartLocalWhisperServer: ((LocalWhisperSetupModelID) -> Void)? = nil,
+        onStopLocalWhisperServer: (() -> Void)? = nil,
         onStartRecording: (() -> Void)? = nil,
         onStopRecording: (() -> Void)? = nil,
         onCancelRecording: (() -> Void)? = nil,
@@ -53,6 +55,7 @@ struct FoilAppShellView: View {
         self.onCopySetupReport = onCopySetupReport
         self.onExportDiagnostics = onExportDiagnostics
         self.onStartLocalWhisperServer = onStartLocalWhisperServer
+        self.onStopLocalWhisperServer = onStopLocalWhisperServer
         self.onStartRecording = onStartRecording
         self.onStopRecording = onStopRecording
         self.onCancelRecording = onCancelRecording
@@ -144,6 +147,7 @@ struct FoilAppShellView: View {
                 onCopySetupReport: onCopySetupReport,
                 onExportDiagnostics: onExportDiagnostics,
                 onStartLocalWhisperServer: onStartLocalWhisperServer,
+                onStopLocalWhisperServer: onStopLocalWhisperServer,
                 showsTabStrip: false,
                 usesFixedFrame: false
             )

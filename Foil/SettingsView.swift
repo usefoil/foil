@@ -93,6 +93,7 @@ struct SettingsView: View {
     var onCopySetupReport: (() -> Void)?
     var onExportDiagnostics: (() -> Void)?
     var onStartLocalWhisperServer: ((LocalWhisperSetupModelID) -> Void)?
+    var onStopLocalWhisperServer: (() -> Void)?
     var showsTabStrip: Bool
     var usesFixedFrame: Bool
 
@@ -101,7 +102,6 @@ struct SettingsView: View {
     @State private var isShowingClearHistoryConfirmation = false
     @State private var launchAtLoginManager = LaunchAtLoginManager()
     @State private var notificationsEnabled = UserDefaults.standard.bool(forKey: "notificationsEnabled")
-    @State private var selectedLocalWhisperSetupModelID = LocalWhisperSetupModel.recommendedDefaultID
     @State private var openAICleanupAPIKey = ""
     @State private var customCleanupAPIKey = ""
     @State private var selectedCleanupGroupID = CleanupGroup.defaultGroupID
@@ -121,6 +121,7 @@ struct SettingsView: View {
         onCopySetupReport: (() -> Void)? = nil,
         onExportDiagnostics: (() -> Void)? = nil,
         onStartLocalWhisperServer: ((LocalWhisperSetupModelID) -> Void)? = nil,
+        onStopLocalWhisperServer: (() -> Void)? = nil,
         showsTabStrip: Bool = true,
         usesFixedFrame: Bool = true
     ) {
@@ -131,6 +132,7 @@ struct SettingsView: View {
         self.onCopySetupReport = onCopySetupReport
         self.onExportDiagnostics = onExportDiagnostics
         self.onStartLocalWhisperServer = onStartLocalWhisperServer
+        self.onStopLocalWhisperServer = onStopLocalWhisperServer
         self.showsTabStrip = showsTabStrip
         self.usesFixedFrame = usesFixedFrame
         _selectedTab = State(initialValue: initialTab)
@@ -490,6 +492,13 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings.changeApiKeyButton")
                     }
 
+                    if let url = appState.selectedTranscriptionProviderID.apiKeysURL,
+                       let title = appState.selectedTranscriptionProviderID.apiKeysLinkTitle {
+                        Link(title, destination: url)
+                            .font(.caption)
+                            .accessibilityIdentifier("settings.providerApiKeysLink")
+                    }
+
                     if appState.selectedTranscriptionProvider.id == .openAICompatible {
                         providerConnectionTestRow
                         Text(providerConnectionHelp)
@@ -749,6 +758,7 @@ struct SettingsView: View {
                     Text("Llama 3.3 70B Versatile").tag("llama-3.3-70b-versatile")
                 }
                 .accessibilityIdentifier("settings.cleanupGroups.groqModelPicker")
+                providerApiKeysLink(for: .groq, identifier: "settings.cleanupGroups.groqApiKeysLink")
             case .openAI:
                 Picker("Model", selection: cleanupGroupModelBinding(group.id)) {
                     Text("GPT-5.4 mini").tag("gpt-5.4-mini")
@@ -757,6 +767,7 @@ struct SettingsView: View {
                 }
                 .accessibilityIdentifier("settings.cleanupGroups.openAIModelPicker")
                 cleanupOpenAIKeySettings
+                providerApiKeysLink(for: .openAI, identifier: "settings.cleanupGroups.openAIApiKeysLink")
             case .customOpenAICompatibleChat:
                 TextField("Chat base URL", text: cleanupGroupBaseURLBinding(group.id))
                     .accessibilityIdentifier("settings.cleanupGroups.customBaseURLField")
@@ -770,6 +781,15 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("settings.cleanupGroups.noProviderHelp")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func providerApiKeysLink(for providerID: TranscriptionProviderID, identifier: String) -> some View {
+        if let url = providerID.apiKeysURL, let title = providerID.apiKeysLinkTitle {
+            Link(title, destination: url)
+                .font(.caption)
+                .accessibilityIdentifier(identifier)
         }
     }
 
@@ -1286,7 +1306,7 @@ struct SettingsView: View {
     }
 
     private var selectedLocalWhisperSetupModel: LocalWhisperSetupModel {
-        LocalWhisperSetupModel.option(id: selectedLocalWhisperSetupModelID)
+        LocalWhisperSetupModel.option(id: appState.localWhisperSetupModelID)
     }
 
     private var providerPrivacySummary: String {
@@ -1310,7 +1330,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             Divider()
 
-            Picker("Local model", selection: $selectedLocalWhisperSetupModelID) {
+            Picker("Local model", selection: $appState.localWhisperSetupModelID) {
                 ForEach(LocalWhisperSetupModel.all) { option in
                     Text(option.displayName).tag(option.id)
                 }
@@ -1361,22 +1381,44 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Button {
-                    onStartLocalWhisperServer?(selectedLocalWhisperSetupModelID)
+                    onStartLocalWhisperServer?(appState.localWhisperSetupModelID)
                 } label: {
                     Label("Start server", systemImage: "play.fill")
                 }
-                .disabled(appState.localWhisperServerState.isStarting || onStartLocalWhisperServer == nil)
+                .disabled(
+                    appState.localWhisperServerState.isStarting
+                        || isFoilLocalWhisperServerRunning
+                        || onStartLocalWhisperServer == nil
+                )
                 .accessibilityIdentifier("settings.localWhisperStartServerButton")
+
+                if isFoilLocalWhisperServerRunning {
+                    Button(role: .destructive) {
+                        onStopLocalWhisperServer?()
+                    } label: {
+                        Label("Stop server", systemImage: "stop.fill")
+                    }
+                    .disabled(onStopLocalWhisperServer == nil)
+                    .accessibilityIdentifier("settings.localWhisperStopServerButton")
+                }
 
                 localWhisperServerStatus
             }
 
-            Text("Starts the already-built local whisper-server with the selected downloaded model. Foil will not install, build, clone, or download files automatically.")
+            Toggle("Start automatically when Foil launches", isOn: $appState.autoStartLocalWhisperServer)
+                .accessibilityIdentifier("settings.localWhisperAutoStartToggle")
+
+            Text("After the one-time install commands below, Foil runs whisper-server in the background—no Terminal window is needed for everyday use. Foil stops the server when you quit.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("settings.localWhisperStartServerHelp")
         }
+    }
+
+    private var isFoilLocalWhisperServerRunning: Bool {
+        if case .running = appState.localWhisperServerState { return true }
+        return false
     }
 
     @ViewBuilder

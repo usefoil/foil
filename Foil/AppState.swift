@@ -123,6 +123,7 @@ final class AppState {
     var providerConnectionTestState: ProviderConnectionTestState = .idle
     var cleanupConnectionTestState: ProviderConnectionTestState = .idle
     var localWhisperServerState: LocalWhisperServerState = .idle
+    var activeLocalWhisperModelID: LocalWhisperSetupModelID?
 
     static let noMicrophoneDetectedMessage = "No microphone detected"
     static let selectedMicrophoneUnavailableMessage = "Selected microphone unavailable"
@@ -176,6 +177,14 @@ final class AppState {
             Self.defaults.set(selectedModel, forKey: "whisperModel")
             resetProviderConnectionTest()
         }
+    }
+
+    var localWhisperSetupModelID: LocalWhisperSetupModelID = .baseEN {
+        didSet { Self.defaults.set(localWhisperSetupModelID.rawValue, forKey: "localWhisperSetupModel") }
+    }
+
+    var autoStartLocalWhisperServer = true {
+        didSet { Self.defaults.set(autoStartLocalWhisperServer, forKey: "autoStartLocalWhisperServer") }
     }
 
     var selectedTranscriptionProviderID: TranscriptionProviderID = .groq {
@@ -1300,6 +1309,8 @@ final class AppState {
                 "transcriptionProvider",
                 "transcriptionProviderPreset",
                 "whisperModel",
+                "localWhisperSetupModel",
+                "autoStartLocalWhisperServer",
                 "customTranscriptionBaseURL",
                 "customTranscriptionModel",
                 "audioFormat",
@@ -1348,6 +1359,8 @@ final class AppState {
             "transcriptionProvider": TranscriptionProviderID.groq.rawValue,
             "transcriptionProviderPreset": TranscriptionProviderPresetID.groq.rawValue,
             "whisperModel": "whisper-large-v3-turbo",
+            "localWhisperSetupModel": LocalWhisperSetupModel.recommendedDefaultID.rawValue,
+            "autoStartLocalWhisperServer": true,
             "customTranscriptionBaseURL": "http://127.0.0.1:8080/v1",
             "customTranscriptionModel": "whisper-1",
             "audioFormat": "m4a",
@@ -1398,6 +1411,10 @@ final class AppState {
         selectedTranscriptionProviderPresetID = persistedPresetID
         isSynchronizingProviderSelection = false
         selectedModel = defaults.string(forKey: "whisperModel") ?? "whisper-large-v3-turbo"
+        localWhisperSetupModelID = LocalWhisperSetupModelID(
+            rawValue: defaults.string(forKey: "localWhisperSetupModel") ?? ""
+        ) ?? .baseEN
+        autoStartLocalWhisperServer = defaults.bool(forKey: "autoStartLocalWhisperServer")
         customTranscriptionBaseURL = defaults.string(forKey: "customTranscriptionBaseURL") ?? "http://127.0.0.1:8080/v1"
         customTranscriptionModel = defaults.string(forKey: "customTranscriptionModel") ?? "whisper-1"
         selectedAudioFormat = AudioFormat(rawValue: defaults.string(forKey: "audioFormat") ?? "") ?? .m4a
@@ -1940,7 +1957,7 @@ final class AppState {
             case .modelsValidated:
                 providerConnectionTestState = .succeeded("Server reachable. Model \(selectedTranscriptionModel) is available.")
             case .reachableWithoutModelValidation:
-                providerConnectionTestState = .warning("Server reachable. Model availability was not checked.")
+                providerConnectionTestState = localWhisperModelStatusWithoutServerModelList
             }
         } catch TranscriptionService.TranscriptionError.modelUnavailable(let model) {
             providerConnectionTestState = .failed("Server reachable, but model \(model) was not listed.")
@@ -1951,6 +1968,20 @@ final class AppState {
         } catch {
             providerConnectionTestState = .failed("Connection test failed: \(error.localizedDescription)")
         }
+    }
+
+    private var localWhisperModelStatusWithoutServerModelList: ProviderConnectionTestState {
+        guard selectedTranscriptionProviderPresetID == .localWhisperCPP else {
+            return .warning("Server reachable. Model availability was not checked.")
+        }
+        guard let activeLocalWhisperModelID else {
+            let selectedModel = LocalWhisperSetupModel.option(id: localWhisperSetupModelID)
+            return .warning(
+                "Server reachable. Selected: \(selectedModel.displayName). whisper.cpp does not report its loaded model, so Foil cannot verify an externally started server."
+            )
+        }
+        let model = LocalWhisperSetupModel.option(id: activeLocalWhisperModelID)
+        return .succeeded("Server reachable. Foil is using \(model.displayName) (\(model.ggmlFilename)).")
     }
 
     func testSelectedCleanupProviderConnection(
