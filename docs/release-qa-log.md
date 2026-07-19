@@ -6,15 +6,15 @@ publishing.
 
 ## Current Public Install Status
 
-- Current public beta: Foil `v1.13.10` build `45`.
+- Current public beta: Foil `v1.13.12` build `47`.
 - Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
 - Verified command:
   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
   then `brew install --cask foil`.
-- Manual fallback: GitHub release asset `Foil-1.13.10-macos.dmg`, verified against `Foil-1.13.10-macos.dmg.sha256` and release asset digest.
-- Public cask status: `Casks/foil.rb` version `1.13.10`, SHA-256 `1d025a1fb0cecabd472df6e986fc0b6555635f98de1f2a850030597a21a5d0f6`, matching the GitHub release DMG digest.
-- Release/cask metadata verified on 2026-07-05 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
-- Latest recorded public cask extraction smoke in this log remains the v1.13.9 `REQUIRED_COMMIT=0dcc3287327ae91767bcfe3f806de4ce8fc852d5 make check-production-permissions-cask` run; v1.13.10 installed-app identity evidence is recorded under "v1.13.10 TCC Matrix Continuation."
+- Manual fallback: GitHub release asset `Foil-1.13.12-macos.dmg`, verified against `Foil-1.13.12-macos.dmg.sha256` and the release asset digest.
+- Public cask status: `Casks/foil.rb` version `1.13.12`, SHA-256 `c16504c4aa1a753290d2f75d20ff2a023e1e684d787b24b19ea92fdd27bfb342`, matching the GitHub release DMG digest.
+- Release/cask metadata verified on 2026-07-19 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
+- Latest recorded public cask extraction smoke is the v1.13.12 `REQUIRED_COMMIT=c3e3b1c9e0aeb99ce90a5d69511c4621c61361bd make check-production-permissions-cask` run recorded below.
 - Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; tracked in issue #154 with the runbook in `docs/fresh-machine-homebrew-onboarding-smoke.md`.
 
 ## Test Command Policy
@@ -27,6 +27,24 @@ publishing.
   key into this log, PRs, issues, or CI summaries.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
+
+## v1.13.12 Public Release Verification
+
+Date: 2026-07-19
+
+Scope: public release `v1.13.12` build `47`, release workflow run `29696043823`, public GitHub assets, Homebrew cask, and an update-path launch from `/Applications/Foil.app`.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| The public release was built from the prepared merge commit. | A tag or workflow could point at a stale commit while presenting the expected version. | Tag `v1.13.12`, workflow head, and release-prep merge all resolved to `c3e3b1c9e0aeb99ce90a5d69511c4621c61361bd`; Release run `29696043823` passed its tag-checkout guard and completed successfully. | PASS |
+| The public DMG and checksum are consistent and complete. | GitHub could contain a truncated or mismatched DMG/checksum pair. | Downloaded `Foil-1.13.12-macos.dmg` and `.sha256`; local SHA-256, checksum asset, GitHub asset digest, and Homebrew cask all matched `c16504c4aa1a753290d2f75d20ff2a023e1e684d787b24b19ea92fdd27bfb342`. The DMG size was `3416070` bytes. | PASS |
+| The shipped DMG and app have the production trust identity. | The workflow could upload an unsigned, unstapled, or wrongly identified app despite a successful build. | `spctl -a -vv -t open --context context:primary-signature` accepted the DMG as `Notarized Developer ID`; `xcrun stapler validate` passed. The mounted app passed `codesign --verify --deep --strict` and `spctl -a -vv -t execute`, with bundle/signing identifier `com.neonwatty.Foil`, version `1.13.12`, build `47`, team `B3A6AN2HA4`, and a 32-byte decoded `SUPublicEDKey`. | PASS |
+| Sparkle points at and signs the exact public DMG. | `appcast.xml` could reference the wrong version, URL, build, or byte length, breaking updates. | Downloaded `appcast.xml` reported version `47`, short version `1.13.12`, the v1.13.12 DMG URL, a non-empty EdDSA signature, and `sparkle:length="3416070"`, exactly matching the downloaded DMG. | PASS |
+| The public Homebrew cask installs the same trusted artifact. | The tap could lag the release or contain a different SHA, version, or app identity. | Public `Casks/foil.rb` reported version `1.13.12` and the matching SHA. `REQUIRED_COMMIT=c3e3b1c9e0aeb99ce90a5d69511c4621c61361bd make check-production-permissions-cask` fetched and extracted the public cask, confirmed required-commit inclusion, production bundle/version/build, Developer ID authority, notarization, Sparkle key, and deep strict codesign, and passed with 0 warnings. | PASS |
+| The standard DMG presentation is intact. | The DMG could be technically valid but open without the branded drag-to-Applications layout. | Opening the downloaded DMG by double-clicking it in Finder produced an icon-view window with the Foil icon on the left, Applications alias on the right, branded background, install copy, and direction arrow. | PASS |
+| Updating the installed production app preserves the trusted permission identity. | Replacing an older app could recreate the original stale Accessibility warning or fail to restart the hotkey monitor. | `brew upgrade --cask --greedy mean-weasel/foil/foil` updated `/Applications/Foil.app` from the prior cask receipt to `1.13.12`. Fresh diagnostics reported `SetupHealth: accessibilityTrusted=true`, Microphone as authorized, Keychain reads successful, and `HotkeyMonitor: permission refresh start succeeded`. The installed app remained a notarized Developer ID build with valid deep codesign. | PASS |
+
+Residual risk: this release run did not reset TCC or perform the destructive true fresh-user matrix, and it did not run a live production recording/transcription after the cask update. The active Foil Dev session was left untouched; the temporary production QA instance was quit after identity and permission-health verification.
 
 ## Pre-Release Feature Hardening: Cleanup Groups, Usage Insights, Recent Apps
 
