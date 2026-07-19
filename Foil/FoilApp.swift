@@ -31,6 +31,7 @@ struct FoilApp: App {
                 onOpenAccessibility: { [weak appDelegate] in appDelegate?.openAccessibilitySettings() },
                 onOpenMicrophone: { [weak appDelegate] in appDelegate?.openMicrophoneSettings() },
                 onCheckMicrophone: { [weak appDelegate] in appDelegate?.checkMicrophonePermission() },
+                onRefreshSetupHealth: { [weak appDelegate] in appDelegate?.refreshSetupHealthForVisibleMenu() },
                 onRunSetupCheck: { [weak appDelegate] in appDelegate?.runSetupCheck() },
                 onCopySetupReport: { [weak appDelegate] in appDelegate?.copySetupReportToClipboard() }
             )
@@ -424,6 +425,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // real app may also be running alongside).
         let isTesting = Self.isTestingProcess()
         let isE2ESmoke = Self.isE2ETranscriptionSmokeProcess()
+        let isAutomationSmoke = Self.isAutomationSmokeProcess()
+#if DEBUG
+        if Self.shouldRedirectMislaunchedDebugBuild(
+            bundleIdentifier: Bundle.main.bundleIdentifier,
+            bundlePath: Bundle.main.bundleURL.resolvingSymlinksInPath().path,
+            isTesting: isTesting,
+            isAutomationSmoke: isAutomationSmoke,
+            isE2ESmoke: isE2ESmoke,
+            developmentAppExists: FileManager.default.fileExists(atPath: "/Applications/Foil Dev.app")
+        ), redirectMislaunchedDebugBuildToFoilDev() {
+            return
+        }
+#endif
         if Self.shouldRunSingleInstanceGuard(), singleInstanceGuard.activateExistingInstanceIfRunning() {
             // terminate is deferred to the next run loop tick because calling it
             // during applicationDidFinishLaunching can cause AppKit issues.
@@ -694,6 +708,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> Bool {
         arguments.contains("--automation-smoke")
+    }
+
+    static func shouldRedirectMislaunchedDebugBuild(
+        bundleIdentifier: String?,
+        bundlePath: String,
+        isTesting: Bool,
+        isAutomationSmoke: Bool,
+        isE2ESmoke: Bool,
+        developmentAppExists: Bool
+    ) -> Bool {
+        guard !isTesting, !isAutomationSmoke, !isE2ESmoke, developmentAppExists else {
+            return false
+        }
+        guard bundleIdentifier == AppBrand.productionBundleIdentifier else {
+            return false
+        }
+        return URL(fileURLWithPath: bundlePath).standardizedFileURL.path != "/Applications/Foil.app"
+    }
+
+    private func redirectMislaunchedDebugBuildToFoilDev() -> Bool {
+        let developmentAppURL = URL(fileURLWithPath: "/Applications/Foil Dev.app", isDirectory: true)
+        guard NSWorkspace.shared.open(developmentAppURL) else {
+            DiagnosticLog.write("DebugIdentityRedirect: failed to open /Applications/Foil Dev.app")
+            return false
+        }
+        DiagnosticLog.write(
+            "DebugIdentityRedirect: source=\(Bundle.main.bundleURL.path) destination=/Applications/Foil Dev.app"
+        )
+        DispatchQueue.main.async { NSApp.terminate(nil) }
+        return true
     }
 
     static func isE2ETranscriptionSmokeProcess(
@@ -1331,6 +1375,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         appState.refreshApiKeyState()
         DiagnosticLog.write("SetupHealth: API key state refreshed")
+    }
+
+    func refreshSetupHealthForVisibleMenu() {
+        DiagnosticLog.write("SetupHealth: visible menu refresh")
+        refreshSetupHealth()
+        if accessibilityTrusted() {
+            retryHotkeyMonitorAfterPermissionChange()
+        }
     }
 
     func openAccessibilitySettings() {
