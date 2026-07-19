@@ -1,3 +1,12 @@
+## [1.13.12](https://github.com/usefoil/foil/compare/v1.13.11...v1.13.12) (2026-07-19)
+
+- Add integrated local whisper.cpp server controls so Foil can start, monitor, stop, and recover selected local models without keeping Terminal open.
+- Improve local transcription setup with provider key links, clearer model and app-build diagnostics, cancellable startup, bounded startup logs, and a reliable readiness deadline for large models.
+- Refresh Accessibility and Microphone state whenever the menu opens, restart the recording hotkey after trust is granted, and clear stale permission warnings without hiding unrelated failures.
+- Make setup status colors easier to read and prevent accidental Xcode DerivedData launches from using a misleading production Accessibility identity.
+- Expand fresh-user permission, installed live-microphone, provider, and focused UI CI coverage for release confidence.
+
+
 ## [1.13.11](https://github.com/usefoil/foil/compare/v1.13.10...v1.13.11) (2026-07-06)
 
 Add Usage Insights with local metadata-only usage metrics for dictated words, sessions, estimated time saved, daily trends, and top apps.
