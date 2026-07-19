@@ -189,8 +189,8 @@ struct FoilHomeView: View {
 
     private func healthColor(for state: AppState.PermissionState) -> Color {
         switch state {
-        case .ready: FoilTheme.midTeal
-        case .needsAction: .orange
+        case .ready: FoilTheme.statusSuccess
+        case .needsAction: FoilTheme.statusWarning
         case .unknown: .secondary
         }
     }

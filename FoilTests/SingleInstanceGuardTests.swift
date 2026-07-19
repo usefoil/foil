@@ -149,6 +149,61 @@ final class SingleInstanceGuardTests: XCTestCase {
         )
     }
 
+    func testDerivedDataProductionDebugBuildRedirectsToInstalledDevelopmentApp() {
+        let derivedDataPath = "/Users/test/Library/Developer/Xcode/DerivedData/Foil-example/Build/Products/Debug/Foil.app"
+
+        XCTAssertTrue(
+            AppDelegate.shouldRedirectMislaunchedDebugBuild(
+                bundleIdentifier: AppBrand.productionBundleIdentifier,
+                bundlePath: derivedDataPath,
+                isTesting: false,
+                isAutomationSmoke: false,
+                isE2ESmoke: false,
+                developmentAppExists: true
+            )
+        )
+        XCTAssertFalse(
+            AppDelegate.shouldRedirectMislaunchedDebugBuild(
+                bundleIdentifier: AppBrand.productionBundleIdentifier,
+                bundlePath: "/Applications/Foil.app",
+                isTesting: false,
+                isAutomationSmoke: false,
+                isE2ESmoke: false,
+                developmentAppExists: true
+            )
+        )
+        XCTAssertFalse(
+            AppDelegate.shouldRedirectMislaunchedDebugBuild(
+                bundleIdentifier: AppBrand.developmentBundleIdentifier,
+                bundlePath: derivedDataPath,
+                isTesting: false,
+                isAutomationSmoke: false,
+                isE2ESmoke: false,
+                developmentAppExists: true
+            )
+        )
+        XCTAssertFalse(
+            AppDelegate.shouldRedirectMislaunchedDebugBuild(
+                bundleIdentifier: AppBrand.productionBundleIdentifier,
+                bundlePath: derivedDataPath,
+                isTesting: true,
+                isAutomationSmoke: false,
+                isE2ESmoke: false,
+                developmentAppExists: true
+            )
+        )
+        XCTAssertFalse(
+            AppDelegate.shouldRedirectMislaunchedDebugBuild(
+                bundleIdentifier: AppBrand.productionBundleIdentifier,
+                bundlePath: derivedDataPath,
+                isTesting: false,
+                isAutomationSmoke: false,
+                isE2ESmoke: false,
+                developmentAppExists: false
+            )
+        )
+    }
+
     func testUITestingStillBypassesSingleInstanceGuard() {
         XCTAssertFalse(
             AppDelegate.shouldRunSingleInstanceGuard(
@@ -183,6 +238,26 @@ final class SingleInstanceGuardTests: XCTestCase {
         XCTAssertEqual(delegate.appState.accessibilityState, .ready)
         XCTAssertEqual(delegate.appState.microphoneState, .ready)
         XCTAssertTrue(delegate.appState.isSetupReady)
+    }
+
+    func testAppDelegateRefreshSetupHealthClearsResolvedAccessibilityWarnings() {
+        let delegate = AppDelegate(
+            singleInstanceGuard: NotRunningStub(),
+            setupPermissionProvider: StubSetupPermissionProvider(
+                accessibilityTrusted: true,
+                microphoneAuthorizationStatus: .authorized
+            )
+        )
+        delegate.appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        delegate.appState.updateAccessibilityState(isTrusted: false)
+        delegate.appState.setStatus(.error("Enable Accessibility in Settings"))
+        delegate.appState.failSetupCheck("Enable Accessibility")
+
+        delegate.refreshSetupHealth()
+
+        XCTAssertEqual(delegate.appState.accessibilityState, .ready)
+        XCTAssertEqual(delegate.appState.status, .idle)
+        XCTAssertEqual(delegate.appState.setupCheckState, .idle)
     }
 
     func testAppDelegateMicrophoneCheckShowsRecoveryWhenRequestTimesOut() async {

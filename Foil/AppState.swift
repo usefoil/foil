@@ -1279,7 +1279,10 @@ final class AppState {
     }
 
     static func accessibilityRecoveryDetail(isDebugBuild: Bool) -> String {
-        "Enable \(AppBrand.name) in Accessibility. Return to \(AppBrand.name). If it is already enabled but still fails, remove the old \(AppBrand.name) entry, quit, and reopen \(AppBrand.name)."
+        if isDebugBuild {
+            return "Xcode builds have a separate Accessibility identity. Run Foil Dev from Applications. If Foil Dev is already enabled but still fails, remove its old entry and reopen it."
+        }
+        return "Enable \(AppBrand.name) in Accessibility. Return to \(AppBrand.name). If it is already enabled but still fails, remove the old \(AppBrand.name) entry, quit, and reopen \(AppBrand.name)."
     }
 
     private func errorAction(for message: String, hasRetryableFailure: Bool) -> SessionAction? {
@@ -1785,6 +1788,9 @@ final class AppState {
         microphoneAuthorizationStatus: AVAuthorizationStatus
     ) {
         updateAccessibilityState(isTrusted: accessibilityTrusted)
+        if accessibilityTrusted {
+            clearResolvedAccessibilityWarnings()
+        }
         switch microphoneAuthorizationStatus {
         case .authorized:
             updateMicrophoneState(isReady: true)
@@ -1794,6 +1800,17 @@ final class AppState {
             microphoneState = .unknown
         @unknown default:
             microphoneState = .unknown
+        }
+    }
+
+    private func clearResolvedAccessibilityWarnings() {
+        if case .error(let message) = status,
+           message.caseInsensitiveCompare("Enable Accessibility in Settings") == .orderedSame {
+            status = .idle
+        }
+        if case .failed(let message) = setupCheckState,
+           message.caseInsensitiveCompare("Enable Accessibility") == .orderedSame {
+            setupCheckState = .idle
         }
     }
 

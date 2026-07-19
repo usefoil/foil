@@ -400,11 +400,11 @@ struct OnboardingView: View {
         switch state {
         case .ready:
             Label(readyLabel, systemImage: "checkmark.circle.fill")
-                .setupStatusBadge(foreground: FoilTheme.midTeal, background: FoilTheme.midTeal.opacity(0.1))
+                .setupStatusBadge(foreground: FoilTheme.statusSuccess, background: FoilTheme.statusSuccess.opacity(0.1))
                 .accessibilityLabel("Ready")
         case .needsAction(let message):
             Label(message, systemImage: "exclamationmark.circle.fill")
-                .setupStatusBadge(foreground: .orange, background: Color.orange.opacity(0.11))
+                .setupStatusBadge(foreground: FoilTheme.statusWarning, background: FoilTheme.statusWarning.opacity(0.1))
                 .accessibilityLabel("Needs attention: \(message)")
         case .unknown:
             Label("Checking...", systemImage: "circle.dotted")

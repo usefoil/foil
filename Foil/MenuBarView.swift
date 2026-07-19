@@ -20,6 +20,7 @@ struct MenuBarView: View {
     var onOpenAccessibility: (() -> Void)?
     var onOpenMicrophone: (() -> Void)?
     var onCheckMicrophone: (() -> Void)?
+    var onRefreshSetupHealth: (() -> Void)?
     var onRunSetupCheck: (() -> Void)?
     var onCopySetupReport: (() -> Void)?
     var onSimulateSuccess: (() -> Void)?
@@ -97,7 +98,9 @@ struct MenuBarView: View {
         .background(FoilTheme.windowBackground)
         .environment(\.colorScheme, .light)
         .onAppear {
-            if !isUITesting {
+            if let onRefreshSetupHealth {
+                onRefreshSetupHealth()
+            } else if !isUITesting {
                 appState.refreshApiKeyState()
             }
         }
@@ -204,7 +207,7 @@ struct MenuBarView: View {
                     systemImage: appState.needsSetupAttention ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
                 )
                 .font(.caption)
-                .foregroundStyle(appState.needsSetupAttention ? .orange : .green)
+                .foregroundStyle(appState.needsSetupAttention ? FoilTheme.statusWarning : FoilTheme.statusSuccess)
                 .accessibilityIdentifier("menu.setup.summary")
             }
 
@@ -288,7 +291,7 @@ struct MenuBarView: View {
                 Spacer()
                 Text(permissionText(for: state))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(permissionColor(for: state))
                     .lineLimit(2)
                     .accessibilityIdentifier("menu.setup.\(title).state")
                 if let actionTitle, let action {
@@ -306,7 +309,7 @@ struct MenuBarView: View {
                 Text(recoveryDetail)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("menu.setup.\(title).recovery")
             }
@@ -340,7 +343,7 @@ struct MenuBarView: View {
                 }
                 Text(session.detail)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(session.tone == .warning ? FoilTheme.statusWarning : .secondary)
                     .lineLimit(2)
                     .accessibilityIdentifier("menu.status.detail")
                 if appState.isApproachingTimeLimit {
@@ -744,9 +747,9 @@ struct MenuBarView: View {
         case .progress:
             .blue
         case .success:
-            .green
+            FoilTheme.statusSuccess
         case .warning:
-            .orange
+            FoilTheme.statusWarning
         }
     }
 
@@ -807,9 +810,9 @@ struct MenuBarView: View {
     private func permissionColor(for state: AppState.PermissionState) -> Color {
         switch state {
         case .ready:
-            .green
+            FoilTheme.statusSuccess
         case .needsAction:
-            .orange
+            FoilTheme.statusWarning
         case .unknown:
             .secondary
         }
@@ -908,9 +911,9 @@ struct MenuBarView: View {
     private var setupCheckColor: Color {
         switch appState.setupCheckState {
         case .passed:
-            .green
+            FoilTheme.statusSuccess
         case .failed:
-            .orange
+            FoilTheme.statusWarning
         case .idle, .running:
             .secondary
         }

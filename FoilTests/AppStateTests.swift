@@ -293,8 +293,10 @@ final class AppStateTests: XCTestCase {
     func testDebugAccessibilityRecoveryDetailDoesNotExposeDeveloperCommand() {
         let detail = AppState.accessibilityRecoveryDetail(isDebugBuild: true)
 
+        XCTAssertTrue(detail.contains("Xcode builds"))
+        XCTAssertTrue(detail.contains("Foil Dev"))
         XCTAssertTrue(detail.contains("already enabled"))
-        XCTAssertTrue(detail.contains("remove the old Foil entry"))
+        XCTAssertTrue(detail.contains("remove its old entry"))
         XCTAssertFalse(detail.contains("make prepare-local-permissions-qa"))
     }
 
@@ -324,6 +326,17 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.accessibilityState, .ready)
         XCTAssertEqual(state.microphoneState, .ready)
         XCTAssertTrue(state.isSetupReady)
+    }
+
+    func testApplyingSetupHealthDoesNotClearUnrelatedFailures() {
+        let state = AppState()
+        state.setStatus(.error("Cannot reach local whisper.cpp"))
+        state.failSetupCheck("Add Groq API key")
+
+        state.applySetupHealth(accessibilityTrusted: true, microphoneAuthorizationStatus: .authorized)
+
+        XCTAssertEqual(state.status, .error("Cannot reach local whisper.cpp"))
+        XCTAssertEqual(state.setupCheckState, .failed("Add Groq API key"))
     }
 
     func testInputDeviceHealthReportsNoMicrophoneDistinctFromPermissionDenied() {
