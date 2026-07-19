@@ -24,7 +24,7 @@ let diagnosticLogURL = FileManager.default
     .appendingPathComponent("Foil", isDirectory: true)
     .appendingPathComponent("Diagnostics", isDirectory: true)
     .appendingPathComponent("foil.log", isDirectory: false)
-var diagnosticLogStartOffset: UInt64 = 0
+var diagnosticLogBaseline = Data()
 
 struct SmokeResult {
     let name: String
@@ -238,24 +238,21 @@ func jsStringLiteral(_ value: String) -> String {
 }
 
 func readDiagnosticLog() -> String {
-    guard let handle = try? FileHandle(forReadingFrom: diagnosticLogURL) else { return "" }
-    defer { try? handle.close() }
-    let endOffset = (try? handle.seekToEnd()) ?? 0
-    try? handle.seek(toOffset: min(diagnosticLogStartOffset, endOffset))
-    let data = handle.readDataToEndOfFile()
-    return String(data: data, encoding: .utf8) ?? ""
+    guard let data = try? Data(contentsOf: diagnosticLogURL) else { return "" }
+    let freshData = data.starts(with: diagnosticLogBaseline)
+        ? data.dropFirst(diagnosticLogBaseline.count)
+        : data[...]
+    return String(data: Data(freshData), encoding: .utf8) ?? ""
 }
 
 func markDiagnosticLogStart() {
-    diagnosticLogStartOffset = ((try? diagnosticLogURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(UInt64.init)) ?? 0
+    diagnosticLogBaseline = (try? Data(contentsOf: diagnosticLogURL)) ?? Data()
 }
 
 func runningFoilProcessSummary() -> String {
-    let output = run("/bin/ps", ["-axo", "pid=,stat=,rss=,vsz=,command="])
-    let lines = output
-        .split(separator: "\n")
-        .map(String.init)
-        .filter { $0.contains("/Applications/Foil.app/Contents/MacOS/Foil") }
+    let lines = NSRunningApplication.runningApplications(withBundleIdentifier: appBundleID).map { app in
+        "pid=\(app.processIdentifier) terminated=\(app.isTerminated) executable=\(app.executableURL?.path ?? "unknown")"
+    }
     return lines.isEmpty ? "none" : lines.joined(separator: "\n")
 }
 
@@ -874,7 +871,7 @@ try? FileManager.default.createDirectory(
     at: diagnosticLogURL.deletingLastPathComponent(),
     withIntermediateDirectories: true
 )
-diagnosticLogStartOffset = ((try? diagnosticLogURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(UInt64.init)) ?? 0
+markDiagnosticLogStart()
 
 guard launchFoil() else {
     if let result = failIfSecurityAgentFrontmost(stage: "Foil launch") {
