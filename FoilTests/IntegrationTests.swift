@@ -56,9 +56,10 @@ final class LiveGroqIntegrationTests: XCTestCase {
         let service = TranscriptionService()
         // Sine wave won't produce meaningful speech — reaching here without throwing
         // confirms the API accepted the WAV format
-        _ = try await service.transcribe(
+        let transcript = try await service.transcribe(
             audioFileURL: url, apiKey: apiKey, model: "whisper-large-v3-turbo", format: .wav
         )
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript(transcript))
     }
 
     func testE2E_M4A_AcceptedByGroqAPI() async throws {
@@ -67,9 +68,10 @@ final class LiveGroqIntegrationTests: XCTestCase {
         let url = track(try recorder.writeM4A(buffers: [buffer]))
 
         let service = TranscriptionService()
-        _ = try await service.transcribe(
+        let transcript = try await service.transcribe(
             audioFileURL: url, apiKey: apiKey, model: "whisper-large-v3-turbo", format: .m4a
         )
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript(transcript))
     }
 
     func testE2E_FLAC_AcceptedByGroqAPI() async throws {
@@ -78,9 +80,10 @@ final class LiveGroqIntegrationTests: XCTestCase {
         let url = track(try recorder.writeFLAC(buffers: [buffer]))
 
         let service = TranscriptionService()
-        _ = try await service.transcribe(
+        let transcript = try await service.transcribe(
             audioFileURL: url, apiKey: apiKey, model: "whisper-large-v3-turbo", format: .flac
         )
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript(transcript))
     }
 
     // MARK: - All formats combined
@@ -99,9 +102,13 @@ final class LiveGroqIntegrationTests: XCTestCase {
 
             let service = TranscriptionService()
             do {
-                _ = try await service.transcribe(
+                let transcript = try await service.transcribe(
                     audioFileURL: url, apiKey: apiKey,
                     model: "whisper-large-v3-turbo", format: format
+                )
+                XCTAssertTrue(
+                    TranscriptionService.isNoRecognizableAudioTranscript(transcript),
+                    "\(format.rawValue): tone-only audio produced lexical output"
                 )
             } catch TranscriptionService.TranscriptionError.invalidApiKey {
                 XCTFail("\(format.rawValue): API key is invalid — verify GROQ_API_KEY is current")

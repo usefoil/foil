@@ -1,3 +1,4 @@
+import AVFAudio
 import Darwin
 import XCTest
 @testable import Foil
@@ -23,6 +24,36 @@ final class TranscriptionServiceTests: XCTestCase {
             .appendingPathExtension("wav")
         try Data(bytes).write(to: url)
         return url
+    }
+
+    private static func makeEncodedAudioFile(
+        amplitude: Float,
+        format audioFormat: AudioFormat = .wav,
+        durationSeconds: Double = 0.5
+    ) throws -> URL {
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 16_000,
+            channels: 1,
+            interleaved: false
+        )!
+        let frameCount = AVAudioFrameCount(16_000 * durationSeconds)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+        buffer.frameLength = frameCount
+        let samples = buffer.floatChannelData![0]
+        for frameIndex in 0..<Int(frameCount) {
+            samples[frameIndex] = sin(2 * .pi * 440 * Float(frameIndex) / 16_000) * amplitude
+        }
+
+        let recorder = AudioRecorder()
+        switch audioFormat {
+        case .wav:
+            return try recorder.writeWAV(buffers: [buffer])
+        case .m4a:
+            return try recorder.writeM4A(buffers: [buffer])
+        case .flac:
+            return try recorder.writeFLAC(buffers: [buffer])
+        }
     }
 
     private static func httpResponse(statusCode: Int, url: URL = URL(string: "https://api.groq.com")!) -> HTTPURLResponse {
@@ -906,14 +937,70 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(text, "json transcript")
     }
 
-    func testNoRecognizableAudioDetectionOnlyMatchesEmptyOrBlankAudioSentinels() {
+    func testNoRecognizableAudioDetectionMatchesOnlyNonLexicalResults() {
         XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript(""))
         XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript("  \n"))
         XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript("[BLANK_AUDIO]"))
         XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript("[blank_audio]\n[BLANK_AUDIO]"))
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript("[BLANK_AUDIO]..."))
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript("."))
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript("...?!"))
 
         XCTAssertFalse(TranscriptionService.isNoRecognizableAudioTranscript("Recognized speech"))
         XCTAssertFalse(TranscriptionService.isNoRecognizableAudioTranscript("Say [BLANK_AUDIO] literally"))
+        XCTAssertFalse(TranscriptionService.isNoRecognizableAudioTranscript("I"))
+        XCTAssertFalse(TranscriptionService.isNoRecognizableAudioTranscript("a"))
+    }
+
+    func testTranscribeSkipsProviderForEffectivelySilentAudioInEveryFormat() async throws {
+        let transport = StubTransport { request in
+            XCTFail("Silent audio should not reach the provider: \(request.url?.absoluteString ?? "unknown URL")")
+            return (Data(), Self.httpResponse(statusCode: 500, url: request.url!))
+        }
+        let service = TranscriptionService(transport: transport)
+
+        for format in AudioFormat.allCases {
+            let tempURL = try Self.makeEncodedAudioFile(amplitude: 0, format: format)
+            defer { try? FileManager.default.removeItem(at: tempURL) }
+
+            let text = try await service.transcribe(
+                audioFileURL: tempURL,
+                apiKey: "test-key",
+                model: "whisper-large-v3-turbo",
+                format: format
+            )
+
+            XCTAssertEqual(text, "", "\(format.rawValue) silence should produce no transcript")
+            XCTAssertEqual(TranscriptionService.isEffectivelySilentAudio(at: tempURL), true)
+        }
+        XCTAssertEqual(transport.requests.count, 0)
+    }
+
+    func testTranscribePreservesVeryQuietLexicalAudioInEveryFormat() async throws {
+        let transport = StubTransport { request in
+            (
+                Data("I".utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(transport: transport)
+
+        for format in AudioFormat.allCases {
+            let tempURL = try Self.makeEncodedAudioFile(amplitude: 0.001, format: format)
+            defer { try? FileManager.default.removeItem(at: tempURL) }
+
+            let text = try await service.transcribe(
+                audioFileURL: tempURL,
+                apiKey: "test-key",
+                model: "whisper-large-v3-turbo",
+                format: format
+            )
+
+            XCTAssertEqual(text, "I")
+            XCTAssertEqual(TranscriptionService.isEffectivelySilentAudio(at: tempURL), false)
+            XCTAssertFalse(TranscriptionService.isNoRecognizableAudioTranscript(text))
+        }
+        XCTAssertEqual(transport.requests.count, AudioFormat.allCases.count)
     }
 
     func testTranscribeAcceptsEmptyJSONTextAsNoRecognizableAudio() async throws {
