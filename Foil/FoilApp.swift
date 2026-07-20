@@ -1838,6 +1838,26 @@ extension AppDelegate: TranscriptionControllerDelegate {
             NotificationManager.shared.postTranscriptionFailed(errorMessage: errorMessage)
         }
     }
+
+    func transcriptionController(
+        _ controller: TranscriptionController,
+        didDetectNoRecognizableAudio audioURL: URL,
+        format: AudioFormat
+    ) {
+        DiagnosticLog.write("AppDelegate: transcriptionController didDetectNoRecognizableAudio")
+        transcriptionTask = nil
+        stopTranscribingAnimation()
+        pasteController.clearPendingTarget()
+
+        if let retryID = retryingRecordID {
+            history.resolveRetryFailure(id: retryID, error: "No recognizable audio")
+            retryingRecordID = nil
+        } else {
+            try? FileManager.default.removeItem(at: audioURL)
+        }
+
+        appState.recordNoAudioCaptured()
+    }
 }
 
 // MARK: - RecordingControllerDelegate

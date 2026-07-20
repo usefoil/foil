@@ -28,6 +28,13 @@ protocol TranscriptionControllerDelegate: AnyObject {
         cleanupFailed: Bool
     )
 
+    /// Called when a provider succeeds but returns no recognizable speech.
+    func transcriptionController(
+        _ controller: TranscriptionController,
+        didDetectNoRecognizableAudio audioURL: URL,
+        format: AudioFormat
+    )
+
     /// Called when transcription failed.
     func transcriptionController(
         _ controller: TranscriptionController,
@@ -125,6 +132,15 @@ final class TranscriptionController {
                     format: format,
                     language: appState.selectedLanguage
                 )
+                guard !TranscriptionService.isNoRecognizableAudioTranscript(rawText) else {
+                    DiagnosticLog.write("TranscriptionController: provider returned no recognizable audio")
+                    delegate?.transcriptionController(
+                        self,
+                        didDetectNoRecognizableAudio: audioURL,
+                        format: format
+                    )
+                    return
+                }
                 let processed = await processTranscriptOrRaw(
                     rawText: rawText,
                     apiKey: apiKey,
@@ -193,6 +209,15 @@ final class TranscriptionController {
                 format: format,
                 language: appState.selectedLanguage
             )
+            guard !TranscriptionService.isNoRecognizableAudioTranscript(rawText) else {
+                DiagnosticLog.write("TranscriptionController.retryTranscription: provider returned no recognizable audio")
+                delegate?.transcriptionController(
+                    self,
+                    didDetectNoRecognizableAudio: audioURL,
+                    format: format
+                )
+                return
+            }
             let processed = await processTranscriptOrRaw(
                 rawText: rawText,
                 apiKey: apiKey,

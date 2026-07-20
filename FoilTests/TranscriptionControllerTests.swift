@@ -7,6 +7,7 @@ import XCTest
 final class TranscriptionDelegateSpy: TranscriptionControllerDelegate {
     private(set) var didStartCalls: [URL] = []
     private(set) var didTranscribeCalls: [(text: String, audioURL: URL, cleanupFailed: Bool)] = []
+    private(set) var didDetectNoRecognizableAudioCalls: [(audioURL: URL, format: AudioFormat)] = []
     private(set) var didFailCalls: [(error: Error, errorMessage: String, audioURL: URL, format: AudioFormat)] = []
 
     func transcriptionController(
@@ -23,6 +24,14 @@ final class TranscriptionDelegateSpy: TranscriptionControllerDelegate {
         cleanupFailed: Bool
     ) {
         didTranscribeCalls.append((text: text, audioURL: audioURL, cleanupFailed: cleanupFailed))
+    }
+
+    func transcriptionController(
+        _ controller: TranscriptionController,
+        didDetectNoRecognizableAudio audioURL: URL,
+        format: AudioFormat
+    ) {
+        didDetectNoRecognizableAudioCalls.append((audioURL: audioURL, format: format))
     }
 
     func transcriptionController(
@@ -772,6 +781,36 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(spy.didTranscribeCalls.first?.text, "local transcript")
         XCTAssertEqual(spy.didFailCalls.count, 0)
         XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testBlankAudioSentinelDoesNotReachCleanupOrSuccessfulTranscription() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .cleanUp
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("  [BLANK_AUDIO]\n".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState
+        )
+        controller.delegate = spy
+
+        await controller.transcribe(audioURL: tempURL, format: .wav)
+
+        XCTAssertEqual(spy.didDetectNoRecognizableAudioCalls.count, 1)
+        XCTAssertEqual(spy.didDetectNoRecognizableAudioCalls.first?.audioURL, tempURL)
+        XCTAssertEqual(spy.didDetectNoRecognizableAudioCalls.first?.format, .wav)
+        XCTAssertEqual(spy.didTranscribeCalls.count, 0)
+        XCTAssertEqual(spy.didFailCalls.count, 0)
+        XCTAssertEqual(transport.requests.count, 1, "No cleanup request should run for blank audio")
     }
 
     func testTranscribeUsesSourceAppContextForCleanupGroupResolution() async throws {
