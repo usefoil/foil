@@ -813,6 +813,34 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 1, "No cleanup request should run for blank audio")
     }
 
+    func testPunctuationOnlyProviderResponseDoesNotReachSuccessfulTranscription() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.transcriptProcessingMode = .cleanUp
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("wav")
+        try Data([0x00]).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(".\n".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState
+        )
+        controller.delegate = spy
+
+        await controller.transcribe(audioURL: tempURL, format: .wav)
+
+        XCTAssertEqual(spy.didDetectNoRecognizableAudioCalls.count, 1)
+        XCTAssertEqual(spy.didTranscribeCalls.count, 0)
+        XCTAssertEqual(spy.didFailCalls.count, 0)
+        XCTAssertEqual(transport.requests.count, 1, "No cleanup request should run for punctuation-only output")
+    }
+
     func testTranscribeUsesSourceAppContextForCleanupGroupResolution() async throws {
         appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         appState.setCleanupGroups([

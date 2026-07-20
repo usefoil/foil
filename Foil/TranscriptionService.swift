@@ -1,3 +1,4 @@
+import AVFAudio
 import Foundation
 
 protocol TranscriptionTransport {
@@ -756,6 +757,7 @@ struct TranscriptionService {
     static let transcriptionTimeout: TimeInterval = 120
     static let providerValidationTimeout: TimeInterval = 3
     static let transientRetryDelayNanoseconds: UInt64 = 150_000_000
+    static let silenceRMSFloor: Float = 0.000_01
 
     private let provider: TranscriptionProvider
     private let transport: TranscriptionTransport
@@ -769,15 +771,79 @@ struct TranscriptionService {
         TranscriptionService(provider: provider, transport: transport)
     }
 
-    /// Whisper.cpp emits this sentinel when it cannot decode speech. Treat an
-    /// empty successful response the same way, regardless of provider.
+    /// Providers represent no-speech results differently. Whisper.cpp emits a
+    /// sentinel while cloud providers may return an empty or punctuation-only
+    /// response. None of those results should enter cleanup, history, or paste.
     static func isNoRecognizableAudioTranscript(_ transcript: String) -> Bool {
-        let tokens = transcript
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(whereSeparator: { $0.isWhitespace })
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
 
-        guard !tokens.isEmpty else { return true }
-        return tokens.allSatisfy { $0.caseInsensitiveCompare("[BLANK_AUDIO]") == .orderedSame }
+        let withoutBlankAudioMarkers = trimmed.replacingOccurrences(
+            of: "[BLANK_AUDIO]",
+            with: "",
+            options: [.caseInsensitive]
+        )
+        let remainingScalars = withoutBlankAudioMarkers.unicodeScalars.filter {
+            !CharacterSet.whitespacesAndNewlines.contains($0)
+        }
+
+        guard !remainingScalars.isEmpty else { return true }
+        return !remainingScalars.contains { CharacterSet.alphanumerics.contains($0) }
+    }
+
+    /// Returns `nil` when the file cannot be decoded so callers can preserve
+    /// existing provider behavior for malformed or server-specific fixtures.
+    static func isEffectivelySilentAudio(at audioFileURL: URL) -> Bool? {
+        guard fileSize(at: audioFileURL) >= 44 else { return nil }
+        do {
+            let file = try AVAudioFile(
+                forReading: audioFileURL,
+                commonFormat: .pcmFormatFloat32,
+                interleaved: false
+            )
+            let format = file.processingFormat
+            guard format.channelCount > 0,
+                  let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4096) else {
+                return nil
+            }
+
+            var maximumWindowRMS: Float = 0
+            var decodedSampleCount = 0
+
+            while file.framePosition < file.length {
+                try file.read(into: buffer)
+                let frameCount = Int(buffer.frameLength)
+                guard frameCount > 0 else { break }
+                guard let channels = buffer.floatChannelData else { return nil }
+
+                var windowSumSquares: Double = 0
+                var windowSampleCount = 0
+                for channelIndex in 0..<Int(format.channelCount) {
+                    let samples = channels[channelIndex]
+                    for frameIndex in 0..<frameCount {
+                        let sample = Double(samples[frameIndex])
+                        windowSumSquares += sample * sample
+                    }
+                    windowSampleCount += frameCount
+                }
+                decodedSampleCount += windowSampleCount
+                let windowRMS = Float((windowSumSquares / Double(windowSampleCount)).squareRoot())
+                maximumWindowRMS = max(maximumWindowRMS, windowRMS)
+            }
+
+            guard decodedSampleCount > 0 else { return true }
+            return maximumWindowRMS <= silenceRMSFloor
+        } catch {
+            return nil
+        }
+    }
+
+    private static func isEffectivelySilentAudioAsync(at audioFileURL: URL) async -> Bool? {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(returning: isEffectivelySilentAudio(at: audioFileURL))
+            }
+        }
     }
 
     func transcribe(
@@ -787,9 +853,14 @@ struct TranscriptionService {
         format: AudioFormat = .wav,
         language: Language = .auto
     ) async throws -> String {
-        guard fileSize(at: audioFileURL) <= Self.maxUploadBytes else {
+        guard Self.fileSize(at: audioFileURL) <= Self.maxUploadBytes else {
             DiagnosticLog.write("transcribe: local file too large")
             throw TranscriptionError.fileTooLarge
+        }
+
+        if await Self.isEffectivelySilentAudioAsync(at: audioFileURL) == true {
+            DiagnosticLog.write("transcribe: no recognizable audio signal; skipping provider request")
+            return ""
         }
 
         let boundary = UUID().uuidString
@@ -801,7 +872,7 @@ struct TranscriptionService {
         request.httpBody = try await buildMultipartBodyAsync(
             audioFileURL: audioFileURL, model: model, format: format, language: language, boundary: boundary
         )
-        let audioSize = fileSize(at: audioFileURL)
+        let audioSize = Self.fileSize(at: audioFileURL)
         let bodySize = request.httpBody?.count ?? 0
         DiagnosticLog.write(
             "transcribe: sending format=\(format.rawValue) audioBytes=\(audioSize) bodyBytes=\(bodySize) model=\(model) language=\(language.rawValue)"
@@ -1376,7 +1447,7 @@ struct TranscriptionService {
         return try? JSONDecoder().decode(APIErrorPayload.self, from: data).error
     }
 
-    private func fileSize(at url: URL) -> Int64 {
+    private static func fileSize(at url: URL) -> Int64 {
         let values = try? url.resourceValues(forKeys: [.fileSizeKey])
         return Int64(values?.fileSize ?? -1)
     }
