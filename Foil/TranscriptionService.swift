@@ -769,6 +769,17 @@ struct TranscriptionService {
         TranscriptionService(provider: provider, transport: transport)
     }
 
+    /// Whisper.cpp emits this sentinel when it cannot decode speech. Treat an
+    /// empty successful response the same way, regardless of provider.
+    static func isNoRecognizableAudioTranscript(_ transcript: String) -> Bool {
+        let tokens = transcript
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: { $0.isWhitespace })
+
+        guard !tokens.isEmpty else { return true }
+        return tokens.allSatisfy { $0.caseInsensitiveCompare("[BLANK_AUDIO]") == .orderedSame }
+    }
+
     func transcribe(
         audioFileURL: URL,
         apiKey: String?,
@@ -851,12 +862,7 @@ struct TranscriptionService {
 
     private func decodeTranscriptionText(_ data: Data) throws -> String {
         if let decoded = try? JSONDecoder().decode(TranscriptionTextResponse.self, from: data) {
-            let text = decoded.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else {
-                DiagnosticLog.write("transcribe: JSON response text was empty")
-                throw TranscriptionError.invalidResponse
-            }
-            return text
+            return decoded.text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
 
         guard let text = String(data: data, encoding: .utf8) else {

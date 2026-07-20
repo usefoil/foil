@@ -906,6 +906,38 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(text, "json transcript")
     }
 
+    func testNoRecognizableAudioDetectionOnlyMatchesEmptyOrBlankAudioSentinels() {
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript(""))
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript("  \n"))
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript("[BLANK_AUDIO]"))
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript("[blank_audio]\n[BLANK_AUDIO]"))
+
+        XCTAssertFalse(TranscriptionService.isNoRecognizableAudioTranscript("Recognized speech"))
+        XCTAssertFalse(TranscriptionService.isNoRecognizableAudioTranscript("Say [BLANK_AUDIO] literally"))
+    }
+
+    func testTranscribeAcceptsEmptyJSONTextAsNoRecognizableAudio() async throws {
+        let transport = StubTransport { request in
+            (
+                Data(#"{"text":"  \n"}"#.utf8),
+                Self.httpResponse(statusCode: 200, url: request.url!)
+            )
+        }
+        let service = TranscriptionService(transport: transport)
+        let tempURL = try Self.makeAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let text = try await service.transcribe(
+            audioFileURL: tempURL,
+            apiKey: "test-key",
+            model: "whisper-large-v3",
+            format: .wav
+        )
+
+        XCTAssertEqual(text, "")
+        XCTAssertTrue(TranscriptionService.isNoRecognizableAudioTranscript(text))
+    }
+
     func testTranscribeRetriesTransientServerErrorOnce() async throws {
         var attempts = 0
         let transport = StubTransport { request in
