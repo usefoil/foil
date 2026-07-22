@@ -6,15 +6,15 @@ publishing.
 
 ## Current Public Install Status
 
-- Current public beta: Foil `v1.13.12` build `47`.
+- Current public beta: Foil `v1.13.13` build `48`.
 - Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
 - Verified command:
   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
   then `brew install --cask foil`.
-- Manual fallback: GitHub release asset `Foil-1.13.12-macos.dmg`, verified against `Foil-1.13.12-macos.dmg.sha256` and the release asset digest.
-- Public cask status: `Casks/foil.rb` version `1.13.12`, SHA-256 `c16504c4aa1a753290d2f75d20ff2a023e1e684d787b24b19ea92fdd27bfb342`, matching the GitHub release DMG digest.
-- Release/cask metadata verified on 2026-07-19 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
-- Latest recorded public cask extraction smoke is the v1.13.12 `REQUIRED_COMMIT=c3e3b1c9e0aeb99ce90a5d69511c4621c61361bd make check-production-permissions-cask` run recorded below.
+- Manual fallback: GitHub release asset `Foil-1.13.13-macos.dmg`, verified against `Foil-1.13.13-macos.dmg.sha256` and the release asset digest.
+- Public cask status: `Casks/foil.rb` version `1.13.13`, SHA-256 `33f682b44b558f84f26622536fe7b162fece6053afb5fe4c38f01e58451d2e79`, matching the GitHub release DMG digest.
+- Release/cask metadata verified on 2026-07-22 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
+- Latest recorded public cask extraction smoke is the v1.13.13 `REQUIRED_COMMIT=2bb92e9952eb660d417e65a5d6bf51952a8c9d12 make check-production-permissions-cask` run recorded below.
 - Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; the scoped current-account reset and regrant coverage below does not replace that row. The fresh-environment work remains tracked in issue #154 with the runbook in `docs/fresh-machine-homebrew-onboarding-smoke.md`.
 
 ## Test Command Policy
@@ -27,6 +27,28 @@ publishing.
   key into this log, PRs, issues, or CI summaries.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
+
+## v1.13.13 Public Release Verification
+
+Date: 2026-07-22
+
+Scope: public release `v1.13.13` build `48`, release workflow run
+`29918344917`, public GitHub assets, Sparkle appcast, Homebrew cask, Finder DMG
+presentation, and the production install at `/Applications/Foil.app`.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| The public release contains the merged no-speech behavior and was built from the prepared release commit. | A release with the expected version could point at a stale commit that predates the `[BLANK_AUDIO]`, silence-preflight, or provider no-speech fixes. | Tag `v1.13.13`, Release workflow head, and release-prep merge all resolved to `2bb92e9952eb660d417e65a5d6bf51952a8c9d12`. `git merge-base --is-ancestor` confirmed that the tag contains blank-audio merge `c661e22` and provider no-speech commit `7a1d2d7`. Run `29918344917` passed its tag-checkout guard and completed successfully. | PASS |
+| The public DMG bytes, checksum, notarization, and contained app identity agree. | GitHub could publish truncated or different bytes, or the DMG could contain an unsigned, unstapled, stale, or wrongly identified app. | Downloaded DMG SHA-256, `.sha256` asset, GitHub asset digest, and Homebrew cask all matched `33f682b44b558f84f26622536fe7b162fece6053afb5fe4c38f01e58451d2e79`; size was `3425824` bytes. `spctl -a -vv -t open --context context:primary-signature` accepted the DMG as `Notarized Developer ID`, and `xcrun stapler validate` passed. The read-only mounted app reported bundle id `com.neonwatty.Foil`, version `1.13.13`, build `48`, team `B3A6AN2HA4`, and a 32-byte decoded `SUPublicEDKey`; app Gatekeeper and deep strict codesign verification passed. | PASS |
+| Sparkle points at and cryptographically signs the exact public DMG. | `appcast.xml` could reference the wrong version, URL, build, byte length, or an invalid signature, breaking updates. | Downloaded `appcast.xml` passed XML parsing and reported version `48`, short version `1.13.13`, the exact v1.13.13 DMG URL, and `sparkle:length="3425824"`, matching the downloaded DMG. It contains a non-empty EdDSA signature. The successful appcast workflow step ran Sparkle `sign_update --verify` against that DMG and signature before upload. | PASS |
+| The public Homebrew cask installs the same trusted artifact. | The separate tap could lag the release or point at a different SHA, version, or app identity despite a green release workflow. | Public `Casks/foil.rb` reported version `1.13.13`, the exact release URL, and the matching SHA. `REQUIRED_COMMIT=2bb92e9952eb660d417e65a5d6bf51952a8c9d12 make check-production-permissions-cask` confirmed tag inclusion, extracted Foil `1.13.13` build `48`, verified the production bundle and Sparkle key, and passed Developer ID Gatekeeper and deep codesign with 0 warnings. | PASS |
+| The branded drag-to-Applications DMG presentation is intact. | A technically valid DMG could open in a generic view without the intended install affordance. | Finder icon view showed the branded `Install Foil` background and copy, Foil.app on the left, the Applications alias on the right, and the direction arrow. The volume also contained `.background/dmg-background.png`; the Applications entry resolved to `/Applications`. | PASS |
+| The public cask upgrade installed and launched the intended production app without losing readiness. | An old QA build could remain active, the app could launch from DerivedData, or a same-bundle replacement could lose TCC readiness or hotkey startup. | Before upgrade, `/Applications/Foil.app` was QA build `29778433270`. `brew upgrade --cask mean-weasel/foil/foil` installed `1.13.13` build `48`. The installed app passed notarized Developer ID and deep strict codesign checks; `make guide-production-permissions-qa` passed with 0 warnings and reported the active path `/Applications/Foil.app/Contents/MacOS/Foil`. Direct UI inspection showed `Version 1.13.13 (48)`, `Ready`, `Accessibility Ready`, and `Microphone Ready`. Diagnostics at `2026-07-22T12:15:08Z` reported `HotkeyMonitor: start succeeded`, `SetupHealth: accessibilityTrusted=true`, `SetupHealth: microphone=authorized`, and `microphoneState=ready`. | PASS |
+
+Residual risk: this release verification reused the current account's existing
+Foil permissions and did not run a destructive TCC reset or the true fresh-user
+matrix. Issue #154 remains open for that external environment. API credential
+and quota gaps are tracked separately and are not release-artifact failures.
 
 ## v1.13.12 Post-Merge No-Speech Notarized QA
 
