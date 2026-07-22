@@ -28,6 +28,32 @@ publishing.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
 
+## v1.13.12 Post-Merge No-Speech Notarized QA
+
+Date: 2026-07-20
+
+Scope: merged no-speech handling from PR #391 at
+`9e3011173a77d1f6f6d2cfca377387e5e5aa8ab7`, private Notarized QA Build run
+`29778433270`, and an installed release-app silence smoke. This is a QA
+artifact and does not create or replace the public v1.13.12 release or cask.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| The QA artifact contains the merged no-speech fix. | A successful workflow could build an earlier commit and leave the installed smoke on the old public build. | Notarized QA Build run `29778433270` completed for exact `headSha` `9e3011173a77d1f6f6d2cfca377387e5e5aa8ab7`. The downloaded DMG name includes that SHA, and the installed app reports version `1.13.12`, build `29778433270`, instead of the prior public build `47`. | PASS |
+| The downloaded QA artifact is intact, notarized, stapled, and correctly signed. | The workflow could upload a corrupt, unsigned, unstapled, or wrongly identified artifact despite reporting success. | Uploaded and local SHA-256 matched `d19aa130e7f5ea62358e86987115c53e523aae5500d940660ebb6bdef93be55a`. `spctl -a -vv -t open --context context:primary-signature` accepted the DMG as `Notarized Developer ID`; `xcrun stapler validate` passed. The mounted and installed apps reported bundle id `com.neonwatty.Foil`, carried the expected 32-byte decoded Sparkle public key, passed Developer ID Gatekeeper assessment, and passed `codesign --verify --deep --strict`. | PASS |
+| Updating the installed app preserves production permission readiness and user recording preferences. | A same-bundle replacement could lose TCC trust, relaunch the wrong binary, or leave QA-only recording settings behind. | The prior `/Applications/Foil.app` was backed up to `/tmp/foil-app-backup-before-no-speech-qa.6CbHWU/Foil.app`. Onboarding for the new app reported Groq credentials, Accessibility, and Microphone as `Ready`. After the smoke, process `42332` ran from `/Applications/Foil.app/Contents/MacOS/Foil`; Right Command, hold-to-record, and M4A were restored, and the signifier returned to `Ready`. | PASS |
+| Silent audio produces nothing pasteable in the installed notarized app. | Unit tests could pass while the packaged Release app still calls a provider, invokes the success path, changes history, or alters the clipboard. | The release app E2E path ran with a one-second, 16 kHz mono silent WAV (`32078` bytes). Diagnostics reported `transcribe: no recognizable audio signal; skipping provider request` followed by `didDetectNoRecognizableAudio`. The log contained no `sending format` and no `didTranscribe`; no result file was created. History remained 500 records and its file SHA-256 was unchanged at `305a7be80c38476cc4319a64c2672d14e7f4cbec06d2403bbb4a8ffaca91ca84`. The clipboard sentinel remained unchanged during the smoke and was cleared afterward. Evidence directory: `/tmp/foil-installed-no-speech-smoke.qNauzE`. | PASS |
+| The cloud-provider path recognizes no-speech output, not only local whisper.cpp behavior. | Packaged silence preflight could pass while a real API returns non-lexical text that still reaches paste. | PR #391 merge-group run `29774798450` passed `Live Groq API Tests` and its transcription UI test against WAV, M4A, and FLAC tone-only fixtures. The required merge-group CI (`29774798382`) and Local macOS E2E (`29774798494`) also passed before merge. | PASS |
+
+Residual provider-account gaps: this Mac's saved Groq credential returns `401`
+for `make test-live-groq`, while the repository-secret Groq run above is green.
+No OpenAI key is installed locally, and merge-group OpenAI run `29774798220`
+returned quota error `429`; direct OpenAI live evidence remains blocked on account
+quota/credential maintenance. These failures occur after provider requests and
+do not contradict the installed silence smoke, which proves that digital silence
+never issues a provider request. The QA clipboard sentinel was cleared after the
+test; the clipboard value that existed before the smoke was not retained.
+
 ## v1.13.12 Public Release Verification
 
 Date: 2026-07-19
