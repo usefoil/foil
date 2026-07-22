@@ -1,3 +1,10 @@
+## [1.13.13](https://github.com/usefoil/foil/compare/v1.13.12...v1.13.13) (2026-07-22)
+
+- Prevent empty, `[BLANK_AUDIO]`, and punctuation-only no-speech results from being cleaned, saved to history, or pasted.
+- Detect effectively silent WAV, M4A, and FLAC recordings before contacting the transcription provider, while preserving very quiet and one-letter speech.
+- Expand live Groq, local whisper.cpp, installed notarized-app, and paste/history regression coverage for no-audio handling.
+
+
 ## [1.13.12](https://github.com/usefoil/foil/compare/v1.13.11...v1.13.12) (2026-07-19)
 
 - Add integrated local whisper.cpp server controls so Foil can start, monitor, stop, and recover selected local models without keeping Terminal open.
@@ -16,14 +23,6 @@ Replace the global cleanup toggle with app-specific Cleanup Groups, including a 
 Add recently used apps from usage metrics to cleanup group app assignment, alongside running apps and manual app selection.
 
 Harden pre-release and packaged-app coverage for transcription-derived usage events, recent-app assignment, later cleanup-group routing, and usage-metrics privacy.
-
-
-## Unreleased
-
-- Add Usage Insights with local metadata-only usage metrics for dictated words, sessions, estimated time saved, daily trends, and top apps.
-- Replace the global cleanup toggle with app-specific Cleanup Groups, including a default group for unassigned apps and per-group cleanup mode/provider/model/prompt settings.
-- Add recently used apps from usage metrics to cleanup group app assignment, alongside running apps and manual app selection.
-- Harden pre-release coverage for transcription-derived usage events, recent-app assignment, later cleanup-group routing, and usage-metrics privacy.
 
 
 ## [1.13.10](https://github.com/usefoil/foil/compare/v1.13.9...v1.13.10) (2026-07-03)
