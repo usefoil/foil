@@ -25,11 +25,11 @@ release work.
 
 ## Install
 
-Foil is still in beta. Homebrew is the primary supported install path; manual
-DMG download is available if you prefer to install from GitHub Releases.
+Homebrew is the primary supported install path; manual DMG download is
+available if you prefer to install from GitHub Releases.
 
-The `mean-weasel/homebrew-foil` tap is verified for the current public beta
-release. It installs the same signed and notarized DMG published on GitHub:
+The `mean-weasel/homebrew-foil` tap is verified for the current release. It
+installs the same signed and notarized DMG published on GitHub:
 
 ```sh
 brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil
@@ -207,8 +207,8 @@ layout.
 - **Cleanup modes** — optionally clean up or rewrite transcripts after Whisper; if cleanup fails after Whisper succeeds, Foil uses the raw transcript
 - **Transcription history** — browse, search, edit, export, copy, paste, delete, and retry past transcriptions
 
-Foil's open beta is microphone-first. It does not currently include a
-user-facing audio-file import flow.
+Foil is microphone-first. It does not currently include a user-facing
+audio-file import flow.
 
 ## Privacy
 
@@ -304,4 +304,4 @@ URL and checksum match the latest GitHub release DMG.
 
 ## License
 
-MIT
+[MIT](LICENSE)
