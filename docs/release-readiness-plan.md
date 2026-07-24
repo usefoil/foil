@@ -412,7 +412,7 @@ Current local verification notes:
 - `scripts/prepare-release.sh` updates app version/build metadata, `package.json`, `package-lock.json`, and `CHANGELOG.md` for a release-prep PR.
 - `.github/workflows/deploy.yml` is manually dispatched with a version input and checks out `v${version}`. It does not run on every `main` push.
 - The release workflow creates the GitHub Release if it does not already exist, imports the Developer ID certificate, archives with `MARKETING_VERSION` set to the release version, exports with `ExportOptions.plist`, verifies bundle version/build, creates a DMG, signs it, notarizes it with App Store Connect API-key credentials, staples it, validates Gatekeeper/stapler status, and uploads `Foil-${VERSION}-macos.dmg` plus checksum to the GitHub release.
-- Homebrew is verified for the current public beta evidence in `docs/release-qa-log.md`: public tap repository `mean-weasel/homebrew-foil` points at the uploaded `v1.12.2` DMG, the cask SHA-256 matches the release asset digest, and a clean temp-dir cask install/signature smoke passed through tap alias `mean-weasel/foil`. Re-verify this path for each new release.
+- Homebrew is verified for the current public release evidence in `docs/release-qa-log.md`: public tap repository `mean-weasel/homebrew-foil` points at the uploaded `v1.12.2` DMG, the cask SHA-256 matches the release asset digest, and a clean temp-dir cask install/signature smoke passed through tap alias `mean-weasel/foil`. Re-verify this path for each new release.
 
 Release dry-run checklist:
 

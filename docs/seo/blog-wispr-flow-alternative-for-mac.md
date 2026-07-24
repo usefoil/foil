@@ -104,7 +104,7 @@ your thought disappears.
 | Provider choice | Wispr-managed service path | Local, Groq, OpenAI, or custom OpenAI-compatible endpoints |
 | Cleanup | Integrated AI formatting/writing layer | Optional cleanup with raw transcript fallback |
 | Paste recovery | Product-specific recovery flows | History, copy, paste, edit, export, retry, clipboard fallback |
-| Platform focus | Mac, Windows, iOS, Android | macOS beta |
+| Platform focus | Mac, Windows, iOS, Android | macOS 14+ |
 
 ## When Foil is the better fit
 
@@ -116,7 +116,7 @@ Foil is a strong fit if:
 - You prefer explicit provider settings over a less visible managed service
   path.
 - You want transcript recovery to be part of the product, not an afterthought.
-- You are comfortable with a public beta.
+- You are comfortable with a newer open-source app.
 
 Foil is probably not the right fit if:
 

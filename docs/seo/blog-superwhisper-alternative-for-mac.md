@@ -129,7 +129,8 @@ Foil is probably not the better fit if:
 - You want the most mature local-first dictation environment today.
 - You want a broad mode system for many dictation personas.
 - You need a public iOS app immediately instead of a closed iPhone preview.
-- You want a lifetime commercial license rather than a beta-stage tool.
+- You specifically want a paid lifetime-license product rather than an
+  MIT-licensed project.
 
 ## Paste Recovery Is A Product Feature
 

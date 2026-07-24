@@ -111,7 +111,7 @@ Append a completed entry to `docs/release-qa-log.md` or attach it to issue #154:
 ## Pass Criteria
 
 - Public Homebrew install succeeds without local repo state.
-- Installed app reports the expected version/build for the current public beta.
+- Installed app reports the expected version/build for the current public release.
 - Gatekeeper and deep strict codesign checks pass.
 - First-run onboarding appears for the fresh account.
 - Accessibility and Microphone setup can be completed without undocumented

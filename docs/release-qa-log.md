@@ -6,7 +6,7 @@ publishing.
 
 ## Current Public Install Status
 
-- Current public beta: Foil `v1.13.13` build `48`.
+- Current public release: Foil `v1.13.13` build `48`.
 - Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
 - Verified command:
   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
