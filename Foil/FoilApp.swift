@@ -303,6 +303,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var recordingCleanupAppContext: CleanupAppContext?
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
+    private var recordingIsOnboardingPractice = false
     private var appShellWindow: NSWindow?
     private var liveAudioSignifierPanel: NSPanel?
     private var hasCompletedOnboarding: Bool {
@@ -505,10 +506,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         uiTestingCtrl.configureAutomationSmokeIfNeeded()
         uiTestingCtrl.configureE2ETranscribeIfNeeded()
         DiagnosticLog.write("applicationDidFinishLaunching: ui testing configured")
+        NotificationCenter.default.addObserver(self, selector: #selector(resumeSetup), name: AppState.resumeSetupNotification, object: nil)
         wireHotkeyMonitor()
         applyHotkeyConfig()
         DiagnosticLog.write("applicationDidFinishLaunching: hotkey configured")
-        showLiveAudioSignifier()
         startFloatingStatusSync()
         let shouldDisplayOnboarding = shouldShowOnboarding(isTesting: isTesting)
         if isTesting || isE2ESmoke || shouldDisplayOnboarding {
@@ -780,7 +781,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return !hasCompletedOnboarding
     }
 
+    @objc private func resumeSetup() {
+        if let onboardingWindow, onboardingWindow.isVisible {
+            onboardingWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            showOnboarding()
+        }
+    }
+
     private func showOnboarding() {
+        if !Self.isTestingProcess() { appState.recommendLocalForFirstRun() }
         let onboardingView = OnboardingView(
             appState: appState,
             onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
@@ -789,23 +800,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onRefreshSetupHealth: { [weak self] in self?.refreshSetupHealth() },
             onOpenSettings: { [weak self] in self?.showAppShellWindow(initialSelection: .transcription) },
             onComplete: { [weak self] in
+                guard let self, self.appState.hasPracticeTranscript, self.appState.areSystemPermissionsReady else { return }
+                self.closeOnboarding(completed: true)
+            },
+            initialStep: appState.onboardingStep,
+            onDefer: { [weak self] in self?.closeOnboarding(completed: false) },
+            onStartLocalServer: { [weak self] model in self?.startLocalWhisperServer(modelID: model) },
+            onStartPractice: { [weak self] in
                 guard let self else { return }
-                self.hasCompletedOnboarding = true
-                if !Self.isTestingProcess(), !self.hotkeyMonitor.isRunning {
+                self.appState.onboardingPracticeActive = true
+                self.captureTargetThenStartRecording()
+            },
+            onStopPractice: { [weak self] in self?.stopRecordingFromControl() },
+            onEndPractice: { [weak self] in self?.endOnboardingPractice() },
+            onPracticeStepChanged: { [weak self] active in
+                guard let self else { return }
+                self.appState.onboardingPracticeActive = active
+                if active, self.appState.areSystemPermissionsReady, !Self.isTestingProcess(), !self.hotkeyMonitor.isRunning {
                     self.startHotkeyMonitorWithRetry()
                 }
-                let window = self.onboardingWindow
-                self.onboardingWindow = nil
-                DispatchQueue.main.async {
-                    window?.orderOut(nil)
-                    window?.close()
-                    NSApp.activate(ignoringOtherApps: true)
-                }
-            }
+            },
+            onHotkeyChanged: { [weak self] in self?.applyHotkeyConfig() }
         )
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 430),
+            contentRect: NSRect(x: 0, y: 0, width: 580, height: 600),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -817,6 +836,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         onboardingWindow = window
+    }
+
+    private func endOnboardingPractice() {
+        appState.onboardingPracticeActive = false
+        guard recordingIsOnboardingPractice else { return }
+        if appState.status == .transcribing {
+            cancelTranscriptionFromControl()
+        } else {
+            recordingController?.cancelRecording()
+        }
+        recordingIsOnboardingPractice = false
+    }
+
+    private func closeOnboarding(completed: Bool) {
+        endOnboardingPractice()
+        if completed {
+            hasCompletedOnboarding = true
+            appState.onboardingStep = 0
+        }
+        let window = onboardingWindow
+        onboardingWindow = nil
+        appState.onboardingTranscript = nil
+        DispatchQueue.main.async { [weak self] in
+            window?.orderOut(nil)
+            window?.close()
+            self?.showAppShellWindow()
+        }
     }
 
     func showAppShellWindow(initialSelection: FoilAppSection = .home) {
@@ -952,6 +998,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func syncFloatingStatus() {
+        if appState.shouldShowLiveAudioSignifier {
+            showLiveAudioSignifier()
+        } else {
+            liveAudioSignifierPanel?.orderOut(nil)
+        }
         guard appState.shouldShowFloatingStatus else {
             floatingStatusPanel?.orderOut(nil)
             return
@@ -1030,6 +1081,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        NotificationCenter.default.removeObserver(self)
         floatingStatusSyncTimer?.invalidate()
         transientSuccessAutoHideTimer?.invalidate()
         recordingController?.invalidateTimers()
@@ -1094,7 +1146,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func pasteLastSuccess() {
-        guard let text = history.records.first(where: { !$0.isFailure })?.text else { return }
+        guard let text = history.lastRecoverableText else { return }
         paste(text: text)
     }
 
@@ -1206,6 +1258,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func captureTargetThenStartRecording() {
+        guard appState.status != .recording, appState.status != .transcribing else { return }
+        recordingIsOnboardingPractice = appState.onboardingPracticeActive
+        if recordingIsOnboardingPractice {
+            appState.onboardingTranscript = nil
+            pasteController.clearPendingTarget()
+            recordingCleanupAppContext = nil
+            appState.clearError()
+            recordingController.startRecording()
+            return
+        }
         pasteController.captureTarget()
         let capturedTarget = pasteController.pendingTarget ?? PasteTarget.captureCurrentTarget()
         recordingCleanupAppContext = capturedTarget?.cleanupAppContext
@@ -1758,6 +1820,15 @@ extension AppDelegate: TranscriptionControllerDelegate {
         stopTranscribingAnimation()
         appState.feedbackMessage = "Transcription ready"
 
+        if recordingIsOnboardingPractice {
+            recordingIsOnboardingPractice = false
+            appState.onboardingTranscript = text
+            appState.setStatus(.idle)
+            pasteController.clearPendingTarget()
+            try? FileManager.default.removeItem(at: audioURL)
+            return
+        }
+
         if let retryID = retryingRecordID {
             // Retry path: resolve the existing history record
             history.resolveRetry(id: retryID, text: text, sourceAppName: appState.capturedTargetName)
@@ -1815,6 +1886,14 @@ extension AppDelegate: TranscriptionControllerDelegate {
         DiagnosticLog.write("AppDelegate: transcriptionController didFail errorMessage=\(errorMessage)")
         transcriptionTask = nil
         stopTranscribingAnimation()
+
+        if recordingIsOnboardingPractice {
+            recordingIsOnboardingPractice = false
+            pasteController.clearPendingTarget()
+            try? FileManager.default.removeItem(at: audioURL)
+            appState.showError(errorMessage)
+            return
+        }
 
         if let retryID = retryingRecordID {
             // Retry path: update the existing history record

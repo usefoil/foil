@@ -56,38 +56,70 @@ final class TranscriptionHistory {
     /// Transcription records, sorted newest-first.
     /// Insertion order is load-bearing for retry logic.
     private(set) var records: [TranscriptionRecord] = []
+    /// Kept only until Foil quits or history is cleared, including when disk history is off.
+    private(set) var lastSessionTranscript: String?
+    var lastRecoverableText: String? { lastSessionTranscript ?? successfulRecords.first?.text }
+    private(set) var preferencesError: String?
+
+    private struct Preferences: Codable {
+        var retentionLimit: Int
+        var isPersistenceEnabled: Bool
+    }
+
     var retentionLimit: Int {
         didSet {
+            savePreferences()
             trimToRetentionLimit()
             save()
         }
     }
 
     var isPersistenceEnabled: Bool {
-        didSet {
-            if !isPersistenceEnabled {
-                clear()
-                try? FileManager.default.removeItem(at: historyFileURL)
-            } else {
-                save()
-            }
-        }
+        didSet { savePreferences() }
     }
 
     private let historyFileURL: URL
     private let retryAudioDirectory: URL
+    private let preferencesFileURL: URL
 
     init(
         storageDirectory: URL,
-        retentionLimit: Int = TranscriptionHistory.maxRecords,
-        isPersistenceEnabled: Bool = true
+        retentionLimit: Int? = nil,
+        isPersistenceEnabled: Bool? = nil
     ) {
         self.historyFileURL = storageDirectory.appendingPathComponent("history.json")
-        self.retryAudioDirectory = storageDirectory.appendingPathComponent("retry-audio", isDirectory: true)
-        self.retentionLimit = retentionLimit
-        self.isPersistenceEnabled = isPersistenceEnabled
-        try? FileManager.default.createDirectory(at: retryAudioDirectory, withIntermediateDirectories: true)
+        self.retryAudioDirectory = storageDirectory.appendingPathComponent("retry-audio")
+        self.preferencesFileURL = storageDirectory.appendingPathComponent("history-preferences.json")
+        var stored: Preferences?
+        if FileManager.default.fileExists(atPath: preferencesFileURL.path) {
+            do {
+                let decoded = try JSONDecoder().decode(Preferences.self, from: Data(contentsOf: preferencesFileURL))
+                guard decoded.retentionLimit > 0 else { throw CocoaError(.fileReadCorruptFile) }
+                stored = decoded
+            } catch {
+                // Never silently turn history back on when a saved privacy choice cannot be read.
+                stored = Preferences(retentionLimit: Self.maxRecords, isPersistenceEnabled: false)
+                preferencesError = "History settings could not be read. New history is off. Choose a retention setting to save your preference again."
+            }
+        }
+        self.retentionLimit = retentionLimit ?? stored?.retentionLimit ?? Self.maxRecords
+        self.isPersistenceEnabled = isPersistenceEnabled ?? stored?.isPersistenceEnabled ?? true
+        try? FileManager.default.createDirectory(at: storageDirectory, withIntermediateDirectories: true)
         load()
+        if retentionLimit != nil || isPersistenceEnabled != nil { savePreferences() }
+    }
+
+    private func savePreferences() {
+        do {
+            let data = try JSONEncoder().encode(Preferences(
+                retentionLimit: retentionLimit,
+                isPersistenceEnabled: isPersistenceEnabled
+            ))
+            try data.write(to: preferencesFileURL, options: .atomic)
+            preferencesError = nil
+        } catch {
+            preferencesError = "Could not save history settings. Your choice may not survive restarting Foil. Check available disk space and folder access."
+        }
     }
 
     /// Convenience init using the default Application Support directory.
@@ -101,6 +133,7 @@ final class TranscriptionHistory {
     }
 
     func addSuccess(text: String, sourceAppName: String? = nil) {
+        lastSessionTranscript = text
         let record = TranscriptionRecord(
             id: UUID(),
             timestamp: Date(),
@@ -128,6 +161,10 @@ final class TranscriptionHistory {
     }
 
     func addFailure(error: String, audioFileURL: URL?, sourceAppName: String? = nil) {
+        guard isPersistenceEnabled else {
+            if let audioFileURL { try? FileManager.default.removeItem(at: audioFileURL) }
+            return
+        }
         let retainedAudioURL = retainFailedAudio(audioFileURL)
         let record = TranscriptionRecord(
             id: UUID(),
@@ -148,6 +185,7 @@ final class TranscriptionHistory {
             records[index].sourceAppName = normalizedSourceAppName
         }
         records[index].outcome = .success(text: text)
+        lastSessionTranscript = text
         save()
     }
 
@@ -201,6 +239,7 @@ final class TranscriptionHistory {
     }
 
     func clear() {
+        lastSessionTranscript = nil
         for record in records {
             if let audioURL = record.audioFileURL {
                 try? FileManager.default.removeItem(at: audioURL)
@@ -321,7 +360,6 @@ final class TranscriptionHistory {
     }
 
     private func save() {
-        guard isPersistenceEnabled else { return }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         do {
@@ -333,14 +371,13 @@ final class TranscriptionHistory {
     }
 
     private func load() {
-        guard isPersistenceEnabled else { return }
         guard FileManager.default.fileExists(atPath: historyFileURL.path) else { return }
         do {
             let data = try Data(contentsOf: historyFileURL)
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             records = try decoder.decode([TranscriptionRecord].self, from: data)
-            if migrateRetainedAudioIntoStorage() {
+            if isPersistenceEnabled && migrateRetainedAudioIntoStorage() {
                 save()
             }
         } catch {

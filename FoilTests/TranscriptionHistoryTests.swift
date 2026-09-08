@@ -302,6 +302,57 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertTrue(disabled.records.isEmpty)
     }
 
+    func testHistoryOffSurvivesReconstructionAndKeepsRecoveryInMemory() throws {
+        history.isPersistenceEnabled = false
+        let reloaded = TranscriptionHistory(storageDirectory: testDir)
+        XCTAssertFalse(reloaded.isPersistenceEnabled)
+        reloaded.addSuccess(text: "private session only")
+        XCTAssertEqual(reloaded.lastRecoverableText, "private session only")
+        XCTAssertTrue(reloaded.records.isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: testDir.appendingPathComponent("history.json").path))
+        let audio = testDir.appendingPathComponent("private.wav")
+        try Data([1, 2]).write(to: audio)
+        reloaded.addFailure(error: "offline", audioFileURL: audio)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audio.path))
+        XCTAssertTrue(reloaded.records.isEmpty)
+        XCTAssertNil(TranscriptionHistory(storageDirectory: testDir).lastRecoverableText)
+    }
+
+    func testRetentionChoicesSurviveReconstruction() {
+        for limit in [100, 500, 1000] {
+            history.retentionLimit = limit
+            XCTAssertEqual(TranscriptionHistory(storageDirectory: testDir).retentionLimit, limit)
+        }
+        XCTAssertNil(history.preferencesError)
+    }
+
+    func testTurningOffPreservesPastRecordsUntilExplicitClear() {
+        history.addSuccess(text: "previously stored")
+        history.isPersistenceEnabled = false
+        let reloaded = TranscriptionHistory(storageDirectory: testDir)
+        XCTAssertEqual(reloaded.records.first?.text, "previously stored")
+        reloaded.addSuccess(text: "not persisted")
+        XCTAssertEqual(TranscriptionHistory(storageDirectory: testDir).records.count, 1)
+        reloaded.clear()
+        XCTAssertNil(reloaded.lastRecoverableText)
+        XCTAssertTrue(TranscriptionHistory(storageDirectory: testDir).records.isEmpty)
+    }
+
+    func testUnreadablePrivacyPreferenceFailsClosed() throws {
+        try Data("invalid".utf8).write(to: testDir.appendingPathComponent("history-preferences.json"))
+        let reloaded = TranscriptionHistory(storageDirectory: testDir)
+        XCTAssertFalse(reloaded.isPersistenceEnabled)
+        XCTAssertNotNil(reloaded.preferencesError)
+        reloaded.addSuccess(text: "not persisted")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: testDir.appendingPathComponent("history.json").path))
+    }
+
+    func testHistoryClearDoesNotResetPrivacyPreference() {
+        history.isPersistenceEnabled = false
+        history.clear()
+        XCTAssertFalse(TranscriptionHistory(storageDirectory: testDir).isPersistenceEnabled)
+    }
+
     func testClearRetainedFailedAudioRemovesAudioButKeepsFailureRecord() {
         let audioURL = testDir.appendingPathComponent("retained.wav")
         FileManager.default.createFile(atPath: audioURL.path, contents: Data([0x00]))

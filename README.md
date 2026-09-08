@@ -47,14 +47,20 @@ published, open it, and drag Foil into Applications.
 
 ## Setup
 
-1. Launch Foil — it lives in your menu bar
-2. Choose a transcription provider in first-run setup
-3. For Groq, get a free API key from [console.groq.com](https://console.groq.com/), then click **Add API Key** and save/test your key
-4. For OpenAI Whisper, create an API key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys), then click **Add API Key** and save/test your key
-5. For Local whisper.cpp or a custom OpenAI-compatible server, open Transcription Settings, configure the endpoint, and use **Test connection**
-6. Open Accessibility settings from Foil and enable the current app
-7. Open Microphone settings from Foil and allow microphone access
-8. Use the setup test to confirm the app is ready
+1. Launch Foil. First-run setup recommends **On this Mac**, which needs no API key. Existing provider choices are preserved.
+2. For local transcription, follow the one-time whisper.cpp install/build/model instructions in setup, then **Start local model** and **Test connection**. The current local path requires Terminal, CMake, and Apple's command-line developer tools; a bundled installer is not yet included.
+3. Prefer cloud transcription? Choose **Groq** or **OpenAI Whisper**. Setup links to the provider's key-management page and official setup guide, explains account requirements, and lets you **Save & Test** inline. Keys are stored in macOS Keychain.
+4. Grant Accessibility and Microphone permissions using the setup instructions.
+5. Practice your shortcut and record a short phrase. Your practice transcript appears in Foil without being pasted or saved to History.
+6. Try another dictation in a blank Notes or TextEdit document. Foil keeps your confirmation of external insertion separate from the successful practice transcript.
+7. Choose **Get Started**, or **Finish setup later** to postpone setup without marking it complete. Reopen the walkthrough from Home → **Setup and dictation practice**.
+
+Cloud setup resources:
+
+- [Groq API keys](https://console.groq.com/keys) and [official quickstart](https://console.groq.com/docs/quickstart).
+- [OpenAI API keys](https://platform.openai.com/api-keys) and [official quickstart / billing guidance](https://developers.openai.com/api/docs/quickstart).
+
+A successful setup connection check does not prove transcription or external insertion. The practice dictation and insertion steps test those separately.
 
 Foil is a menu bar app (`LSUIElement`), so it does not keep a normal Dock
 window open. The built app includes macOS AppIcon assets for Finder,
@@ -65,7 +71,7 @@ bar itself uses SF Symbol state icons.
 
 Foil supports four transcription provider paths:
 
-- **Groq** is the default and requires a Groq API key. Audio is sent to Groq for
+- **Groq** is a cloud option and requires a Groq API key. Audio is sent to Groq for
   transcription, and optional cleanup can use Groq chat models.
 - **OpenAI Whisper** requires an OpenAI API key. Audio is sent to
   `https://api.openai.com/v1/audio/transcriptions` with the `whisper-1`
@@ -213,7 +219,7 @@ audio-file import flow.
 ## Privacy
 
 - API keys are stored in the macOS Keychain. Older plaintext API-key files are migrated on read when possible.
-- Transcription history stays on this Mac in Application Support. Retention can be set to off, 100, 500, or 1000 records.
+- Transcription history stays on this Mac in Application Support. Retention can be set to off, 100, 500, or 1000 records and survives restarting Foil. Turning history off stops new storage; use Clear History to delete previously stored records. The latest dictation stays in memory for Copy last result until Foil quits or history is cleared.
 - Successful audio files are deleted after transcription.
 - Failed audio may be retained locally in Application Support only for retryable transcription failures. Clearing history deletes retained retry files.
 - Local diagnostics are redacted before writing and should not include API keys, transcript text, raw audio, or clipboard contents. Diagnostics are enabled by default for supportability; set `FOIL_DIAGNOSTICS=0` to disable local diagnostic logging.
@@ -298,7 +304,7 @@ URL and checksum match the latest GitHub release DMG.
 ## Requirements
 
 - macOS 14+ (Sonoma)
-- Groq API key (free tier available)
+- A configured local whisper.cpp model/server, or credentials for your selected cloud provider
 - Accessibility permission (for global hotkey and paste automation)
 - Microphone permission (for recording)
 

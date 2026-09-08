@@ -82,6 +82,8 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "localBridgeEnabled")
         UserDefaults.standard.removeObject(forKey: "showLiveFeedbackHUD")
         UserDefaults.standard.removeObject(forKey: "showFloatingStatus")
+        UserDefaults.standard.removeObject(forKey: "showIdleIndicator")
+        UserDefaults.standard.removeObject(forKey: "onboardingStep")
         UserDefaults.standard.removeObject(forKey: "mockTranscriptionEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptProcessingMode")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupModel")
@@ -124,6 +126,74 @@ final class AppStateTests: XCTestCase {
     func testInitialStatusIsIdle() {
         let state = AppState()
         XCTAssertEqual(state.status, .idle)
+    }
+
+    func testFirstRunRecommendsLocalWithoutOverwritingExistingProvider() {
+        let state = AppState()
+        state.recommendLocalForFirstRun()
+        XCTAssertEqual(state.selectedTranscriptionProviderPresetID, .localWhisperCPP)
+        XCTAssertFalse(state.selectedTranscriptionProvider.requiresAPIKey)
+        state.selectedTranscriptionProviderPresetID = .openAIWhisper
+        let reloaded = AppState()
+        reloaded.recommendLocalForFirstRun()
+        XCTAssertEqual(reloaded.selectedTranscriptionProviderPresetID, .openAIWhisper)
+    }
+
+    func testOnboardingProgressResumesBeforeUnsavedPracticeTranscript() {
+        let state = AppState()
+        state.onboardingStep = 5
+        state.onboardingTranscript = "private practice"
+        let reloaded = AppState()
+        XCTAssertEqual(reloaded.onboardingStep, 4)
+        XCTAssertFalse(reloaded.hasPracticeTranscript)
+        state.onboardingTranscript = "  \n "
+        XCTAssertFalse(state.hasPracticeTranscript)
+    }
+
+    func testIdleIndicatorIsOptInAndDetailedIndicatorDoesNotDuplicateCompact() {
+        let state = AppState()
+        XCTAssertFalse(state.shouldShowLiveAudioSignifier)
+        state.showIdleIndicator = true
+        XCTAssertTrue(state.shouldShowLiveAudioSignifier)
+        state.showFloatingStatus = true
+        state.setStatus(.recording)
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+        XCTAssertFalse(state.shouldShowLiveAudioSignifier)
+    }
+
+    func testUnverifiedPasteOffersCopyWithoutClaimingDelivery() {
+        let state = AppState()
+        markSetupReady(state)
+        for delivery in [PasteDelivery.currentAppCommandPosted, .asyncCommandPosted, .asyncChoreography] {
+            state.recordPaste(delivery)
+            let presentation = state.sessionPresentation(hotkeyLabel: "Fn", hasRetryableFailure: false, hasLastSuccess: true)
+            XCTAssertFalse(presentation.detail.contains("Delivered"))
+            XCTAssertEqual(presentation.tone, .neutral)
+            XCTAssertEqual(presentation.primaryAction, .copy)
+            XCTAssertEqual(state.recordingResultLabel, delivery.userMessage)
+        }
+    }
+
+    func testClipboardRecoveryStaysVisibleWhenDetailedFeedbackIsOff() {
+        let state = AppState()
+        state.showFloatingStatus = false
+        state.recordPaste(.clipboardFallback)
+        XCTAssertTrue(state.shouldShowFloatingStatus)
+        XCTAssertFalse(state.recordingResultLabel.contains("delivered"))
+        state.hideFloatingStatus()
+        XCTAssertFalse(state.shouldShowFloatingStatus)
+        XCTAssertFalse(state.shouldShowLiveAudioSignifier)
+    }
+
+    func testDictationInstructionsFollowShortcutAndMode() {
+        let state = AppState()
+        state.hotkeyChoice = .globeFn
+        XCTAssertEqual(state.dictationInstruction, "Hold Globe/Fn, speak, then release.")
+        state.recordingMode = .toggle
+        XCTAssertEqual(state.dictationInstruction, "Press Globe/Fn to start and again to stop.")
+        state.hotkeyChoice = .custom
+        state.customHotkeyLabel = "Control-D"
+        XCTAssertTrue(state.dictationInstruction.contains("Control-D"))
     }
 
     func testOtherAudioPolicyDefaultsToUnaffected() {
@@ -898,10 +968,11 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.shouldShowFloatingStatus)
     }
 
-    func testFloatingStatusVisibleWhileRecordingByDefault() {
+    func testCompactIndicatorVisibleWhileRecordingByDefault() {
         let state = AppState()
         state.setStatus(.recording)
-        XCTAssertTrue(state.shouldShowFloatingStatus)
+        XCTAssertFalse(state.shouldShowFloatingStatus)
+        XCTAssertTrue(state.shouldShowLiveAudioSignifier)
     }
 
     func testRecordingSessionPresentationIncludesActiveCleanupMode() {
@@ -977,12 +1048,13 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(state.shouldShowFloatingStatus)
     }
 
-    func testFloatingStatusPreferenceDoesNotHideActiveRecording() {
+    func testDetailedStatusPreferenceDoesNotHideCompactRecordingIndicator() {
         let state = AppState()
         state.showFloatingStatus = false
         state.setStatus(.recording)
 
-        XCTAssertTrue(state.shouldShowFloatingStatus)
+        XCTAssertFalse(state.shouldShowFloatingStatus)
+        XCTAssertTrue(state.shouldShowLiveAudioSignifier)
     }
 
     func testFloatingStatusDisabledByPreferenceForIdleTransientFeedback() {

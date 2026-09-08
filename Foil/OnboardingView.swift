@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct OnboardingView: View {
@@ -8,11 +9,22 @@ struct OnboardingView: View {
     var onRefreshSetupHealth: (() -> Void)?
     var onOpenSettings: (() -> Void)?
     var onComplete: () -> Void
+    var onDefer: (() -> Void)?
+    var onStartLocalServer: ((LocalWhisperSetupModelID) -> Void)?
+    var onStartPractice: (() -> Void)?
+    var onStopPractice: (() -> Void)?
+    var onEndPractice: (() -> Void)?
+    var onPracticeStepChanged: ((Bool) -> Void)?
+    var onHotkeyChanged: (() -> Void)?
 
     @State private var currentStep: Int = 0
-    @Environment(\.openWindow) private var openWindow
+    @State private var apiKey = ""
+    @State private var credentialError: String?
+    @State private var isChecking = false
+    @State private var connectionChecked = false
+    @State private var connectionMessage: String?
 
-    private let steps = ["Provider", "Credentials", "Accessibility", "Microphone"]
+    private let steps = ["Transcription", "Configuration", "Insertion access", "Microphone", "First dictation", "Try another app"]
 
     init(
         appState: AppState,
@@ -22,7 +34,14 @@ struct OnboardingView: View {
         onRefreshSetupHealth: (() -> Void)? = nil,
         onOpenSettings: (() -> Void)? = nil,
         onComplete: @escaping () -> Void,
-        initialStep: Int = 0
+        initialStep: Int = 0,
+        onDefer: (() -> Void)? = nil,
+        onStartLocalServer: ((LocalWhisperSetupModelID) -> Void)? = nil,
+        onStartPractice: (() -> Void)? = nil,
+        onStopPractice: (() -> Void)? = nil,
+        onEndPractice: (() -> Void)? = nil,
+        onPracticeStepChanged: ((Bool) -> Void)? = nil,
+        onHotkeyChanged: (() -> Void)? = nil
     ) {
         self.appState = appState
         self.onOpenAccessibility = onOpenAccessibility
@@ -31,15 +50,23 @@ struct OnboardingView: View {
         self.onRefreshSetupHealth = onRefreshSetupHealth
         self.onOpenSettings = onOpenSettings
         self.onComplete = onComplete
+        self.onDefer = onDefer
+        self.onStartLocalServer = onStartLocalServer
+        self.onStartPractice = onStartPractice
+        self.onStopPractice = onStopPractice
+        self.onEndPractice = onEndPractice
+        self.onPracticeStepChanged = onPracticeStepChanged
+        self.onHotkeyChanged = onHotkeyChanged
         _currentStep = State(initialValue: min(max(initialStep, 0), steps.count - 1))
     }
 
     var body: some View {
-        FoilSetupSurface(width: 520, minHeight: 430) {
+        FoilSetupSurface(width: 580, minHeight: 500) {
             VStack(alignment: .leading, spacing: 18) {
                 header
                 stepIndicator
 
+                ScrollView {
                 FoilSetupPanel {
                     Group {
                         switch currentStep {
@@ -51,6 +78,10 @@ struct OnboardingView: View {
                             accessibilityStep
                         case 3:
                             microphoneStep
+                        case 4:
+                            practiceStep
+                        case 5:
+                            insertionStep
                         default:
                             EmptyView()
                         }
@@ -58,28 +89,36 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity, minHeight: 208, alignment: .top)
                 }
 
+                }
+                .frame(minHeight: 270, maxHeight: 400)
                 navigationBar
             }
         }
         .accessibilityIdentifier("onboarding.root")
         .onAppear {
             onRefreshSetupHealth?()
+            onPracticeStepChanged?(currentStep == 4)
         }
+        .onDisappear { onEndPractice?() }
         .onChange(of: currentStep) { _, step in
+            appState.onboardingStep = step
+            onPracticeStepChanged?(step == 4)
             switch step {
             case 2:
                 onRefreshSetupHealth?()
             case 3:
                 onRefreshSetupHealth?()
-                if !isUITesting {
-                    onCheckMicrophone?()
-                }
             default:
                 break
             }
         }
         .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
             appState.refreshApiKeyState()
+            connectionChecked = false
+            connectionMessage = nil
+            credentialError = nil
+            apiKey = ""
+            appState.onboardingTranscript = nil
         }
         .onReceive(NotificationCenter.default.publisher(for: .foilOnboardingUITestCommandRelay)) { notification in
             guard let command = OnboardingUITestCommand(notification: notification) else { return }
@@ -92,19 +131,20 @@ struct OnboardingView: View {
     private var providerStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             stepHeading(
-                title: "Transcription Provider",
-                description: "Choose where \(AppBrand.name) sends audio for transcription. You can change this later in Settings.",
+                title: "Dictate on this Mac",
+                description: "Local transcription is recommended: no account or API key. Download and set up a model once, then dictate offline. Cloud providers are available below.",
                 systemImage: "waveform.path.ecg"
             )
 
             Picker("Provider", selection: $appState.selectedTranscriptionProviderPresetID) {
                 Text("Groq").tag(TranscriptionProviderPresetID.groq)
                 Text("OpenAI Whisper").tag(TranscriptionProviderPresetID.openAIWhisper)
-                Text("Local whisper.cpp").tag(TranscriptionProviderPresetID.localWhisperCPP)
+                Text("On this Mac — recommended").tag(TranscriptionProviderPresetID.localWhisperCPP)
                 Text("Custom OpenAI-compatible").tag(TranscriptionProviderPresetID.customOpenAICompatible)
             }
             .frame(maxWidth: 300, alignment: .leading)
             .accessibilityIdentifier("onboarding.providerPicker")
+            .disabled(isChecking)
 
             Text(providerPrivacySummary)
                 .font(.caption)
@@ -117,36 +157,130 @@ struct OnboardingView: View {
 
     private var credentialStep: some View {
         VStack(alignment: .leading, spacing: 14) {
-            stepHeading(
-                title: credentialTitle,
-                description: credentialDescription,
-                systemImage: "key.fill"
-            )
-
-            permissionStatusBadge(state: appState.apiKeyState, readyLabel: credentialReadyLabel)
-
             if appState.selectedTranscriptionProvider.requiresAPIKey {
-                Button {
-                    openWindow(id: "api-key-setup")
-                } label: {
-                    Label("Add API Key", systemImage: "key")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(FoilTheme.deepTeal)
-                .accessibilityIdentifier("onboarding.addApiKeyButton")
-
-                if let url = appState.selectedTranscriptionProviderID.apiKeysURL,
-                   let title = appState.selectedTranscriptionProviderID.apiKeysLinkTitle {
-                    Link(title, destination: url)
-                        .font(.caption)
+                stepHeading(title: "Connect \(appState.selectedTranscriptionProvider.displayName)",
+                            description: appState.selectedTranscriptionProviderID.credentialInstructions,
+                            systemImage: "key.fill")
+                if let url = appState.selectedTranscriptionProviderID.apiKeysURL {
+                    Link("Create or manage API keys", destination: url)
                         .accessibilityIdentifier("onboarding.providerApiKeysLink")
                 }
-            } else {
-                Button("Open Transcription Settings") {
-                    onOpenSettings?()
+                if let guide = appState.selectedTranscriptionProviderID.setupGuideURL {
+                    Link("Provider setup and billing guidance", destination: guide)
                 }
+                Text("Your key is saved in macOS Keychain. Audio is sent to this provider when you record; testing the key does not send audio.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                SecureField("Paste your API key", text: $apiKey)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("onboarding.apiKeyField")
+                Button(isChecking ? "Checking…" : "Save & Test") { checkConnection(saveKey: true) }
+                    .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isChecking)
+                    .accessibilityIdentifier("onboarding.saveApiKeyButton")
+                if appState.hasApiKey {
+                    Button("Test saved key") { checkConnection(saveKey: false) }
+                        .disabled(isChecking)
+                }
+            } else if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
+                localConfiguration
+            } else {
+                stepHeading(title: "Connect your server", description: "Configure your OpenAI-compatible endpoint in Transcription settings, then test it here.", systemImage: "network")
+                Button("Open Transcription Settings") { onOpenSettings?() }
+                    .accessibilityIdentifier("onboarding.openTranscriptionSettingsButton")
+                Button("Test connection") { checkConnection(saveKey: false) }
+                    .disabled(isChecking)
+            }
+            if let message = credentialError {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(FoilTheme.statusWarning)
+            }
+            if let message = connectionMessage {
+                Label(message, systemImage: connectionChecked ? "checkmark.circle" : "info.circle")
+                    .font(.callout)
+            }
+        }
+    }
+
+    private var localConfiguration: some View {
+        let model = LocalWhisperSetupModel.option(id: appState.localWhisperSetupModelID)
+        let commands = LocalWhisperSetupCommands(model: model)
+        return VStack(alignment: .leading, spacing: 12) {
+            stepHeading(title: "Set up local transcription", description: "No API key is needed. Foil uses whisper.cpp on this Mac. The one-time installation currently needs Terminal, CMake, and Apple's command-line developer tools.", systemImage: "desktopcomputer")
+            Picker("Local model", selection: $appState.localWhisperSetupModelID) {
+                ForEach(LocalWhisperSetupModel.all) { option in
+                    Text("\(option.displayName) — \(option.languageScope)").tag(option.id)
+                }
+            }
+            Text("\(model.languageScope). \(model.performanceGuidance)")
                 .font(.caption)
+            Text("Choose an English model only if you dictate in English. Large V3 Turbo and Large V3 support multiple languages.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Link("whisper.cpp installation guide", destination: URL(string: "https://github.com/ggml-org/whisper.cpp#quick-start")!)
+            DisclosureGroup("One-time install commands") {
+                setupCommand("1. Install source", commands.cloneCommand)
+                setupCommand("2. Build", commands.buildCommand)
+                setupCommand("3. Download model", commands.downloadCommand)
+            }
+            HStack {
+                Button("Start local model") { onStartLocalServer?(model.id) }
+                    .disabled(appState.localWhisperServerState.isStarting || onStartLocalServer == nil)
+                    .accessibilityIdentifier("onboarding.startLocalModel")
+                Button("Test connection") { checkConnection(saveKey: false) }
+                    .disabled(isChecking)
+            }
+            switch appState.providerConnectionTestState {
+            case .succeeded(let message), .warning(let message), .failed(let message):
+                Text(message).font(.caption)
+            case .running: ProgressView("Checking server…")
+            case .idle: Text("Install the model, start it, then test the connection.").font(.caption)
+            }
+            Button("Open Transcription Settings") { onOpenSettings?() }
                 .accessibilityIdentifier("onboarding.openTranscriptionSettingsButton")
+        }
+    }
+
+    private func setupCommand(_ title: String, _ command: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title).font(.callout.bold())
+                Spacer()
+                Button("Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(command, forType: .string)
+                }
+                .accessibilityLabel("Copy \(title)")
+            }
+            Text(command).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
+        }
+        .padding(.vertical, 5)
+    }
+
+    private func checkConnection(saveKey: Bool) {
+        let provider = appState.selectedTranscriptionProvider
+        let key = saveKey ? apiKey.trimmingCharacters(in: .whitespacesAndNewlines) : appState.selectedProviderApiKey
+        isChecking = true
+        credentialError = nil
+        connectionChecked = false
+        Task { @MainActor in
+            defer { isChecking = false }
+            do {
+                let result = try await TranscriptionService().withProvider(provider).validateProviderConfiguration(
+                    apiKey: key, requiredModels: [provider.transcriptionModel]
+                )
+                guard provider == appState.selectedTranscriptionProvider else {
+                    credentialError = "The provider changed. Test the current provider to continue."
+                    return
+                }
+                if saveKey { try KeychainHelper.save(apiKey: key ?? "", for: provider.id) }
+                appState.refreshApiKeyState()
+                connectionChecked = true
+                connectionMessage = result == .reachableWithoutModelValidation
+                    ? "Server reached. Your first dictation will test the loaded model."
+                    : "Connection checked. Next, try your microphone."
+                apiKey = ""
+            } catch {
+                credentialError = "Could not connect. \(error.localizedDescription)"
             }
         }
     }
@@ -201,6 +335,79 @@ struct OnboardingView: View {
         }
     }
 
+    private var canAdvance: Bool {
+        guard !isChecking, appState.status != .recording, appState.status != .transcribing else { return false }
+        switch currentStep {
+        case 1: return connectionChecked
+        case 2: return appState.accessibilityState == .ready
+        case 3: return appState.microphoneState == .ready
+        case 4: return appState.hasPracticeTranscript
+        default: return true
+        }
+    }
+
+    private var practiceStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            stepHeading(title: "Try your first dictation", description: "Your practice transcript appears here. It is not pasted into another app or saved in History.", systemImage: "mic")
+            Picker("Shortcut", selection: $appState.hotkeyChoice) {
+                Text("Right Command").tag(HotkeyMonitor.HotkeyChoice.rightCommand)
+                Text("Right Option").tag(HotkeyMonitor.HotkeyChoice.rightOption)
+                Text("Globe/Fn").tag(HotkeyMonitor.HotkeyChoice.globeFn)
+                if appState.hotkeyChoice == .custom {
+                    Text(appState.hotkeyDisplayName).tag(HotkeyMonitor.HotkeyChoice.custom)
+                }
+            }
+            .disabled(appState.status == .recording || appState.status == .transcribing)
+            .onChange(of: appState.hotkeyChoice) { _, _ in onHotkeyChanged?() }
+            Picker("Recording mode", selection: $appState.recordingMode) {
+                Text("Hold to record").tag(HotkeyMonitor.RecordingMode.hold)
+                Text("Press to start / stop").tag(HotkeyMonitor.RecordingMode.toggle)
+            }
+            .disabled(appState.status == .recording || appState.status == .transcribing)
+            .onChange(of: appState.recordingMode) { _, _ in onHotkeyChanged?() }
+            Text(appState.dictationInstruction).font(.headline)
+            Text("Try saying: ‘This is my first dictation with Foil.’")
+            Text("Input: \(AudioRecorder.availableInputDevices().first(where: { $0.uid == appState.selectedInputDeviceUID })?.name ?? "System default microphone")")
+                .font(.caption)
+            if appState.status == .recording {
+                LiveAudioLevelBars(levels: appState.audioLevelHistory, phase: .recording, barCount: 14, height: 26, tint: FoilTheme.midTeal)
+                Button("Stop and transcribe") { onStopPractice?() }
+            } else if appState.status == .transcribing {
+                ProgressView("Transcribing your recording…")
+                Button("Cancel") { onEndPractice?() }
+            } else {
+                Button("Record a practice phrase") { onStartPractice?() }
+                    .disabled(!appState.isSetupReady || onStartPractice == nil)
+                    .accessibilityIdentifier("onboarding.recordPractice")
+            }
+            if case .error(let message) = appState.status {
+                Text(message).foregroundStyle(FoilTheme.statusWarning)
+            }
+            if let transcript = appState.onboardingTranscript {
+                Text(transcript).textSelection(.enabled)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(FoilTheme.sidebarBackground, in: RoundedRectangle(cornerRadius: 8))
+                    .accessibilityIdentifier("onboarding.practiceTranscript")
+                Label("Transcription worked", systemImage: "checkmark.circle")
+            }
+        }
+    }
+
+    private var insertionStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            stepHeading(title: "Try Foil in another app", description: "Open a blank note in Notes or TextEdit and click into it. Use your shortcut to dictate another short phrase. Stay in that app until processing finishes.", systemImage: "text.cursor")
+            Text(appState.dictationInstruction).font(.headline)
+            Toggle("I saw my words appear in the other app", isOn: $appState.onboardingInsertionConfirmed)
+                .accessibilityIdentifier("onboarding.insertionConfirmed")
+            Text(appState.onboardingInsertionConfirmed ? "Insertion confirmed by you." : "Insertion has not been confirmed. You can finish now and try it later.")
+                .font(.caption)
+            Text("If text does not appear, open Foil from the menu bar and choose Copy last result, then paste with Command-V.")
+            Text("Foil stays in the menu bar when this window closes. Open Foil → General to choose Launch at Login.")
+                .font(.caption)
+        }
+    }
+
     // MARK: - Helpers
 
     private var isUITesting: Bool {
@@ -214,7 +421,7 @@ struct OnboardingView: View {
                 Text("Welcome to \(AppBrand.name)")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(FoilTheme.deepTeal)
-                Text("Finish setup once, then record from the menu bar.")
+                Text("Let's turn your voice into your first transcript.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -223,40 +430,13 @@ struct OnboardingView: View {
     }
 
     private var stepIndicator: some View {
-        HStack(spacing: 8) {
-            ForEach(steps.indices, id: \.self) { index in
-                stepPill(title: steps[index], index: index)
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Step \(currentStep + 1) of \(steps.count): \(steps[currentStep])")
+                .font(.callout.weight(.medium))
+            ProgressView(value: Double(currentStep), total: Double(steps.count - 1))
+                .accessibilityLabel("Setup progress")
         }
         .accessibilityIdentifier("onboarding.stepIndicator")
-    }
-
-    private func stepPill(title: String, index: Int) -> some View {
-        let isCurrent = index == currentStep
-        let isComplete = index < currentStep
-        let tint = isCurrent || isComplete ? FoilTheme.deepTeal : Color.secondary
-
-        return HStack(spacing: 6) {
-            Image(systemName: isComplete ? "checkmark.circle.fill" : "\(index + 1).circle.fill")
-                .font(.caption.weight(.semibold))
-                .symbolRenderingMode(.hierarchical)
-            Text(title)
-                .font(.caption.weight(isCurrent ? .semibold : .medium))
-                .lineLimit(1)
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isCurrent ? FoilTheme.deepTeal.opacity(0.1) : Color.clear)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isCurrent ? FoilTheme.deepTeal.opacity(0.18) : FoilTheme.separator)
-        }
-        .accessibilityLabel("Step \(index + 1) of \(steps.count): \(title)\(isCurrent ? ", current" : "")")
     }
 
     private var navigationBar: some View {
@@ -269,9 +449,15 @@ struct OnboardingView: View {
                 } label: {
                     Label("Back", systemImage: "chevron.left")
                 }
+                .disabled(isChecking || appState.status == .recording || appState.status == .transcribing)
                 .accessibilityIdentifier("onboarding.backButton")
             }
 
+            if let onDefer {
+                Button("Finish setup later", action: onDefer)
+                    .disabled(isChecking || appState.status == .recording || appState.status == .transcribing)
+                    .accessibilityIdentifier("onboarding.deferButton")
+            }
             Spacer()
 
             Text("Step \(currentStep + 1) of \(steps.count)")
@@ -289,6 +475,7 @@ struct OnboardingView: View {
                 .labelStyle(.titleAndIcon)
                 .buttonStyle(.borderedProminent)
                 .tint(FoilTheme.deepTeal)
+                .disabled(!canAdvance)
                 .accessibilityIdentifier("onboarding.nextButton")
             } else {
                 Button {
@@ -298,7 +485,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(FoilTheme.deepTeal)
-                .disabled(!appState.areSystemPermissionsReady)
+                .disabled(!appState.areSystemPermissionsReady || !appState.hasPracticeTranscript || appState.status == .recording || appState.status == .transcribing)
                 .accessibilityIdentifier("onboarding.getStartedButton")
             }
         }
@@ -338,6 +525,8 @@ struct OnboardingView: View {
             currentStep = 1
         case "goToFinal":
             currentStep = steps.count - 1
+        case "goToPractice":
+            currentStep = 4
         case "selectLocalProvider":
             appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         case "checkMicrophone":
@@ -347,7 +536,10 @@ struct OnboardingView: View {
         case "grantMicrophone":
             appState.updateMicrophoneState(isReady: true)
         case "complete":
-            onComplete()
+            if appState.areSystemPermissionsReady && appState.hasPracticeTranscript { onComplete() }
+        case "seedPracticeTranscript":
+            guard isUITesting else { return }
+            appState.onboardingTranscript = "A fixture transcript for setup testing."
         default:
             break
         }
@@ -364,35 +556,6 @@ struct OnboardingView: View {
         case .customOpenAICompatible:
             "Audio is sent to the OpenAI-compatible endpoint you configure in Settings."
         }
-    }
-
-    private var credentialTitle: String {
-        appState.selectedTranscriptionProvider.requiresAPIKey
-            ? "\(appState.selectedTranscriptionProvider.displayName) API Key"
-            : "Credentials Optional"
-    }
-
-    private var credentialDescription: String {
-        if appState.selectedTranscriptionProvider.requiresAPIKey {
-            return "\(AppBrand.name) needs a \(appState.selectedTranscriptionProvider.displayName) API key before it can transcribe with this provider."
-        }
-
-        switch appState.selectedTranscriptionProviderPresetID {
-        case .localWhisperCPP:
-            return "Local whisper.cpp does not need a Groq key. Start the local server, then use Settings to test the connection."
-        case .openAIWhisper:
-            return "OpenAI Whisper needs an OpenAI API key. Save and test your key, then Foil can send recordings to OpenAI for transcription."
-        case .customOpenAICompatible:
-            return "Custom OpenAI-compatible servers can run without a key when the server allows it. Configure the endpoint in Settings."
-        case .groq:
-            return "API key saved."
-        }
-    }
-
-    private var credentialReadyLabel: String {
-        appState.selectedTranscriptionProvider.requiresAPIKey
-            ? "API key saved"
-            : "No API key required"
     }
 
     @ViewBuilder
