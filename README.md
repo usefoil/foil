@@ -1,7 +1,8 @@
 # Foil
 
-Open-source dictation for macOS with local, hosted, and self-hosted
-transcription.
+A macOS dictation app that understands where your words are going—fast and
+direct with AI agents, polished and formal for humans. Use local models or a
+compatible transcription API.
 
 [Website](https://foil.neonwatty.com/) ·
 [Latest release](https://github.com/usefoil/foil/releases/latest) ·
@@ -9,15 +10,15 @@ transcription.
 
 [![Foil](https://foil.neonwatty.com/assets/foil-social-card.png)](https://foil.neonwatty.com/)
 
-Hold a hotkey, speak, and release. Foil transcribes your audio, applies the
-right cleanup settings for the current app, and pastes the result where you
-were typing.
+Foil is open source. Hold a hotkey, speak, and release. Foil transcribes your
+audio, applies the right cleanup settings for the current app, and pastes the
+result where you were typing.
 
 ## Features
 
 - Hold-to-record, toggle mode, and customizable hotkeys
 - Local whisper.cpp, Groq, OpenAI Whisper, and custom OpenAI-compatible providers
-- App-specific Cleanup Groups with custom prompts and vocabulary
+- App-specific Cleanup Groups for direct agent prompts or polished human writing
 - Automatic paste with history, retry, and clipboard recovery
 - Searchable local transcription history
 - Local usage insights for words, sessions, time saved, and top apps
@@ -53,7 +54,7 @@ You can also download the signed and notarized DMG from the
 
 Transcription and cleanup are configured separately. Cleanup Groups can route
 transcript text through Groq, OpenAI, or a custom OpenAI-compatible chat
-endpoint. Unassigned apps use raw transcripts by default.
+endpoint. Unassigned apps stay fast and direct with raw transcripts by default.
 
 See the
 [local whisper.cpp guide](docs/local-openai-compatible-transcription-e2e.md)
