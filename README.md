@@ -1,14 +1,15 @@
 # Foil
 
-A macOS dictation app that understands where your words are going - fast and
-direct with AI agents, polished and formal for humans. Use local models or a
-compatible transcription API.
+**Talk to agents at the speed of thought.**
+
+macOS dictation built for AI-first work - fast, direct prompts for agents and
+polished text for humans. Run local models or connect to a transcription API.
 
 [Website](https://foil.neonwatty.com/) ·
 [Latest release](https://github.com/usefoil/foil/releases/latest) ·
 [Changelog](CHANGELOG.md)
 
-[![Foil](https://foil.neonwatty.com/assets/foil-social-card.png)](https://foil.neonwatty.com/)
+[![Foil](https://foil.neonwatty.com/assets/foil-social-card.png?v=20260914-ai-first)](https://foil.neonwatty.com/)
 
 Foil is open source. Hold a hotkey, speak, and release. Foil transcribes your
 audio, applies the right cleanup settings for the current app, and pastes the
