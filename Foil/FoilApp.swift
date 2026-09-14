@@ -897,7 +897,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func syncLiveAudioSignifier() {
-        guard appState.shouldShowFloatingStatus else {
+        guard appState.shouldShowLiveAudioSignifier else {
             liveAudioSignifierPanel?.orderOut(nil)
             return
         }

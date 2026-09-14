@@ -1541,6 +1541,13 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertEqual(signifier.label, "Processing recording")
+
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--simulate-success-after-launch"])
+
+        signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
+        XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 7), app.debugDescription)
+        XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(signifier.label, "Recording delivered")
     }
 
     func testLiveAudioSignifierIncludesActiveCleanupModeWhileRecording() {
