@@ -993,6 +993,55 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(state.shouldShowFloatingStatus)
     }
 
+    func testLiveAudioSignifierHiddenForIdleWhenFloatingStatusDisabled() {
+        let state = AppState()
+        state.showFloatingStatus = false
+
+        XCTAssertFalse(state.shouldShowLiveAudioSignifier)
+    }
+
+    func testLiveAudioSignifierVisibleForIdleWhenFloatingStatusEnabled() {
+        let state = AppState()
+        state.showFloatingStatus = true
+
+        XCTAssertTrue(state.shouldShowLiveAudioSignifier)
+    }
+
+    func testLiveAudioSignifierVisibleForActiveStatesWhenFloatingStatusDisabled() {
+        let state = AppState()
+        state.showFloatingStatus = false
+
+        state.setStatus(.recording)
+        XCTAssertTrue(state.shouldShowLiveAudioSignifier)
+
+        state.setStatus(.transcribing)
+        XCTAssertTrue(state.shouldShowLiveAudioSignifier)
+
+        state.showError("fail")
+        XCTAssertTrue(state.shouldShowLiveAudioSignifier)
+    }
+
+    func testLiveAudioSignifierVisibleAfterPasteSuccessWhenFloatingStatusDisabled() {
+        let state = AppState()
+        state.showFloatingStatus = false
+
+        state.recordPaste(.currentApp)
+        XCTAssertTrue(state.shouldShowLiveAudioSignifier)
+
+        state.expireTransientSuccess()
+        XCTAssertFalse(state.shouldShowLiveAudioSignifier)
+    }
+
+    func testLiveAudioSignifierDismissalHidesActiveState() {
+        let state = AppState()
+        state.showFloatingStatus = false
+        state.setStatus(.recording)
+
+        state.hideFloatingStatus()
+
+        XCTAssertFalse(state.shouldShowLiveAudioSignifier)
+    }
+
     func testFloatingStatusDismissHidesError() {
         let state = AppState()
         state.showFloatingStatus = true

@@ -912,6 +912,16 @@ final class AppState {
         }
     }
 
+    var shouldShowLiveAudioSignifier: Bool {
+        guard !floatingStatusDismissed else { return false }
+        switch status {
+        case .recording, .transcribing, .error:
+            return true
+        case .idle:
+            return transientResult != nil || showFloatingStatus
+        }
+    }
+
     var menuBarIcon: String {
         switch status {
         case .idle:
