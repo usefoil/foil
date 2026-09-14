@@ -257,6 +257,13 @@ struct OnboardingView: View {
     }
 
     private func checkConnection(saveKey: Bool) {
+        if appState.selectedTranscriptionProviderPresetID == .customOpenAICompatible,
+           appState.customTranscriptionBaseURLValue == nil {
+            credentialError = "Invalid base URL. Use an http:// or https:// URL."
+            connectionChecked = false
+            connectionMessage = nil
+            return
+        }
         let provider = appState.selectedTranscriptionProvider
         let key = saveKey ? apiKey.trimmingCharacters(in: .whitespacesAndNewlines) : appState.selectedProviderApiKey
         isChecking = true

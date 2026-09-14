@@ -854,6 +854,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if completed {
             hasCompletedOnboarding = true
             appState.onboardingStep = 0
+            if !Self.isTestingProcess(), !hotkeyMonitor.isRunning {
+                startHotkeyMonitorWithRetry()
+            }
         }
         let window = onboardingWindow
         onboardingWindow = nil

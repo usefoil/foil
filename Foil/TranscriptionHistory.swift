@@ -58,7 +58,13 @@ final class TranscriptionHistory {
     private(set) var records: [TranscriptionRecord] = []
     /// Kept only until Foil quits or history is cleared, including when disk history is off.
     private(set) var lastSessionTranscript: String?
-    var lastRecoverableText: String? { lastSessionTranscript ?? successfulRecords.first?.text }
+    private var lastSessionRecordID: UUID?
+    var lastRecoverableText: String? {
+        if let lastSessionRecordID {
+            return records.first { $0.id == lastSessionRecordID }?.text ?? successfulRecords.first?.text
+        }
+        return lastSessionTranscript ?? successfulRecords.first?.text
+    }
     private(set) var preferencesError: String?
 
     private struct Preferences: Codable {
@@ -133,14 +139,13 @@ final class TranscriptionHistory {
     }
 
     func addSuccess(text: String, sourceAppName: String? = nil) {
-        lastSessionTranscript = text
         let record = TranscriptionRecord(
             id: UUID(),
             timestamp: Date(),
             sourceAppName: Self.normalizedSourceAppName(sourceAppName),
             outcome: .success(text: text)
         )
-        insert(record)
+        rememberLastSession(text: text, recordID: insert(record) ? record.id : nil)
     }
 
     func addTransformResult(
@@ -157,7 +162,7 @@ final class TranscriptionHistory {
             transformKind: transformKind,
             outcome: .success(text: text)
         )
-        insert(record)
+        rememberLastSession(text: text, recordID: insert(record) ? record.id : nil)
     }
 
     func addFailure(error: String, audioFileURL: URL?, sourceAppName: String? = nil) {
@@ -172,7 +177,7 @@ final class TranscriptionHistory {
             sourceAppName: Self.normalizedSourceAppName(sourceAppName),
             outcome: .failure(error: error, audioFileURL: retainedAudioURL)
         )
-        insert(record)
+        _ = insert(record)
     }
 
     func resolveRetry(id: UUID, text: String, sourceAppName: String? = nil) {
@@ -185,7 +190,7 @@ final class TranscriptionHistory {
             records[index].sourceAppName = normalizedSourceAppName
         }
         records[index].outcome = .success(text: text)
-        lastSessionTranscript = text
+        rememberLastSession(text: text, recordID: records[index].id)
         save()
     }
 
@@ -240,6 +245,7 @@ final class TranscriptionHistory {
 
     func clear() {
         lastSessionTranscript = nil
+        lastSessionRecordID = nil
         for record in records {
             if let audioURL = record.audioFileURL {
                 try? FileManager.default.removeItem(at: audioURL)
@@ -329,16 +335,22 @@ final class TranscriptionHistory {
 
     // MARK: - Private
 
-    private func insert(_ record: TranscriptionRecord) {
+    private func rememberLastSession(text: String, recordID: UUID?) {
+        lastSessionTranscript = text
+        lastSessionRecordID = recordID
+    }
+
+    private func insert(_ record: TranscriptionRecord) -> Bool {
         guard isPersistenceEnabled, effectiveRetentionLimit > 0 else {
             if let audioURL = record.audioFileURL {
                 try? FileManager.default.removeItem(at: audioURL)
             }
-            return
+            return false
         }
         records.insert(record, at: 0)
         trimToRetentionLimit()
         save()
+        return true
     }
 
     private static func normalizedSourceAppName(_ sourceAppName: String?) -> String? {

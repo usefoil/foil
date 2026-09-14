@@ -48,6 +48,19 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertEqual(history.records.last?.text, "original transcript")
     }
 
+    func testTransformResultBecomesLastRecoverableText() throws {
+        history.addSuccess(text: "original transcript")
+        let sourceRecord = try XCTUnwrap(history.records.first)
+
+        history.addTransformResult(
+            text: "polished transcript",
+            sourceRecordID: sourceRecord.id,
+            transformKind: .polish
+        )
+
+        XCTAssertEqual(history.lastRecoverableText, "polished transcript")
+    }
+
     func testTransformResultPersistsAndExportsAsTransform() throws {
         history.addSuccess(text: "original transcript")
         let sourceRecord = try XCTUnwrap(history.records.first)
@@ -254,6 +267,7 @@ final class TranscriptionHistoryTests: XCTestCase {
         history.updateSuccess(id: id, text: " edited ")
 
         XCTAssertEqual(history.records.first?.text, "edited")
+        XCTAssertEqual(history.lastRecoverableText, "edited")
     }
 
     func testUpdateSuccessPreservesSourceAppName() {
@@ -332,6 +346,7 @@ final class TranscriptionHistoryTests: XCTestCase {
         let reloaded = TranscriptionHistory(storageDirectory: testDir)
         XCTAssertEqual(reloaded.records.first?.text, "previously stored")
         reloaded.addSuccess(text: "not persisted")
+        XCTAssertEqual(reloaded.lastRecoverableText, "not persisted")
         XCTAssertEqual(TranscriptionHistory(storageDirectory: testDir).records.count, 1)
         reloaded.clear()
         XCTAssertNil(reloaded.lastRecoverableText)
