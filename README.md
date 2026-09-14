@@ -1,6 +1,6 @@
 # Foil
 
-A macOS dictation app that understands where your words are going—fast and
+A macOS dictation app that understands where your words are going - fast and
 direct with AI agents, polished and formal for humans. Use local models or a
 compatible transcription API.
 
