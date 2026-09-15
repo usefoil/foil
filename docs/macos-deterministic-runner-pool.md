@@ -259,9 +259,8 @@ Record the run's actual commit SHA and all three runner assignments. Retain
 unexpected skips, repeated same-SHA consistency, post-reboot UI execution, and
 representative timings before requiring `Foil Deterministic UI Gate` in branch
 protection. Consult `scripts/ci/ui-test-shards.json` and the
-[approved design](superpowers/specs/2026-09-15-mac-mini-deterministic-merge-gate-design.md)
-for coverage and rollout acceptance. Branch protection remains a separate
-explicitly authorized change.
+acceptance checks in this runbook for coverage and rollout evidence. Branch
+protection remains a separate explicitly authorized change.
 
 **Accepted Task 7 limitation:** the read-only start watchdog turns the workflow
 red after a missed **180-second** shard-start deadline, but cannot cancel queued
