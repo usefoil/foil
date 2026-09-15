@@ -8,17 +8,18 @@ function canonicalSelector(value) {
 // Xcode's summary supplies counts; the test tree supplies identity. Require both.
 function inspectReport(report, expected) {
   const output = { executedTests: [], failedTests: [], skippedTests: [], missingTests: [],
-    unexpectedTests: [], testsStarted: 0, malformedSummary: false }
+    unexpectedTests: [], testsStarted: 0, failedTestCount: 0, diagnostics: [], malformedSummary: false }
   try {
     const { summary, tests } = report
     const counts = ["totalTestCount", "passedTests", "failedTests", "skippedTests", "expectedFailures"]
     if (!counts.every(key => Number.isInteger(summary[key]) && summary[key] >= 0) ||
-        !["Passed", "Failed", "Skipped", "Expected Failure"].includes(summary.result) ||
-        !Array.isArray(tests.testNodes)) throw new Error("invalid summary")
+        !["Passed", "Failed", "Skipped", "Expected Failure"].includes(summary.result)) throw new Error("invalid summary")
     output.testsStarted = summary.passedTests + summary.failedTests + summary.expectedFailures
     // Retain assertion/skip evidence even if another part of the report is malformed.
-    if (summary.failedTests) output.failedTests.push("summary: failed tests")
+    output.failedTestCount = summary.failedTests
+    if (summary.failedTests) output.failedTests.push(`summary: ${summary.failedTests} failed tests`)
     if (summary.skippedTests || summary.expectedFailures) output.skippedTests.push("summary: skipped or expected failure")
+    if (!Array.isArray(tests?.testNodes)) throw new Error("invalid test tree")
     const cases = []
     function visit(nodes, bundle = "") {
       for (const node of nodes) {
@@ -54,6 +55,9 @@ function inspectReport(report, expected) {
     output.unexpectedTests = output.executedTests.filter(id => !expectedIds.includes(id))
   } catch {
     output.malformedSummary = true
+    if (output.failedTestCount > 0) {
+      output.diagnostics.push(`${output.failedTestCount} assertion failure(s) recorded in summary; exact failed test names could not be recovered`)
+    }
   }
   return output
 }
@@ -62,14 +66,16 @@ export function classifyShard(input) {
   const result = { ...input, schemaVersion: 1,
     testsStarted: input.testsStarted ?? 0, failedTests: [...(input.failedTests ?? [])],
     skippedTests: [...(input.skippedTests ?? [])], missingTests: [...(input.missingTests ?? [])],
-    unexpectedTests: [], executedTests: [], malformedSummary: input.malformedSummary === true }
+    unexpectedTests: [], executedTests: [], failedTestCount: input.failedTests?.length ?? 0,
+    diagnostics: [], malformedSummary: input.malformedSummary === true }
   if (input.ordinary !== undefined || input.fixture !== undefined) {
     result.testsStarted = 0
     for (const [report, expected] of [[input.ordinary, input.expectedSelectors], [input.fixture, input.fixtureExpectedSelectors]]) {
       if (report === undefined) continue
       const inspected = inspectReport(report, expected ?? [])
       result.testsStarted += inspected.testsStarted
-      for (const key of ["executedTests", "failedTests", "skippedTests", "missingTests", "unexpectedTests"]) result[key].push(...inspected[key])
+      result.failedTestCount += inspected.failedTestCount
+      for (const key of ["executedTests", "failedTests", "skippedTests", "missingTests", "unexpectedTests", "diagnostics"]) result[key].push(...inspected[key])
       result.malformedSummary ||= inspected.malformedSummary
     }
   }
@@ -129,10 +135,11 @@ function main(argv) {
   for (const kind of ["ordinary", "fixture"]) {
     input.artifacts[`${kind}Result`] = path.join(directory, `${kind}.xcresult`)
     if (input[kind === "ordinary" ? "testExit" : "fixtureExit"] === null) continue
-    try {
-      input[kind] = { summary: read(path.join(directory, `${kind}-summary.json`)),
-        tests: read(path.join(directory, `${kind}-tests.json`)) }
-    } catch { input.malformedSummary = true }
+    input[kind] = {}
+    for (const component of ["summary", "tests"]) {
+      try { input[kind][component] = read(path.join(directory, `${kind}-${component}.json`)) }
+      catch { input.malformedSummary = true }
+    }
   }
   if (options["cleanup-failed"] === "true") input.infrastructureErrors.push("scoped cleanup failed")
   if (input.infrastructureKind && !["build_failed", "enumeration_command_failed"].includes(input.infrastructureKind)) {

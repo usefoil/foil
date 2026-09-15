@@ -24,10 +24,11 @@ if [ -e "$artifact_root" ] || [ -e "$final_receipt" ] || [ -e "$run_root" ]; the
   exit 2
 fi
 mkdir -p "$artifact_root" "$run_root"
-deadline=$(( $(date +%s) + timeout_seconds ))
+SECONDS=0
 local_attempt=1
 child_pid=""
 watchdog_pid=""
+child_timer_pid=""
 interrupted=false
 cleanup_failed=false
 run_cleaned=false
@@ -42,41 +43,79 @@ mkdir -p "$attempt_dir"
 preflight="$attempt_dir/preflight.json"
 selector_file="$attempt_dir/selectors.txt"
 
+cancel_child_timer() {
+  if [ -n "$child_timer_pid" ]; then
+    kill -KILL "$child_timer_pid" 2>/dev/null || true
+    wait "$child_timer_pid" 2>/dev/null || true
+    child_timer_pid=""
+  fi
+}
+
+arm_child_timer() {
+  # The timer stays alive until explicitly reaped, avoiding a stale timer PID.
+  # Only the executor's still-owned direct child can receive TERM/KILL.
+  node -e 'const {execFileSync}=require("child_process"),fs=require("fs");
+    const [pid,parent,seconds,marker]=process.argv.slice(1);
+    const owned=()=>{try{return execFileSync("ps",["-o","ppid=","-p",pid],
+      {encoding:"utf8",timeout:500,stdio:["ignore","pipe","ignore"]}).trim()===parent}catch{return false}};
+    setInterval(()=>{},60000);
+    setTimeout(()=>{if(owned()){
+      if(marker)fs.writeFileSync(marker,"command timed out\n");
+      try{process.kill(Number(pid),"SIGTERM")}catch{}
+      setTimeout(()=>{if(owned()){try{process.kill(Number(pid),"SIGKILL")}catch{}}},1000)
+    }},Number(seconds)*1000)' "$child_pid" "$$" "$1" "$2" &
+  child_timer_pid=$!
+}
+
+stop_child() {
+  cancel_child_timer
+  if [ -n "$child_pid" ]; then
+    arm_child_timer 0 ""
+    wait "$child_pid" 2>/dev/null || true
+    child_pid=""
+    cancel_child_timer
+  fi
+}
+
 run_command() {
   "$@" &
   child_pid=$!
   local status=0
+  local timeout_marker="$attempt_dir/timeout-$child_pid"
+  if [ "${command_timeout:-0}" -gt 0 ]; then arm_child_timer "$command_timeout" "$timeout_marker"; fi
   wait "$child_pid" || status=$?
   child_pid=""
+  cancel_child_timer
+  [ ! -e "$timeout_marker" ] || status=124
   return "$status"
 }
 
 write_receipt() {
-  node "$repo_root/scripts/ci/shard-receipt.mjs" \
+  command_timeout=3 run_command node "$repo_root/scripts/ci/shard-receipt.mjs" \
     --shard "$FOIL_CI_SHARD" --run-id "$GITHUB_RUN_ID" --workflow-attempt "$GITHUB_RUN_ATTEMPT" \
     --sha "$sha" --expected-sha "$GITHUB_SHA" --local-attempt "$local_attempt" \
-    --seconds-remaining "$(( deadline - $(date +%s) ))" \
+    --seconds-remaining "$(( timeout_seconds - SECONDS ))" \
     --build-exit "$build_exit" --test-exit "$test_exit" --fixture-exit "$fixture_exit" \
     --interrupted "$interrupted" --infrastructure-kind "$infrastructure_kind" \
     --cleanup-failed "$cleanup_failed" --preflight "$preflight" --selectors "$selector_file" \
     --artifact-dir "$attempt_dir" --output "$attempt_dir/receipt.json" || return 1
-  cp "$attempt_dir/receipt.json" "$final_receipt"
+  command_timeout=3 run_command cp "$attempt_dir/receipt.json" "$final_receipt"
 }
 
 collect_report() {
   local kind="$1"
-  xcrun xcresulttool get test-results summary --path "$attempt_dir/$kind.xcresult" \
-    >"$attempt_dir/$kind-summary.json" 2>"$attempt_dir/$kind-summary.log" || true
-  xcrun xcresulttool get test-results tests --path "$attempt_dir/$kind.xcresult" \
-    >"$attempt_dir/$kind-tests.json" 2>"$attempt_dir/$kind-tests.log" || true
+  command_timeout=10 run_command xcrun xcresulttool get test-results summary --path "$attempt_dir/$kind.xcresult" \
+    >"$attempt_dir/$kind-summary.json" 2>"$attempt_dir/$kind-summary.log" || infrastructure_kind=result_collection_failed
+  command_timeout=10 run_command xcrun xcresulttool get test-results tests --path "$attempt_dir/$kind.xcresult" \
+    >"$attempt_dir/$kind-tests.json" 2>"$attempt_dir/$kind-tests.log" || infrastructure_kind=result_collection_failed
 }
 
 cleanup_run() {
   [ "$run_cleaned" = false ] || return 0
   # before terminates scoped processes; after refuses deletion until they are gone.
-  bash "$repo_root/scripts/ci/runner-cleanup.sh" --workspace-root "$workspace_root" \
+  command_timeout=8 run_command bash "$repo_root/scripts/ci/runner-cleanup.sh" --workspace-root "$workspace_root" \
     --run-root "$run_root" --mode before >>"$attempt_dir/cleanup-stop.log" 2>&1 || cleanup_failed=true
-  if bash "$repo_root/scripts/ci/runner-cleanup.sh" --workspace-root "$workspace_root" \
+  if command_timeout=8 run_command bash "$repo_root/scripts/ci/runner-cleanup.sh" --workspace-root "$workspace_root" \
     --run-root "$run_root" --mode after >>"$attempt_dir/cleanup-after.log" 2>&1; then
     run_cleaned=true
   else
@@ -86,36 +125,25 @@ cleanup_run() {
 
 finish() {
   local status=$?
-  local reaper_pid=""
   trap - EXIT
   trap '' INT TERM HUP
-  if [ -n "$watchdog_pid" ]; then kill -TERM "$watchdog_pid" 2>/dev/null || true; wait "$watchdog_pid" 2>/dev/null || true; fi
-  if [ -n "$child_pid" ]; then
-    kill -TERM "$child_pid" 2>/dev/null || true
-    # A child that ignores TERM must not prevent receipt writing. Revalidate its
-    # parent before escalation, and cancel the timer immediately after reaping.
-    node -e 'const {execFileSync}=require("child_process");setTimeout(()=>{try{
-      const parent=execFileSync("ps",["-o","ppid=","-p",process.argv[1]],{encoding:"utf8"}).trim();
-      if(parent===process.argv[2])process.kill(Number(process.argv[1]),"SIGKILL")
-    }catch{}},1000)' "$child_pid" "$$" &
-    reaper_pid=$!
-    wait "$child_pid" 2>/dev/null || true
-    kill -TERM "$reaper_pid" 2>/dev/null || true
-    wait "$reaper_pid" 2>/dev/null || true
-  fi
-  if [ "$phase" = "ordinary" ]; then test_exit=143; collect_report ordinary; fi
-  if [ "$phase" = "fixture" ]; then fixture_exit=143; collect_report fixture; fi
+  if [ -n "$watchdog_pid" ]; then kill -KILL "$watchdog_pid" 2>/dev/null || true; wait "$watchdog_pid" 2>/dev/null || true; fi
+  # Finalization uses independently bounded commands inside the reserved minute.
+  # Do not start new xcresult extraction after interruption; use saved evidence.
+  stop_child
+  if [ "$phase" = "ordinary" ]; then test_exit=143; fi
+  if [ "$phase" = "fixture" ]; then fixture_exit=143; fi
   if [ "$status" -ne 0 ] && [ -z "$infrastructure_kind" ]; then infrastructure_kind=executor_failed; fi
   write_receipt || status=1
   cleanup_run
   write_receipt || status=1
-  if ! node -e 'const fs=require("fs");process.exit(JSON.parse(fs.readFileSync(process.argv[1])).classification==="passed"?0:1)' "$final_receipt"; then status=1; fi
+  if ! command_timeout=3 run_command node -e 'const fs=require("fs");process.exit(JSON.parse(fs.readFileSync(process.argv[1])).classification==="passed"?0:1)' "$final_receipt"; then status=1; fi
   exit "$status"
 }
 trap finish EXIT
 trap 'interrupted=true; exit 143' INT TERM HUP
 # Bound the entire executor while leaving one minute inside the workflow's 15-minute ceiling.
-node -e 'setTimeout(()=>{try{process.kill(Number(process.argv[1]),"SIGTERM")}catch{}},Number(process.argv[2])*1000)' "$$" "$timeout_seconds" &
+node -e 'setInterval(()=>{},60000);setTimeout(()=>{try{process.kill(Number(process.argv[1]),"SIGTERM")}catch{}},Number(process.argv[2])*1000)' "$$" "$timeout_seconds" &
 watchdog_pid=$!
 
 attempt() {
@@ -192,7 +220,7 @@ attempt
 write_receipt
 if node -e 'const fs=require("fs");const r=JSON.parse(fs.readFileSync(process.argv[1]));process.exit(r.classification==="infra_failed"&&r.retryAllowed===true?0:1)' "$final_receipt"; then
   cleanup_run
-  if [ "$cleanup_failed" = false ] && [ "$(( deadline - $(date +%s) ))" -ge 180 ]; then
+  if [ "$cleanup_failed" = false ] && [ "$(( timeout_seconds - SECONDS ))" -ge 180 ]; then
     local_attempt=2
     mkdir -p "$run_root"
     run_cleaned=false

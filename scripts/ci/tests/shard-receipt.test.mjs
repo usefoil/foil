@@ -97,3 +97,17 @@ test("fixture success exit without a fixture result report cannot pass", () => {
     fixtureExpectedSelectors: [selector], fixtureExit: 0 })
   assert.equal(r.classification, "infra_failed")
 })
+for (const [description, tree] of [["missing", undefined], ["malformed", {}]]) {
+  test(`summary assertion evidence survives a ${description} test tree`, () => {
+    const ordinary = report("Failed")
+    ordinary.tests = tree
+    const r = classifyShard({ ...base, expectedSelectors: [selector], ordinary,
+      interrupted: true, testExit: 143 })
+    assert.equal(r.classification, "test_failed")
+    assert.equal(r.retryAllowed, false)
+    assert.equal(r.testsStarted, 1)
+    assert.equal(r.malformedSummary, true)
+    assert.ok(r.failedTests.length > 0)
+    assert.ok(r.diagnostics.some(message => message.includes("exact failed test names could not be recovered")))
+  })
+}
