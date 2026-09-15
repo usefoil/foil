@@ -1,0 +1,186 @@
+name: Foil Deterministic UI Gate (Shadow)
+
+on:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+# Serialize the whole dedicated pool across both triggers and all refs.
+concurrency:
+  group: foil-deterministic-ui-gate
+  cancel-in-progress: false
+
+jobs:
+  detect-changes:
+    name: Detect Deterministic UI Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      app_ci: ${{ steps.detect.outputs.app_ci }}
+      dispatched_at: ${{ steps.dispatch.outputs.dispatched_at }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: detect
+        run: bash .github/scripts/app-ci-required.sh
+      - id: dispatch
+        name: Record shard dispatch time
+        run: echo "dispatched_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+  shards:
+    name: Deterministic UI shard ${{ matrix.shard }}
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.app_ci == 'true'
+    runs-on: [self-hosted, macOS, ARM64, foil-deterministic]
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        shard: [a, b, c]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: run
+        name: Execute deterministic shard
+        env:
+          FOIL_CI_SHARD: ${{ matrix.shard }}
+        run: bash scripts/ci/run-ui-shard.sh
+      - name: Upload final receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-receipt-${{ matrix.shard }}
+          path: artifacts/receipt-${{ matrix.shard }}.json
+          if-no-files-found: error
+      - name: Upload shard diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-shard-${{ matrix.shard }}
+          path: artifacts/shard-${{ matrix.shard }}
+          if-no-files-found: warn
+
+  start-watchdog:
+    name: Deterministic UI Start Watchdog
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.app_ci == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - id: watch
+        name: Require all three runners to start within 180 seconds
+        uses: actions/github-script@v8
+        env:
+          DISPATCHED_AT: ${{ needs.detect-changes.outputs.dispatched_at }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const dispatched = Date.parse(process.env.DISPATCHED_AT);
+            if (!Number.isFinite(dispatched)) {
+              core.setFailed('Invalid shard dispatch timestamp; cannot establish start deadline.');
+              return;
+            }
+            const deadline = dispatched + 180000;
+            const names = ['a', 'b', 'c'].map(shard => `Deterministic UI shard ${shard}`);
+            const attempt = Number(process.env.GITHUB_RUN_ATTEMPT);
+            while (true) {
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+                ...context.repo, run_id: context.runId, attempt_number: attempt, per_page: 100,
+              });
+              const missing = names.filter(name => !jobs.some(job => {
+                const started = Date.parse(job.started_at);
+                return job.name === name && job.runner_id > 0 &&
+                  ['in_progress', 'completed'].includes(job.status) &&
+                  Number.isFinite(started) && started >= dispatched && started <= deadline;
+              }));
+              if (missing.length === 0) {
+                core.info('All three deterministic UI shards started within the 180-second deadline.');
+                return;
+              }
+              if (Date.now() >= deadline) {
+                core.setFailed(`Unavailable runner pool: 180-second start deadline ${new Date(deadline).toISOString()} missed by ${missing.join(', ')}`);
+                return;
+              }
+              await new Promise(resolve => setTimeout(resolve, Math.min(10000, deadline - Date.now())));
+            }
+
+  aggregate:
+    # Prospective required check. Keep this workflow non-required during shadow rollout.
+    name: Foil Deterministic UI Gate
+    needs: [detect-changes, shards, start-watchdog]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download final receipts
+        if: needs.detect-changes.outputs.app_ci == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: deterministic-receipt-*
+          path: receipts
+          merge-multiple: true
+      - id: aggregate
+        name: Evaluate gate evidence
+        if: always()
+        env:
+          APP_CI: ${{ needs.detect-changes.outputs.app_ci }}
+          DETECT_RESULT: ${{ needs.detect-changes.result }}
+          SHARDS_RESULT: ${{ needs.shards.result }}
+          WATCHDOG_RESULT: ${{ needs.start-watchdog.result }}
+        run: |
+          set -euo pipefail
+          mkdir -p gate-summary
+          fail_gate() {
+            printf '## Deterministic UI gate\n\nStatus: failed\n\n%s\n' "$1" | tee gate-summary/gate-summary.md >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+          if [ "$DETECT_RESULT" != success ]; then
+            fail_gate 'Change detection failed; applicability is unknown.'
+          fi
+          if [ "$APP_CI" = false ]; then
+            printf '## Deterministic UI gate\n\nStatus: not_applicable\n\nNo app-impacting changes.\n' | tee gate-summary/gate-summary.md >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$APP_CI" != true ]; then
+            fail_gate 'Change detector returned an invalid applicability value.'
+          fi
+          if [ "$WATCHDOG_RESULT" != success ]; then
+            fail_gate 'Runner infrastructure failure: the start watchdog did not confirm all three runners within the 180-second dispatch deadline. See Deterministic UI Start Watchdog for unavailable-pool/start-deadline evidence.'
+          fi
+          receipt_status=0
+          GITHUB_STEP_SUMMARY=/dev/null node scripts/ci/aggregate-ui-gate.mjs --receipts receipts --sha "$GITHUB_SHA" --output-dir gate-summary || receipt_status=$?
+          if [ "$SHARDS_RESULT" != success ]; then
+            node <<'NODE'
+          const fs = require('node:fs');
+          const file = 'gate-summary/gate-summary.json';
+          const result = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { errors: [], runnerInfrastructureFailures: [] };
+          const error = `Shard jobs did not all succeed (${process.env.SHARDS_RESULT}).`;
+          result.status = 'failed';
+          result.errors.push(error);
+          result.runnerInfrastructureFailures.push(error);
+          fs.writeFileSync(file, `${JSON.stringify(result, null, 2)}\n`);
+          NODE
+            fail_gate 'Shard jobs did not all succeed. See gate-summary.json and shard diagnostics for product/test and runner infrastructure evidence.'
+          fi
+          cat gate-summary/gate-summary.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$receipt_status"
+      - name: Upload gate summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-gate-summary
+          path: gate-summary/
+          if-no-files-found: error

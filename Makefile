@@ -148,6 +148,20 @@ uninstall-dev:
 	rm -rf "/Applications/$(DEV_APP_NAME).app"
 	@echo "Removed /Applications/$(DEV_APP_NAME).app"
 
+.PHONY: test-ci-scripts ci-runner-preflight test-deterministic-ui-shard
+
+test-ci-scripts:
+	node --test scripts/ci/tests/*.test.mjs scripts/ci/tests/test-workflow-contract.mjs
+	bash scripts/ci/tests/test-runner-cleanup.sh
+	bash scripts/ci/tests/test-fixture-e2e-build-reuse.sh
+	bash scripts/ci/tests/test-run-ui-shard.sh
+
+ci-runner-preflight:
+	node scripts/ci/runner-preflight.mjs --baseline scripts/ci/runner-baseline.json --output "$${PREFLIGHT_OUTPUT:-preflight.json}"
+
+test-deterministic-ui-shard:
+	FOIL_CI_SHARD="$${FOIL_CI_SHARD:?set FOIL_CI_SHARD to a, b, or c}" scripts/ci/run-ui-shard.sh
+
 test:
 	@tmp=$$(mktemp); \
 	RUN_LIVE_GROQ_TESTS=0 xcodebuild test -scheme $(SCHEME) -configuration $(CONFIG) -destination 'platform=macOS' $(DEFAULT_UNIT_TEST_FILTERS) >"$$tmp" 2>&1; \
