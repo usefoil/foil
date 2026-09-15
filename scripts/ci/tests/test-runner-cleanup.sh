@@ -17,7 +17,15 @@ cat >"$fake_bin/ps" <<'EOF'
 #!/bin/sh
 if [ "${1:-}" = "-p" ]; then
   cat "$FOIL_TEST_PS_RECHECK_OUTPUT"
+  if [ "${FOIL_TEST_CLEAR_ON_RECHECK:-0}" = "1" ]; then
+    : >"$FOIL_TEST_PS_OUTPUT"
+  fi
   exit 0
+fi
+if [ -n "${FOIL_TEST_SWAP_SOURCE:-}" ] && [ ! -e "$FOIL_TEST_SWAP_SENTINEL" ]; then
+  touch "$FOIL_TEST_SWAP_SENTINEL"
+  mv "$FOIL_TEST_SWAP_SOURCE" "$FOIL_TEST_SWAP_MOVED"
+  ln -s "$FOIL_TEST_SWAP_TARGET" "$FOIL_TEST_SWAP_SOURCE"
 fi
 cat "$FOIL_TEST_PS_OUTPUT"
 EOF
@@ -135,6 +143,7 @@ cat >"$ps_output" <<EOF
   106 xcodebuild /usr/bin/xcodebuild test -project $workspace_canonical/Other.xcodeproj
   107 xctest /tmp/FoilTests.xctest/FoilTests
   108 unrelated $workspace_canonical/Foil
+  109 xcodebuild /usr/bin/xcodebuild test -project ${workspace_canonical}-other/Foil.xcodeproj
 EOF
 FOIL_CI_DRY_RUN=1 run_cleanup \
   --workspace-root "$workspace" --run-root "$run_root" --mode before \
@@ -146,7 +155,7 @@ for pid in 101 102 104 105; do
     exit 1
   fi
 done
-for pid in 103 106 107 108; do
+for pid in 103 106 107 108 109; do
   if grep -F "pid $pid " "$fixture_root/process-dry-run.log" >/dev/null; then
     echo "unrelated pid $pid was selected" >&2
     exit 1
@@ -168,6 +177,24 @@ expect_failure "changed process identity" env \
   --workspace-root "$workspace" --run-root "$run_root" --mode before
 if [ -e "$signal_file" ]; then
   echo "changed process identity was signaled" >&2
+  exit 1
+fi
+
+# A process that exits between discovery and revalidation is already clean.
+cat >"$ps_output" <<EOF
+  203 Foil $workspace_canonical/Foil
+EOF
+: >"$ps_recheck_output"
+rm -f -- "$signal_file"
+FOIL_TEST_PS_OUTPUT="$ps_output" \
+  FOIL_TEST_PS_RECHECK_OUTPUT="$ps_recheck_output" \
+  FOIL_TEST_SIGNAL_FILE="$signal_file" \
+  FOIL_TEST_CLEAR_ON_RECHECK=1 \
+  PATH="$fake_bin:$PATH" "$cleanup_script" \
+  --workspace-root "$workspace" --run-root "$run_root" --mode before \
+  >"$fixture_root/vanished-process.log"
+if [ -e "$signal_file" ]; then
+  echo "vanished process was signaled" >&2
   exit 1
 fi
 
@@ -206,6 +233,32 @@ FOIL_CI_DRY_RUN=1 run_cleanup \
   >"$fixture_root/after-dry-run.log"
 grep -F "dry-run: remove $dry_after_canonical" "$fixture_root/after-dry-run.log" >/dev/null
 assert_exists "$dry_after_root/dry-marker"
+
+# An ancestor swap after validation cannot redirect deletion through a symlink.
+race_base="$fixture_root/race"
+race_workspace="$race_base/work"
+race_moved="$race_base/work-moved"
+race_outside="$race_base/outside"
+race_run="$race_workspace/666-6-c"
+mkdir -p "$race_run" "$race_outside/666-6-c"
+touch "$race_run/original-marker" "$race_outside/666-6-c/outside-marker"
+: >"$ps_output"
+race_status=0
+FOIL_TEST_PS_OUTPUT="$ps_output" \
+  FOIL_TEST_SWAP_SOURCE="$race_workspace" \
+  FOIL_TEST_SWAP_MOVED="$race_moved" \
+  FOIL_TEST_SWAP_TARGET="$race_outside" \
+  FOIL_TEST_SWAP_SENTINEL="$fixture_root/race-swapped" \
+  PATH="$fake_bin:$PATH" "$cleanup_script" \
+  --workspace-root "$race_workspace" --run-root "$race_run" --mode after \
+  >"$fixture_root/race-cleanup.log" 2>"$fixture_root/race-cleanup.err" || \
+  race_status="$?"
+if [ "$race_status" -eq 0 ]; then
+  echo "ancestor swap cleanup unexpectedly succeeded" >&2
+  exit 1
+fi
+assert_exists "$race_moved/666-6-c/original-marker"
+assert_exists "$race_outside/666-6-c/outside-marker"
 
 remove_root="$workspace/444-4-a"
 sibling_root="$workspace/555-5-b"

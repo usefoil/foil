@@ -76,6 +76,43 @@ if ! [[ "$run_basename" =~ ^[0-9]+-[0-9]+-[abc]$ ]]; then
   fail "invalid run root basename: $run_basename"
 fi
 
+run_parent="${run_root%/*}"
+if [ "$mode" = "after" ]; then
+  cd "$run_parent" || fail "cannot anchor cleanup in run parent: $run_parent"
+  anchored_parent="$(pwd -P)" || fail "cannot resolve anchored run parent"
+  [ "$anchored_parent" = "$run_parent" ] || \
+    fail "anchored run parent changed during validation"
+fi
+
+command_has_workspace_path() {
+  local search_rest prefix suffix before after
+  search_rest="$1"
+
+  while [ -n "$search_rest" ]; do
+    case "$search_rest" in
+      *"$workspace_root"*) ;;
+      *) return 1 ;;
+    esac
+
+    prefix="${search_rest%%"$workspace_root"*}"
+    suffix="${search_rest#*"$workspace_root"}"
+    before=""
+    after=""
+    [ -z "$prefix" ] || before="${prefix#"${prefix%?}"}"
+    [ -z "$suffix" ] || after="${suffix%"${suffix#?}"}"
+
+    case "$before" in
+      ""|" "|$'\t'|"="|"\""|"'") ;;
+      *) search_rest="$suffix"; continue ;;
+    esac
+    case "$after" in
+      ""|"/"|" "|$'\t'|"\""|"'") return 0 ;;
+      *) search_rest="$suffix" ;;
+    esac
+  done
+  return 1
+}
+
 process_is_scoped() {
   scoped_name="$1"
   scoped_command="$2"
@@ -88,10 +125,7 @@ process_is_scoped() {
         *Foil*) ;;
         *) return 1 ;;
       esac
-      case "$scoped_command" in
-        *"$workspace_root"*) return 0 ;;
-        *) return 1 ;;
-      esac
+      command_has_workspace_path "$scoped_command"
       ;;
     *)
       return 1
@@ -126,11 +160,10 @@ list_foil_processes() {
 revalidate_process() {
   expected_pid="$1"
   expected_name="$2"
-  current_output="$(ps -p "$expected_pid" -o pid=,comm=,command=)" || \
-    fail "unable to revalidate pid $expected_pid ($expected_name)"
+  current_output="$(ps -p "$expected_pid" -o pid=,comm=,command=)" || return 1
+  [ -n "$current_output" ] || return 1
   current_selection="$(select_foil_processes "$current_output")"
-  [ "$current_selection" = "$expected_pid $expected_name" ] || \
-    fail "pid $expected_pid changed identity before termination"
+  [ "$current_selection" = "$expected_pid $expected_name" ] || return 2
 }
 
 foil_processes="$(list_foil_processes)" || exit 1
@@ -142,7 +175,15 @@ if [ "$mode" = "before" ]; then
       if [ "${FOIL_CI_DRY_RUN:-0}" = "1" ]; then
         echo "dry-run: terminate pid $pid ($process_name)"
       else
-        revalidate_process "$pid" "$process_name"
+        revalidation_status=0
+        revalidate_process "$pid" "$process_name" || revalidation_status="$?"
+        if [ "$revalidation_status" -ne 0 ]; then
+          if [ "$revalidation_status" -eq 1 ]; then
+            echo "pid $pid ($process_name) exited before termination"
+            continue
+          fi
+          fail "pid $pid changed identity before termination"
+        fi
         echo "terminate pid $pid ($process_name)"
         env kill -TERM "$pid" || fail "failed to terminate pid $pid ($process_name)"
       fi
@@ -175,13 +216,20 @@ EOF
   exit 1
 fi
 
+active_parent="$(pwd -P)" || fail "cannot resolve active run parent"
+[ "$active_parent" = "$run_parent" ] || fail "run parent changed before cleanup"
+[ -d "./$run_basename" ] || fail "anchored run root is not an existing directory"
+active_run="$(cd "./$run_basename" && pwd -P)" || \
+  fail "cannot resolve anchored run root"
+[ "$active_run" = "$run_root" ] || fail "run root changed before cleanup"
+
 if [ "${FOIL_CI_DRY_RUN:-0}" = "1" ]; then
   echo "dry-run: remove $run_root"
   exit 0
 fi
 
 echo "remove $run_root"
-rm -rf -- "$run_root"
-if [ -e "$run_root" ] || [ -L "$run_root" ]; then
+rm -rf -- "./$run_basename"
+if [ -e "./$run_basename" ] || [ -L "./$run_basename" ]; then
   fail "run root still exists after removal: $run_root"
 fi
