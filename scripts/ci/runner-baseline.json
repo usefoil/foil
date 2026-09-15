@@ -7,5 +7,5 @@
   "xcodeBuild": "17F113",
   "minimumFreeBytes": 30000000000,
   "allowedRunnerNames": ["foil-mm1", "foil-mm2", "foil-mm3"],
-  "allowedConsoleUsers": ["neonwatty", "jeremywatt"]
+  "allowedConsoleUsers": ["foilci"]
 }
