@@ -16,6 +16,7 @@ PLISTBUDDY="${PLISTBUDDY:-/usr/libexec/PlistBuddy}"
 SKIP_BUILD_FOR_TESTING="${SKIP_BUILD_FOR_TESTING:-}"
 XCTESTRUN_PATH="${XCTESTRUN_PATH:-}"
 XCTEST_RESULT_BUNDLE_PATH="${XCTEST_RESULT_BUNDLE_PATH:-}"
+XCTEST_ARTIFACT_DIR="${XCTEST_ARTIFACT_DIR:-}"
 
 if [[ ! -f "${AUDIO_PATH}" ]]; then
   echo "error: audio fixture not found: ${AUDIO_PATH}" >&2
@@ -32,9 +33,19 @@ if [[ "${SKIP_BUILD_FOR_TESTING}" == "1" && ! -f "${XCTESTRUN_PATH}" ]]; then
   exit 2
 fi
 
+if [[ -n "${XCTEST_ARTIFACT_DIR}" ]]; then
+  if ! mkdir -p "${XCTEST_ARTIFACT_DIR}" || [[ ! -d "${XCTEST_ARTIFACT_DIR}" || ! -w "${XCTEST_ARTIFACT_DIR}" ]]; then
+    echo "error: XCTEST_ARTIFACT_DIR must be a writable directory: ${XCTEST_ARTIFACT_DIR}" >&2
+    exit 2
+  fi
+fi
+
 tmpdir="$(mktemp -d)"
 server_pid=""
 patched=""
+receipt_path=""
+server_log=""
+test_log=""
 cleanup_result_path=""
 if [[ -z "${E2E_RESULT_PATH:-}" ]]; then
   cleanup_result_path="${RESULT_PATH}"
@@ -45,6 +56,7 @@ cleanup() {
     kill "${server_pid}" >/dev/null 2>&1 || true
     wait "${server_pid}" >/dev/null 2>&1 || true
   fi
+  export_fixture_artifacts
   rm -rf "${tmpdir}"
   if [[ -n "${patched}" ]]; then
     rm -f "${patched}"
@@ -54,6 +66,28 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+export_fixture_artifacts() {
+  if [[ -z "${XCTEST_ARTIFACT_DIR}" ]]; then
+    return
+  fi
+  if [[ -f "${receipt_path}" ]]; then
+    if ! node -e '
+      const fs = require("fs")
+      const receipt = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+      if (receipt.authorization) receipt.authorization = "Bearer [REDACTED]"
+      fs.writeFileSync(process.argv[2], `${JSON.stringify(receipt, null, 2)}\n`)
+    ' "${receipt_path}" "${XCTEST_ARTIFACT_DIR}/fixture-request-receipt.json"; then
+      echo "warning: could not export redacted fixture request receipt" >&2
+    fi
+  fi
+  if [[ -f "${server_log}" ]]; then
+    cp "${server_log}" "${XCTEST_ARTIFACT_DIR}/fixture-server.log" || echo "warning: could not export fixture server log" >&2
+  fi
+  if [[ -f "${test_log}" ]]; then
+    cp "${test_log}" "${XCTEST_ARTIFACT_DIR}/xcuitest.log" || echo "warning: could not export XCUITest log" >&2
+  fi
+}
 
 transcript_words() {
   tr '[:upper:]' '[:lower:]' | tr -cs '[:alpha:]' '\n' | sed '/^$/d'
