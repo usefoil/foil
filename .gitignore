@@ -6,6 +6,9 @@ LocalCLIE2EDerivedData/
 
 # Build artifacts
 *.profraw
+
+# Local worktrees
+.worktrees/
 .superpowers/
 .research/
 
