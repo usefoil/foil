@@ -12,7 +12,10 @@ RESULT_PATH="${E2E_RESULT_PATH:-${DEFAULT_RESULT_PATH}}"
 EXPECTED="${E2E_EXPECTED_TRANSCRIPT:-the quick brown fox jumps over the lazy dog}"
 TIMEOUT_SECONDS="${E2E_TRANSCRIPTION_TIMEOUT_SECONDS:-30}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-}"
-PLISTBUDDY="/usr/libexec/PlistBuddy"
+PLISTBUDDY="${PLISTBUDDY:-/usr/libexec/PlistBuddy}"
+SKIP_BUILD_FOR_TESTING="${SKIP_BUILD_FOR_TESTING:-}"
+XCTESTRUN_PATH="${XCTESTRUN_PATH:-}"
+XCTEST_RESULT_BUNDLE_PATH="${XCTEST_RESULT_BUNDLE_PATH:-}"
 
 if [[ ! -f "${AUDIO_PATH}" ]]; then
   echo "error: audio fixture not found: ${AUDIO_PATH}" >&2
@@ -21,6 +24,11 @@ fi
 
 if ! command -v node >/dev/null 2>&1; then
   echo "error: node is required for the fixture transcription server" >&2
+  exit 2
+fi
+
+if [[ "${SKIP_BUILD_FOR_TESTING}" == "1" && ! -f "${XCTESTRUN_PATH}" ]]; then
+  echo "error: XCTESTRUN_PATH must name an existing .xctestrun when SKIP_BUILD_FOR_TESTING=1" >&2
   exit 2
 fi
 
@@ -122,7 +130,6 @@ fi
 BASE_URL="$(tr -d '\r\n' <"${ready_path}")"
 echo "server=${BASE_URL}"
 
-echo "== Build for testing"
 build_args=(
   -scheme "${SCHEME}"
   -configuration "${CONFIG}"
@@ -131,16 +138,26 @@ build_args=(
 if [[ -n "${DERIVED_DATA_PATH}" ]]; then
   build_args+=( -derivedDataPath "${DERIVED_DATA_PATH}" )
 fi
-xcodebuild build-for-testing "${build_args[@]}"
+if [[ "${SKIP_BUILD_FOR_TESTING}" == "1" ]]; then
+  echo "== Reuse build for testing"
+  xctestrun="${XCTESTRUN_PATH}"
+else
+  echo "== Build for testing"
+  xcodebuild build-for-testing "${build_args[@]}"
 
-find_root="${DERIVED_DATA_PATH:-${HOME}/Library/Developer/Xcode/DerivedData}"
-xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*Foil*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
-if [[ -z "${xctestrun}" || ! -f "${xctestrun}" ]]; then
-  echo "error: could not locate generated .xctestrun" >&2
-  exit 1
+  find_root="${DERIVED_DATA_PATH:-${HOME}/Library/Developer/Xcode/DerivedData}"
+  xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*Foil*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
+  if [[ -z "${xctestrun}" || ! -f "${xctestrun}" ]]; then
+    echo "error: could not locate generated .xctestrun" >&2
+    exit 1
+  fi
 fi
 
-patched="${xctestrun%.xctestrun}.fixture-openai.xctestrun"
+if [[ "${SKIP_BUILD_FOR_TESTING}" == "1" ]]; then
+  patched="${tmpdir}/$(basename "${xctestrun%.xctestrun}").fixture-openai.xctestrun"
+else
+  patched="${xctestrun%.xctestrun}.fixture-openai.xctestrun"
+fi
 cp "${xctestrun}" "${patched}"
 
 ui_target_index=""
@@ -193,11 +210,16 @@ done
 echo "== XCUITest fixture transcription"
 rm -f "${RESULT_PATH}" "${receipt_path}"
 test_log="${tmpdir}/xcuitest.log"
+test_args=(
+  -xctestrun "${patched}"
+  -destination "${DESTINATION}"
+  -only-testing:FoilUITests/FoilUITests/testE2ETranscription
+)
+if [[ -n "${XCTEST_RESULT_BUNDLE_PATH}" ]]; then
+  test_args+=( -resultBundlePath "${XCTEST_RESULT_BUNDLE_PATH}" )
+fi
 set +e
-xcodebuild test-without-building \
-  -xctestrun "${patched}" \
-  -destination "${DESTINATION}" \
-  -only-testing:FoilUITests/FoilUITests/testE2ETranscription \
+xcodebuild test-without-building "${test_args[@]}" \
   2>&1 | tee "${test_log}"
 test_status="${PIPESTATUS[0]}"
 set -e
