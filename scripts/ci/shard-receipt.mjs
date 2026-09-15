@@ -5,6 +5,17 @@ function canonicalSelector(value) {
   return value.replace(/^-only-testing:/, "").replace(/\(\)$/, "")
 }
 
+function expectedIdentifiers(selectors) {
+  if (selectors === undefined) return []
+  if (!Array.isArray(selectors)) throw new Error("expected selectors must be an array")
+  if (selectors.length === 0) throw new Error("expected selectors must not be empty")
+  return selectors.map(selector => {
+    const match = typeof selector === "string" && selector.match(/^-only-testing:(FoilUITests\/FoilUITests\/test[A-Za-z0-9_]+)(?:\(\))?$/)
+    if (!match) throw new Error("expected selector must identify one exact Foil XCTest method")
+    return match[1]
+  }).sort()
+}
+
 // Xcode's summary supplies counts; the test tree supplies identity. Require both.
 function inspectReport(report, expected) {
   const output = { executedTests: [], failedTests: [], skippedTests: [], missingTests: [],
@@ -50,9 +61,10 @@ function inspectReport(report, expected) {
     if (summary.result !== "Passed" && !output.failedTests.length && !output.skippedTests.length) {
       throw new Error("inconsistent result")
     }
-    const expectedIds = expected.map(canonicalSelector)
-    output.missingTests = expectedIds.filter(id => !output.executedTests.includes(id))
-    output.unexpectedTests = output.executedTests.filter(id => !expectedIds.includes(id))
+    if (expected !== null) {
+      output.missingTests = expected.filter(id => !output.executedTests.includes(id))
+      output.unexpectedTests = output.executedTests.filter(id => !expected.includes(id))
+    }
   } catch {
     output.malformedSummary = true
     if (output.failedTestCount > 0) {
@@ -67,12 +79,26 @@ export function classifyShard(input) {
     testsStarted: input.testsStarted ?? 0, failedTests: [...(input.failedTests ?? [])],
     skippedTests: [...(input.skippedTests ?? [])], missingTests: [...(input.missingTests ?? [])],
     unexpectedTests: [], executedTests: [], failedTestCount: input.failedTests?.length ?? 0,
-    diagnostics: [], malformedSummary: input.malformedSummary === true }
+    diagnostics: [], expectedTests: [], invalidSelectors: false, malformedSummary: input.malformedSummary === true }
+  let ordinaryExpected, fixtureExpected
+  try {
+    ordinaryExpected = expectedIdentifiers(input.expectedSelectors)
+    fixtureExpected = expectedIdentifiers(input.fixtureExpectedSelectors)
+    const expectedTests = [...ordinaryExpected, ...fixtureExpected].sort()
+    if (new Set(expectedTests).size !== expectedTests.length) throw new Error("duplicate expected selectors identify the same XCTest method")
+    result.expectedTests = expectedTests
+  } catch (error) {
+    result.invalidSelectors = true
+    result.diagnostics.push(error.message)
+    // Preserve known assertion evidence, but never publish a partial expected set.
+    ordinaryExpected = null
+    fixtureExpected = null
+  }
   if (input.ordinary !== undefined || input.fixture !== undefined) {
     result.testsStarted = 0
-    for (const [report, expected] of [[input.ordinary, input.expectedSelectors], [input.fixture, input.fixtureExpectedSelectors]]) {
+    for (const [report, expected] of [[input.ordinary, ordinaryExpected], [input.fixture, fixtureExpected]]) {
       if (report === undefined) continue
-      const inspected = inspectReport(report, expected ?? [])
+      const inspected = inspectReport(report, expected)
       result.testsStarted += inspected.testsStarted
       result.failedTestCount += inspected.failedTestCount
       for (const key of ["executedTests", "failedTests", "skippedTests", "missingTests", "unexpectedTests", "diagnostics"]) result[key].push(...inspected[key])
@@ -89,7 +115,7 @@ export function classifyShard(input) {
     result.missingTests.length > 0 || result.unexpectedTests.length > 0 ||
     (!input.interrupted && result.testsStarted > 0 && ((input.testExit != null && input.testExit !== 0) ||
       (input.fixtureExit != null && input.fixtureExit !== 0)))
-  const infraFailure = result.testsStarted === 0 || wrongSha || result.malformedSummary || input.interrupted === true ||
+  const infraFailure = result.expectedTests.length === 0 || result.invalidSelectors || result.testsStarted === 0 || wrongSha || result.malformedSummary || input.interrupted === true ||
     (input.preflightErrors?.length ?? 0) > 0 || (input.infrastructureErrors?.length ?? 0) > 0 ||
     input.buildExit !== 0 || input.testExit !== 0 ||
     (input.fixtureExpectedSelectors?.length > 0 && input.fixtureExit !== 0)
@@ -98,7 +124,7 @@ export function classifyShard(input) {
     input.infrastructureKind === "enumeration_command_failed"
   result.retryAllowed = result.classification === "infra_failed" && preTestFailure &&
     result.testsStarted === 0 && input.localAttempt === 1 && input.secondsRemaining >= 180 &&
-    !wrongSha && !result.malformedSummary && !input.interrupted &&
+    !wrongSha && !result.malformedSummary && !result.invalidSelectors && !input.interrupted &&
     !(input.preflightErrors?.length) && !(input.infrastructureErrors?.length)
   return result
 }
@@ -128,9 +154,12 @@ function main(argv) {
     input.preflight = preflight
   } catch { input.preflightErrors.push("preflight missing, malformed, or unhealthy") }
   try {
-    input.expectedSelectors = fs.readFileSync(options.selectors, "utf8").trim().split("\n")
-    if (!input.expectedSelectors.every(value => /^-only-testing:FoilUITests\/FoilUITests\/test[A-Za-z0-9_]+$/.test(value))) throw new Error("invalid selectors")
-  } catch { input.infrastructureErrors.push("selectors missing or invalid") }
+    input.expectedSelectors = fs.readFileSync(options.selectors, "utf8").split(/\r?\n/)
+    if (input.expectedSelectors.at(-1) === "") input.expectedSelectors.pop()
+  } catch {
+    input.expectedSelectors = null
+    input.infrastructureErrors.push("selectors missing or unreadable")
+  }
   if (input.shard === "c") input.fixtureExpectedSelectors = ["-only-testing:FoilUITests/FoilUITests/testE2ETranscription"]
   for (const kind of ["ordinary", "fixture"]) {
     input.artifacts[`${kind}Result`] = path.join(directory, `${kind}.xcresult`)
