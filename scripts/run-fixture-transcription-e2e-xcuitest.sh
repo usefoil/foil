@@ -188,7 +188,11 @@ else
 fi
 
 if [[ "${SKIP_BUILD_FOR_TESTING}" == "1" ]]; then
-  patched="${tmpdir}/$(basename "${xctestrun%.xctestrun}").fixture-openai.xctestrun"
+  xctestrun_parent="$(cd "$(dirname "${xctestrun}")" && pwd -P)"
+  xctestrun_basename="$(basename "${xctestrun}")"
+  patched="$(mktemp "${xctestrun_parent}/.${xctestrun_basename%.xctestrun}.fixture-openai.XXXXXX")"
+  rm -f "${patched}"
+  patched="${patched}.xctestrun"
 else
   patched="${xctestrun%.xctestrun}.fixture-openai.xctestrun"
 fi

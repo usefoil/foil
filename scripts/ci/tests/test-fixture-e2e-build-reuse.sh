@@ -6,10 +6,15 @@ fixture_root="$(mktemp -d)"
 trap 'rm -rf "${fixture_root}"' EXIT
 
 mkdir -p "${fixture_root}/bin"
-touch "${fixture_root}/Foil.xctestrun"
+cat >"${fixture_root}/Foil.xctestrun" <<'EOF'
+<plist version="1.0"><string>__TESTROOT__/Build/Products/Foil.app</string></plist>
+EOF
+cp "${fixture_root}/Foil.xctestrun" "${fixture_root}/Foil.original.xctestrun"
 log_path="${fixture_root}/xcodebuild.log"
 artifact_dir="${fixture_root}/attempt-artifacts"
 base_url_path="${fixture_root}/base-url"
+mkdir "${artifact_dir}"
+touch "${artifact_dir}/preserve-me"
 
 cat >"${fixture_root}/bin/xcodebuild" <<'EOF'
 #!/usr/bin/env bash
@@ -63,6 +68,25 @@ fi
 if grep -q 'build-for-testing' "${log_path}"; then
   echo "did not expect build-for-testing when reusing a supplied xctestrun" >&2
   cat "${log_path}" >&2
+  exit 1
+fi
+
+test_xctestrun="$(sed -n 's/^test-without-building -xctestrun \([^ ]*\) -destination .*/\1/p' "${log_path}")"
+fixture_parent="$(cd "${fixture_root}" && pwd -P)"
+if [[ -z "${test_xctestrun}" || "$(dirname "${test_xctestrun}")" != "${fixture_parent}" ]]; then
+  echo "expected patched xctestrun beside the supplied manifest" >&2
+  exit 1
+fi
+if ! cmp -s "${fixture_root}/Foil.xctestrun" "${fixture_root}/Foil.original.xctestrun"; then
+  echo "expected supplied xctestrun to remain unchanged" >&2
+  exit 1
+fi
+if [[ -e "${test_xctestrun}" ]]; then
+  echo "expected temporary patched xctestrun to be removed after failure" >&2
+  exit 1
+fi
+if [[ ! -f "${artifact_dir}/preserve-me" ]]; then
+  echo "expected supplied artifact destination to be preserved" >&2
   exit 1
 fi
 
