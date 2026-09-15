@@ -45,7 +45,7 @@ function validSchema(receipt) {
     ["passed", "test_failed", "infra_failed"].includes(receipt.classification) &&
     isStringArray(receipt.expectedTests) && receipt.expectedTests.length > 0 && isStringArray(receipt.executedTests) &&
     ["failedTests", "skippedTests", "missingTests", "unexpectedTests"].every(name => isStringArray(receipt[name])) &&
-    typeof receipt.malformedSummary === "boolean" && typeof receipt.interrupted === "boolean" &&
+    typeof receipt.malformedSummary === "boolean" && receipt.invalidSelectors === false && typeof receipt.interrupted === "boolean" &&
     typeof receipt.retryAllowed === "boolean" && [0, null].includes(receipt.buildExit) &&
     [0, null].includes(receipt.testExit) && [0, null].includes(receipt.fixtureExit)
 }
@@ -95,6 +95,14 @@ export function aggregateReceipts(receipts, expectedSha) {
     }
     if (!sameSet(receipt.expectedTests, receipt.executedTests)) {
       productTestFailures.push(`coverage mismatch in shard ${shard}`)
+    }
+  }
+  const completeReceipts = expectedShards.map(shard => byShard.get(shard))
+  if (completeReceipts.every(receipt => validSchema(receipt) && validMetadata(receipt))) {
+    for (const key of ["runId", "workflowAttempt"]) {
+      if (new Set(completeReceipts.map(receipt => receipt[key])).size !== 1) {
+        runnerInfrastructureFailures.push(`mixed ${key} across receipts`)
+      }
     }
   }
   return summarize(productTestFailures, runnerInfrastructureFailures)
