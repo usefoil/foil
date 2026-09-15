@@ -12,6 +12,10 @@ function isStringArray(value) {
   return Array.isArray(value) && value.every(isNonEmptyString)
 }
 
+function validExitCode(value) {
+  return value === null || (Number.isInteger(value) && value >= 0 && value <= 255)
+}
+
 function sameSet(left, right) {
   return new Set(left).size === left.length && new Set(right).size === right.length &&
     left.length === right.length && left.every(value => right.includes(value))
@@ -46,8 +50,7 @@ function validSchema(receipt) {
     isStringArray(receipt.expectedTests) && receipt.expectedTests.length > 0 && isStringArray(receipt.executedTests) &&
     ["failedTests", "skippedTests", "missingTests", "unexpectedTests"].every(name => isStringArray(receipt[name])) &&
     typeof receipt.malformedSummary === "boolean" && receipt.invalidSelectors === false && typeof receipt.interrupted === "boolean" &&
-    typeof receipt.retryAllowed === "boolean" && [0, null].includes(receipt.buildExit) &&
-    [0, null].includes(receipt.testExit) && [0, null].includes(receipt.fixtureExit)
+    typeof receipt.retryAllowed === "boolean" && [receipt.buildExit, receipt.testExit, receipt.fixtureExit].every(validExitCode)
 }
 
 export function aggregateReceipts(receipts, expectedSha) {
@@ -88,9 +91,9 @@ export function aggregateReceipts(receipts, expectedSha) {
       ["missingTests", "missing tests"], ["unexpectedTests", "unexpected tests"]]) {
       if (receipt[name].length) productTestFailures.push(`${label} in shard ${shard}: ${receipt[name].join(", ")}`)
     }
-    if (receipt.malformedSummary || receipt.interrupted || receipt.retryAllowed ||
-        receipt.buildExit !== 0 || receipt.testExit !== 0 || (shard === "c" && receipt.fixtureExit !== 0) ||
-        (shard !== "c" && receipt.fixtureExit !== null)) {
+    const passedExitEvidence = receipt.buildExit === 0 && receipt.testExit === 0 &&
+      (shard === "c" ? receipt.fixtureExit === 0 : receipt.fixtureExit === null)
+    if (receipt.classification === "passed" && (receipt.malformedSummary || receipt.interrupted || receipt.retryAllowed || !passedExitEvidence)) {
       runnerInfrastructureFailures.push(`incomplete runner execution evidence in shard ${shard}`)
     }
     if (!sameSet(receipt.expectedTests, receipt.executedTests)) {

@@ -91,6 +91,27 @@ test("groups skips, missing tests, and failed classifications as product/test fa
   assert.match(result.productTestFailures.join("\n"), /classification in shard c: test_failed/)
 })
 
+test("preserves Task 5 assertion, infrastructure, and signal receipt grouping", () => {
+  const assertion = { ...good("a"), classification: "test_failed", testExit: 65,
+    failedTests: ["FoilUITests/FoilUITests/testA"] }
+  const buildFailure = { ...good("b"), classification: "infra_failed", buildExit: 65, testExit: null }
+  const signal = { ...good("c"), classification: "infra_failed", interrupted: true, testExit: 143 }
+  const result = aggregateReceipts([assertion, buildFailure, signal], "abc")
+  assert.equal(result.status, "failed")
+  assert.match(result.productTestFailures.join("\n"), /classification in shard a: test_failed/)
+  assert.match(result.productTestFailures.join("\n"), /failed tests in shard a/)
+  assert.match(result.runnerInfrastructureFailures.join("\n"), /classification in shard b: infra_failed/)
+  assert.match(result.runnerInfrastructureFailures.join("\n"), /classification in shard c: infra_failed/)
+  assert.doesNotMatch(result.runnerInfrastructureFailures.join("\n"), /malformed receipt: a/)
+})
+
+test("rejects invalid process exit values without allowing a false green", () => {
+  const bogus = { ...good("a"), testExit: 256 }
+  const result = aggregateReceipts([bogus, good("b"), good("c")], "abc")
+  assert.equal(result.status, "failed")
+  assert.match(result.runnerInfrastructureFailures.join("\n"), /malformed receipt: a/)
+})
+
 test("requires exact expected and executed coverage", () => {
   const coverage = { ...good("b"), executedTests: ["FoilUITests/FoilUITests/testOther"] }
   const result = aggregateReceipts([good("a"), coverage, good("c")], "abc")
