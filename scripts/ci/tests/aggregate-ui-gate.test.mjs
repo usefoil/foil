@@ -16,6 +16,7 @@ const facts = {
 }
 
 function good(shard) {
+  const runnerName = { a: "foil-mm1", b: "foil-mm2", c: "foil-mm3" }[shard]
   return {
     schemaVersion: 1, shard, sha: "abc", runId: "42", workflowAttempt: "3",
     localAttempt: 1, secondsRemaining: 600, classification: "passed",
@@ -25,7 +26,8 @@ function good(shard) {
     malformedSummary: false, invalidSelectors: false, interrupted: false, retryAllowed: false,
     buildExit: 0, testExit: 0, fixtureExit: shard === "c" ? 0 : null,
     preflight: { schemaVersion: 1, status: "healthy", errors: [], facts: { ...facts,
-      activeRunnerServices: [...facts.activeRunnerServices] } }
+      hostname: `${runnerName}.local`, runnerName,
+      activeRunnerServices: [`actions.runner.usefoil-foil.${runnerName}`] } }
   }
 }
 
@@ -77,6 +79,17 @@ test("requires all receipts to share one run and workflow attempt", () => {
   assert.match(mixedRun.runnerInfrastructureFailures.join("\n"), /mixed runId/)
   assert.equal(mixedAttempt.status, "failed")
   assert.match(mixedAttempt.runnerInfrastructureFailures.join("\n"), /mixed workflowAttempt/)
+})
+
+test("requires receipts from all three distinct baseline runners", () => {
+  const repeatedRunner = good("c")
+  repeatedRunner.preflight.facts.hostname = "foil-mm2.local"
+  repeatedRunner.preflight.facts.runnerName = "foil-mm2"
+  repeatedRunner.preflight.facts.activeRunnerServices = ["actions.runner.usefoil-foil.foil-mm2"]
+  const result = aggregateReceipts([good("a"), good("b"), repeatedRunner], "abc")
+  assert.equal(result.status, "failed")
+  assert.deepEqual(result.productTestFailures, [])
+  assert.match(result.runnerInfrastructureFailures.join("\n"), /distinct runner identities/)
 })
 
 test("groups skips, missing tests, and failed classifications as product/test failures", () => {

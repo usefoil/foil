@@ -107,13 +107,20 @@ async function runWatchdog(jobsAt, { now = 0, dispatched = "2026-09-15T00:00:00.
 
 const started = (shard, overrides = {}) => ({
   name: `Deterministic UI shard ${shard}`, status: "in_progress",
-  runner_id: 42, started_at: "2026-09-15T00:00:30.000Z", ...overrides,
+  runner_id: { a: 41, b: 42, c: 43 }[shard], started_at: "2026-09-15T00:00:30.000Z", ...overrides,
 })
 
 test("watchdog accepts all current-attempt shards including already completed jobs", async () => {
   const result = await runWatchdog(() => [started("a"), started("b"), started("c", { status: "completed" })], { now: 40000 })
   assert.deepEqual(result.failures, [])
   assert.equal(result.calls.length, 1)
+})
+
+test("watchdog rejects three shards started on fewer than three distinct runners", async () => {
+  const result = await runWatchdog(() => [started("a"), started("b"), started("c", { runner_id: 42 })])
+  assert.equal(result.failures.length, 1)
+  assert.match(result.failures[0], /three distinct runner IDs/)
+  assert.equal(result.elapsed, 180000)
 })
 
 test("watchdog waits for all shards and rejects missing, queued, stale, or late starts at 180 seconds", async () => {

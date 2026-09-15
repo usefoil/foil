@@ -96,18 +96,24 @@ jobs:
               const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
                 ...context.repo, run_id: context.runId, attempt_number: attempt, per_page: 100,
               });
-              const missing = names.filter(name => !jobs.some(job => {
+              const startedJobs = names.map(name => jobs.find(job => {
                 const started = Date.parse(job.started_at);
                 return job.name === name && job.runner_id > 0 &&
                   ['in_progress', 'completed'].includes(job.status) &&
                   Number.isFinite(started) && started >= dispatched && started <= deadline;
               }));
-              if (missing.length === 0) {
-                core.info('All three deterministic UI shards started within the 180-second deadline.');
+              const missing = names.filter((_, index) => !startedJobs[index]);
+              const runnerIds = startedJobs.filter(Boolean).map(job => job.runner_id);
+              const repeatedRunnerIds = [...new Set(runnerIds.filter((id, index) => runnerIds.indexOf(id) !== index))];
+              if (missing.length === 0 && repeatedRunnerIds.length === 0) {
+                core.info('All three deterministic UI shards started on distinct runners within the 180-second deadline.');
                 return;
               }
               if (Date.now() >= deadline) {
-                core.setFailed(`Unavailable runner pool: 180-second start deadline ${new Date(deadline).toISOString()} missed by ${missing.join(', ')}`);
+                const details = [];
+                if (missing.length) details.push(`missing ${missing.join(', ')}`);
+                if (repeatedRunnerIds.length) details.push(`shards did not start on three distinct runner IDs (repeated: ${repeatedRunnerIds.join(', ')})`);
+                core.setFailed(`Unavailable runner pool: 180-second start deadline ${new Date(deadline).toISOString()}; ${details.join('; ')}`);
                 return;
               }
               await new Promise(resolve => setTimeout(resolve, Math.min(10000, deadline - Date.now())));

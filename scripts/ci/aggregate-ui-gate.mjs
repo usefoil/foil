@@ -107,6 +107,10 @@ export function aggregateReceipts(receipts, expectedSha) {
         runnerInfrastructureFailures.push(`mixed ${key} across receipts`)
       }
     }
+    const runnerNames = completeReceipts.map(receipt => receipt.preflight?.facts?.runnerName)
+    if (!sameSet(runnerNames, baseline.allowedRunnerNames)) {
+      runnerInfrastructureFailures.push("receipts do not prove three distinct runner identities")
+    }
   }
   return summarize(productTestFailures, runnerInfrastructureFailures)
 }
