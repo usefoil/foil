@@ -10,7 +10,7 @@ import { aggregateReceipts } from "../aggregate-ui-gate.mjs"
 const facts = {
   hostname: "foil-mm1.local", architecture: "arm64", productVersion: "26.5.2", buildVersion: "25F84",
   xcodeVersion: "26.6", xcodeBuild: "17F113", minimumFreeBytes: undefined,
-  freeBytes: 30000000000, runnerName: "foil-mm1", consoleUser: "neonwatty",
+  freeBytes: 30000000000, runnerName: "foil-mm1", consoleUser: "foilci",
   developerModeEnabled: true, runnerOs: "macOS", runnerArch: "ARM64",
   activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm1"]
 }

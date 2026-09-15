@@ -32,8 +32,8 @@ replace them with paths/labels/IDs verified in that maintenance record before
 execution. `FOIL_CHECKOUT`, `FOIL_RUNNER_DIR`, `FOIL_RUNNER_NAME`,
 `UNRELATED_RUNNER_DIR`, and `UNRELATED_SERVICE_LABEL` are operator shell variables,
 not persistent configuration. Keep the dedicated test account non-admin with an
-active graphical login; allowed console users are currently `neonwatty` and
-`jeremywatt`. An SSH shell alone does not establish the graphical session.
+active graphical login; the allowed console user is `foilci`. An SSH shell
+alone does not establish the graphical session.
 
 ## Pinned toolchain and prerequisites
 

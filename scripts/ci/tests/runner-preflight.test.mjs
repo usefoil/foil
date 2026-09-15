@@ -9,20 +9,29 @@ const baseline = {
   architecture: "arm64", productVersion: "26.5.2", buildVersion: "25F84",
   xcodeVersion: "26.6", xcodeBuild: "17F113", minimumFreeBytes: 30_000_000_000,
   allowedRunnerNames: ["foil-mm1", "foil-mm2", "foil-mm3"],
-  allowedConsoleUsers: ["neonwatty", "jeremywatt"]
+  allowedConsoleUsers: ["foilci"]
 }
 
 test("accepts an exact healthy runner", () => {
-  const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "jeremywatt",
+  const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "foilci",
     freeBytes: 40_000_000_000, developerModeEnabled: true, runnerOs: "macOS",
     runnerArch: "ARM64", activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm2"] }
   assert.deepEqual(compareFacts(baseline, facts), [])
 })
 
+test("checked-in baseline requires the dedicated foilci console user", () => {
+  const checkedInBaseline = JSON.parse(fs.readFileSync(new URL("../runner-baseline.json", import.meta.url), "utf8"))
+  const healthyFacts = JSON.parse(fs.readFileSync(new URL("./fixtures/healthy-runner.json", import.meta.url), "utf8"))
+  assert.deepEqual(compareFacts(checkedInBaseline, { ...healthyFacts, consoleUser: "foilci" }), [])
+  assert.deepEqual(compareFacts(checkedInBaseline, { ...healthyFacts, consoleUser: "neonwatty" }), [
+    "consoleUser: expected one of foilci, got neonwatty"
+  ])
+})
+
 test("reports toolchain drift and competing services", () => {
   const facts = { architecture: "arm64", productVersion: "26.5.2", buildVersion: "25F84",
     xcodeVersion: "26.3", xcodeBuild: "17C529", runnerName: "foil-mm2",
-    consoleUser: "jeremywatt", freeBytes: 40_000_000_000, developerModeEnabled: true,
+    consoleUser: "foilci", freeBytes: 40_000_000_000, developerModeEnabled: true,
     runnerOs: "macOS", runnerArch: "ARM64",
     activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm2", "actions.runner.mean-weasel.mac-mini-2"] }
   assert.deepEqual(compareFacts(baseline, facts), [
@@ -33,7 +42,7 @@ test("reports toolchain drift and competing services", () => {
 })
 
 test("rejects missing and non-finite free space", () => {
-  const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "jeremywatt",
+  const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "foilci",
     developerModeEnabled: true, runnerOs: "macOS", runnerArch: "ARM64",
     activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm2"] }
   assert.deepEqual(compareFacts(baseline, facts), [
@@ -45,7 +54,7 @@ test("rejects missing and non-finite free space", () => {
 })
 
 test("rejects a sole runner service for another identity", () => {
-  const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "jeremywatt",
+  const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "foilci",
     freeBytes: 40_000_000_000, developerModeEnabled: true, runnerOs: "macOS",
     runnerArch: "ARM64", activeRunnerServices: ["actions.runner.mean-weasel.mac-mini-2"] }
   assert.deepEqual(compareFacts(baseline, facts), [
