@@ -4,6 +4,28 @@ import Observation
 
 @MainActor @Observable
 final class AppState {
+    static let resumeSetupNotification = Notification.Name("Foil.resumeSetup")
+
+    var onboardingStep = 0 {
+        didSet { Self.defaults.set(onboardingStep, forKey: "onboardingStep") }
+    }
+    var onboardingPracticeActive = false
+    var onboardingTranscript: String?
+    var onboardingInsertionConfirmed = false
+
+    /// Used only when opening first-run setup; never replaces an existing choice.
+    func recommendLocalForFirstRun() {
+        guard !wasProviderConfiguredAtLaunch else { return }
+        wasProviderConfiguredAtLaunch = true
+        selectedTranscriptionProviderPresetID = .localWhisperCPP
+    }
+
+    private var wasProviderConfiguredAtLaunch = true
+
+    var hasPracticeTranscript: Bool {
+        !(onboardingTranscript?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+    }
+
     enum Status: Equatable {
         case idle
         case recording
@@ -369,6 +391,10 @@ final class AppState {
 
     var usageMetricsEnabled: Bool = true {
         didSet { Self.defaults.set(usageMetricsEnabled, forKey: Self.usageMetricsEnabledKey) }
+    }
+
+    var showIdleIndicator: Bool = false {
+        didSet { Self.defaults.set(showIdleIndicator, forKey: "showIdleIndicator") }
     }
 
     var showFloatingStatus: Bool = false {
@@ -895,21 +921,42 @@ final class AppState {
     }
 
     var shouldShowFloatingStatus: Bool {
-        // Always show during active capture/processing so users have visible in-use feedback.
-        if status == .recording || status == .transcribing {
-            return !floatingStatusDismissed
+        guard !floatingStatusDismissed else { return false }
+        // Recovery stays visible even when detailed routine feedback is disabled.
+        if isError || transientResult == .clipboardFallback { return true }
+        guard showFloatingStatus else { return false }
+        if status == .recording || status == .transcribing { return true }
+        return floatingStatusTransientVisible && transientResult != nil
+    }
+
+    var shouldShowLiveAudioSignifier: Bool {
+        guard !shouldShowFloatingStatus else { return false }
+        if status == .recording || status == .transcribing { return true }
+        if transientResult != nil && !floatingStatusDismissed { return true }
+        return showIdleIndicator && status == .idle
+    }
+
+    var recordingResultLabel: String {
+        switch transientResult {
+        case .pasted(let delivery): delivery.userMessage
+        case .clipboardFallback: "Text copied to clipboard. Paste manually when ready."
+        case nil: isSetupReady ? "Ready" : "Setup needed"
         }
-        // Otherwise respect user preference
-        guard showFloatingStatus, !floatingStatusDismissed else { return false }
-        switch status {
-        case .recording, .error:
-            return true
-        case .transcribing:
-            return true  // already handled above, but kept for exhaustiveness
-        case .idle:
-            return floatingStatusTransientVisible
-                && (feedbackMessage != nil || lastPasteSummary != nil || clipboardFeedback != nil)
+    }
+
+    var hotkeyDisplayName: String {
+        switch hotkeyChoice {
+        case .rightCommand: "Right Command"
+        case .rightOption: "Right Option"
+        case .globeFn: "Globe/Fn"
+        case .custom: customHotkeyLabel.isEmpty ? "your shortcut" : customHotkeyLabel
         }
+    }
+
+    var dictationInstruction: String {
+        recordingMode == .hold
+            ? "Hold \(hotkeyDisplayName), speak, then release."
+            : "Press \(hotkeyDisplayName) to start and again to stop."
     }
 
     var menuBarIcon: String {
@@ -919,8 +966,8 @@ final class AppState {
                 return "exclamationmark.triangle.fill"
             }
             switch transientResult {
-            case .pasted:
-                return "checkmark.circle.fill"
+            case .pasted(let delivery):
+                return delivery.resultSymbol
             case .clipboardFallback:
                 return "clipboard"
             case nil:
@@ -991,18 +1038,18 @@ final class AppState {
                 )
             }
             switch transientResult {
-            case .pasted:
+            case .pasted(let delivery):
                 return SessionPresentation(
                     title: lastPasteSummary ?? "Pasted",
                     detail: [
-                        "Delivered",
+                        delivery.isVerified ? "Delivered" : "If text did not appear, copy your last result",
                         currentTargetDetail,
                         clipboardFeedback
                     ].compactMap { $0 }.joined(separator: " · "),
                     timerText: nil,
-                    systemImage: "checkmark.circle.fill",
-                    tone: .success,
-                    primaryAction: hasLastSuccess ? .pasteAgain : nil
+                    systemImage: delivery.resultSymbol,
+                    tone: delivery.isVerified ? .success : .neutral,
+                    primaryAction: hasLastSuccess ? (delivery.isVerified ? .pasteAgain : .copy) : nil
                 )
             case .clipboardFallback:
                 return SessionPresentation(
@@ -1306,6 +1353,7 @@ final class AppState {
             .persistentDomain(forName: Self.defaultsDomainName)?["transcriptionProviderPreset"] as? String
         if ProcessInfo.processInfo.arguments.contains("--reset-defaults") {
             for key in [
+                "onboardingStep",
                 "soundEffectsEnabled",
                 "recordingStartSoundCue",
                 "recordingEndSoundCue",
@@ -1320,6 +1368,7 @@ final class AppState {
                 "keepOnClipboard",
                 "showLiveFeedbackHUD",
                 "showFloatingStatus",
+                "showIdleIndicator",
                 "asyncPasteEnabled",
                 "queuedPasteEnabled",
                 "queuedPasteMode",
@@ -1355,6 +1404,9 @@ final class AppState {
             persistedPresetRawValue = nil
         }
 
+        let storedProviderChoices = defaults.persistentDomain(forName: Self.defaultsDomainName) ?? [:]
+        wasProviderConfiguredAtLaunch = storedProviderChoices["transcriptionProviderPreset"] != nil
+            || storedProviderChoices["transcriptionProvider"] != nil
         defaults.register(defaults: [
             "soundEffectsEnabled": true,
             "recordingStartSoundCue": RecordingSoundCue.defaultStart.rawValue,
@@ -1369,6 +1421,7 @@ final class AppState {
             "audioFormat": "m4a",
             "keepOnClipboard": false,
             "showFloatingStatus": false,
+            "showIdleIndicator": false,
             "asyncPasteEnabled": false,
             "queuedPasteEnabled": false,
             "queuedPasteMode": QueuedPasteMode.stepThrough.rawValue,
@@ -1394,6 +1447,7 @@ final class AppState {
             "transcriptCleanupPreferredTerms": ""
         ])
 
+        onboardingStep = min(max(Self.defaults.integer(forKey: "onboardingStep"), 0), 4)
         // Load persisted values into stored properties.
         // didSet does NOT fire during init, so no redundant writes.
         soundEffectsEnabled = defaults.bool(forKey: "soundEffectsEnabled")
@@ -1468,6 +1522,7 @@ final class AppState {
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
         usageMetricsEnabled = defaults.bool(forKey: Self.usageMetricsEnabledKey)
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
+        showIdleIndicator = defaults.bool(forKey: "showIdleIndicator")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")
         queuedPasteEnabled = defaults.bool(forKey: "queuedPasteEnabled")
         queuedPasteMode = QueuedPasteMode(rawValue: defaults.string(forKey: "queuedPasteMode") ?? "") ?? .stepThrough

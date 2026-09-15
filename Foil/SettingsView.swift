@@ -255,8 +255,13 @@ struct SettingsView: View {
                 }
             Toggle("Sound effects", isOn: $appState.soundEffectsEnabled)
                 .accessibilityIdentifier("settings.soundEffectsToggle")
-            Toggle("Show floating status", isOn: $appState.showFloatingStatus)
+            Toggle("Show detailed recording status", isOn: $appState.showFloatingStatus)
                 .accessibilityIdentifier("settings.floatingStatusToggle")
+            Toggle("Show indicator while idle", isOn: $appState.showIdleIndicator)
+                .accessibilityIdentifier("settings.idleIndicatorToggle")
+            Text("A recording indicator appears while you speak and while your transcript is processed. Errors and manual-paste instructions remain visible until dismissed.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Section("Updates") {
                 Toggle("Automatically check for updates", isOn: Binding(
@@ -1614,12 +1619,20 @@ struct SettingsView: View {
 
             Section("Local Data") {
                 Picker("History retention", selection: retentionBinding) {
-                    Text("Off").tag(0)
+                    Text("Off — stop saving new transcripts").tag(0)
                     Text("Last 100 records").tag(100)
                     Text("Last 500 records").tag(500)
                     Text("Last 1000 records").tag(1000)
                 }
                 .accessibilityIdentifier("settings.historyRetentionPicker")
+                Text("Turning history off stops future storage. Existing records stay until you choose Clear History. The last result remains available to copy until Foil quits or you clear history.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let error = history.preferencesError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(FoilTheme.statusWarning)
+                        .accessibilityIdentifier("settings.historyPreferencesError")
+                }
                 LabeledContent("Stored records", value: "\(history.records.count)")
                 LabeledContent("Retained failed audio", value: "\(history.retainedFailedAudioCount)")
                 Text("History is stored locally on this Mac. Successful audio files are deleted after transcription. Failed audio may be retained in Application Support only so you can retry it.")

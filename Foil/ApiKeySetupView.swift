@@ -26,6 +26,14 @@ struct ApiKeySetupView: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
 
+                        Text(provider.id.credentialInstructions)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let guide = provider.id.setupGuideURL {
+                            Link("Provider setup and billing guidance", destination: guide)
+                                .font(.caption)
+                        }
+
                         SecureField(apiKeyPlaceholder, text: $apiKey)
                             .textFieldStyle(.roundedBorder)
                             .accessibilityLabel("\(provider.displayName) API Key")

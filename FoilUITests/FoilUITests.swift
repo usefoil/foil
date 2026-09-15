@@ -93,13 +93,15 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(elementExists(id: "appShell.nav.settings.storage", timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "appShell.nav.settings.experimental", timeout: 2), app.debugDescription)
 
-        XCTAssertTrue(elementExists(id: "appShell.home.setupHealth", timeout: 2), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "appShell.home.setupHealth", timeout: 1), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Ready"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Accessibility Ready"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Microphone Ready"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["API Key Ready"].exists, app.debugDescription)
+        XCTAssertTrue(app.buttons["appShell.home.copyLastResultButton"].isEnabled, app.debugDescription)
 
         XCTAssertTrue(elementExists(id: "appShell.home.recentTranscripts", timeout: 2), app.debugDescription)
+        let snapshot = XCTAttachment(screenshot: app.windows["Foil"].screenshot())
+        snapshot.name = "UX Home"
+        snapshot.lifetime = .keepAlways
+        add(snapshot)
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["Seeded transcript for UI testing."].exists, app.debugDescription)
         XCTAssertFalse(app.staticTexts["Seeded network failure"].exists, app.debugDescription)
@@ -668,7 +670,7 @@ final class FoilUITests: XCTestCase {
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "checkMicrophone"])
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
 
-        let getStartedButton = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        let getStartedButton = button(id: "onboarding.nextButton", fallbackLabel: "Next")
         XCTAssertTrue(getStartedButton.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(getStartedButton.isEnabled)
     }
@@ -726,7 +728,7 @@ final class FoilUITests: XCTestCase {
 
         XCTAssertTrue(onboardingWindow.staticTexts["Microphone Access"].waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Allow microphone access", in: onboardingWindow).waitForExistence(timeout: 2), app.debugDescription)
-        let getStartedButton = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        let getStartedButton = button(id: "onboarding.nextButton", fallbackLabel: "Next")
         XCTAssertTrue(getStartedButton.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertFalse(getStartedButton.isEnabled)
 
@@ -736,28 +738,36 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(getStartedButton.isEnabled)
     }
 
-    func testOnboardingCanCompleteWhenPermissionsReadyAndApiKeyMissing() {
-        launchApp(arguments: [
-            "--ui-testing",
-            "--reset-defaults",
-            "--show-onboarding",
-            "--seed-permissions-ready-api-missing"
-        ], requireControlCenter: false)
-
+    func testOnboardingRequiresTranscriptBeforeCompletion() {
+        launchApp(arguments: ["--ui-testing", "--reset-defaults", "--show-onboarding", "--seed-setup-ready"], requireControlCenter: false)
         let onboardingWindow = app.windows["Welcome to Foil"]
         XCTAssertTrue(onboardingWindow.waitForExistence(timeout: 5), app.debugDescription)
-        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToMicrophone"])
-
-        XCTAssertTrue(onboardingWindow.staticTexts["Microphone Access"].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(onboardingWindow.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
-
-        let getStartedButton = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
-        XCTAssertTrue(getStartedButton.waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(getStartedButton.isEnabled)
-
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToFinal"])
+        let finish = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        XCTAssertTrue(finish.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertFalse(finish.isEnabled)
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "complete"])
-        XCTAssertFalse(onboardingWindow.waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(onboardingWindow.exists)
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "seedPracticeTranscript"])
+        XCTAssertTrue(finish.isEnabled)
+        // Fixture proves completion gating, not live microphone/provider delivery.
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "complete"])
+        XCTAssertFalse(onboardingWindow.waitForExistence(timeout: 2))
+        XCTAssertTrue(elementExists(id: "appShell.root", timeout: 5), app.debugDescription)
+    }
+
+    func testOnboardingCloudShowsInlineKeyAndOfficialLinks() {
+        launchApp(arguments: ["--ui-testing", "--reset-defaults", "--show-onboarding", "--seed-setup-ready"], requireControlCenter: false)
+        XCTAssertTrue(app.windows["Welcome to Foil"].waitForExistence(timeout: 5))
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToCredentials"])
+        XCTAssertTrue(elementExists(id: "onboarding.apiKeyField", timeout: 3), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "onboarding.providerApiKeysLink", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "onboarding.saveApiKeyButton", timeout: 2), app.debugDescription)
+        let snapshot = XCTAttachment(screenshot: app.windows["Welcome to Foil"].screenshot())
+        snapshot.name = "UX Cloud setup"
+        snapshot.lifetime = .keepAlways
+        add(snapshot)
+        XCTAssertFalse(button(id: "onboarding.nextButton", fallbackLabel: "Next").isEnabled)
     }
 
     func testOnboardingCompletionKeepsMenuBarAppRunning() {
@@ -773,10 +783,11 @@ final class FoilUITests: XCTestCase {
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToFinal"])
 
         XCTAssertTrue(button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started").waitForExistence(timeout: 2), app.debugDescription)
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "seedPracticeTranscript"])
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "complete"])
 
         XCTAssertFalse(app.windows["Welcome to Foil"].waitForExistence(timeout: 2))
-        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "appShell.root", timeout: 5), app.debugDescription)
     }
 
     func testOnboardingLocalProviderDoesNotRequireAPIKey() {
@@ -798,14 +809,18 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(staticTextLabelOrValueContaining("Audio stays on this Mac").waitForExistence(timeout: 2), app.debugDescription)
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToCredentials"])
 
-        XCTAssertTrue(app.staticTexts["Credentials Optional"].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["No API key required"].exists || app.staticTexts["Ready"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Set up local transcription"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("No API key is needed").exists, app.debugDescription)
         XCTAssertFalse(app.buttons["onboarding.addApiKeyButton"].exists || app.buttons["Add API Key"].exists)
         XCTAssertTrue(
             app.buttons["onboarding.openTranscriptionSettingsButton"].exists
                 || app.buttons["Open Transcription Settings"].exists,
             app.debugDescription
         )
+        let snapshot = XCTAttachment(screenshot: app.windows["Welcome to Foil"].screenshot())
+        snapshot.name = "UX Local setup"
+        snapshot.lifetime = .keepAlways
+        add(snapshot)
     }
 
     func testHistoryComponentHostSearchesSeededRecords() {
@@ -1081,6 +1096,7 @@ final class FoilUITests: XCTestCase {
     func testHomeShowsCleanupGroupStatusWithoutGlobalModeSelector() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
         openAppShellHome()
+        clickElement(app.descendants(matching: .any)["appShell.home.cleanupDisclosure"])
 
         assertDefaultCleanupGroupStatusVisible()
         XCTAssertFalse(elementExists(id: "appShell.home.activeCleanupModePicker", timeout: 1), app.debugDescription)
@@ -1095,6 +1111,7 @@ final class FoilUITests: XCTestCase {
             "--seed-cleanup-provider-none"
         ])
         openAppShellHome()
+        clickElement(app.descendants(matching: .any)["appShell.home.cleanupDisclosure"])
 
         XCTAssertTrue(
             staticTextLabelOrValueContaining("cleanup is unavailable").waitForExistence(timeout: 2),
@@ -1504,15 +1521,12 @@ final class FoilUITests: XCTestCase {
 
     func testFloatingStatusShowsRecordingByDefault() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-recording"])
-
-        XCTAssertTrue(app.descendants(matching: .any)["floatingStatus.window"].waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.hud"].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.title"].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Recording").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.capsule"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertFalse(app.descendants(matching: .any)["floatingStatus.window"].exists, app.debugDescription)
     }
 
     func testFloatingStatusShowsActiveCleanupModeWhileRecording() {
-        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-cleanup-formatting-enabled", "--seed-recording"])
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-cleanup-formatting-enabled", "--seed-recording", "--seed-floating-status-enabled"])
 
         XCTAssertTrue(app.descendants(matching: .any)["floatingStatus.window"].waitForExistence(timeout: 4), app.debugDescription)
         let liveFeedback = app.descendants(matching: .any)["liveFeedback.hud"]
@@ -1525,9 +1539,7 @@ final class FoilUITests: XCTestCase {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
 
         var signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
-        XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertEqual(signifier.label, "Ready")
+        XCTAssertFalse(signifier.exists, app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-recording"])
 

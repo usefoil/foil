@@ -9,6 +9,18 @@ enum PasteDelivery: Equatable {
     case asyncQueued
     case clipboardFallback
 
+    var isVerified: Bool {
+        switch self {
+        case .currentApp, .asyncBackground, .asyncQueued: true
+        case .currentAppCommandPosted, .asyncCommandPosted, .asyncChoreography, .clipboardFallback: false
+        }
+    }
+
+    var resultSymbol: String {
+        if self == .clipboardFallback { return "clipboard" }
+        return isVerified ? "checkmark.circle.fill" : "paperplane"
+    }
+
     var label: String {
         switch self {
         case .currentApp:

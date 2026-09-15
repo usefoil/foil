@@ -318,7 +318,7 @@ struct MarketingSnapshotRenderer {
                 named: "foil-onboarding-setup",
                 fileName: "foil-onboarding-setup.png",
                 sourceView: "OnboardingView",
-                size: CGSize(width: 568, height: 478),
+                size: CGSize(width: 628, height: 648),
                 view: OnboardingView(
                     appState: onboardingState,
                     onOpenAccessibility: {},
@@ -329,7 +329,7 @@ struct MarketingSnapshotRenderer {
                     onComplete: {},
                     initialStep: 1
                 )
-                .frame(width: 568, height: 478)
+                .frame(width: 628, height: 648)
                 .background(Color(nsColor: .windowBackgroundColor))
             ),
             render(

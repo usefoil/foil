@@ -36,6 +36,25 @@ enum TranscriptionProviderID: String, CaseIterable, Identifiable {
         }
     }
 
+    var setupGuideURL: URL? {
+        switch self {
+        case .groq: URL(string: "https://console.groq.com/docs/quickstart")
+        case .openAI: URL(string: "https://developers.openai.com/api/docs/quickstart")
+        case .openAICompatible: nil
+        }
+    }
+
+    var credentialInstructions: String {
+        switch self {
+        case .groq:
+            "Sign in to Groq, create an API key for your project, then paste it here. Your account's model permissions and usage limits apply."
+        case .openAI:
+            "Sign in to the OpenAI API platform, create an API key, and check your API billing and usage limits. Paste the key here to test access."
+        case .openAICompatible:
+            "Use the credentials required by your server. Leave the key empty only if the server allows it."
+        }
+    }
+
     var apiKeysLinkTitle: String? {
         switch self {
         case .groq:
