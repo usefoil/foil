@@ -29,6 +29,34 @@ test("rejects missing, duplicate, stale, and overlapping assignments", () => {
   ])
 })
 
+test("rejects missing and unknown shards", () => {
+  const manifest = {
+    schemaVersion: 1,
+    suite: "FoilUITests/FoilUITests",
+    shards: { a: [], b: [], unexpected: [] },
+    specialTests: {},
+    excluded: {}
+  }
+  assert.deepEqual(validateManifest([], manifest), [
+    "missing shard: c",
+    "unknown shard: unexpected"
+  ])
+})
+
+test("rejects non-array shard assignments and invalid special-test shards", () => {
+  const manifest = {
+    schemaVersion: 1,
+    suite: "FoilUITests/FoilUITests",
+    shards: { a: [], b: "testBeta", c: [] },
+    specialTests: { testAlpha: { shard: "unexpected", command: "make test-fixture-transcription-e2e" } },
+    excluded: {}
+  }
+  assert.deepEqual(validateManifest(["testAlpha"], manifest), [
+    "invalid shard assignments: b",
+    "invalid special-test shard: testAlpha (unexpected)"
+  ])
+})
+
 test("prints ordinary selectors from the default manifest", () => {
   const selectors = execFileSync("node", ["scripts/ci/ui-test-inventory.mjs", "selectors", "--shard", "a"], {
     encoding: "utf8"
