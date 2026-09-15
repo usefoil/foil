@@ -11,7 +11,7 @@ export function compareFacts(baseline, facts) {
   for (const name of ["architecture", "productVersion", "buildVersion", "xcodeVersion", "xcodeBuild"]) {
     if (facts[name] !== baseline[name]) errors.push(`${name}: expected ${baseline[name]}, got ${actual(facts[name])}`)
   }
-  if (facts.freeBytes < baseline.minimumFreeBytes) {
+  if (!Number.isFinite(facts.freeBytes) || facts.freeBytes < baseline.minimumFreeBytes) {
     errors.push(`freeBytes: expected at least ${baseline.minimumFreeBytes}, got ${actual(facts.freeBytes)}`)
   }
   if (!baseline.allowedRunnerNames.includes(facts.runnerName)) {
@@ -25,6 +25,12 @@ export function compareFacts(baseline, facts) {
   if (facts.runnerArch !== "ARM64") errors.push(`runnerArch: expected ARM64, got ${actual(facts.runnerArch)}`)
   const serviceCount = Array.isArray(facts.activeRunnerServices) ? facts.activeRunnerServices.length : 0
   if (serviceCount !== 1) errors.push(`active runner service count: expected 1, got ${serviceCount}`)
+  else {
+    const expectedService = `actions.runner.usefoil-foil.${facts.runnerName}`
+    if (facts.activeRunnerServices[0] !== expectedService) {
+      errors.push(`active runner service: expected ${expectedService}, got ${facts.activeRunnerServices[0]}`)
+    }
+  }
   return errors.sort()
 }
 
@@ -82,25 +88,47 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"))
 }
 
-function writeReceipt(output, facts, errors) {
-  const receipt = { schemaVersion: 1, status: errors.length === 0 ? "healthy" : "drift", facts, errors }
+function writeReceipt(output, facts, errors, status = errors.length === 0 ? "healthy" : "drift") {
+  const receipt = { schemaVersion: 1, status, facts, errors }
   fs.writeFileSync(output, `${JSON.stringify(receipt, null, 2)}\n`)
 }
 
-function main() {
-  const options = parseArguments(process.argv.slice(2))
-  const baseline = readJson(options.baseline)
-  const facts = options.facts ? readJson(options.facts) : collectFacts()
-  const errors = compareFacts(baseline, facts)
-  writeReceipt(options.output, facts, errors)
-  if (errors.length > 0) process.exitCode = 2
+export function runPreflight(options, collector = collectFacts) {
+  try {
+    const baseline = readJson(options.baseline)
+    const facts = options.facts ? readJson(options.facts) : collector()
+    const errors = compareFacts(baseline, facts)
+    writeReceipt(options.output, facts, errors)
+    return errors.length === 0 ? 0 : 2
+  } catch {
+    writeReceipt(options.output, {}, ["preflight failed"], "failed")
+    return 1
+  }
+}
+
+function outputArgument(argv) {
+  const index = argv.indexOf("--output")
+  const output = argv[index + 1]
+  return output && !output.startsWith("--") ? output : undefined
+}
+
+function main(argv) {
+  const options = parseArguments(argv)
+  return runPreflight(options)
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const argv = process.argv.slice(2)
+  const output = outputArgument(argv)
   try {
-    main()
-  } catch (error) {
-    console.error(error.message)
+    process.exitCode = main(argv)
+  } catch {
+    if (output) {
+      try {
+        writeReceipt(output, {}, ["preflight failed"], "failed")
+      } catch {}
+    }
+    console.error("runner preflight failed")
     process.exitCode = 1
   }
 }
