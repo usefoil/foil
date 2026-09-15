@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1, "shard": "a", "sha": "wrong", "runId": "42", "workflowAttempt": "3", "localAttempt": 1, "secondsRemaining": 600,
+  "classification": "passed", "expectedTests": ["FoilUITests/FoilUITests/testA"], "executedTests": ["FoilUITests/FoilUITests/testA"],
+  "failedTests": [], "skippedTests": [], "missingTests": [], "unexpectedTests": [], "malformedSummary": false, "interrupted": false, "retryAllowed": false,
+  "buildExit": 0, "testExit": 0, "fixtureExit": null,
+  "preflight": { "schemaVersion": 1, "status": "healthy", "errors": [], "facts": { "hostname": "foil-mm1.local", "architecture": "arm64", "productVersion": "26.5.2", "buildVersion": "25F84", "xcodeVersion": "26.6", "xcodeBuild": "17F113", "freeBytes": 30000000000, "runnerName": "foil-mm1", "consoleUser": "neonwatty", "developerModeEnabled": true, "runnerOs": "macOS", "runnerArch": "ARM64", "activeRunnerServices": ["actions.runner.usefoil-foil.foil-mm1"] } }
+}
