@@ -1,0 +1,15 @@
+{
+  "hostname": "foil-mm2",
+  "architecture": "arm64",
+  "productVersion": "26.5.2",
+  "buildVersion": "25F84",
+  "xcodeVersion": "26.6",
+  "xcodeBuild": "17F113",
+  "consoleUser": "jeremywatt",
+  "developerModeEnabled": true,
+  "freeBytes": 40000000000,
+  "runnerName": "foil-mm2",
+  "runnerOs": "macOS",
+  "runnerArch": "ARM64",
+  "activeRunnerServices": ["actions.runner.usefoil-foil.foil-mm2"]
+}
