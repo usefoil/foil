@@ -2029,13 +2029,13 @@ final class FoilUITests: XCTestCase {
         app.launch()
         dismissSystemSetupAssistant()
 
+        // A self-hosted graphical session can keep this menu bar app disabled/backgrounded
+        // and omit its windows from the accessibility tree until it is activated. Bring it
+        // forward before querying for the UI-test host so launch readiness is observable.
+        _ = waitForAppForeground(timeout: 2)
         if requireControlCenter {
             XCTAssertTrue(controlCenter.waitForExistence(timeout: 8), app.debugDescription, file: file, line: line)
         }
-        // GitHub's macOS runners can report this menu bar app as disabled/backgrounded
-        // even after the UI-test host exists. Keep setup focused on launch readiness;
-        // click helpers reactivate the app before interaction.
-        _ = waitForAppForeground(timeout: 2)
     }
 
     private func terminateAppAndStaleInstances() {
