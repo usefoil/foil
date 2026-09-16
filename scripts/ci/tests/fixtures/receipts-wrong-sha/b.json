@@ -3,5 +3,5 @@
   "classification": "passed", "expectedTests": ["FoilUITests/FoilUITests/testB"], "executedTests": ["FoilUITests/FoilUITests/testB"],
   "failedTests": [], "skippedTests": [], "missingTests": [], "unexpectedTests": [], "malformedSummary": false, "invalidSelectors": false, "interrupted": false, "retryAllowed": false,
   "buildExit": 0, "testExit": 0, "fixtureExit": null,
-  "preflight": { "schemaVersion": 1, "status": "healthy", "errors": [], "facts": { "hostname": "foil-mm2.local", "architecture": "arm64", "productVersion": "26.5.2", "buildVersion": "25F84", "xcodeVersion": "26.6", "xcodeBuild": "17F113", "freeBytes": 30000000000, "runnerName": "foil-mm2", "consoleUser": "foilci", "developerModeEnabled": true, "runnerOs": "macOS", "runnerArch": "ARM64", "activeRunnerServices": ["actions.runner.usefoil-foil.foil-mm2"] } }
+  "preflight": { "schemaVersion": 1, "status": "healthy", "errors": [], "facts": { "hostname": "foil-mm2.local", "architecture": "arm64", "productVersion": "27.0", "buildVersion": "26A428", "xcodeVersion": "27.0", "xcodeBuild": "27A266a", "freeBytes": 30000000000, "runnerName": "foil-mm2", "consoleUser": "foilci", "developerModeEnabled": true, "runnerOs": "macOS", "runnerArch": "ARM64", "activeRunnerServices": ["actions.runner.usefoil-foil.foil-mm2"] } }
 }

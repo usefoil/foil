@@ -42,8 +42,8 @@ The checked-in authority is `scripts/ci/runner-baseline.json`:
 | Fact | Required value |
 | --- | --- |
 | Architecture | `arm64` |
-| macOS product/build | `26.5.2` / `25F84` |
-| Xcode version/build | `26.6` / `17F113` |
+| macOS product/build | `27.0` / `26A428` |
+| Xcode version/build | `27.0` / `27A266a` |
 | Free space | at least `30000000000` bytes |
 
 On **each** host, inspect before any upgrade or registration:
@@ -72,6 +72,24 @@ Check `DEVELOPER_DIR` in the runner environment because it can override selectio
 Arrange an awake graphical session and display, disable automatic OS/Xcode
 updates through managed settings, and verify Developer Mode before availability.
 Use the repository's existing signing setup; do not reset Keychain or TCC data.
+
+When the accepted Xcode is installed outside the globally selected path, pin it
+for the dedicated runner before bootstrap by writing only the audited developer
+directory to the official runner's `.env` file. Also invoke bootstrap with a
+`PATH` that includes the required Node.js binary; the runner installer captures
+that path in `.path` for its per-user service. For example:
+
+```bash
+printf '%s\n' "DEVELOPER_DIR=$VERIFIED_XCODE_APP/Contents/Developer" \
+  >"$FOIL_RUNNER_DIR/.env"
+PATH="$FOIL_NODE_BIN_DIR:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+  bash "$FOIL_CHECKOUT/scripts/ci/bootstrap-foil-runner.sh" \
+  --runner-dir "$FOIL_RUNNER_DIR" --runner-name "$FOIL_RUNNER_NAME" --dry-run
+```
+
+Require `xcodebuild -version` with that same `DEVELOPER_DIR` to match the pinned
+version/build. Do not place credentials in `.env` or `.path`. The live workflow
+preflight records the toolchain actually inherited by the runner service.
 
 Provision an official macOS ARM64 Actions runner release in the selected **fresh**
 directory, verifying its release checksum using the
