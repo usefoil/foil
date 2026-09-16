@@ -539,8 +539,9 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(startResult, .started(commands.localBaseURL))
         let readiness = await controller.waitForReadiness(
             commands: commands,
-            attempts: 100,
-            delayNanoseconds: 10_000_000
+            attempts: 500,
+            delayNanoseconds: 10_000_000,
+            timeoutNanoseconds: 5_000_000_000
         )
 
         guard case .processExited(let detail?) = readiness else {

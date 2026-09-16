@@ -458,16 +458,12 @@ struct SettingsView: View {
 
     private var transcriptionSettings: some View {
         Form {
-            Picker("Provider", selection: $appState.selectedTranscriptionProviderPresetID) {
-                Text("Groq").tag(TranscriptionProviderPresetID.groq)
-                Text("OpenAI Whisper").tag(TranscriptionProviderPresetID.openAIWhisper)
-                Text("Local whisper.cpp").tag(TranscriptionProviderPresetID.localWhisperCPP)
-                Text("Custom OpenAI-compatible").tag(TranscriptionProviderPresetID.customOpenAICompatible)
+            Picker("Transcription", selection: effectiveModeBinding) {
+                ForEach(AppState.EffectiveTranscriptionMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
             }
             .accessibilityIdentifier("settings.transcriptionProviderPicker")
-            .onChange(of: appState.selectedTranscriptionProviderPresetID) { _, _ in
-                appState.refreshApiKeyState()
-            }
 
             Text(providerPrivacySummary)
                 .font(.caption)
@@ -475,7 +471,16 @@ struct SettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("settings.providerPrivacySummary")
 
-            if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
+            if appState.effectiveTranscriptionMode == .managedLocal {
+                Section("Managed local service") {
+                    LabeledContent("App build") {
+                        Text(AppBrand.versionDisplay)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                    ManagedLocalSetupView(appState: appState)
+                }
+            } else if appState.effectiveTranscriptionMode == .externalLocal {
                 Section("Local Server") {
                     LabeledContent("App build") {
                         Text(AppBrand.versionDisplay)
@@ -522,7 +527,11 @@ struct SettingsView: View {
             }
 
             Section("Model") {
-                if appState.selectedTranscriptionProviderPresetID == .groq {
+                if appState.effectiveTranscriptionMode == .managedLocal {
+                    Text("Foil manages the verified model and local service above. Speech language remains available for transcription hints; changing it does not silently switch models.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if appState.selectedTranscriptionProviderPresetID == .groq {
                     Picker("Whisper model", selection: $appState.selectedModel) {
                         Text("Large V3 Turbo").tag("whisper-large-v3-turbo")
                         Text("Large V3").tag("whisper-large-v3")
@@ -535,10 +544,10 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("settings.openAIProviderHelp")
-                } else if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
+                } else if appState.effectiveTranscriptionMode == .externalLocal {
                     LabeledContent("Base URL", value: "http://127.0.0.1:8080/v1")
                     LabeledContent("Model", value: "whisper-1")
-                    Text("Install whisper.cpp, download a model, then start whisper-server on 127.0.0.1:8080 with --inference-path /v1/audio/transcriptions. Foil sends this local preset without credentials.")
+                    Text("Advanced external mode: install whisper.cpp, download a model, then start whisper-server on 127.0.0.1:8080 with --inference-path /v1/audio/transcriptions. Foil cannot verify which model this server loaded.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1321,16 +1330,23 @@ struct SettingsView: View {
     }
 
     private var providerPrivacySummary: String {
-        switch appState.selectedTranscriptionProviderPresetID {
+        switch appState.effectiveTranscriptionMode {
+        case .managedLocal:
+            "Audio stays on this Mac for transcription. Raw transcript is the default; if Cleanup is enabled, transcript text is sent separately to its selected cleanup provider."
         case .groq:
             "Audio is sent to Groq for transcription. Raw transcript is the default; Cleanup profile sends transcript text to the cleanup provider selected below."
-        case .openAIWhisper:
+        case .openAI:
             "Audio is sent to OpenAI for Whisper transcription. Raw transcript is the default; Cleanup profile sends transcript text to the cleanup provider selected below."
-        case .localWhisperCPP:
-            "Audio stays on this Mac when whisper.cpp is running at the local 127.0.0.1 endpoint shown below. Raw transcript is the default; Cleanup profile sends transcript text to the cleanup provider selected below."
-        case .customOpenAICompatible:
+        case .externalLocal:
+            "Audio is sent to the external server at the local address below. Foil cannot verify its loaded model. Cleanup may separately send transcript text to its selected provider."
+        case .custom:
             "Audio is sent to the OpenAI-compatible endpoint you configure below. Raw transcript is the default; Cleanup profile sends transcript text to the cleanup provider selected below."
         }
+    }
+
+    private var effectiveModeBinding: Binding<AppState.EffectiveTranscriptionMode> {
+        Binding(get: { appState.effectiveTranscriptionMode },
+                set: { appState.selectTranscriptionMode($0) })
     }
 
     private var selectedLocalWhisperSetupCommands: LocalWhisperSetupCommands {

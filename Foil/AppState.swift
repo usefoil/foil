@@ -4,6 +4,20 @@ import Observation
 
 @MainActor @Observable
 final class AppState {
+    enum EffectiveTranscriptionMode: String, CaseIterable, Identifiable {
+        case managedLocal, groq, openAI, externalLocal, custom
+        var id: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .managedLocal: "On this Mac — managed"
+            case .groq: "Groq"
+            case .openAI: "OpenAI Whisper"
+            case .externalLocal: "External local server — advanced"
+            case .custom: "Custom OpenAI-compatible"
+            }
+        }
+    }
+
     static let resumeSetupNotification = Notification.Name("Foil.resumeSetup")
 
     var onboardingStep = 0 {
@@ -17,7 +31,9 @@ final class AppState {
     func recommendLocalForFirstRun() {
         guard !wasProviderConfiguredAtLaunch else { return }
         wasProviderConfiguredAtLaunch = true
-        selectedTranscriptionProviderPresetID = .localWhisperCPP
+        managedLocalRequested = true
+        resetProviderConnectionTest()
+        refreshApiKeyState()
     }
 
     private var wasProviderConfiguredAtLaunch = true
@@ -142,10 +158,176 @@ final class AppState {
     var apiKeyState: PermissionState = .unknown
     var setupCheckState: SetupCheckState = .idle
     var setupCheckSuccessDetail = "Ready to record"
-    var providerConnectionTestState: ProviderConnectionTestState = .idle
+    private var providerConnectionTestBackingState: ProviderConnectionTestState = .idle
+    @ObservationIgnored private var providerConnectionTestIdentity: ProviderConnectionIdentity?
+    var providerConnectionTestState: ProviderConnectionTestState {
+        get {
+            guard providerConnectionTestBackingState != .idle,
+                  let providerConnectionTestIdentity else {
+                return providerConnectionTestBackingState
+            }
+            guard providerConnectionTestIdentity == selectedProviderConnectionIdentity else { return .idle }
+            return providerConnectionTestBackingState
+        }
+        set { setProviderConnectionTestState(newValue, identity: selectedProviderConnectionIdentity) }
+    }
+    #if DEBUG
+    @ObservationIgnored var providerConnectionValidationDidComplete: (() async -> Void)?
+    #endif
     var cleanupConnectionTestState: ProviderConnectionTestState = .idle
     var localWhisperServerState: LocalWhisperServerState = .idle
     var activeLocalWhisperModelID: LocalWhisperSetupModelID?
+    let managedLocalRuntime = ManagedLocalRuntime()
+    private(set) var managedLocalModels: ManagedLocalModelCoordinator?
+    @ObservationIgnored private var managedLocalInventoryTask: Task<Void, Never>?
+    @ObservationIgnored private var managedLocalActivationGeneration = UUID()
+    var managedLocalRestoreError: String?
+    var managedDictationLanguage: ManagedDictationLanguage = .unanswered {
+        didSet { Self.defaults.set(managedDictationLanguage.rawValue, forKey: "managedDictationLanguage") }
+    }
+    var managedLocalEnabled = false {
+        didSet {
+            Self.defaults.set(managedLocalEnabled, forKey: "managedLocalEnabled")
+            if managedLocalEnabled, !managedLocalRequested { managedLocalRequested = true }
+        }
+    }
+    var managedLocalRequested = false {
+        didSet { Self.defaults.set(managedLocalRequested, forKey: "managedLocalRequested") }
+    }
+
+    var effectiveTranscriptionMode: EffectiveTranscriptionMode {
+        if managedLocalRequested { return .managedLocal }
+        switch selectedTranscriptionProviderPresetID {
+        case .groq: return .groq
+        case .openAIWhisper: return .openAI
+        case .localWhisperCPP: return .externalLocal
+        case .customOpenAICompatible: return .custom
+        }
+    }
+
+    func selectTranscriptionMode(_ mode: EffectiveTranscriptionMode) {
+        guard mode != .managedLocal else {
+            let isEnteringManagedMode = !managedLocalRequested
+            if isEnteringManagedMode { managedLocalActivationGeneration = UUID() }
+            managedLocalRequested = true
+            resetProviderConnectionTest()
+            refreshApiKeyState()
+            if isEnteringManagedMode { refreshManagedLocalInventory() }
+            return
+        }
+        managedLocalInventoryTask?.cancel()
+        managedLocalActivationGeneration = UUID()
+        managedLocalModels?.cancel()
+        managedLocalRequested = false
+        if managedLocalEnabled { deactivateManagedLocalModel() }
+        switch mode {
+        case .managedLocal: break
+        case .groq: selectedTranscriptionProviderPresetID = .groq
+        case .openAI: selectedTranscriptionProviderPresetID = .openAIWhisper
+        case .externalLocal: selectedTranscriptionProviderPresetID = .localWhisperCPP
+        case .custom: selectedTranscriptionProviderPresetID = .customOpenAICompatible
+        }
+        onboardingTranscript = nil
+        resetProviderConnectionTest()
+        refreshApiKeyState()
+    }
+
+    /// Activating managed mode keeps the prior cloud/custom/external choices intact.
+    func activateManagedLocalModel(_ model: ManagedLocalModel) {
+        Self.defaults.set(["path": model.url.path, "id": model.id, "sha256": model.sha256,
+            "size": String(model.size)], forKey: "managedLocalModel")
+        managedLocalEnabled = true
+        managedLocalRequested = true
+        managedLocalRestoreError = nil
+        resetProviderConnectionTest()
+        refreshApiKeyState()
+    }
+
+    func savedManagedLocalModel() throws -> ManagedLocalModel {
+        guard let coordinator = managedLocalModels, let selected = coordinator.selectedID,
+              let model = coordinator.installed.first(where: { $0.id == selected }) else {
+            throw ManagedLocalModelStore.Failure.legacyMigration
+        }
+        return model
+    }
+
+    func restoreManagedLocalModel() async throws {
+        guard let coordinator = managedLocalModels else { throw ManagedLocalModelStore.Failure.unavailable }
+        // An explicit restore supersedes the passive inventory refresh that is
+        // started when managed mode is entered.
+        managedLocalInventoryTask?.cancel()
+        managedLocalInventoryTask = nil
+        let activationGeneration = managedLocalActivationGeneration
+        managedLocalRestoreError = nil
+        do {
+            try await coordinator.restore()
+            guard managedLocalRequested,
+                  managedLocalActivationGeneration == activationGeneration,
+                  coordinator.activeID != nil else {
+                if coordinator.activeID != nil { coordinator.deactivate() }
+                throw CancellationError()
+            }
+            managedLocalEnabled = true
+            managedLocalRestoreError = nil
+            resetProviderConnectionTest(); refreshApiKeyState()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            managedLocalRestoreError = error.localizedDescription
+            throw error
+        }
+    }
+
+    func installAndSelectManagedLocalModel(_ id: String) async throws {
+        guard let coordinator = managedLocalModels else { throw ManagedLocalModelStore.Failure.unavailable }
+        managedLocalRestoreError = nil
+        try await coordinator.installAndSelect(id)
+        // A provider change may have deactivated the runtime while this call
+        // resumed. It must never re-enable managed mode after that choice.
+        guard coordinator.activeID == id, coordinator.state == .idle else { throw CancellationError() }
+        managedLocalEnabled = true
+        managedLocalRestoreError = nil
+        resetProviderConnectionTest(); refreshApiKeyState()
+    }
+
+    func cancelManagedLocalModelOperation() {
+        managedLocalActivationGeneration = UUID()
+        managedLocalModels?.cancel()
+    }
+
+    private func refreshManagedLocalInventory() {
+        managedLocalInventoryTask?.cancel()
+        managedLocalInventoryTask = Task { @MainActor [weak self] in
+            guard let self, let coordinator = self.managedLocalModels else { return }
+            do {
+                // A cancelled passive refresh may not begin a coordinator
+                // operation after an explicit restore has superseded it.
+                try Task.checkCancellation()
+                self.managedLocalRestoreError = nil
+                try await coordinator.refresh()
+                self.managedLocalRestoreError = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                self.managedLocalRestoreError = error.localizedDescription
+            }
+        }
+    }
+
+    func removeManagedLocalModel(_ id: String) async throws {
+        guard let coordinator = managedLocalModels else { throw ManagedLocalModelStore.Failure.unavailable }
+        try await coordinator.remove(id)
+    }
+
+    func deactivateManagedLocalModel() {
+        managedLocalActivationGeneration = UUID()
+        managedLocalRequested = false
+        managedLocalEnabled = false
+        managedLocalModels?.deactivate()
+        managedLocalRuntime.stop()
+        resetProviderConnectionTest()
+        refreshApiKeyState()
+    }
 
     static let noMicrophoneDetectedMessage = "No microphone detected"
     static let selectedMicrophoneUnavailableMessage = "Selected microphone unavailable"
@@ -157,16 +339,35 @@ final class AppState {
     // Each didSet syncs the value back to UserDefaults for persistence.
 
     private static var defaults: UserDefaults {
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing"),
-           let defaults = UserDefaults(suiteName: "com.neonwatty.Foil.UITests") {
+        if let acceptance = AppDelegate.managedLocalAcceptanceConfiguration(),
+           let defaults = UserDefaults(suiteName: acceptance.defaultsSuiteName) {
             return defaults
+        }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return uiTestingDefaults
         }
         return .standard
     }
 
+    static var uiTestingDefaults: UserDefaults {
+        if Bundle.main.bundleIdentifier != AppBrand.productionBundleIdentifier {
+            return .standard
+        }
+        return UserDefaults(suiteName: "com.neonwatty.Foil.UITests") ?? .standard
+    }
+
+    static func uiTestingDefaultsDomainName(bundleIdentifier: String?) -> String {
+        bundleIdentifier == AppBrand.productionBundleIdentifier
+            ? "com.neonwatty.Foil.UITests"
+            : bundleIdentifier ?? "com.neonwatty.Foil.UITests"
+    }
+
     private static var defaultsDomainName: String {
+        if let acceptance = AppDelegate.managedLocalAcceptanceConfiguration() {
+            return acceptance.defaultsSuiteName
+        }
         if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
-            return "com.neonwatty.Foil.UITests"
+            return uiTestingDefaultsDomainName(bundleIdentifier: Bundle.main.bundleIdentifier)
         }
         return Bundle.main.bundleIdentifier ?? "com.neonwatty.Foil"
     }
@@ -516,7 +717,7 @@ final class AppState {
     private var isSynchronizingProviderSelection = false
 
     var selectedProviderUsesSharedApiKey: Bool {
-        selectedTranscriptionProviderPresetID != .localWhisperCPP
+        !managedLocalRequested && selectedTranscriptionProviderPresetID != .localWhisperCPP
     }
 
     var selectedProviderApiKey: String? {
@@ -543,6 +744,7 @@ final class AppState {
     }
 
     var selectedTranscriptionProvider: TranscriptionProvider {
+        if managedLocalRequested { return .managedLocal(session: managedLocalRuntime.session) }
         switch selectedTranscriptionProviderPresetID {
         case .groq:
             var provider = TranscriptionProvider.groq
@@ -883,6 +1085,7 @@ final class AppState {
     var isSetupReady: Bool {
         areSystemPermissionsReady
             && apiKeyState == .ready
+            && (!managedLocalRequested || managedLocalRuntime.session?.isRunning == true)
     }
 
     var areSystemPermissionsReady: Bool {
@@ -1345,7 +1548,8 @@ final class AppState {
         return hasRetryableFailure ? .retry : nil
     }
 
-    init(localPairingBridgeService: LocalPairingBridgeService? = nil) {
+    init(localPairingBridgeService: LocalPairingBridgeService? = nil, managedModelRoot: URL? = nil,
+         managedModelStore: ManagedLocalModelStore? = nil) {
         self.localPairingBridgeService = localPairingBridgeService ?? LocalPairingBridgeService()
 
         let defaults = Self.defaults
@@ -1361,7 +1565,9 @@ final class AppState {
                 "transcriptionProviderPreset",
                 "whisperModel",
                 "localWhisperSetupModel",
-                "autoStartLocalWhisperServer",
+            "autoStartLocalWhisperServer",
+                "managedLocalRequested",
+                "managedLocalEnabled",
                 "customTranscriptionBaseURL",
                 "customTranscriptionModel",
                 "audioFormat",
@@ -1472,6 +1678,9 @@ final class AppState {
             rawValue: defaults.string(forKey: "localWhisperSetupModel") ?? ""
         ) ?? .baseEN
         autoStartLocalWhisperServer = defaults.bool(forKey: "autoStartLocalWhisperServer")
+        managedLocalEnabled = defaults.bool(forKey: "managedLocalEnabled")
+        managedLocalRequested = defaults.object(forKey: "managedLocalRequested") == nil
+            ? managedLocalEnabled : defaults.bool(forKey: "managedLocalRequested")
         customTranscriptionBaseURL = defaults.string(forKey: "customTranscriptionBaseURL") ?? "http://127.0.0.1:8080/v1"
         customTranscriptionModel = defaults.string(forKey: "customTranscriptionModel") ?? "whisper-1"
         selectedAudioFormat = AudioFormat(rawValue: defaults.string(forKey: "audioFormat") ?? "") ?? .m4a
@@ -1552,6 +1761,16 @@ final class AppState {
         selectedTranscriptionProviderID = selectedTranscriptionProviderPreset.providerID
         isSynchronizingProviderSelection = false
         syncCleanupProviderWithTranscriptionPreset()
+        managedDictationLanguage = ManagedDictationLanguage(rawValue:
+            defaults.string(forKey: "managedDictationLanguage") ?? "") ?? .unanswered
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let root = managedModelRoot ?? support
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.neonwatty.Foil")
+            .appendingPathComponent("ManagedModels")
+        do {
+            managedLocalModels = ManagedLocalModelCoordinator(runtime: managedLocalRuntime,
+                store: try managedModelStore ?? ManagedLocalModelStore(root: root))
+        } catch { managedLocalRestoreError = error.localizedDescription }
     }
 
     private static func defaultPresetID(for providerID: TranscriptionProviderID) -> TranscriptionProviderPresetID {
@@ -1757,6 +1976,12 @@ final class AppState {
     }
 
     private func handleTranscriptionProviderSelectionChanged() {
+        managedLocalInventoryTask?.cancel()
+        managedLocalModels?.cancel()
+        if managedLocalRequested || managedLocalEnabled {
+            managedLocalRequested = false
+            deactivateManagedLocalModel()
+        }
         syncCleanupProviderWithTranscriptionPreset()
         resetProviderConnectionTest()
         refreshApiKeyState()
@@ -1895,7 +2120,7 @@ final class AppState {
     }
 
     func resetProviderConnectionTest() {
-        providerConnectionTestState = .idle
+        setProviderConnectionTestState(.idle, identity: nil)
     }
 
     func resetCleanupConnectionTest() {
@@ -2010,13 +2235,15 @@ final class AppState {
             return
         }
 
-        if selectedTranscriptionProviderPresetID == .customOpenAICompatible,
+        if !selectedTranscriptionProvider.isManagedLocal,
+           selectedTranscriptionProviderPresetID == .customOpenAICompatible,
            customTranscriptionBaseURLValue == nil {
             providerConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
             return
         }
 
-        providerConnectionTestState = .running
+        let identity = selectedProviderConnectionIdentity
+        setProviderConnectionTestState(.running, identity: identity)
         let key = apiKey ?? selectedProviderApiKey
         do {
             let result = try await service
@@ -2025,21 +2252,69 @@ final class AppState {
                     apiKey: key,
                     requiredModels: [selectedTranscriptionModel]
                 )
+            #if DEBUG
+            if let providerConnectionValidationDidComplete { await providerConnectionValidationDidComplete() }
+            #endif
             switch result {
             case .modelsValidated:
-                providerConnectionTestState = .succeeded("Server reachable. Model \(selectedTranscriptionModel) is available.")
+                guard selectedProviderConnectionIdentity == identity else { return }
+                if identity.mode == .managedLocal {
+                    guard let activeID = managedLocalModels?.activeID else { return }
+                    setProviderConnectionTestState(.succeeded(
+                        "Owned local session ready. \(ManagedLocalPresentation.name(for: activeID)) is active at \(ManagedLocalPresentation.serviceAddress)."
+                    ), identity: identity)
+                } else {
+                    setProviderConnectionTestState(.succeeded(
+                        "Server reachable. Model \(selectedTranscriptionModel) is available."
+                    ), identity: identity)
+                }
             case .reachableWithoutModelValidation:
-                providerConnectionTestState = localWhisperModelStatusWithoutServerModelList
+                guard selectedProviderConnectionIdentity == identity else { return }
+                guard identity.mode != .managedLocal else { return }
+                setProviderConnectionTestState(localWhisperModelStatusWithoutServerModelList,
+                                               identity: identity)
             }
         } catch TranscriptionService.TranscriptionError.modelUnavailable(let model) {
-            providerConnectionTestState = .failed("Server reachable, but model \(model) was not listed.")
+            guard selectedProviderConnectionIdentity == identity else { return }
+            setProviderConnectionTestState(.failed("Server reachable, but model \(model) was not listed."),
+                                           identity: identity)
         } catch TranscriptionService.TranscriptionError.invalidProviderURL {
-            providerConnectionTestState = .failed("Invalid base URL. Use an http:// or https:// URL.")
+            guard selectedProviderConnectionIdentity == identity else { return }
+            setProviderConnectionTestState(.failed("Invalid base URL. Use an http:// or https:// URL."),
+                                           identity: identity)
         } catch is URLError {
-            providerConnectionTestState = .failed(providerConnectionUnreachableMessage)
+            guard selectedProviderConnectionIdentity == identity else { return }
+            setProviderConnectionTestState(.failed(providerConnectionUnreachableMessage), identity: identity)
         } catch {
-            providerConnectionTestState = .failed("Connection test failed: \(error.localizedDescription)")
+            guard selectedProviderConnectionIdentity == identity else { return }
+            setProviderConnectionTestState(.failed("Connection test failed: \(error.localizedDescription)"),
+                                           identity: identity)
         }
+    }
+
+    private func setProviderConnectionTestState(_ state: ProviderConnectionTestState,
+                                                identity: ProviderConnectionIdentity?) {
+        providerConnectionTestBackingState = state
+        providerConnectionTestIdentity = state == .idle ? nil : identity
+    }
+
+    private struct ProviderConnectionIdentity: Equatable {
+        let mode: EffectiveTranscriptionMode
+        let preset: TranscriptionProviderPresetID
+        let baseURL: String?
+        let model: String
+        let managedSessionID: UUID?
+    }
+
+    private var selectedProviderConnectionIdentity: ProviderConnectionIdentity {
+        ProviderConnectionIdentity(
+            mode: effectiveTranscriptionMode,
+            preset: selectedTranscriptionProviderPresetID,
+            baseURL: selectedTranscriptionProvider.baseURL.absoluteString,
+            model: selectedTranscriptionModel,
+            managedSessionID: managedLocalRuntime.session?.isRunning == true
+                ? managedLocalRuntime.session?.id : nil
+        )
     }
 
     private var localWhisperModelStatusWithoutServerModelList: ProviderConnectionTestState {

@@ -154,6 +154,16 @@ struct TranscriptionProvider: Equatable {
     let requiresAPIKey: Bool
     let supportsModelValidation: Bool
     let supportsTranscriptProcessing: Bool
+    var isManagedLocal = false
+    var managedLocalSession: ManagedLocalSession? = nil
+
+    static func managedLocal(session: ManagedLocalSession?) -> TranscriptionProvider {
+        var provider = openAICompatible(baseURL: URL(string: "http://transcribe.foil.localhost/v1")!,
+            model: "whisper-1", displayName: "Managed local transcription", requiresAPIKey: false)
+        provider.isManagedLocal = true
+        provider.managedLocalSession = session
+        return provider
+    }
 
     static let groq = TranscriptionProvider(
         id: .groq,
@@ -872,6 +882,10 @@ struct TranscriptionService {
         format: AudioFormat = .wav,
         language: Language = .auto
     ) async throws -> String {
+        if provider.isManagedLocal {
+            guard let session = provider.managedLocalSession, session.isRunning else { throw ManagedLocalError.notReady }
+            return try await transcribeManaged(audioFileURL: audioFileURL, session: session, language: language)
+        }
         guard Self.fileSize(at: audioFileURL) <= Self.maxUploadBytes else {
             DiagnosticLog.write("transcribe: local file too large")
             throw TranscriptionError.fileTooLarge
@@ -913,6 +927,23 @@ struct TranscriptionService {
         let error = mapAPIError(statusCode: http.statusCode, data: data)
         DiagnosticLog.write("transcribe: API error status=\(http.statusCode) mapped=\(error.logName) bodyBytes=\(data.count)")
         throw error
+    }
+
+    private func transcribeManaged(audioFileURL: URL, session: ManagedLocalSession, language: Language) async throws -> String {
+        guard Self.fileSize(at: audioFileURL) <= Self.maxUploadBytes else { throw TranscriptionError.fileTooLarge }
+        return try await ManagedLocalAudioConverter.withWAV(source: audioFileURL) { wav in
+            guard Self.fileSize(at: wav) <= Self.maxUploadBytes else { throw TranscriptionError.fileTooLarge }
+            try Task.checkCancellation()
+            if await Self.isEffectivelySilentAudioAsync(at: wav) == true { return "" }
+            let boundary = UUID().uuidString
+            let body = try await buildMultipartBodyAsync(audioFileURL: wav, model: "whisper-1", format: .wav,
+                language: language, boundary: boundary)
+            let (data, response) = try await session.transcribe(body: body, contentType: "multipart/form-data; boundary=\(boundary)")
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw ManagedLocalError.transport
+            }
+            return try decodeTranscriptionText(data)
+        }
     }
 
     private func performTranscriptionRequestWithRetry(_ request: URLRequest) async throws -> (Data, URLResponse) {
@@ -1107,6 +1138,11 @@ struct TranscriptionService {
     }
 
     func validateProviderConfiguration(apiKey: String?, requiredModels: [String] = []) async throws -> ProviderValidationResult {
+        if provider.isManagedLocal {
+            guard let session = provider.managedLocalSession, session.isRunning,
+                  try await session.health() else { throw ManagedLocalError.notReady }
+            return .modelsValidated
+        }
         guard provider.id == .openAICompatible else {
             try await validateApiKey(apiKey: apiKey, requiredModels: requiredModels)
             return .modelsValidated

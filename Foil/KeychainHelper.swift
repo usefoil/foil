@@ -1,6 +1,9 @@
 import Foundation
 import LocalAuthentication
 import Security
+#if DEBUG
+import CryptoKit
+#endif
 
 enum KeychainHelper {
     private static let defaultAccount = "groq-api-key"
@@ -154,6 +157,17 @@ enum KeychainHelper {
     }
 
     private static func saveDataToKeychain(_ data: Data, account: String) throws {
+        #if DEBUG
+        if let url = testStorageURL(account: account) {
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+            try data.write(to: url, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+            return
+        }
+        #endif
         let query = baseQuery(account: account)
         let attributes: [String: Any] = [
             kSecValueData as String: data,
@@ -189,6 +203,11 @@ enum KeychainHelper {
     }
 
     private static func readDataFromKeychain(account: String) -> Data? {
+        #if DEBUG
+        if let url = testStorageURL(account: account) {
+            return try? Data(contentsOf: url)
+        }
+        #endif
         var query = baseQuery(account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -278,8 +297,26 @@ enum KeychainHelper {
     }
 
     private static func deleteFromKeychain(account: String) {
+        #if DEBUG
+        if let url = testStorageURL(account: account) {
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+        #endif
         SecItemDelete(baseQuery(account: account) as CFDictionary)
     }
+
+    #if DEBUG
+    // Explicit test-only storage; nil retains the ordinary system Keychain path.
+    // Hash the full service/account tuple so neither names nor separators can escape the directory.
+    private static func testStorageURL(account: String) -> URL? {
+        guard let storageDirectoryOverride else { return nil }
+        let identity = Data("\(service.utf8.count):\(service)\(account)".utf8)
+        let name = SHA256.hash(data: identity).map { String(format: "%02x", $0) }.joined()
+        return storageDirectoryOverride.appendingPathComponent("test-keychain", isDirectory: true)
+            .appendingPathComponent(name)
+    }
+    #endif
 
     private static func baseQuery(for providerID: TranscriptionProviderID = .groq) -> [String: Any] {
         baseQuery(account: account(for: providerID))

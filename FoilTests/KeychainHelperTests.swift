@@ -39,6 +39,38 @@ final class KeychainHelperTests: XCTestCase {
         XCTAssertEqual(KeychainHelper.readApiKey(), "test-key-abc")
     }
 
+    func testExplicitTestStorageIsPrivateAndRemovedWithoutKeychainFallback() throws {
+        try KeychainHelper.save(apiKey: "isolated-fixture", for: .openAI)
+        let files = try XCTUnwrap(FileManager.default.enumerator(
+            at: testDirectory, includingPropertiesForKeys: [.isRegularFileKey]
+        )?.allObjects as? [URL]).filter {
+            (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+        }
+        XCTAssertEqual(files.count, 1)
+        let file = try XCTUnwrap(files.first)
+        XCTAssertEqual(try Data(contentsOf: file), Data("isolated-fixture".utf8))
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? Int, 0o600)
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: file.deletingLastPathComponent().path)[.posixPermissions] as? Int, 0o700)
+        try FileManager.default.removeItem(at: file)
+        XCTAssertNil(KeychainHelper.readApiKey(for: .openAI))
+    }
+
+    func testExplicitTestStorageIsolatesServiceAccountAndDirectory() throws {
+        try KeychainHelper.save(apiKey: "isolated-fixture", for: .openAI)
+        let originalService = KeychainHelper.serviceOverride
+        let originalAccount = KeychainHelper.accountOverride
+        KeychainHelper.serviceOverride = "another-test-service"
+        XCTAssertNil(KeychainHelper.readApiKey(for: .openAI))
+        KeychainHelper.serviceOverride = originalService
+        KeychainHelper.accountOverride = "another-test-account"
+        XCTAssertNil(KeychainHelper.readApiKey(for: .openAI))
+        KeychainHelper.accountOverride = originalAccount
+        KeychainHelper.storageDirectoryOverride = testDirectory.appendingPathComponent("another-test-directory")
+        XCTAssertNil(KeychainHelper.readApiKey(for: .openAI))
+        KeychainHelper.storageDirectoryOverride = testDirectory
+        XCTAssertEqual(KeychainHelper.readApiKey(for: .openAI), "isolated-fixture")
+    }
+
     func testSaveOverwritesExisting() throws {
         try KeychainHelper.save(apiKey: "old-key")
         try KeychainHelper.save(apiKey: "new-key")
@@ -70,12 +102,10 @@ final class KeychainHelperTests: XCTestCase {
             "Successful migration should remove the plaintext API key file"
         )
 
-        KeychainHelper.storageDirectoryOverride = testDirectory
-            .appendingPathComponent("missing-legacy-dir", isDirectory: true)
         XCTAssertEqual(
             KeychainHelper.readApiKey(),
             "legacy-key",
-            "Migrated key should be read from Keychain, not from the plaintext file"
+            "Migrated key should be read from storage, not from the removed plaintext file"
         )
     }
 

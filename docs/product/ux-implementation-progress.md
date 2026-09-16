@@ -61,3 +61,132 @@ Remaining stages (not claimed implemented or validated):
 - Provider health beyond permissions/credentials; safe focus-change delivery and destination confirmation; cross-app compatibility proof.
 - Cleanup/vocabulary restructuring, privacy default changes, system appearance, reduced motion, and a full accessibility review.
 - Live fresh-user permission, microphone, cloud, local model, and external insertion acceptance runs. No release readiness claim is made from deterministic tests alone.
+
+### Managed local GUI (T004, issue #397)
+
+The effective transcription choice now distinguishes Foil-managed local models
+from the preserved legacy provider preset. First-run recommendation selects managed
+intent without downloading or rewriting an existing provider. Onboarding, Transcription
+Settings, and Home share that effective choice and owned-session readiness. Explicit
+cloud, custom, or advanced external selection cancels pending managed work.
+
+Managed setup asks English-only versus other/multiple languages, recommends only the
+pinned Base English or Base Multilingual catalog entry, and shows exact catalog download/
+installed size plus separate temporary installation headroom. It drives the production
+coordinator for install, switch, cancel, retry, restore, connection testing, and eligible
+inactive removal. UI status separates installed, selected, active, and candidate identity;
+download progress uses received bytes while verification/startup remain indeterminate.
+External whisper.cpp commands remain only in the explicitly advanced external-server path
+with an unverified-model caveat. Cloud Keychain and official provider guidance remain.
+
+Deterministic proof includes `ManagedLocalPresentationTests`, managed-provider migration
+tests, and `ManagedLocalSetupUITests`; the UI suite stores representative onboarding and
+Settings screenshots in its xcresult. Destination-Mac acceptance then exercised the
+production GUI from clean isolated storage: Foil downloaded and verified Base English and
+Base Multilingual, switched between them, and restored the selected model after relaunch
+with outbound HTTPS blocked while loopback remained available. Controlled acoustic playback
+through the physical microphone produced exact transcripts with both models; logs record
+`mock=false`, captured frames, the owned helper session, and `transcribe.foil.localhost`.
+No production Foil installation, TCC reset, or global network change was performed.
+
+### Managed runtime foundation (T002, issue #397)
+
+Implemented the verified-model/session interface documented in
+[managed-local-runtime-architecture.md](managed-local-runtime-architecture.md).
+The pinned whisper.cpp helper is universal arm64/x86_64 with macOS 14 deployment
+targets, static dependencies, embedded Metal source, explicit baseline Intel
+instruction settings, and strict nested signing. Existing provider choices stay
+separate from explicit managed activation. Installer and language-first GUI work
+remain T003/T004; this tranche does not remove current setup commands from the UI.
+
+Evidence on this destination Mac:
+
+- `/tmp/foil-397-t002-unit-tests.xcresult`: full non-live suite, 729 XCTest tests
+  and 9 Swift Testing tests, zero failures. This includes real AAC conversion and
+  local transcription, expanded-upload rejection, foreign listener survival with
+  exactly three bounded attempts, wrong health identity, failed-candidate rollback,
+  supersession, cancellation, timeout, and audio cleanup.
+- The signed FoilDev helper returned “the quick brown fox jumps over the lazy dog.”
+  through the real `transcribe.foil.localhost` hostname, both natively and under
+  x86_64 Rosetta. The smoke rejected unauthorized routes and observed child exit
+  after parent-pipe EOF. No personal recording or provider credential was used.
+- Packaging checks reject missing, corrupt, stale-provenance, thin, and malformed
+  runtime artifacts. `codesign --verify --deep --strict` accepts the local app;
+  FoilDev and FoilE2E warning-as-error builds pass. Normal app bundles contain no
+  model; only the generated test bundle stages the checksum-verified public fixture.
+- The initial upstream health contract failed the ownership smoke before the
+  lifecycle patch. Later occupied-port and native response decoding failures were
+  reproduced and fixed. Swift API tests initially failed compilation while the
+  new APIs were absent; that is not an assertion-level RED claim for every test.
+- The full suite exposed an existing Keychain write hang. The approved DEBUG-only
+  storage override now uses private atomic test files without touching the system
+  Keychain; 17 focused tests cover migration, overwrite/delete, and isolation.
+  Ordinary application and Release storage remain the existing Keychain path.
+- An additional Release warning-as-error audit found existing optimized
+  unreachable-code warnings in FoilApp and TranscriptionController. These are
+  outside the required Debug warning-clean gate and were not changed here.
+  A normal Release build passed, and its executable excludes the DEBUG
+  test-storage markers.
+- Review regression fixes have focused RED→GREEN receipts under the ignored
+  `.research/managed-runtime/review-*.log` files. The cold-cache test first failed
+  normal embedding, then proved automatic preparation, warm reuse, corrupt-cache
+  repair, failed-repair rejection, and verified test-only model staging. Its
+  compiler dependency is a controlled artifact producer; the real pinned build
+  script was separately rerun successfully for both architectures.
+- Managed validation initially accepted generic HTTP 200/404/405 through ordinary
+  transport. It now requires owned health; missing/stopped/foreign session tests
+  prove zero ordinary-transport calls. The explicit stop flag also prevents the
+  short process-termination race from presenting a stopped session as active.
+- Activation initially left missing-cloud-key readiness and stale validation
+  results in place. Regression tests now prove healthy managed mode becomes
+  ready without a key, resets validation on both transitions, and restores the
+  selected cloud provider's credential requirement when deactivated.
+
+Local app/test builds use the repository's established self-signed
+`ENABLE_HARDENED_RUNTIME=NO` exception. The helper itself retains hardened-runtime
+metadata and strict signing. This is not Developer ID/notarization proof, native
+Intel hardware coverage, or execution on macOS 14. Fresh-user GUI downloading,
+language selection, microphone transcription, and offline relaunch remain
+unverified acceptance work. Nothing was installed into production Foil.
+
+### T003 managed model lifecycle
+
+- Added a bundled immutable base.en/base catalog, explicit unanswered/English-only/
+  multilingual intent, exact artifact sizes and hashes, and OpenAI model notices.
+- Added the production streaming installer, private partial/journal storage, disk
+  preflight, exact HTTP/size/hash validation, exclusive atomic promotion, full
+  restart recovery, atomic inventory/selection writes, and verified offline reload.
+- AppState/FoilApp now expose install/select/cancel/restore/remove operations;
+  the coordinator exposes installed, selected, candidate, and active identities
+  plus progress and actionable errors. T004 owns their GUI presentation.
+- Candidate health precedes the atomic durable selection commit. The previous
+  runtime survives a failed commit. Successful switches retain sessions still
+  held by transcription callers; active/candidate/retained models cannot be removed.
+- Focused RED→GREEN evidence covers missing catalog resources/recommendations,
+  retained session survival, pre-commit persistence failure, disk-space failure,
+  HTTP/truncation rejection, missing offline selections, legacy metadata rejection,
+  cancellation during initial-provider changes, cancellation-aware hashing,
+  recovery/inactive removal, and shared-writable storage rejection.
+- Managed setup readiness now additionally requires a running, previously
+  health-verified session; missing models and stopped sessions cannot claim Ready.
+- Managed connection/setup checks ignore invalid URLs retained for an inactive
+  custom provider. Unchanged verified inventory restoration performs no write;
+  actual inventory/selection changes retain strict atomic persistence.
+- Review regressions exercise production streamed-write ENOSPC after real partial
+  bytes, unknown capacity without transaction files, valid unknown-length bodies
+  and bounded overflow, plus redirect delegate rejection/sanitization and hop limits.
+- Actual clean-store production installation produced base.en, retained base.en,
+  and base transcripts. A separate offline process restored base and transcribed
+  with zero model-network requests. Receipts are under
+  `/tmp/foil-397-t003-model-acceptance`; final verification is recorded in T003's
+  Worker receipt. The live scenario also exercises a real read-only-directory
+  metadata failure after candidate startup before committing selection.
+- The strengthened live scenario holds a real long transcription outstanding
+  across activation, checks final lease release and exact child PID exit, and
+  removes the now-eligible inactive model. It also injects ENOSPC only at the
+  atomic inventory write after real download/verification/promotion, then verifies
+  restart recovery. Offline coverage restores with actual read-only permissions
+  and with deterministic zero-capacity/ENOSPC metadata storage.
+- GUI installation/language selection, a microphone transcript, offline GUI
+  relaunch, production distribution signing, native Intel, and macOS 14 execution
+  remain separate acceptance milestones. No production application was installed.

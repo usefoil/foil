@@ -494,14 +494,15 @@ final class LocalPairingBridgeService {
             throw LocalPairingBridgeServiceError.unsupportedProtocolVersion
         }
         DiagnosticLog.write("LocalBridge: capabilities requestID=\(request.requestID)")
+        let selectedRouteID = Self.routeID(for: appState)
         return LocalBridgeCapabilitiesResponse(
             type: "CapabilitiesResponse",
             protocol: LocalBridgeProtocol.family,
             version: LocalBridgeProtocol.version,
             requestID: request.requestID,
             macAppVersion: appVersion,
-            routes: Self.routeCapabilities(selectedRouteID: Self.routeID(for: appState.selectedTranscriptionProviderPresetID)),
-            selectedRouteID: Self.routeID(for: appState.selectedTranscriptionProviderPresetID),
+            routes: Self.routeCapabilities(selectedRouteID: selectedRouteID),
+            selectedRouteID: selectedRouteID,
             maxAudioBytes: LocalBridgeProtocol.maxAudioBytes,
             acceptedAudioFormats: LocalBridgeProtocol.acceptedAudioFormats
         )
@@ -615,11 +616,14 @@ final class LocalPairingBridgeService {
     }
 
     static func isRequestedRouteAvailable(_ requestedRouteID: LocalBridgeRouteID, appState: AppState) -> Bool {
-        let selectedRouteID = routeID(for: appState.selectedTranscriptionProviderPresetID)
+        let selectedRouteID = routeID(for: appState)
         return requestedRouteID == .macSelected || requestedRouteID == selectedRouteID
     }
 
     static func isSelectedRouteConfigured(appState: AppState) -> Bool {
+        if appState.effectiveTranscriptionMode == .managedLocal {
+            return appState.managedLocalRuntime.session?.isRunning == true
+        }
         if appState.selectedTranscriptionProviderPresetID == .customOpenAICompatible,
            appState.customTranscriptionBaseURLValue == nil {
             return false
@@ -631,7 +635,16 @@ final class LocalPairingBridgeService {
     }
 
     private static func resolvedRouteID(_ requestedRouteID: LocalBridgeRouteID, appState: AppState) -> LocalBridgeRouteID {
-        requestedRouteID == .macSelected ? routeID(for: appState.selectedTranscriptionProviderPresetID) : requestedRouteID
+        requestedRouteID == .macSelected ? routeID(for: appState) : requestedRouteID
+    }
+
+    private static func routeID(for appState: AppState) -> LocalBridgeRouteID {
+        switch appState.effectiveTranscriptionMode {
+        case .managedLocal, .externalLocal: .localWhisperCPP
+        case .groq: .groq
+        case .openAI: .openAIWhisper
+        case .custom: .customOpenAICompatible
+        }
     }
 
     private static func resolvedCleanupRouteID(
@@ -696,11 +709,11 @@ final class LocalPairingBridgeService {
     }
 
     private func supportsLocalTranscription(appState: AppState) -> Bool {
-        Self.routeID(for: appState.selectedTranscriptionProviderPresetID) == .localWhisperCPP
+        Self.routeID(for: appState) == .localWhisperCPP
     }
 
     private func supportsCloudTranscription(appState: AppState) -> Bool {
-        switch Self.routeID(for: appState.selectedTranscriptionProviderPresetID) {
+        switch Self.routeID(for: appState) {
         case .groq, .openAIWhisper:
             return true
         case .customOpenAICompatible:
