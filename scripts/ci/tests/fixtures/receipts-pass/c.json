@@ -13,6 +13,6 @@
   "malformedSummary": false, "invalidSelectors": false, "interrupted": false, "retryAllowed": false,
   "buildExit": 0, "testExit": 0, "fixtureExit": 0,
   "preflight": { "schemaVersion": 1, "status": "healthy", "errors": [], "facts": {
-    "hostname": "foil-mm3.local", "architecture": "arm64", "productVersion": "27.0", "buildVersion": "26A428", "xcodeVersion": "27.0", "xcodeBuild": "27A266a", "freeBytes": 30000000000, "runnerName": "foil-mm3", "consoleUser": "foilci", "developerModeEnabled": true, "runnerOs": "macOS", "runnerArch": "ARM64", "activeRunnerServices": ["actions.runner.usefoil-foil.foil-mm3"]
+    "hostname": "foil-mm3.local", "architecture": "arm64", "productVersion": "27.0", "buildVersion": "26A428", "xcodeVersion": "27.0", "xcodeBuild": "27A266a", "freeBytes": 30000000000, "runnerName": "foil-mm3", "consoleUser": "foilci", "screenLocked": false, "developerModeEnabled": true, "runnerOs": "macOS", "runnerArch": "ARM64", "activeRunnerServices": ["actions.runner.usefoil-foil.foil-mm3"]
   } }
 }

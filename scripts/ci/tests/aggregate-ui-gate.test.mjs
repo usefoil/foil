@@ -11,7 +11,7 @@ const facts = {
   hostname: "foil-mm1.local", architecture: "arm64", productVersion: "27.0", buildVersion: "26A428",
   xcodeVersion: "27.0", xcodeBuild: "27A266a", minimumFreeBytes: undefined,
   freeBytes: 30000000000, runnerName: "foil-mm1", consoleUser: "foilci",
-  developerModeEnabled: true, runnerOs: "macOS", runnerArch: "ARM64",
+  screenLocked: false, developerModeEnabled: true, runnerOs: "macOS", runnerArch: "ARM64",
   activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm1"]
 }
 
