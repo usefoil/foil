@@ -40,7 +40,7 @@ cd "$runner_dir" || fail 'cannot enter runner directory'
 validate_registration() {
   node -e '
     try {
-      const fs = require("fs"), r = JSON.parse(fs.readFileSync(".runner", "utf8"));
+      const fs = require("fs"), text = fs.readFileSync(".runner", "utf8").replace(/^\uFEFF/, ""), r = JSON.parse(text);
       process.exit(r.gitHubUrl === process.argv[1] && r.agentName === process.argv[2] ? 0 : 1);
     } catch { process.exit(1); }
   ' "$repo_url" "$runner_name" >/dev/null 2>&1

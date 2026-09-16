@@ -23,7 +23,7 @@ fs.appendFileSync(calls, JSON.stringify({kind,args,live:[env.RUN_LIVE_GROQ_TESTS
 if (kind === 'git') { console.log(scenario === 'wrong-sha' ? 'wrong' : 'abc123'); process.exit(0); }
 if (kind === 'preflight') {
   if(scenario==='malformed-preflight'){fs.writeFileSync(value('--output'),'{}');process.exit(0);}
-  const baseline=JSON.parse(fs.readFileSync(value('--baseline'))),runnerName=baseline.allowedRunnerNames[0];
+  const baseline=JSON.parse(fs.readFileSync(value('--baseline'))),runnerName=baseline.allowedRunnerNames[{a:0,b:1,c:2}[env.FOIL_CI_SHARD]];
   const facts={hostname:'fake.local',architecture:baseline.architecture,productVersion:baseline.productVersion,buildVersion:baseline.buildVersion,
     xcodeVersion:baseline.xcodeVersion,xcodeBuild:baseline.xcodeBuild,freeBytes:baseline.minimumFreeBytes+1,runnerName,
     consoleUser:baseline.allowedConsoleUsers[0],developerModeEnabled:true,runnerOs:'macOS',runnerArch:'ARM64',

@@ -6,8 +6,8 @@ import path from "node:path"
 import { compareFacts, runPreflight } from "../runner-preflight.mjs"
 
 const baseline = {
-  architecture: "arm64", productVersion: "26.5.2", buildVersion: "25F84",
-  xcodeVersion: "26.6", xcodeBuild: "17F113", minimumFreeBytes: 30_000_000_000,
+  architecture: "arm64", productVersion: "27.0", buildVersion: "26A428",
+  xcodeVersion: "27.0", xcodeBuild: "27A266a", minimumFreeBytes: 30_000_000_000,
   allowedRunnerNames: ["foil-mm1", "foil-mm2", "foil-mm3"],
   allowedConsoleUsers: ["foilci"]
 }
@@ -28,16 +28,31 @@ test("checked-in baseline requires the dedicated foilci console user", () => {
   ])
 })
 
+test("checked-in baseline pins the accepted macOS 27 and Xcode 27 builds", () => {
+  const checkedInBaseline = JSON.parse(fs.readFileSync(new URL("../runner-baseline.json", import.meta.url), "utf8"))
+  assert.deepEqual({
+    productVersion: checkedInBaseline.productVersion,
+    buildVersion: checkedInBaseline.buildVersion,
+    xcodeVersion: checkedInBaseline.xcodeVersion,
+    xcodeBuild: checkedInBaseline.xcodeBuild
+  }, {
+    productVersion: "27.0",
+    buildVersion: "26A428",
+    xcodeVersion: "27.0",
+    xcodeBuild: "27A266a"
+  })
+})
+
 test("reports toolchain drift and competing services", () => {
-  const facts = { architecture: "arm64", productVersion: "26.5.2", buildVersion: "25F84",
+  const facts = { architecture: "arm64", productVersion: "27.0", buildVersion: "26A428",
     xcodeVersion: "26.3", xcodeBuild: "17C529", runnerName: "foil-mm2",
     consoleUser: "foilci", freeBytes: 40_000_000_000, developerModeEnabled: true,
     runnerOs: "macOS", runnerArch: "ARM64",
     activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm2", "actions.runner.mean-weasel.mac-mini-2"] }
   assert.deepEqual(compareFacts(baseline, facts), [
     "active runner service count: expected 1, got 2",
-    "xcodeBuild: expected 17F113, got 17C529",
-    "xcodeVersion: expected 26.6, got 26.3"
+    "xcodeBuild: expected 27A266a, got 17C529",
+    "xcodeVersion: expected 27.0, got 26.3"
   ])
 })
 

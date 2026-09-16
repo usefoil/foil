@@ -47,7 +47,7 @@ done
 [ "$work" = _work ]
 [ "$unattended" = true ] && [ "$replace" = true ]
 [ "${BOOTSTRAP_TEST_FAIL:-}" != config-result ] || repo=https://github.com/foreign/repo
-node -e 'require("fs").writeFileSync(".runner",JSON.stringify({agentId:42,agentName:process.argv[1],poolId:1,poolName:"Default",gitHubUrl:process.argv[2],workFolder:"_work"}))' "$name" "$repo"
+node -e 'require("fs").writeFileSync(".runner","\uFEFF"+JSON.stringify({agentId:42,agentName:process.argv[1],poolId:1,poolName:"Default",gitHubUrl:process.argv[2],workFolder:"_work"}))' "$name" "$repo"
 STUB
   cat > "$runner_dir/svc.sh" <<'STUB'
 #!/usr/bin/env bash
@@ -64,7 +64,7 @@ case "$1" in
     elif [ ! -e .started ]; then echo Stopped
     else
       echo Started:
-      name="$(node -p 'JSON.parse(require("fs").readFileSync(".runner")).agentName')"
+      name="$(node -p 'JSON.parse(require("fs").readFileSync(".runner","utf8").replace(/^\uFEFF/,"")).agentName')"
       [ "${BOOTSTRAP_TEST_FAIL:-}" != wrong-service ] || name=foil-mm9
       pid=12345
       [ "${BOOTSTRAP_TEST_FAIL:-}" != missing-pid ] || pid=-
