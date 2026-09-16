@@ -265,6 +265,60 @@ struct SystemSetupPermissionProvider: SetupPermissionProviding {
 
 @MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
+    struct ManagedLocalAcceptanceConfiguration: Equatable {
+        let root: URL
+        var modelRoot: URL { root.appendingPathComponent("ManagedModels", isDirectory: true) }
+        var historyRoot: URL { root.appendingPathComponent("History", isDirectory: true) }
+        var credentialsRoot: URL { root.appendingPathComponent("Credentials", isDirectory: true) }
+        var defaultsSuiteName: String {
+            let suffix = root.path.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_" }
+            return "com.neonwatty.Foil.ManagedLocalAcceptance." + String(suffix)
+        }
+    }
+
+    struct TestingStorageConfiguration: Equatable {
+        let root: URL
+        var modelRoot: URL { root.appendingPathComponent("ManagedModels", isDirectory: true) }
+        var historyRoot: URL { root.appendingPathComponent("History", isDirectory: true) }
+        var credentialsRoot: URL { root.appendingPathComponent("Credentials", isDirectory: true) }
+        var defaultsSuiteName: String {
+            let suffix = root.path.unicodeScalars.map {
+                CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_"
+            }
+            return "com.neonwatty.Foil.UITests." + String(suffix)
+        }
+    }
+
+    static func testingStorageConfiguration(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        processIdentifier: Int32 = ProcessInfo.processInfo.processIdentifier
+    ) -> TestingStorageConfiguration? {
+        guard isTestingProcess(arguments: arguments, environment: environment) else { return nil }
+        let rawIdentifier = environment["FOIL_UITEST_SESSION_ID"] ?? "process-\(processIdentifier)"
+        let identifier = rawIdentifier.unicodeScalars.map {
+            CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_"
+        }
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FoilTests", isDirectory: true)
+            .appendingPathComponent(String(identifier), isDirectory: true)
+        return TestingStorageConfiguration(root: root)
+    }
+
+    static func managedLocalAcceptanceConfiguration(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> ManagedLocalAcceptanceConfiguration? {
+        #if DEBUG
+        guard arguments.contains("--managed-local-gui-acceptance"),
+              let path = environment["FOIL_MANAGED_LOCAL_ACCEPTANCE_ROOT"],
+              path.hasPrefix("/"), !path.isEmpty else { return nil }
+        return ManagedLocalAcceptanceConfiguration(root: URL(fileURLWithPath: path, isDirectory: true))
+        #else
+        return nil
+        #endif
+    }
+
     let appState: AppState
     let history: TranscriptionHistory
     let usageEventStore: UsageEventStore
@@ -300,15 +354,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var transcriptionTask: Task<Void, Never>?
     private var localWhisperStartupTask: Task<Void, Never>?
     private var localWhisperStartupID: UUID?
+    private var managedLocalStartupTask: Task<Void, Never>?
     private var recordingCleanupAppContext: CleanupAppContext?
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
     private var recordingIsOnboardingPractice = false
     private var appShellWindow: NSWindow?
     private var liveAudioSignifierPanel: NSPanel?
+    private var launchDefaults: UserDefaults {
+        if let acceptance = Self.managedLocalAcceptanceConfiguration(),
+           let defaults = UserDefaults(suiteName: acceptance.defaultsSuiteName) {
+            return defaults
+        }
+        if Self.testingStorageConfiguration() != nil,
+           ProcessInfo.processInfo.arguments.contains("--ui-testing") {
+            return AppState.uiTestingDefaults
+        }
+        if let testing = Self.testingStorageConfiguration(),
+           let defaults = UserDefaults(suiteName: testing.defaultsSuiteName) {
+            return defaults
+        }
+        return .standard
+    }
     private var hasCompletedOnboarding: Bool {
-        get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
-        set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
+        get { launchDefaults.bool(forKey: "hasCompletedOnboarding") }
+        set { launchDefaults.set(newValue, forKey: "hasCompletedOnboarding") }
     }
 
     override convenience init() {
@@ -323,14 +393,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.singleInstanceGuard = singleInstanceGuard
         self.setupPermissionProvider = setupPermissionProvider
         self.localWhisperServerController = localWhisperServerController ?? LocalWhisperServerController()
-        self.appState = AppState()
-        if ProcessInfo.processInfo.arguments.contains("--ui-testing") {
-            let dir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("FoilUITests", isDirectory: true)
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            self.history = TranscriptionHistory(storageDirectory: dir)
+        let acceptance = Self.managedLocalAcceptanceConfiguration()
+        let testing = Self.testingStorageConfiguration()
+        #if DEBUG
+        if (Self.isTestingProcess() || acceptance != nil), KeychainHelper.storageDirectoryOverride == nil {
+            let storage = acceptance?.credentialsRoot ?? testing?.credentialsRoot
+                ?? FileManager.default.temporaryDirectory
+                    .appendingPathComponent("foil-test-credentials-\(ProcessInfo.processInfo.processIdentifier)")
+            try? FileManager.default.createDirectory(at: storage, withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700])
+            KeychainHelper.storageDirectoryOverride = storage
+            KeychainHelper.serviceOverride = acceptance?.defaultsSuiteName
+                ?? "com.usefoil.test-startup.\(ProcessInfo.processInfo.processIdentifier)"
+            KeychainHelper.accountOverride = acceptance == nil ? "test-startup" : "managed-local-acceptance"
+        }
+        #endif
+        self.appState = AppState(managedModelRoot: acceptance?.modelRoot ?? testing?.modelRoot)
+        if let acceptance {
+            try? FileManager.default.createDirectory(at: acceptance.historyRoot, withIntermediateDirectories: true)
+            self.history = TranscriptionHistory(storageDirectory: acceptance.historyRoot)
             self.usageEventStore = UsageEventStore(
-                storageDirectory: dir.appendingPathComponent("usage", isDirectory: true),
+                storageDirectory: acceptance.root.appendingPathComponent("Usage", isDirectory: true),
+                isEnabled: self.appState.usageMetricsEnabled
+            )
+        } else if let testing {
+            try? FileManager.default.createDirectory(at: testing.historyRoot, withIntermediateDirectories: true)
+            self.history = TranscriptionHistory(storageDirectory: testing.historyRoot)
+            self.usageEventStore = UsageEventStore(
+                storageDirectory: testing.root.appendingPathComponent("Usage", isDirectory: true),
                 isEnabled: self.appState.usageMetricsEnabled
             )
         } else {
@@ -428,13 +518,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let isE2ESmoke = Self.isE2ETranscriptionSmokeProcess()
         let isAutomationSmoke = Self.isAutomationSmokeProcess()
 #if DEBUG
+        let developmentAppExists = Self.developmentAppExistsForDebugRedirect(
+            isTesting: isTesting,
+            isAutomationSmoke: isAutomationSmoke,
+            isE2ESmoke: isE2ESmoke
+        ) {
+            FileManager.default.fileExists(atPath: "/Applications/Foil Dev.app")
+        }
         if Self.shouldRedirectMislaunchedDebugBuild(
             bundleIdentifier: Bundle.main.bundleIdentifier,
             bundlePath: Bundle.main.bundleURL.resolvingSymlinksInPath().path,
             isTesting: isTesting,
             isAutomationSmoke: isAutomationSmoke,
             isE2ESmoke: isE2ESmoke,
-            developmentAppExists: FileManager.default.fileExists(atPath: "/Applications/Foil Dev.app")
+            developmentAppExists: developmentAppExists
         ), redirectMislaunchedDebugBuildToFoilDev() {
             return
         }
@@ -524,11 +621,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         refreshSetupHealth()
         DiagnosticLog.write("applicationDidFinishLaunching: setup health refreshed")
-        if !isTesting,
-           !isE2ESmoke,
-           appState.selectedTranscriptionProviderPresetID == .localWhisperCPP,
-           appState.autoStartLocalWhisperServer {
+        if Self.shouldStartLegacyLocalWhisperServer(
+            isTesting: isTesting,
+            isE2ESmoke: isE2ESmoke,
+            effectiveMode: appState.effectiveTranscriptionMode,
+            autoStart: appState.autoStartLocalWhisperServer
+        ) {
             startLocalWhisperServer(modelID: appState.localWhisperSetupModelID)
+        }
+        if !isTesting, !isE2ESmoke, appState.managedLocalEnabled {
+            managedLocalStartupTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                do { try await self.appState.restoreManagedLocalModel() }
+                catch { self.appState.managedLocalRestoreError = error.localizedDescription }
+            }
         }
         if shouldDisplayOnboarding {
             showOnboarding()
@@ -540,6 +646,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    static func shouldStartLegacyLocalWhisperServer(
+        isTesting: Bool,
+        isE2ESmoke: Bool,
+        effectiveMode: AppState.EffectiveTranscriptionMode,
+        autoStart: Bool
+    ) -> Bool {
+        !isTesting && !isE2ESmoke && effectiveMode == .externalLocal && autoStart
     }
 
     @MainActor
@@ -673,6 +788,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Installer/settings integration entry point. Commit preference changes only after readiness.
+    func startManagedLocalModel(_ model: ManagedLocalModel) async throws {
+        try await appState.installAndSelectManagedLocalModel(model.id)
+    }
+
+    func installManagedLocalModel(_ id: String) async throws {
+        try await appState.installAndSelectManagedLocalModel(id)
+    }
+
+    func cancelManagedLocalModelOperation() {
+        appState.cancelManagedLocalModelOperation()
+    }
+
+    func stopManagedLocalModel() {
+        managedLocalStartupTask?.cancel(); managedLocalStartupTask = nil
+        appState.deactivateManagedLocalModel()
+    }
+
     func stopLocalWhisperServer() {
         guard localWhisperServerController.isProcessRunning || localWhisperStartupTask != nil else {
             appState.localWhisperServerState = .failed("Foil can only stop a local server that it started.")
@@ -726,6 +859,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
         return URL(fileURLWithPath: bundlePath).standardizedFileURL.path != "/Applications/Foil.app"
+    }
+
+    static func developmentAppExistsForDebugRedirect(
+        isTesting: Bool,
+        isAutomationSmoke: Bool,
+        isE2ESmoke: Bool,
+        fileExists: () -> Bool
+    ) -> Bool {
+        guard !isTesting, !isAutomationSmoke, !isE2ESmoke else { return false }
+        return fileExists()
     }
 
     private func redirectMislaunchedDebugBuildToFoilDev() -> Bool {
@@ -800,7 +943,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             onRefreshSetupHealth: { [weak self] in self?.refreshSetupHealth() },
             onOpenSettings: { [weak self] in self?.showAppShellWindow(initialSelection: .transcription) },
             onComplete: { [weak self] in
-                guard let self, self.appState.hasPracticeTranscript, self.appState.areSystemPermissionsReady else { return }
+                guard let self, self.appState.hasPracticeTranscript, self.appState.isSetupReady else { return }
                 self.closeOnboarding(completed: true)
             },
             initialStep: appState.onboardingStep,
@@ -1084,6 +1227,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        managedLocalStartupTask?.cancel()
+        appState.cancelManagedLocalModelOperation()
+        appState.managedLocalRuntime.stop()
         NotificationCenter.default.removeObserver(self)
         floatingStatusSyncTimer?.invalidate()
         transientSuccessAutoHideTimer?.invalidate()
@@ -1543,7 +1689,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             var setupSuccessDetail = "Ready to record"
 
             do {
-                if appState.selectedTranscriptionProviderPresetID == .customOpenAICompatible,
+                if !appState.selectedTranscriptionProvider.isManagedLocal,
+                   appState.selectedTranscriptionProviderPresetID == .customOpenAICompatible,
                    appState.customTranscriptionBaseURLValue == nil {
                     appState.failSetupCheck("Invalid OpenAI-compatible base URL")
                     return

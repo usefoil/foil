@@ -94,7 +94,6 @@ struct OnboardingView: View {
                 navigationBar
             }
         }
-        .accessibilityIdentifier("onboarding.root")
         .onAppear {
             onRefreshSetupHealth?()
             onPracticeStepChanged?(currentStep == 4)
@@ -120,6 +119,13 @@ struct OnboardingView: View {
             apiKey = ""
             appState.onboardingTranscript = nil
         }
+        .onChange(of: appState.managedLocalRequested) { _, _ in
+            connectionChecked = false
+            connectionMessage = nil
+            credentialError = nil
+            apiKey = ""
+            appState.onboardingTranscript = nil
+        }
         .onReceive(NotificationCenter.default.publisher(for: .foilOnboardingUITestCommandRelay)) { notification in
             guard let command = OnboardingUITestCommand(notification: notification) else { return }
             handleUITestOnboardingCommand(command)
@@ -136,11 +142,10 @@ struct OnboardingView: View {
                 systemImage: "waveform.path.ecg"
             )
 
-            Picker("Provider", selection: $appState.selectedTranscriptionProviderPresetID) {
-                Text("Groq").tag(TranscriptionProviderPresetID.groq)
-                Text("OpenAI Whisper").tag(TranscriptionProviderPresetID.openAIWhisper)
-                Text("On this Mac — recommended").tag(TranscriptionProviderPresetID.localWhisperCPP)
-                Text("Custom OpenAI-compatible").tag(TranscriptionProviderPresetID.customOpenAICompatible)
+            Picker("Transcription", selection: effectiveModeBinding) {
+                ForEach(AppState.EffectiveTranscriptionMode.allCases) { mode in
+                    Text(mode.displayName + (mode == .managedLocal ? " — recommended" : "")).tag(mode)
+                }
             }
             .frame(maxWidth: 300, alignment: .leading)
             .accessibilityIdentifier("onboarding.providerPicker")
@@ -157,7 +162,12 @@ struct OnboardingView: View {
 
     private var credentialStep: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if appState.selectedTranscriptionProvider.requiresAPIKey {
+            if appState.effectiveTranscriptionMode == .managedLocal {
+                stepHeading(title: "Set up local transcription",
+                            description: "Choose your languages, then install a verified model without Terminal or an API key.",
+                            systemImage: "desktopcomputer")
+                ManagedLocalSetupView(appState: appState, context: .onboarding)
+            } else if appState.selectedTranscriptionProvider.requiresAPIKey {
                 stepHeading(title: "Connect \(appState.selectedTranscriptionProvider.displayName)",
                             description: appState.selectedTranscriptionProviderID.credentialInstructions,
                             systemImage: "key.fill")
@@ -181,7 +191,7 @@ struct OnboardingView: View {
                     Button("Test saved key") { checkConnection(saveKey: false) }
                         .disabled(isChecking)
                 }
-            } else if appState.selectedTranscriptionProviderPresetID == .localWhisperCPP {
+            } else if appState.effectiveTranscriptionMode == .externalLocal {
                 localConfiguration
             } else {
                 stepHeading(title: "Connect your server", description: "Configure your OpenAI-compatible endpoint in Transcription settings, then test it here.", systemImage: "network")
@@ -205,7 +215,7 @@ struct OnboardingView: View {
         let model = LocalWhisperSetupModel.option(id: appState.localWhisperSetupModelID)
         let commands = LocalWhisperSetupCommands(model: model)
         return VStack(alignment: .leading, spacing: 12) {
-            stepHeading(title: "Set up local transcription", description: "No API key is needed. Foil uses whisper.cpp on this Mac. The one-time installation currently needs Terminal, CMake, and Apple's command-line developer tools.", systemImage: "desktopcomputer")
+            stepHeading(title: "Advanced external local server", description: "This optional mode connects to whisper.cpp that you install and run yourself. Foil cannot verify which model an external server loaded.", systemImage: "terminal")
             Picker("Local model", selection: $appState.localWhisperSetupModelID) {
                 ForEach(LocalWhisperSetupModel.all) { option in
                     Text("\(option.displayName) — \(option.languageScope)").tag(option.id)
@@ -216,8 +226,8 @@ struct OnboardingView: View {
             Text("Choose an English model only if you dictate in English. Large V3 Turbo and Large V3 support multiple languages.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Link("whisper.cpp installation guide", destination: URL(string: "https://github.com/ggml-org/whisper.cpp#quick-start")!)
-            DisclosureGroup("One-time install commands") {
+            Link("Advanced whisper.cpp installation guide", destination: URL(string: "https://github.com/ggml-org/whisper.cpp#quick-start")!)
+            DisclosureGroup("Advanced Terminal commands") {
                 setupCommand("1. Install source", commands.cloneCommand)
                 setupCommand("2. Build", commands.buildCommand)
                 setupCommand("3. Download model", commands.downloadCommand)
@@ -345,7 +355,11 @@ struct OnboardingView: View {
     private var canAdvance: Bool {
         guard !isChecking, appState.status != .recording, appState.status != .transcribing else { return false }
         switch currentStep {
-        case 1: return connectionChecked
+        case 1:
+            if appState.effectiveTranscriptionMode == .managedLocal {
+                return appState.managedLocalRuntime.session?.isRunning == true
+            }
+            return connectionChecked
         case 2: return appState.accessibilityState == .ready
         case 3: return appState.microphoneState == .ready
         case 4: return appState.hasPracticeTranscript
@@ -492,7 +506,7 @@ struct OnboardingView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(FoilTheme.deepTeal)
-                .disabled(!appState.areSystemPermissionsReady || !appState.hasPracticeTranscript || appState.status == .recording || appState.status == .transcribing)
+                .disabled(!appState.isSetupReady || !appState.hasPracticeTranscript || appState.status == .recording || appState.status == .transcribing)
                 .accessibilityIdentifier("onboarding.getStartedButton")
             }
         }
@@ -536,6 +550,8 @@ struct OnboardingView: View {
             currentStep = 4
         case "selectLocalProvider":
             appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        case "selectManagedProvider":
+            appState.selectTranscriptionMode(.managedLocal)
         case "checkMicrophone":
             onCheckMicrophone?()
         case "grantAccessibility":
@@ -543,7 +559,7 @@ struct OnboardingView: View {
         case "grantMicrophone":
             appState.updateMicrophoneState(isReady: true)
         case "complete":
-            if appState.areSystemPermissionsReady && appState.hasPracticeTranscript { onComplete() }
+            if appState.isSetupReady && appState.hasPracticeTranscript { onComplete() }
         case "seedPracticeTranscript":
             guard isUITesting else { return }
             appState.onboardingTranscript = "A fixture transcript for setup testing."
@@ -553,16 +569,23 @@ struct OnboardingView: View {
     }
 
     private var providerPrivacySummary: String {
-        switch appState.selectedTranscriptionProviderPresetID {
+        switch appState.effectiveTranscriptionMode {
+        case .managedLocal:
+            "Audio stays on this Mac for transcription. If Cleanup is enabled, transcript text is sent separately to its selected cleanup provider."
         case .groq:
             "Audio is sent to Groq for Whisper transcription. Cleanup can use Groq chat models when enabled."
-        case .openAIWhisper:
+        case .openAI:
             "Audio is sent to OpenAI for Whisper transcription. Cleanup stays off unless you choose a separate cleanup endpoint later."
-        case .localWhisperCPP:
-            "Audio stays on this Mac when your whisper.cpp server is running at 127.0.0.1."
-        case .customOpenAICompatible:
+        case .externalLocal:
+            "Audio is sent to the external OpenAI-compatible server at your configured local address. Foil cannot verify its loaded model."
+        case .custom:
             "Audio is sent to the OpenAI-compatible endpoint you configure in Settings."
         }
+    }
+
+    private var effectiveModeBinding: Binding<AppState.EffectiveTranscriptionMode> {
+        Binding(get: { appState.effectiveTranscriptionMode },
+                set: { appState.selectTranscriptionMode($0) })
     }
 
     @ViewBuilder

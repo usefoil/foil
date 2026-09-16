@@ -3,6 +3,10 @@ import XCTest
 import CoreGraphics
 @testable import Foil
 
+private final class AppStateTestSingleInstanceGuard: SingleInstanceGuarding {
+    func activateExistingInstanceIfRunning() -> Bool { false }
+}
+
 @MainActor
 final class AppStateTests: XCTestCase {
     private var testDirectory: URL!
@@ -104,6 +108,9 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
+        UserDefaults.standard.removeObject(forKey: "managedLocalEnabled")
+        UserDefaults.standard.removeObject(forKey: "managedLocalRequested")
+        UserDefaults.standard.removeObject(forKey: "managedDictationLanguage")
         UserDefaults.standard.removeObject(forKey: "customTranscriptionBaseURL")
         UserDefaults.standard.removeObject(forKey: "customTranscriptionModel")
     }
@@ -123,6 +130,70 @@ final class AppStateTests: XCTestCase {
         state.apiKeyState = .ready
     }
 
+    func testTestProcessKeepsManagedModelsOutOfProductionApplicationSupport() throws {
+        let delegate = AppDelegate(singleInstanceGuard: AppStateTestSingleInstanceGuard())
+        let modelRoot = try XCTUnwrap(delegate.appState.managedLocalModels?.store.root)
+
+        XCTAssertTrue(
+            modelRoot.path.hasPrefix(FileManager.default.temporaryDirectory.standardizedFileURL.path),
+            "Test model storage must stay under the temporary directory, got \(modelRoot.path)"
+        )
+    }
+
+    func testUITestingStorageRootIsStableAcrossRelaunchAndCannotFollowInjectedIdentifier() throws {
+        let environment = [
+            "FOIL_UITEST_SESSION_ID":
+                "/Users/example/Library/Application Support/Foil/foil-ui-tests-state-42"
+        ]
+        let first = try XCTUnwrap(AppDelegate.testingStorageConfiguration(
+            arguments: ["Foil", "--ui-testing"],
+            environment: environment,
+            processIdentifier: 101
+        ))
+        let relaunched = try XCTUnwrap(AppDelegate.testingStorageConfiguration(
+            arguments: ["Foil", "--ui-testing"],
+            environment: environment,
+            processIdentifier: 202
+        ))
+        let sanitizedIdentifier = environment["FOIL_UITEST_SESSION_ID"]!.unicodeScalars.map {
+            CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_"
+        }
+        let expectedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FoilTests", isDirectory: true)
+            .appendingPathComponent(String(sanitizedIdentifier), isDirectory: true)
+
+        XCTAssertEqual(first.root.standardizedFileURL, expectedRoot.standardizedFileURL)
+        XCTAssertEqual(relaunched.root.standardizedFileURL, expectedRoot.standardizedFileURL)
+        XCTAssertEqual(first.modelRoot.deletingLastPathComponent(), first.root)
+        XCTAssertTrue(first.defaultsSuiteName.hasPrefix("com.neonwatty.Foil.UITests."))
+    }
+
+    func testDedicatedUITestIdentityUsesItsOwnDefaultsDomain() {
+        XCTAssertEqual(
+            AppState.uiTestingDefaultsDomainName(bundleIdentifier: "com.neonwatty.Foil.UITesting"),
+            "com.neonwatty.Foil.UITesting"
+        )
+        XCTAssertEqual(
+            AppState.uiTestingDefaultsDomainName(bundleIdentifier: AppBrand.productionBundleIdentifier),
+            "com.neonwatty.Foil.UITests"
+        )
+    }
+
+    func testUITestLaunchDoesNotProbeInstalledDevelopmentApp() {
+        var probed = false
+        let exists = AppDelegate.developmentAppExistsForDebugRedirect(
+            isTesting: true,
+            isAutomationSmoke: false,
+            isE2ESmoke: false
+        ) {
+            probed = true
+            return true
+        }
+
+        XCTAssertFalse(exists)
+        XCTAssertFalse(probed)
+    }
+
     func testInitialStatusIsIdle() {
         let state = AppState()
         XCTAssertEqual(state.status, .idle)
@@ -131,11 +202,13 @@ final class AppStateTests: XCTestCase {
     func testFirstRunRecommendsLocalWithoutOverwritingExistingProvider() {
         let state = AppState()
         state.recommendLocalForFirstRun()
-        XCTAssertEqual(state.selectedTranscriptionProviderPresetID, .localWhisperCPP)
+        XCTAssertEqual(state.effectiveTranscriptionMode, .managedLocal)
+        XCTAssertEqual(state.selectedTranscriptionProviderPresetID, .groq)
         XCTAssertFalse(state.selectedTranscriptionProvider.requiresAPIKey)
         state.selectedTranscriptionProviderPresetID = .openAIWhisper
         let reloaded = AppState()
         reloaded.recommendLocalForFirstRun()
+        XCTAssertEqual(reloaded.effectiveTranscriptionMode, .openAI)
         XCTAssertEqual(reloaded.selectedTranscriptionProviderPresetID, .openAIWhisper)
     }
 

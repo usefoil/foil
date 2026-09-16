@@ -1,0 +1,12 @@
+{
+  "source_repository": "https://github.com/ggml-org/whisper.cpp.git",
+  "source_commit": "927cfce34f31707e17f2bff35c349632fb9e2c3a",
+  "source_version": "1.9.4",
+  "cmake_url": "https://github.com/Kitware/CMake/releases/download/v4.1.1/cmake-4.1.1-macos-universal.tar.gz",
+  "cmake_sha256": "3cd1da5341618645bdc85a3b99e273f29c4d48db2f545925a658db992e61f6f9",
+  "cmake_checksum_authority": "https://api.github.com/repos/Kitware/CMake/releases/tags/v4.1.1",
+  "fixture_url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-tiny.en.bin",
+  "fixture_sha256": "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f",
+  "fixture_size": 77704715,
+  "fixture_metadata_authority": "https://huggingface.co/api/models/ggerganov/whisper.cpp/revision/5359861c739e955e79d9a303bcbc70fb988958b1?blobs=true"
+}

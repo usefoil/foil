@@ -40,7 +40,7 @@ You can also download the signed and notarized DMG from the
 
 1. Launch Foil from Applications. It stays in the menu bar.
 2. First-run setup recommends **On this Mac**, which needs no API key. Existing provider choices are preserved.
-3. For local transcription, follow the one-time whisper.cpp install/build/model instructions in setup, then **Start local model** and **Test connection**. The current local path requires Terminal, CMake, and Apple's command-line developer tools; a bundled installer is not yet included.
+3. For local transcription, choose your dictation languages and click **Install**. Foil downloads a pinned, verified model, runs its bundled local runtime at `transcribe.foil.localhost`, and lets you switch installed models without an API key or Terminal setup.
 4. Prefer cloud transcription? Choose **Groq** or **OpenAI Whisper**. Setup links to the provider's key-management page and official setup guide, explains account requirements, and lets you **Save & Test** inline. Keys are stored in macOS Keychain.
 5. Grant Microphone and Accessibility access when prompted.
 6. Practice your shortcut and record a short phrase. Your practice transcript appears in Foil without being pasted or saved to History.
@@ -59,7 +59,8 @@ insertion. The practice dictation and insertion steps test those separately.
 
 | Provider | Where transcription runs | Credentials |
 | --- | --- | --- |
-| Local whisper.cpp | On your Mac through a local server | None |
+| On this Mac — managed | On your Mac through Foil's bundled local runtime | None |
+| External local server — advanced | On your Mac through a server you manage | Optional |
 | Groq Whisper | Groq | Groq API key |
 | OpenAI Whisper | OpenAI | OpenAI API key |
 | Custom OpenAI-compatible | Your configured endpoint | Optional |
@@ -73,9 +74,14 @@ endpoint. Unassigned apps stay fast and direct with raw transcripts by default.
 - **OpenAI Whisper** requires an OpenAI API key. Audio is sent to
   `https://api.openai.com/v1/audio/transcriptions` with the `whisper-1`
   transcription model.
-- **Local whisper.cpp** uses a local OpenAI-compatible `whisper-server` at
-  `http://127.0.0.1:8080/v1`. It does not need a Groq key. Settings includes
-  copyable install, build, model download, and start commands.
+- **On this Mac — managed** downloads only the model you choose, verifies its
+  pinned size and SHA-256, and runs Foil's bundled runtime on the loopback-only
+  `transcribe.foil.localhost` service. Installed models remain selectable and
+  work after relaunch without internet access.
+- **External local server — advanced** uses an OpenAI-compatible server that you
+  install and manage, defaulting to `http://127.0.0.1:8080/v1`. Settings keeps
+  the copyable whisper.cpp build, model-download, and launch commands in this
+  advanced path.
 - **Custom OpenAI-compatible** sends audio to the base URL and model you
   configure. API keys are optional when your server allows unauthenticated
   requests.
@@ -148,10 +154,15 @@ make prepare-local-permissions-dev-qa-check
 available. If validation fails because the selected provider cannot be reached,
 you can save the key anyway and run the setup check later.
 
-**Local whisper.cpp not reachable:** Start `whisper-server` with the command
-shown in Settings -> Transcription, then click **Test connection**. The local
-provider expects `http://127.0.0.1:8080/v1` and the compatibility model
-`whisper-1`.
+**Managed local model unavailable:** Open Settings -> Transcription and use
+**Retry**. Foil replaces a corrupt catalog-owned model file with a fresh,
+verified download while preserving your selection. Use **Restore selected
+model** after a relaunch if the installed model is not active.
+
+**External local server not reachable:** In the advanced external-server path,
+start `whisper-server` with the command shown in Settings -> Transcription, then
+click **Test connection**. The default endpoint is `http://127.0.0.1:8080/v1`
+with compatibility model `whisper-1`.
 
 **Paste command sent but no text appears:** The target app may block synthetic
 paste events. Open History to copy or paste the transcript again. If Foil
@@ -166,7 +177,7 @@ clipboard contents.
 ## Requirements
 
 - macOS 14+ (Sonoma)
-- A configured local whisper.cpp model/server, or credentials for your selected cloud provider
+- A managed local model, a configured advanced external server, or credentials for your selected cloud provider
 - Accessibility permission (for global hotkey and paste automation)
 - Microphone permission (for recording)
 

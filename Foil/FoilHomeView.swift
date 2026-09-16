@@ -93,11 +93,32 @@ struct FoilHomeView: View {
                 .accessibilityIdentifier("appShell.home.resumeSetupButton")
 
                 HStack {
-                    Label(appState.selectedTranscriptionProvider.displayName, systemImage: "waveform")
+                    Label(appState.effectiveTranscriptionMode.displayName, systemImage: "waveform")
                     Spacer()
                     Button("Transcription settings") { FoilAppSection.request(.transcription) }
                 }
                 .font(.callout)
+
+                if appState.effectiveTranscriptionMode == .managedLocal {
+                    let coordinator = appState.managedLocalModels
+                    let localStatus = ManagedLocalPresentation.status(
+                        coordinatorState: coordinator?.state,
+                        selectedID: coordinator?.selectedID,
+                        activeID: coordinator?.activeID,
+                        candidateID: coordinator?.candidateID,
+                        recovery: coordinator?.recovery ?? [],
+                        externalError: appState.managedLocalRestoreError
+                    )
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(localStatus.title).font(.caption.weight(.semibold))
+                        Text(localStatus.detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("appShell.home.managedLocalStatus")
+                }
 
                 DisclosureGroup("Text cleanup") {
                 CleanupGroupStatusView(
@@ -124,6 +145,14 @@ struct FoilHomeView: View {
                 healthRow(title: "Microphone", state: appState.microphoneState)
                 if appState.selectedTranscriptionProvider.requiresAPIKey {
                     healthRow(title: "API Key", state: appState.apiKeyState)
+                }
+                if appState.effectiveTranscriptionMode == .managedLocal {
+                    healthRow(
+                        title: "Local model",
+                        state: appState.managedLocalRuntime.session?.isRunning == true
+                            ? .ready
+                            : .needsAction("Restore or install a verified model")
+                    )
                 }
                 HStack {
                     if appState.accessibilityState != .ready {

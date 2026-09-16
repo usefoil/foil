@@ -1,0 +1,7 @@
+{
+  "revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
+  "models": [
+    {"id": "base.en", "filename": "ggml-base.en.bin", "bytes": 147964211, "sha256": "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002"},
+    {"id": "base", "filename": "ggml-base.bin", "bytes": 147951465, "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"}
+  ]
+}

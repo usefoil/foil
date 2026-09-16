@@ -1,0 +1,87 @@
+diff --git a/examples/server/server.cpp b/examples/server/server.cpp
+index b745f4d7..2a170d90 100644
+--- a/examples/server/server.cpp
++++ b/examples/server/server.cpp
+@@ -19,6 +19,7 @@
+ #include <atomic>
+ #include <functional>
+ #include <cstdlib>
++#include <unistd.h>
+ #if defined (_WIN32)
+ #include <windows.h>
+ #endif
+@@ -639,6 +640,22 @@ void get_req_parameters(const Request & req, whisper_params & params)
+ }  // namespace
+
+ int main(int argc, char ** argv) {
++    const char * token_env = std::getenv("FOIL_MANAGED_TOKEN");
++    const char * session_env = std::getenv("FOIL_SESSION_ID");
++    const char * model_env = std::getenv("FOIL_MODEL_SHA256");
++    if (!token_env || !session_env || !model_env) return 2;
++    const std::string foil_token(token_env), foil_session(session_env), foil_model(model_env);
++    auto hexadecimal = [](const std::string & value) {
++        return value.size() == 64 && value.find_first_not_of("0123456789abcdef") == std::string::npos;
++    };
++    if (!hexadecimal(foil_token) || !hexadecimal(foil_model) || foil_session.size() != 36) return 2;
++    unsetenv("FOIL_MANAGED_TOKEN");
++    // The app alone owns the write end. EOF also handles death during model loading.
++    std::thread([] {
++        char byte;
++        while (::read(STDIN_FILENO, &byte, 1) > 0) {}
++        _exit(0);
++    }).detach();
+     ggml_backend_load_all();
+
+     whisper_params params;
+@@ -650,6 +667,9 @@ int main(int argc, char ** argv) {
+         whisper_print_usage(argc, argv, params, sparams);
+         return 1;
+     }
++    if (sparams.hostname != "127.0.0.1" || sparams.ffmpeg_converter) return 2;
++    sparams.request_path = "/" + foil_token;
++    sparams.inference_path = "/v1/audio/transcriptions";
+
+     if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1) {
+         fprintf(stderr, "error: unknown language '%s'\n", params.language.c_str());
+@@ -721,6 +741,22 @@ int main(int argc, char ** argv) {
+     }
+
+     std::unique_ptr<httplib::Server> svr = std::make_unique<httplib::Server>();
++    // cpp-httplib enables SO_REUSEPORT by default on macOS. A managed child must
++    // own its listener exclusively, rather than sharing an unrelated service's port.
++    svr->set_socket_options([](socket_t socket) {
++        int disabled = 0;
++        setsockopt(socket, SOL_SOCKET, SO_REUSEPORT, &disabled, sizeof(disabled));
++        setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, &disabled, sizeof(disabled));
++    });
++    svr->set_pre_routing_handler([&](const Request & req, Response & res) {
++        const bool health = req.method == "GET" && req.path == sparams.request_path + "/health";
++        const bool transcribe = req.method == "POST" && req.path == sparams.request_path + sparams.inference_path;
++        const bool host = req.get_header_value("Host") == "transcribe.foil.localhost:" + std::to_string(sparams.port);
++        if (host && (health || transcribe)) return Server::HandlerResponse::Unhandled;
++        res.status = 404;
++        res.set_content("Not found", "text/plain");
++        return Server::HandlerResponse::Handled;
++    });
+     std::atomic<server_state> state{SERVER_STATE_LOADING_MODEL};
+
+     struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
+@@ -1218,7 +1254,8 @@ int main(int argc, char ** argv) {
+     svr->Get(sparams.request_path + "/health", [&](const Request &, Response &res){
+         server_state current_state = state.load();
+         if (current_state == SERVER_STATE_READY) {
+-            const std::string health_response = "{\"status\":\"ok\"}";
++            const std::string health_response = json({{"status", "ok"}, {"service", "foil-whisper"},
++                {"session", foil_session}, {"model_sha256", foil_model}, {"pid", getpid()}}).dump();
+             res.set_content(health_response, "application/json");
+         } else {
+             res.set_content("{\"status\":\"loading model\"}", "application/json");
+@@ -1244,7 +1281,7 @@ int main(int argc, char ** argv) {
+         if (res.status == 400) {
+             res.set_content("Invalid request", "text/plain");
+         } else if (res.status != 500) {
+-            res.set_content("File Not Found (" + req.path + ")", "text/plain");
++            res.set_content("Not found", "text/plain");
+             res.status = 404;
+         }
+     });
