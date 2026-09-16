@@ -1568,10 +1568,11 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(staticTextLabelOrValueContaining("Release Right Command", in: liveFeedback).exists, app.debugDescription)
     }
 
-    func testLiveAudioSignifierShowsIdleAndRecordingStates() {
+    func testLiveAudioSignifierHidesIdleByDefaultAndShowsActiveStates() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
 
         var signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
+        XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForNonExistence(timeout: 2), app.debugDescription)
         XCTAssertFalse(signifier.exists, app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-recording"])
@@ -1580,6 +1581,20 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertEqual(signifier.label, "Recording audio level, Raw transcript")
+
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-transcribing"])
+
+        signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
+        XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(signifier.label, "Processing recording")
+
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--simulate-success-after-launch"])
+
+        signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
+        XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 7), app.debugDescription)
+        XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(signifier.label, "Recording delivered")
     }
 
     func testLiveAudioSignifierIncludesActiveCleanupModeWhileRecording() {

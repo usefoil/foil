@@ -1089,13 +1089,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         override var canBecomeMain: Bool { false }
     }
 
-    private func showLiveAudioSignifier() {
+    private func syncLiveAudioSignifier() {
+        guard appState.shouldShowLiveAudioSignifier else {
+            liveAudioSignifierPanel?.orderOut(nil)
+            return
+        }
+
         let panel = liveAudioSignifierPanel ?? makeLiveAudioSignifierPanel()
         if liveAudioSignifierPanel == nil {
             liveAudioSignifierPanel = panel
         }
         positionLiveAudioSignifierPanel(panel)
-        panel.orderFrontRegardless()
+        if !panel.isVisible {
+            panel.orderFrontRegardless()
+        }
     }
 
     private func makeLiveAudioSignifierPanel() -> NSPanel {
@@ -1137,18 +1144,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         floatingStatusSyncTimer?.invalidate()
         floatingStatusSyncTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.syncFloatingStatus()
+                self?.syncFloatingStatusPanels()
             }
         }
+        syncFloatingStatusPanels()
+    }
+
+    private func syncFloatingStatusPanels() {
+        syncLiveAudioSignifier()
         syncFloatingStatus()
     }
 
     private func syncFloatingStatus() {
-        if appState.shouldShowLiveAudioSignifier {
-            showLiveAudioSignifier()
-        } else {
-            liveAudioSignifierPanel?.orderOut(nil)
-        }
         guard appState.shouldShowFloatingStatus else {
             floatingStatusPanel?.orderOut(nil)
             return
@@ -1187,7 +1194,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 appState: appState,
                 onDismiss: { [weak self] in
                     self?.appState.hideFloatingStatus()
-                    self?.syncFloatingStatus()
+                    self?.syncFloatingStatusPanels()
                 }
             )
         )
@@ -1221,7 +1228,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         transientSuccessAutoHideTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 self?.appState.expireTransientSuccess()
-                self?.syncFloatingStatus()
+                self?.syncFloatingStatusPanels()
             }
         }
     }
