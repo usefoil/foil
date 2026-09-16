@@ -58,11 +58,59 @@ test("detector feeds gated three-way Mac matrix and parallel hosted watchdog", (
   assert.equal(watchdog["runs-on"], "ubuntu-latest")
 })
 
+test("manual mm3 pilot runs one selected shard on only the named runner", () => {
+  const config = workflow()
+  const inputs = config.on.workflow_dispatch.inputs
+  assert.deepEqual(inputs.mode.options, ["pool", "mm3-pilot"])
+  assert.equal(inputs.mode.default, "pool")
+  assert.deepEqual(inputs.pilot_shard.options, ["a", "b", "c"])
+  assert.equal(inputs.pilot_shard.default, "a")
+
+  const detect = config.jobs["detect-changes"]
+  assert.match(detect.if, /inputs\.mode == 'pool'/)
+  const pilot = config.jobs["mm3-pilot"]
+  assert.equal(pilot.if, "github.event_name == 'workflow_dispatch' && inputs.mode == 'mm3-pilot'")
+  assert.deepEqual(pilot["runs-on"], ["self-hosted", "macOS", "ARM64", "foil-deterministic", "foil-mm3"])
+  assert.equal(pilot["timeout-minutes"], 15)
+  assert.equal(step(pilot, "run").env.FOIL_CI_SHARD, "${{ inputs.pilot_shard }}")
+  assert.equal(step(pilot, "run").run, "bash scripts/ci/run-ui-shard.sh")
+  always(step(pilot, "validate").if)
+  assert.match(step(pilot, "validate").run, /classification.*passed/s)
+  assert.match(step(pilot, "validate").run, /runnerName.*foil-mm3/s)
+  const uploads = pilot.steps.filter(value => value.uses?.startsWith("actions/upload-artifact@"))
+  assert.equal(uploads.length, 2)
+  for (const upload of uploads) always(upload.if)
+  assert.match(config.jobs.aggregate.if, /inputs\.mode == 'pool'/)
+})
+
+test("mm3 pilot validator requires a passed receipt from foil-mm3", () => {
+  const script = step(workflow().jobs["mm3-pilot"], "validate").run
+  for (const [classification, runnerName, expected] of [
+    ["passed", "foil-mm3", 0],
+    ["infra_failed", "foil-mm3", 1],
+    ["passed", "foil-mm2", 1],
+  ]) {
+    const directory = fs.mkdtempSync("/tmp/foil-mm3-pilot-contract-")
+    try {
+      fs.mkdirSync(`${directory}/artifacts`)
+      fs.writeFileSync(`${directory}/artifacts/receipt-a.json`, JSON.stringify({
+        shard: "a", classification,
+        preflight: { status: "healthy", errors: [], facts: { runnerName } },
+      }))
+      const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+        cwd: directory, encoding: "utf8", env: { ...process.env, PILOT_SHARD: "a" },
+      })
+      assert.equal(result.status, expected, result.stderr)
+    } finally { fs.rmSync(directory, { recursive: true, force: true }) }
+  }
+})
+
 test("aggregate waits for all evidence, downloads only flat receipts, and always publishes its summary", () => {
   const aggregate = workflow().jobs.aggregate
   assert.equal(aggregate.name, "Foil Deterministic UI Gate")
   assert.equal(aggregate["runs-on"], "ubuntu-latest")
-  always(aggregate.if)
+  assert.match(aggregate.if, /always\(\)/)
+  assert.match(aggregate.if, /inputs\.mode == 'pool'/)
   assert.deepEqual([...aggregate.needs].sort(), ["detect-changes", "shards", "start-watchdog"])
   const download = aggregate.steps.find(s => s.uses?.startsWith("actions/download-artifact@"))
   assert.equal(download.if, "needs.detect-changes.outputs.app_ci == 'true'")

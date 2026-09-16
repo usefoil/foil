@@ -1,6 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
+import fs from "node:fs"
 import { discoverEnumeratedTests, discoverTests, validateManifest } from "../ui-test-inventory.mjs"
 
 test("discovers XCTest methods in source order", () => {
@@ -63,4 +64,10 @@ test("prints ordinary selectors from the default manifest", () => {
   }).trim().split("\n")
   assert.ok(selectors.length > 0)
   assert.match(selectors[0], /^-only-testing:FoilUITests\/FoilUITests\/test/)
+})
+
+test("checked-in manifest exactly covers the UI test source", () => {
+  const source = fs.readFileSync("FoilUITests/FoilUITests.swift", "utf8")
+  const manifest = JSON.parse(fs.readFileSync("scripts/ci/ui-test-shards.json", "utf8"))
+  assert.deepEqual(validateManifest(discoverTests(source), manifest), [])
 })
