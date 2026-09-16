@@ -63,10 +63,16 @@ for architecture in arm64 x86_64; do
   done
 done
 if [[ "${1:-}" = --audit ]]; then echo 'PASS: universal macOS 14 runtime provenance and dependencies'; exit 0; fi
-: "${TARGET_BUILD_DIR:?}" "${CONTENTS_FOLDER_PATH:?}" "${EXPANDED_CODE_SIGN_IDENTITY:?}"
+: "${TARGET_BUILD_DIR:?}" "${CONTENTS_FOLDER_PATH:?}"
+signing_allowed="${CODE_SIGNING_ALLOWED:-YES}"
+if [[ "$signing_allowed" != NO ]]; then
+  : "${EXPANDED_CODE_SIGN_IDENTITY:?}"
+fi
 destination="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers"
 mkdir -p "$destination"
 cp "$helper" "$destination/whisper-server"
 chmod 755 "$destination/whisper-server"
-codesign --force --options runtime --sign "$EXPANDED_CODE_SIGN_IDENTITY" "$destination/whisper-server"
-codesign --verify --strict "$destination/whisper-server"
+if [[ "$signing_allowed" != NO ]]; then
+  codesign --force --options runtime --sign "$EXPANDED_CODE_SIGN_IDENTITY" "$destination/whisper-server"
+  codesign --verify --strict "$destination/whisper-server"
+fi

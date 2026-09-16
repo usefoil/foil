@@ -51,6 +51,16 @@ raise 'Cold preparation did not embed runtime' unless File.executable?(File.join
 raise 'Warm normal build failed' unless system(env, 'bash', embed)
 marker = File.join(env['FOIL_MANAGED_RUNTIME_CACHE'], 'prepared')
 raise 'Warm cache unnecessarily rebuilt' unless File.readlines(marker).length == 1
+unsigned_env = env.merge('TARGET_BUILD_DIR'=>File.join(cold, 'unsigned-products'),
+                         'CODE_SIGNING_ALLOWED'=>'NO')
+unsigned_env.delete('EXPANDED_CODE_SIGN_IDENTITY')
+raise 'Unsigned Xcode build required a signing identity' unless system(unsigned_env, 'bash', embed)
+unsigned_helper = File.join(unsigned_env['TARGET_BUILD_DIR'], unsigned_env['CONTENTS_FOLDER_PATH'], 'Helpers', 'whisper-server')
+raise 'Unsigned Xcode build did not embed an executable runtime' unless File.executable?(unsigned_helper)
+missing_identity_env = env.merge('TARGET_BUILD_DIR'=>File.join(cold, 'missing-identity-products'))
+missing_identity_env.delete('EXPANDED_CODE_SIGN_IDENTITY')
+raise 'Signing-enabled build accepted a missing identity' if system(missing_identity_env, 'bash', embed)
+puts 'PASS: unsigned builds embed without an identity; signing-enabled builds still require one'
 env['UNLOCALIZED_RESOURCES_FOLDER_PATH'] = 'FixtureTests.xctest/Contents/Resources'
 raise 'Missing test model was not prepared' unless system(env, 'bash', embed, '--stage-test-model')
 staged = File.join(env['TARGET_BUILD_DIR'], env['UNLOCALIZED_RESOURCES_FOLDER_PATH'], 'ggml-tiny.en.bin')
