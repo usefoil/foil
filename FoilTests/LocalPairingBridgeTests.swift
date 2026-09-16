@@ -172,6 +172,44 @@ final class LocalPairingBridgeTests: XCTestCase {
         )))
     }
 
+    func testManagedModeOverridesPreservedProviderInCapabilitiesAdvertisementAndReceipts() throws {
+        for preset in TranscriptionProviderPresetID.allCases {
+            let state = makeState()
+            state.localBridgeEnabled = true
+            state.selectedTranscriptionProviderPresetID = preset
+            state.managedLocalRequested = true
+
+            let advertisement = try state.localPairingBridgeService.advertisement(
+                deviceName: "Test Mac",
+                appState: state
+            )
+            XCTAssertEqual(advertisement.txt["supportsLocalTranscription"], "true", "managed mode over \(preset)")
+            XCTAssertEqual(advertisement.txt["supportsCloudTranscription"], "false", "managed mode over \(preset)")
+
+            let capabilities = try state.localPairingBridgeService.capabilities(
+                for: LocalBridgeCapabilitiesRequest(iosAppVersion: "0.1.0", requestID: "managed-\(preset.rawValue)"),
+                appState: state,
+                appVersion: "1.13.4"
+            )
+            XCTAssertEqual(capabilities.selectedRouteID, .localWhisperCPP, "managed mode over \(preset)")
+            XCTAssertEqual(capabilities.routes.first(where: { $0.routeID == .localWhisperCPP })?.available, true)
+
+            let receipt = LocalPairingBridgeService.routeReceipt(
+                requestedRouteID: .macSelected,
+                requestedCleanupRouteID: .none,
+                appState: state,
+                macDeviceName: "Test Mac",
+                completedAt: nil
+            )
+            XCTAssertEqual(receipt.routeID, .localWhisperCPP, "managed mode over \(preset)")
+            XCTAssertEqual(receipt.providerLocation, .localMac)
+            XCTAssertFalse(receipt.audioReachedCloudProvider)
+            XCTAssertTrue(LocalPairingBridgeService.isRequestedRouteAvailable(.localWhisperCPP, appState: state))
+            XCTAssertFalse(LocalPairingBridgeService.isSelectedRouteConfigured(appState: state),
+                "managed mode is not configured until its owned session is running")
+        }
+    }
+
     func testRouteReceiptResolvesMacDefaultCleanupAndKeepsLocalAudioOutOfCloud() {
         let state = AppState()
         state.selectedTranscriptionProviderPresetID = .localWhisperCPP
@@ -614,6 +652,8 @@ final class LocalPairingBridgeTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "localBridgeEnabled")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")
+        UserDefaults.standard.removeObject(forKey: "managedLocalEnabled")
+        UserDefaults.standard.removeObject(forKey: "managedLocalRequested")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupProvider")
     }
 

@@ -68,21 +68,10 @@ final class UITestingController {
         Notification.Name("com.neonwatty.Foil.uiTests.onboardingCommand")
     static let appCommandNotification =
         Notification.Name("com.neonwatty.Foil.uiTests.appCommand")
-    static var stateSnapshotURL: URL {
-        if let path = ProcessInfo.processInfo.environment["FOIL_UITEST_STATE_PATH"], !path.isEmpty {
-            return URL(fileURLWithPath: path)
-        }
-        return URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("foil-ui-tests-state.json")
-    }
-    static var commandInboxURL: URL? {
-        guard let path = ProcessInfo.processInfo.environment["FOIL_UITEST_COMMAND_PATH"],
-              !path.isEmpty
-        else {
-            return nil
-        }
-        return URL(fileURLWithPath: path)
-    }
-
+    static let stateSnapshotNotification =
+        Notification.Name("com.neonwatty.Foil.uiTests.stateSnapshot")
+    static let openedURLNotification =
+        Notification.Name("com.neonwatty.Foil.uiTests.openedURL")
     // MARK: - Dependencies
 
     private let appState: AppState
@@ -117,8 +106,6 @@ final class UITestingController {
     private var uiTestWindow: NSWindow?
     private var uiTestAppShellWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
-    private var uiTestCommandFileTimer: Timer?
-    private var lastUITestCommandFileID: String?
     private var recordingEvents: [RecordingEventSnapshot] = []
 
     private struct StateSnapshot: Encodable {
@@ -189,10 +176,6 @@ final class UITestingController {
         self.onSimulateSelectedHotkeyCycle = onSimulateSelectedHotkeyCycle
     }
 
-    deinit {
-        uiTestCommandFileTimer?.invalidate()
-    }
-
     // MARK: - Configuration entry points
 
     func configureUITestingIfNeeded() {
@@ -212,6 +195,8 @@ final class UITestingController {
             appState.selectedModel = "whisper-large-v3-turbo"
             appState.selectedAudioFormat = .m4a
             appState.selectedLanguage = .auto
+            appState.selectTranscriptionMode(.groq)
+            appState.managedDictationLanguage = .unanswered
             appState.transcriptProcessingMode = .raw
             appState.transcriptCleanupModel = "llama-3.1-8b-instant"
             appState.hotkeyChoice = .rightCommand
@@ -232,6 +217,29 @@ final class UITestingController {
             appState.updateAccessibilityState(isTrusted: true)
             appState.updateMicrophoneState(isReady: true)
             appState.apiKeyState = .ready
+        }
+
+        if args.contains("--seed-managed-local") {
+            if args.contains("--seed-managed-downloading") {
+                appState.managedLocalRequested = true
+                appState.resetProviderConnectionTest()
+                appState.refreshApiKeyState()
+            } else {
+                appState.selectTranscriptionMode(.managedLocal)
+            }
+        }
+        if args.contains("--seed-managed-language-english") {
+            appState.managedDictationLanguage = .englishOnly
+        } else if args.contains("--seed-managed-language-multilingual") {
+            appState.managedDictationLanguage = .multilingual
+        } else if args.contains("--seed-managed-language-unanswered") {
+            appState.managedDictationLanguage = .unanswered
+        }
+        if args.contains("--seed-managed-downloading") {
+            appState.managedLocalModels?.configureForUITesting(
+                state: .downloading("base.en", 73_982_105, 147_964_211),
+                candidateID: "base.en"
+            )
         }
 
         if args.contains("--seed-microphone-unknown") {
@@ -394,14 +402,13 @@ final class UITestingController {
         }
         #endif
 
-        UserDefaults(suiteName: "com.neonwatty.Foil.UITests")?.synchronize()
+        AppState.uiTestingDefaults.synchronize()
 
         showUITestWindow()
         if args.contains("--show-app-shell") {
             showUITestAppShellWindow()
         }
         configureUITestCommandNotifications()
-        configureUITestCommandFileRelay()
         configureLiveMicrophoneSmokeIfNeeded(args: args)
         configureSimulatedTranscriptionIfNeeded(args: args)
         applyTransientUITestState(args: args)
@@ -692,7 +699,7 @@ final class UITestingController {
         appState.apiKeyState = .ready
         appState.setStatus(.idle)
 
-        let defaults = UserDefaults(suiteName: "com.neonwatty.Foil.UITests") ?? .standard
+        let defaults = AppState.uiTestingDefaults
         let soundPlayer = SoundPlayer(defaults: defaults) { [weak self] systemSoundName in
             self?.appendRecordingEvent("startCue", detail: systemSoundName)
         }
@@ -1589,44 +1596,12 @@ final class UITestingController {
             name: UITestingController.onboardingCommandNotification,
             object: nil
         )
-    }
-
-    private func configureUITestCommandFileRelay() {
-        guard let commandInboxURL = Self.commandInboxURL else { return }
-        try? FileManager.default.removeItem(at: commandInboxURL)
-        uiTestCommandFileTimer?.invalidate()
-        uiTestCommandFileTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.pollUITestCommandFile(at: commandInboxURL)
-            }
-        }
-    }
-
-    private func pollUITestCommandFile(at url: URL) {
-        guard let data = try? Data(contentsOf: url),
-              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let id = payload["id"] as? String,
-              id != lastUITestCommandFileID,
-              let notificationName = payload["notification"] as? String
-        else {
-            return
-        }
-
-        lastUITestCommandFileID = id
-        let userInfo = payload["userInfo"] as? [String: Any]
-        if notificationName == Self.historyCommandNotification.rawValue {
-            handleHistoryCommandForUITest(
-                Notification(name: Self.historyCommandNotification, object: nil, userInfo: userInfo)
-            )
-        } else if notificationName == Self.onboardingCommandNotification.rawValue {
-            handleOnboardingCommandForUITest(
-                Notification(name: Self.onboardingCommandNotification, object: nil, userInfo: userInfo)
-            )
-        } else if notificationName == Self.appCommandNotification.rawValue {
-            handleAppCommandForUITest(
-                Notification(name: Self.appCommandNotification, object: nil, userInfo: userInfo)
-            )
-        }
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(handleAppCommandForUITest(_:)),
+            name: UITestingController.appCommandNotification,
+            object: nil
+        )
     }
 
     @objc private func openHistoryForUITest() {
@@ -1637,44 +1612,63 @@ final class UITestingController {
         guard let url = URL(string: "https://github.com/usefoil/foil#troubleshooting") else {
             return
         }
-        if let path = ProcessInfo.processInfo.environment["FOIL_UITEST_OPENED_URL_PATH"],
-           !path.isEmpty {
-            try? url.absoluteString.write(toFile: path, atomically: true, encoding: .utf8)
-        } else {
-            NSWorkspace.shared.open(url)
-        }
+        DistributedNotificationCenter.default().postNotificationName(
+            Self.openedURLNotification,
+            object: url.absoluteString,
+            userInfo: nil,
+            deliverImmediately: true
+        )
     }
 
     @objc private func runSetupCheckForUITest() {
         onRunSetupCheck()
     }
 
+    private func userInfoForUITestCommand(_ notification: Notification) -> [String: Any]? {
+        if let userInfo = notification.userInfo {
+            return Dictionary(uniqueKeysWithValues: userInfo.compactMap { key, value in
+                guard let key = key as? String else { return nil }
+                return (key, value)
+            })
+        }
+        guard let payload = notification.object as? String,
+              let data = payload.data(using: .utf8),
+              let userInfo = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+        return userInfo
+    }
+
     @objc private func handleHistoryCommandForUITest(_ notification: Notification) {
-        let command = notification.userInfo?["command"] as? String ?? "<missing>"
+        let userInfo = userInfoForUITestCommand(notification)
+        let command = userInfo?["command"] as? String ?? "<missing>"
         DiagnosticLog.write("UITesting: received history command=\(command)")
         NotificationCenter.default.post(
             name: .foilHistoryUITestCommandRelay,
             object: nil,
-            userInfo: notification.userInfo
+            userInfo: userInfo
         )
     }
 
     @objc private func handleOnboardingCommandForUITest(_ notification: Notification) {
-        let command = notification.userInfo?["command"] as? String ?? "<missing>"
+        let userInfo = userInfoForUITestCommand(notification)
+        let command = userInfo?["command"] as? String ?? "<missing>"
         DiagnosticLog.write("UITesting: received onboarding command=\(command)")
         NotificationCenter.default.post(
             name: .foilOnboardingUITestCommandRelay,
             object: nil,
-            userInfo: notification.userInfo
+            userInfo: userInfo
         )
     }
 
     @objc private func handleAppCommandForUITest(_ notification: Notification) {
-        let command = notification.userInfo?["command"] as? String ?? "<missing>"
+        let userInfo = userInfoForUITestCommand(notification)
+        let command = userInfo?["command"] as? String ?? "<missing>"
         DiagnosticLog.write("UITesting: received app command=\(command)")
         switch command {
         case "selectOpenAIProvider":
-            appState.selectedTranscriptionProviderPresetID = .openAIWhisper
+            appState.selectTranscriptionMode(.openAI)
         case "selectLocalProvider":
             appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         case "testProviderConnection":
@@ -1694,22 +1688,22 @@ final class UITestingController {
             appState.floatingStatusTransientVisible = true
             appState.setStatus(.idle)
         case "setDefaultCleanupMode":
-            let rawMode = notification.userInfo?["mode"] as? String ?? ""
+            let rawMode = userInfo?["mode"] as? String ?? ""
             if let mode = TranscriptProcessingMode(rawValue: rawMode)?.normalizedActiveMode {
                 appState.transcriptProcessingMode = mode
                 writeStateSnapshot()
             }
         case "setDefaultCleanupPrompt":
-            let prompt = notification.userInfo?["prompt"] as? String ?? ""
+            let prompt = userInfo?["prompt"] as? String ?? ""
             appState.setCustomPrompt(prompt, for: .cleanUp)
             writeStateSnapshot()
         case "resetDefaultCleanupPrompt":
             appState.resetCustomPrompt(for: .cleanUp)
             writeStateSnapshot()
         case "resolveCleanupGroup":
-            recordCleanupGroupResolutionForUITest(notification.userInfo)
+            recordCleanupGroupResolutionForUITest(userInfo)
         case "selectRecordingHotkey":
-            if let rawValue = notification.userInfo?["choice"] as? String,
+            if let rawValue = userInfo?["choice"] as? String,
                let choice = HotkeyMonitor.HotkeyChoice(rawValue: rawValue) {
                 appState.hotkeyChoice = choice
                 if choice == .custom {
@@ -1732,7 +1726,7 @@ final class UITestingController {
         }
     }
 
-    private func recordCleanupGroupResolutionForUITest(_ userInfo: [AnyHashable: Any]?) {
+    private func recordCleanupGroupResolutionForUITest(_ userInfo: [String: Any]?) {
         let appContext = CleanupAppContext(
             displayName: userInfo?["displayName"] as? String,
             bundleIdentifier: userInfo?["bundleIdentifier"] as? String,
@@ -1778,9 +1772,17 @@ final class UITestingController {
 
         do {
             let data = try JSONEncoder().encode(snapshot)
-            try data.write(to: Self.stateSnapshotURL, options: Data.WritingOptions.atomic)
+            guard let payload = String(data: data, encoding: .utf8) else {
+                throw CocoaError(.fileWriteInapplicableStringEncoding)
+            }
+            DistributedNotificationCenter.default().postNotificationName(
+                Self.stateSnapshotNotification,
+                object: payload,
+                userInfo: nil,
+                deliverImmediately: true
+            )
         } catch {
-            DiagnosticLog.write("UITesting: failed to write state snapshot: \(error)")
+            DiagnosticLog.write("UITesting: failed to publish state snapshot: \(error)")
         }
     }
 

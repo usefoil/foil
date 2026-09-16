@@ -783,6 +783,43 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 1)
     }
 
+    func testPracticeUsesTranscriptionEvenWhenMockEnabledAndSkipsCleanupAndMetrics() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.onboardingPracticeActive = true
+        appState.mockTranscriptionEnabled = true
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        let usageStore = UsageEventStore(storageDirectory: temporaryUsageDirectory())
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.path, "/v1/audio/transcriptions")
+            XCTAssertEqual(request.url?.host, "127.0.0.1")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data("My practice phrase.".utf8), response)
+        }
+        controller = TranscriptionController(transcriptionService: TranscriptionService(transport: transport), appState: appState, usageEventStore: usageStore)
+        controller.delegate = spy
+        let audio = try temporaryAudioFile()
+        defer { try? FileManager.default.removeItem(at: audio) }
+        await controller.transcribe(audioURL: audio, format: .wav)
+        XCTAssertEqual(transport.requests.count, 1)
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "My practice phrase.")
+        XCTAssertTrue(usageStore.events.isEmpty)
+    }
+
+    func testCancelledPracticeDeletesAudioAndDoesNotProduceSuccess() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.onboardingPracticeActive = true
+        let transport = ControllerStubTransport { _ in throw CancellationError() }
+        controller = TranscriptionController(transcriptionService: TranscriptionService(transport: transport), appState: appState)
+        controller.delegate = spy
+        let audio = try temporaryAudioFile()
+        await controller.transcribe(audioURL: audio, format: .wav)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audio.path))
+        XCTAssertTrue(spy.didTranscribeCalls.isEmpty)
+        XCTAssertTrue(spy.didFailCalls.isEmpty)
+    }
+
     func testBlankAudioSentinelDoesNotReachCleanupOrSuccessfulTranscription() async throws {
         appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
         appState.transcriptProcessingMode = .cleanUp

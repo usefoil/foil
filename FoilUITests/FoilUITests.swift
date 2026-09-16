@@ -10,14 +10,12 @@ final class FoilUITests: XCTestCase {
     private let historyCommandNotification = Notification.Name("com.neonwatty.Foil.uiTests.historyCommand")
     private let onboardingCommandNotification = Notification.Name("com.neonwatty.Foil.uiTests.onboardingCommand")
     private let appCommandNotification = Notification.Name("com.neonwatty.Foil.uiTests.appCommand")
+    private let stateSnapshotNotification = Notification.Name("com.neonwatty.Foil.uiTests.stateSnapshot")
+    private let openedURLNotification = Notification.Name("com.neonwatty.Foil.uiTests.openedURL")
     private let microphonePromptTimedOutMessage = "Open Microphone privacy and allow Foil"
-    private let stateSnapshotURL =
-        URL(fileURLWithPath: "/tmp").appendingPathComponent("foil-ui-tests-state-\(ProcessInfo.processInfo.processIdentifier).json")
-    private let commandInboxURL =
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("foil-ui-tests-command-\(ProcessInfo.processInfo.processIdentifier).json")
-    private let openedURLPath =
-        URL(fileURLWithPath: "/tmp").appendingPathComponent("foil-ui-tests-opened-url-\(ProcessInfo.processInfo.processIdentifier).txt")
+    private let uiTestSessionIdentifier = "foil-ui-tests-\(ProcessInfo.processInfo.processIdentifier)"
+    private var latestStateSnapshot: UITestStateSnapshot?
+    private var capturedOpenedURL: String?
 
     private struct UITestRecordingEvent: Decodable, Equatable {
         let name: String
@@ -41,6 +39,20 @@ final class FoilUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        latestStateSnapshot = nil
+        capturedOpenedURL = nil
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(captureUITestStateSnapshot(_:)),
+            name: stateSnapshotNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(captureOpenedURL(_:)),
+            name: openedURLNotification,
+            object: nil
+        )
         installSystemInterruptionMonitor()
         launchApp(arguments: [
             "--ui-testing",
@@ -52,6 +64,7 @@ final class FoilUITests: XCTestCase {
     override func tearDownWithError() throws {
         app.terminate()
         app = nil
+        DistributedNotificationCenter.default().removeObserver(self)
     }
 
     func testControlCenterShowsSeededReadyState() {
@@ -93,13 +106,15 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(elementExists(id: "appShell.nav.settings.storage", timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "appShell.nav.settings.experimental", timeout: 2), app.debugDescription)
 
-        XCTAssertTrue(elementExists(id: "appShell.home.setupHealth", timeout: 2), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "appShell.home.setupHealth", timeout: 1), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Ready"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Accessibility Ready"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Microphone Ready"].exists, app.debugDescription)
-        XCTAssertTrue(app.staticTexts["API Key Ready"].exists, app.debugDescription)
+        XCTAssertTrue(app.buttons["appShell.home.copyLastResultButton"].isEnabled, app.debugDescription)
 
         XCTAssertTrue(elementExists(id: "appShell.home.recentTranscripts", timeout: 2), app.debugDescription)
+        let snapshot = XCTAttachment(screenshot: app.windows["Foil"].screenshot())
+        snapshot.name = "UX Home"
+        snapshot.lifetime = .keepAlways
+        add(snapshot)
         XCTAssertTrue(app.staticTexts["Second searchable transcript."].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["Seeded transcript for UI testing."].exists, app.debugDescription)
         XCTAssertFalse(app.staticTexts["Seeded network failure"].exists, app.debugDescription)
@@ -668,7 +683,7 @@ final class FoilUITests: XCTestCase {
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "checkMicrophone"])
         XCTAssertTrue(app.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
 
-        let getStartedButton = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        let getStartedButton = button(id: "onboarding.nextButton", fallbackLabel: "Next")
         XCTAssertTrue(getStartedButton.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(getStartedButton.isEnabled)
     }
@@ -726,7 +741,7 @@ final class FoilUITests: XCTestCase {
 
         XCTAssertTrue(onboardingWindow.staticTexts["Microphone Access"].waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Allow microphone access", in: onboardingWindow).waitForExistence(timeout: 2), app.debugDescription)
-        let getStartedButton = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        let getStartedButton = button(id: "onboarding.nextButton", fallbackLabel: "Next")
         XCTAssertTrue(getStartedButton.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertFalse(getStartedButton.isEnabled)
 
@@ -736,28 +751,37 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(getStartedButton.isEnabled)
     }
 
-    func testOnboardingCanCompleteWhenPermissionsReadyAndApiKeyMissing() {
-        launchApp(arguments: [
-            "--ui-testing",
-            "--reset-defaults",
-            "--show-onboarding",
-            "--seed-permissions-ready-api-missing"
-        ], requireControlCenter: false)
-
+    func testOnboardingRequiresTranscriptBeforeCompletion() {
+        launchApp(arguments: ["--ui-testing", "--reset-defaults", "--show-onboarding", "--seed-setup-ready"], requireControlCenter: false)
         let onboardingWindow = app.windows["Welcome to Foil"]
         XCTAssertTrue(onboardingWindow.waitForExistence(timeout: 5), app.debugDescription)
-        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToMicrophone"])
-
-        XCTAssertTrue(onboardingWindow.staticTexts["Microphone Access"].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(onboardingWindow.staticTexts["Ready"].waitForExistence(timeout: 2), app.debugDescription)
-
-        let getStartedButton = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
-        XCTAssertTrue(getStartedButton.waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(getStartedButton.isEnabled)
-
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToFinal"])
+        let finish = button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started")
+        XCTAssertTrue(finish.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertFalse(finish.isEnabled)
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "complete"])
-        XCTAssertFalse(onboardingWindow.waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(onboardingWindow.exists)
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "seedPracticeTranscript"])
+        XCTAssertTrue(finish.isEnabled)
+        // Fixture proves completion gating, not live microphone/provider delivery.
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "complete"])
+        XCTAssertFalse(onboardingWindow.waitForExistence(timeout: 2))
+        XCTAssertTrue(elementExists(id: "appShell.root", timeout: 5), app.debugDescription)
+    }
+
+    func testOnboardingCloudShowsInlineKeyAndOfficialLinks() {
+        launchApp(arguments: ["--ui-testing", "--reset-defaults", "--show-onboarding", "--seed-setup-ready"], requireControlCenter: false)
+        XCTAssertTrue(app.windows["Welcome to Foil"].waitForExistence(timeout: 5))
+        postUITestCommand(appCommandNotification, userInfo: ["command": "selectOpenAIProvider"])
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToCredentials"])
+        XCTAssertTrue(elementExists(id: "onboarding.apiKeyField", timeout: 3), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "onboarding.providerApiKeysLink", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "onboarding.saveApiKeyButton", timeout: 2), app.debugDescription)
+        let snapshot = XCTAttachment(screenshot: app.windows["Welcome to Foil"].screenshot())
+        snapshot.name = "UX Cloud setup"
+        snapshot.lifetime = .keepAlways
+        add(snapshot)
+        XCTAssertFalse(button(id: "onboarding.nextButton", fallbackLabel: "Next").isEnabled)
     }
 
     func testOnboardingCompletionKeepsMenuBarAppRunning() {
@@ -773,10 +797,11 @@ final class FoilUITests: XCTestCase {
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToFinal"])
 
         XCTAssertTrue(button(id: "onboarding.getStartedButton", fallbackLabel: "Get Started").waitForExistence(timeout: 2), app.debugDescription)
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "seedPracticeTranscript"])
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "complete"])
 
         XCTAssertFalse(app.windows["Welcome to Foil"].waitForExistence(timeout: 2))
-        XCTAssertTrue(controlCenter.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "appShell.root", timeout: 5), app.debugDescription)
     }
 
     func testOnboardingLocalProviderDoesNotRequireAPIKey() {
@@ -793,19 +818,22 @@ final class FoilUITests: XCTestCase {
             ? app.popUpButtons["onboarding.providerPicker"]
             : onboardingWindow.popUpButtons.firstMatch
         XCTAssertTrue(providerPicker.waitForExistence(timeout: 2), app.debugDescription)
-        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "selectLocalProvider"])
+        postUITestCommand(onboardingCommandNotification, userInfo: ["command": "selectManagedProvider"])
 
         XCTAssertTrue(staticTextLabelOrValueContaining("Audio stays on this Mac").waitForExistence(timeout: 2), app.debugDescription)
         postUITestCommand(onboardingCommandNotification, userInfo: ["command": "goToCredentials"])
 
-        XCTAssertTrue(app.staticTexts["Credentials Optional"].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["No API key required"].exists || app.staticTexts["Ready"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Set up local transcription"].waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "managedLocal.setup", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "managedLocal.languagePicker", timeout: 2), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "managedLocal.serviceAddress", timeout: 2), app.debugDescription)
+        XCTAssertFalse(elementExists(id: "onboarding.apiKeyField", timeout: 0.25), app.debugDescription)
         XCTAssertFalse(app.buttons["onboarding.addApiKeyButton"].exists || app.buttons["Add API Key"].exists)
-        XCTAssertTrue(
-            app.buttons["onboarding.openTranscriptionSettingsButton"].exists
-                || app.buttons["Open Transcription Settings"].exists,
-            app.debugDescription
-        )
+        XCTAssertFalse(app.buttons["onboarding.saveApiKeyButton"].exists || app.buttons["Save API Key"].exists)
+        let snapshot = XCTAttachment(screenshot: app.windows["Welcome to Foil"].screenshot())
+        snapshot.name = "UX Local setup"
+        snapshot.lifetime = .keepAlways
+        add(snapshot)
     }
 
     func testHistoryComponentHostSearchesSeededRecords() {
@@ -1081,6 +1109,7 @@ final class FoilUITests: XCTestCase {
     func testHomeShowsCleanupGroupStatusWithoutGlobalModeSelector() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history"])
         openAppShellHome()
+        clickElement(app.descendants(matching: .any)["appShell.home.cleanupDisclosure"])
 
         assertDefaultCleanupGroupStatusVisible()
         XCTAssertFalse(elementExists(id: "appShell.home.activeCleanupModePicker", timeout: 1), app.debugDescription)
@@ -1095,6 +1124,7 @@ final class FoilUITests: XCTestCase {
             "--seed-cleanup-provider-none"
         ])
         openAppShellHome()
+        clickElement(app.descendants(matching: .any)["appShell.home.cleanupDisclosure"])
 
         XCTAssertTrue(
             staticTextLabelOrValueContaining("cleanup is unavailable").waitForExistence(timeout: 2),
@@ -1220,9 +1250,17 @@ final class FoilUITests: XCTestCase {
         openTranscriptionSettingsPanel()
 
         assertProviderPickerExists()
-        XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
+        XCTAssertTrue(
+            (providerPicker.value as? String) == "External local server — advanced"
+                || app.staticTexts["External local server — advanced"].exists,
+            app.debugDescription
+        )
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].exists || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Audio stays on this Mac").waitForExistence(timeout: 2), app.debugDescription)
+        let privacySummary = app.staticTexts["settings.providerPrivacySummary"]
+        XCTAssertTrue(privacySummary.waitForExistence(timeout: 2), app.debugDescription)
+        let privacyCopy = (privacySummary.value as? String) ?? privacySummary.label
+        XCTAssertTrue(privacyCopy.contains("Audio is sent to the external server"), privacyCopy)
+        XCTAssertTrue(privacyCopy.contains("Foil cannot verify its loaded model"), privacyCopy)
         XCTAssertTrue(app.staticTexts["Local Server"].exists || staticTextLabelOrValueContaining("Local Server").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertFalse(staticTextLabelOrValueContaining("Local whisper.cpp API key").exists, app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.changeApiKeyButton", timeout: 1), app.debugDescription)
@@ -1283,7 +1321,11 @@ final class FoilUITests: XCTestCase {
 
         postUITestCommand(appCommandNotification, userInfo: ["command": "selectLocalProvider"])
 
-        XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
+        XCTAssertTrue(
+            (providerPicker.value as? String) == "External local server — advanced"
+                || app.staticTexts["External local server — advanced"].exists,
+            app.debugDescription
+        )
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].waitForExistence(timeout: 2) || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["whisper-1"].exists || staticTextContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Install whisper.cpp").waitForExistence(timeout: 2), app.debugDescription)
@@ -1320,7 +1362,11 @@ final class FoilUITests: XCTestCase {
         openTranscriptionSettingsPanel()
 
         postUITestCommand(appCommandNotification, userInfo: ["command": "selectLocalProvider"])
-        XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
+        XCTAssertTrue(
+            (providerPicker.value as? String) == "External local server — advanced"
+                || app.staticTexts["External local server — advanced"].exists,
+            app.debugDescription
+        )
 
         launchApp(arguments: [
             "--ui-testing",
@@ -1328,7 +1374,11 @@ final class FoilUITests: XCTestCase {
         ])
         openTranscriptionSettingsPanel()
 
-        XCTAssertTrue((providerPicker.value as? String) == "Local whisper.cpp" || app.staticTexts["Local whisper.cpp"].exists, app.debugDescription)
+        XCTAssertTrue(
+            (providerPicker.value as? String) == "External local server — advanced"
+                || app.staticTexts["External local server — advanced"].exists,
+            app.debugDescription
+        )
         XCTAssertTrue(app.staticTexts["http://127.0.0.1:8080/v1"].waitForExistence(timeout: 2) || app.staticTexts["127.0.0.1:8080/v1"].exists, app.debugDescription)
         XCTAssertTrue(app.staticTexts["whisper-1"].exists || staticTextContaining("whisper-1").waitForExistence(timeout: 2), app.debugDescription)
     }
@@ -1504,15 +1554,12 @@ final class FoilUITests: XCTestCase {
 
     func testFloatingStatusShowsRecordingByDefault() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-recording"])
-
-        XCTAssertTrue(app.descendants(matching: .any)["floatingStatus.window"].waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.hud"].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(app.descendants(matching: .any)["liveFeedback.title"].waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("Recording").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.capsule"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertFalse(app.descendants(matching: .any)["floatingStatus.window"].exists, app.debugDescription)
     }
 
     func testFloatingStatusShowsActiveCleanupModeWhileRecording() {
-        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-cleanup-formatting-enabled", "--seed-recording"])
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-cleanup-formatting-enabled", "--seed-recording", "--seed-floating-status-enabled"])
 
         XCTAssertTrue(app.descendants(matching: .any)["floatingStatus.window"].waitForExistence(timeout: 4), app.debugDescription)
         let liveFeedback = app.descendants(matching: .any)["liveFeedback.hud"]
@@ -1723,12 +1770,11 @@ final class FoilUITests: XCTestCase {
     }
 
     func testHelpButtonTargetsCanonicalTroubleshootingURL() throws {
-        removeOpenedURLRecord()
+        capturedOpenedURL = nil
         postUITestCommand(openHelpNotification)
 
         XCTAssertTrue(waitForOpenedURL(timeout: 5), app.debugDescription)
-        let openedURL = try String(contentsOf: openedURLPath, encoding: .utf8)
-        XCTAssertEqual(openedURL, "https://github.com/usefoil/foil#troubleshooting")
+        XCTAssertEqual(capturedOpenedURL, "https://github.com/usefoil/foil#troubleshooting")
     }
 
     func testOnboardingNotShownForReturningUser() {
@@ -1973,15 +2019,12 @@ final class FoilUITests: XCTestCase {
 
         app = XCUIApplication()
         app.launchArguments = arguments
-        app.launchEnvironment["FOIL_UITEST_STATE_PATH"] = stateSnapshotURL.path
-        app.launchEnvironment["FOIL_UITEST_COMMAND_PATH"] = commandInboxURL.path
-        app.launchEnvironment["FOIL_UITEST_OPENED_URL_PATH"] = openedURLPath.path
+        app.launchEnvironment["FOIL_UITEST_SESSION_ID"] = uiTestSessionIdentifier
         for (key, value) in extraEnvironment {
             app.launchEnvironment[key] = value
         }
-        removeUITestStateSnapshot()
-        removeUITestCommandInbox()
-        removeOpenedURLRecord()
+        latestStateSnapshot = nil
+        capturedOpenedURL = nil
         clearPendingAppShellSelection()
         app.launch()
         dismissSystemSetupAssistant()
@@ -2026,7 +2069,7 @@ final class FoilUITests: XCTestCase {
     }
 
     private func activateAppForInteraction() {
-        runQuietProcess("/usr/bin/open", arguments: ["-b", "com.neonwatty.Foil"])
+        app.activate()
     }
 
     private func runQuietProcess(_ executable: String, arguments: [String]) {
@@ -2291,67 +2334,49 @@ final class FoilUITests: XCTestCase {
     }
 
     private func postUITestCommand(_ notification: Notification.Name, userInfo: [String: Any]?) {
-        if notification == historyCommandNotification
-            || notification == onboardingCommandNotification
-            || notification == appCommandNotification {
-            postUITestCommandToFile(notification, userInfo: userInfo)
-            return
+        let object = userInfo.flatMap { payload -> String? in
+            guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
+                XCTFail("Failed to serialize UI-test command \(notification.rawValue)")
+                return nil
+            }
+            return String(data: data, encoding: .utf8)
         }
         DistributedNotificationCenter.default().postNotificationName(
             notification,
-            object: nil,
-            userInfo: userInfo,
+            object: object,
+            userInfo: nil,
             deliverImmediately: true
         )
         RunLoop.current.run(until: Date().addingTimeInterval(0.4))
     }
 
-    private func postUITestCommandToFile(_ notification: Notification.Name, userInfo: [String: Any]?) {
-        let payload: [String: Any] = [
-            "id": UUID().uuidString,
-            "notification": notification.rawValue,
-            "userInfo": userInfo ?? [:]
-        ]
-        guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
-            XCTFail("Failed to serialize UI-test command \(notification.rawValue)")
+    @objc private func captureUITestStateSnapshot(_ notification: Notification) {
+        guard let payload = notification.object as? String,
+              let data = payload.data(using: .utf8),
+              let snapshot = try? JSONDecoder().decode(UITestStateSnapshot.self, from: data)
+        else {
             return
         }
-        do {
-            try data.write(to: commandInboxURL, options: .atomic)
-        } catch {
-            XCTFail("Failed to write UI-test command \(notification.rawValue): \(error)")
-        }
-        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        latestStateSnapshot = snapshot
     }
 
-    private func removeUITestStateSnapshot() {
-        try? FileManager.default.removeItem(at: stateSnapshotURL)
-    }
-
-    private func removeUITestCommandInbox() {
-        try? FileManager.default.removeItem(at: commandInboxURL)
-    }
-
-    private func removeOpenedURLRecord() {
-        try? FileManager.default.removeItem(at: openedURLPath)
+    @objc private func captureOpenedURL(_ notification: Notification) {
+        capturedOpenedURL = notification.object as? String
     }
 
     private func waitForOpenedURL(timeout: TimeInterval) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         repeat {
-            if FileManager.default.fileExists(atPath: openedURLPath.path) {
+            if capturedOpenedURL != nil {
                 return true
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         } while Date() < deadline
-        return FileManager.default.fileExists(atPath: openedURLPath.path)
+        return capturedOpenedURL != nil
     }
 
     private func readUITestStateSnapshot() -> UITestStateSnapshot? {
-        guard let data = try? Data(contentsOf: stateSnapshotURL) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(UITestStateSnapshot.self, from: data)
+        latestStateSnapshot
     }
 
     private func waitForUITestStateSnapshot(
@@ -2838,23 +2863,16 @@ final class FoilUITests: XCTestCase {
     private func installSystemInterruptionMonitor() {
         addUIInterruptionMonitor(withDescription: "Dismiss Setup Assistant") { interruption in
             let labels = [
-                "Allow",
                 "Continue",
                 "Not Now",
                 "Set Up Later",
                 "Skip",
-                "Cancel",
-                "Done",
-                "OK"
+                "Done"
             ]
             for label in labels {
                 let button = interruption.buttons[label].firstMatch
                 if button.exists {
-                    if label == "Allow" {
-                        button.click()
-                    } else {
-                        self.clickElementDirectly(button)
-                    }
+                    self.clickElementDirectly(button)
                     return true
                 }
             }

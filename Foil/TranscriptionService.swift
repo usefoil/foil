@@ -36,6 +36,25 @@ enum TranscriptionProviderID: String, CaseIterable, Identifiable {
         }
     }
 
+    var setupGuideURL: URL? {
+        switch self {
+        case .groq: URL(string: "https://console.groq.com/docs/quickstart")
+        case .openAI: URL(string: "https://developers.openai.com/api/docs/quickstart")
+        case .openAICompatible: nil
+        }
+    }
+
+    var credentialInstructions: String {
+        switch self {
+        case .groq:
+            "Sign in to Groq, create an API key for your project, then paste it here. Your account's model permissions and usage limits apply."
+        case .openAI:
+            "Sign in to the OpenAI API platform, create an API key, and check your API billing and usage limits. Paste the key here to test access."
+        case .openAICompatible:
+            "Use the credentials required by your server. Leave the key empty only if the server allows it."
+        }
+    }
+
     var apiKeysLinkTitle: String? {
         switch self {
         case .groq:
@@ -135,6 +154,16 @@ struct TranscriptionProvider: Equatable {
     let requiresAPIKey: Bool
     let supportsModelValidation: Bool
     let supportsTranscriptProcessing: Bool
+    var isManagedLocal = false
+    var managedLocalSession: ManagedLocalSession? = nil
+
+    static func managedLocal(session: ManagedLocalSession?) -> TranscriptionProvider {
+        var provider = openAICompatible(baseURL: URL(string: "http://transcribe.foil.localhost/v1")!,
+            model: "whisper-1", displayName: "Managed local transcription", requiresAPIKey: false)
+        provider.isManagedLocal = true
+        provider.managedLocalSession = session
+        return provider
+    }
 
     static let groq = TranscriptionProvider(
         id: .groq,
@@ -853,6 +882,10 @@ struct TranscriptionService {
         format: AudioFormat = .wav,
         language: Language = .auto
     ) async throws -> String {
+        if provider.isManagedLocal {
+            guard let session = provider.managedLocalSession, session.isRunning else { throw ManagedLocalError.notReady }
+            return try await transcribeManaged(audioFileURL: audioFileURL, session: session, language: language)
+        }
         guard Self.fileSize(at: audioFileURL) <= Self.maxUploadBytes else {
             DiagnosticLog.write("transcribe: local file too large")
             throw TranscriptionError.fileTooLarge
@@ -894,6 +927,23 @@ struct TranscriptionService {
         let error = mapAPIError(statusCode: http.statusCode, data: data)
         DiagnosticLog.write("transcribe: API error status=\(http.statusCode) mapped=\(error.logName) bodyBytes=\(data.count)")
         throw error
+    }
+
+    private func transcribeManaged(audioFileURL: URL, session: ManagedLocalSession, language: Language) async throws -> String {
+        guard Self.fileSize(at: audioFileURL) <= Self.maxUploadBytes else { throw TranscriptionError.fileTooLarge }
+        return try await ManagedLocalAudioConverter.withWAV(source: audioFileURL) { wav in
+            guard Self.fileSize(at: wav) <= Self.maxUploadBytes else { throw TranscriptionError.fileTooLarge }
+            try Task.checkCancellation()
+            if await Self.isEffectivelySilentAudioAsync(at: wav) == true { return "" }
+            let boundary = UUID().uuidString
+            let body = try await buildMultipartBodyAsync(audioFileURL: wav, model: "whisper-1", format: .wav,
+                language: language, boundary: boundary)
+            let (data, response) = try await session.transcribe(body: body, contentType: "multipart/form-data; boundary=\(boundary)")
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw ManagedLocalError.transport
+            }
+            return try decodeTranscriptionText(data)
+        }
     }
 
     private func performTranscriptionRequestWithRetry(_ request: URLRequest) async throws -> (Data, URLResponse) {
@@ -1088,6 +1138,11 @@ struct TranscriptionService {
     }
 
     func validateProviderConfiguration(apiKey: String?, requiredModels: [String] = []) async throws -> ProviderValidationResult {
+        if provider.isManagedLocal {
+            guard let session = provider.managedLocalSession, session.isRunning,
+                  try await session.health() else { throw ManagedLocalError.notReady }
+            return .modelsValidated
+        }
         guard provider.id == .openAICompatible else {
             try await validateApiKey(apiKey: apiKey, requiredModels: requiredModels)
             return .modelsValidated

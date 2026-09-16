@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "architecture": "arm64",
+  "productVersion": "27.0",
+  "buildVersion": "26A428",
+  "xcodeVersion": "27.0",
+  "xcodeBuild": "27A266a",
+  "minimumFreeBytes": 30000000000,
+  "allowedRunnerNames": ["foil-mm1", "foil-mm2", "foil-mm3"],
+  "allowedConsoleUsers": ["foilci"]
+}

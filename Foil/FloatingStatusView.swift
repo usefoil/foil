@@ -57,6 +57,12 @@ struct LiveAudioSignifierView: View {
             ProgressView()
                 .controlSize(.small)
                 .tint(tint)
+        case .clipboard:
+            Image(systemName: "clipboard")
+                .foregroundStyle(tint)
+        case .unverified:
+            Image(systemName: "paperplane")
+                .foregroundStyle(tint)
         case .success:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 16, weight: .semibold))
@@ -76,7 +82,7 @@ struct LiveAudioSignifierView: View {
             let high: Float = appState.transcribingIconFrame == 0 ? 0.72 : 0.42
             let low: Float = appState.transcribingIconFrame == 0 ? 0.28 : 0.58
             return (0..<14).map { $0.isMultiple(of: 2) ? high : low }
-        case .idle, .success, .error:
+        case .idle, .success, .unverified, .clipboard, .error:
             return []
         }
     }
@@ -84,7 +90,11 @@ struct LiveAudioSignifierView: View {
     private var phase: LiveAudioSignifierPhase {
         switch appState.status {
         case .idle:
-            return appState.transientResult == nil ? .idle : .success
+            switch appState.transientResult {
+            case .pasted(let delivery): return delivery.isVerified ? .success : .unverified
+            case .clipboardFallback: return .clipboard
+            case nil: return .idle
+            }
         case .recording:
             return .recording
         case .transcribing:
@@ -102,6 +112,10 @@ struct LiveAudioSignifierView: View {
             .red
         case .processing:
             .blue
+        case .unverified:
+            .secondary
+        case .clipboard:
+            .orange
         case .success:
             .green
         case .error:
@@ -117,8 +131,8 @@ struct LiveAudioSignifierView: View {
             "Recording audio level, \(appState.effectiveTranscriptProcessingMode.displayName)"
         case .processing:
             "Processing recording"
-        case .success:
-            "Recording delivered"
+        case .success, .unverified, .clipboard:
+            appState.recordingResultLabel
         case .error:
             "Recording error"
         }
@@ -130,6 +144,8 @@ enum LiveAudioSignifierPhase {
     case recording
     case processing
     case success
+    case unverified
+    case clipboard
     case error
 }
 
@@ -158,7 +174,7 @@ struct LiveAudioLevelBars: View {
         switch phase {
         case .idle:
             return 4
-        case .success, .error:
+        case .success, .unverified, .clipboard, .error:
             return index.isMultiple(of: 2) ? 6 : 4
         case .recording, .processing:
             let floor: CGFloat = 5
@@ -170,7 +186,7 @@ struct LiveAudioLevelBars: View {
         switch phase {
         case .idle:
             return [0.35, 0.55, 0.35][index % 3]
-        case .success, .error:
+        case .success, .unverified, .clipboard, .error:
             return index < 5 || index > barCount - 6 ? 0.25 : 0.7
         case .recording, .processing:
             return 0.35 + Double(visualLevel(at: index)) * 0.65

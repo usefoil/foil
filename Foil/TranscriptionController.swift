@@ -85,9 +85,10 @@ final class TranscriptionController {
 
         delegate?.transcriptionController(self, didStartTranscribing: audioURL)
 
+        let isPractice = appState.onboardingPracticeActive
         let useMockTranscription: Bool
         #if DEBUG
-        useMockTranscription = appState.mockTranscriptionEnabled
+        useMockTranscription = appState.mockTranscriptionEnabled && !isPractice
         #else
         useMockTranscription = false
         #endif
@@ -141,6 +142,12 @@ final class TranscriptionController {
                     )
                     return
                 }
+                if isPractice {
+                    // Practice tests the selected transcription path, without a second provider or usage record.
+                    try Task.checkCancellation()
+                    delegate?.transcriptionController(self, didTranscribe: rawText, audioURL: audioURL, cleanupFailed: false)
+                    return
+                }
                 let processed = await processTranscriptOrRaw(
                     rawText: rawText,
                     apiKey: apiKey,
@@ -153,12 +160,14 @@ final class TranscriptionController {
                 processingResult = processed
             }
 
+            try Task.checkCancellation()
             DiagnosticLog.write("TranscriptionController: success textLength=\(text.count) cleanupFailed=\(cleanupFailed)")
             delegate?.transcriptionController(self, didTranscribe: text, audioURL: audioURL, cleanupFailed: cleanupFailed)
             if let processingResult {
                 recordUsageEvent(for: processingResult, appContext: appContext)
             }
         } catch is CancellationError {
+            try? FileManager.default.removeItem(at: audioURL)
             DiagnosticLog.write("TranscriptionController: cancelled")
             return
         } catch {

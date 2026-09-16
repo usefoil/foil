@@ -12,7 +12,11 @@ RESULT_PATH="${E2E_RESULT_PATH:-${DEFAULT_RESULT_PATH}}"
 EXPECTED="${E2E_EXPECTED_TRANSCRIPT:-the quick brown fox jumps over the lazy dog}"
 TIMEOUT_SECONDS="${E2E_TRANSCRIPTION_TIMEOUT_SECONDS:-30}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-}"
-PLISTBUDDY="/usr/libexec/PlistBuddy"
+PLISTBUDDY="${PLISTBUDDY:-/usr/libexec/PlistBuddy}"
+SKIP_BUILD_FOR_TESTING="${SKIP_BUILD_FOR_TESTING:-}"
+XCTESTRUN_PATH="${XCTESTRUN_PATH:-}"
+XCTEST_RESULT_BUNDLE_PATH="${XCTEST_RESULT_BUNDLE_PATH:-}"
+XCTEST_ARTIFACT_DIR="${XCTEST_ARTIFACT_DIR:-}"
 
 if [[ ! -f "${AUDIO_PATH}" ]]; then
   echo "error: audio fixture not found: ${AUDIO_PATH}" >&2
@@ -24,9 +28,24 @@ if ! command -v node >/dev/null 2>&1; then
   exit 2
 fi
 
+if [[ "${SKIP_BUILD_FOR_TESTING}" == "1" && ! -f "${XCTESTRUN_PATH}" ]]; then
+  echo "error: XCTESTRUN_PATH must name an existing .xctestrun when SKIP_BUILD_FOR_TESTING=1" >&2
+  exit 2
+fi
+
+if [[ -n "${XCTEST_ARTIFACT_DIR}" ]]; then
+  if ! mkdir -p "${XCTEST_ARTIFACT_DIR}" || [[ ! -d "${XCTEST_ARTIFACT_DIR}" || ! -w "${XCTEST_ARTIFACT_DIR}" ]]; then
+    echo "error: XCTEST_ARTIFACT_DIR must be a writable directory: ${XCTEST_ARTIFACT_DIR}" >&2
+    exit 2
+  fi
+fi
+
 tmpdir="$(mktemp -d)"
 server_pid=""
 patched=""
+receipt_path=""
+server_log=""
+test_log=""
 cleanup_result_path=""
 if [[ -z "${E2E_RESULT_PATH:-}" ]]; then
   cleanup_result_path="${RESULT_PATH}"
@@ -37,6 +56,7 @@ cleanup() {
     kill "${server_pid}" >/dev/null 2>&1 || true
     wait "${server_pid}" >/dev/null 2>&1 || true
   fi
+  export_fixture_artifacts
   rm -rf "${tmpdir}"
   if [[ -n "${patched}" ]]; then
     rm -f "${patched}"
@@ -46,6 +66,28 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+export_fixture_artifacts() {
+  if [[ -z "${XCTEST_ARTIFACT_DIR}" ]]; then
+    return
+  fi
+  if [[ -f "${receipt_path}" ]]; then
+    if ! node -e '
+      const fs = require("fs")
+      const receipt = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+      if (receipt.authorization) receipt.authorization = "Bearer [REDACTED]"
+      fs.writeFileSync(process.argv[2], `${JSON.stringify(receipt, null, 2)}\n`)
+    ' "${receipt_path}" "${XCTEST_ARTIFACT_DIR}/fixture-request-receipt.json"; then
+      echo "warning: could not export redacted fixture request receipt" >&2
+    fi
+  fi
+  if [[ -f "${server_log}" ]]; then
+    cp "${server_log}" "${XCTEST_ARTIFACT_DIR}/fixture-server.log" || echo "warning: could not export fixture server log" >&2
+  fi
+  if [[ -f "${test_log}" ]]; then
+    cp "${test_log}" "${XCTEST_ARTIFACT_DIR}/xcuitest.log" || echo "warning: could not export XCUITest log" >&2
+  fi
+}
 
 transcript_words() {
   tr '[:upper:]' '[:lower:]' | tr -cs '[:alpha:]' '\n' | sed '/^$/d'
@@ -122,7 +164,6 @@ fi
 BASE_URL="$(tr -d '\r\n' <"${ready_path}")"
 echo "server=${BASE_URL}"
 
-echo "== Build for testing"
 build_args=(
   -scheme "${SCHEME}"
   -configuration "${CONFIG}"
@@ -131,16 +172,30 @@ build_args=(
 if [[ -n "${DERIVED_DATA_PATH}" ]]; then
   build_args+=( -derivedDataPath "${DERIVED_DATA_PATH}" )
 fi
-xcodebuild build-for-testing "${build_args[@]}"
+if [[ "${SKIP_BUILD_FOR_TESTING}" == "1" ]]; then
+  echo "== Reuse build for testing"
+  xctestrun="${XCTESTRUN_PATH}"
+else
+  echo "== Build for testing"
+  xcodebuild build-for-testing "${build_args[@]}"
 
-find_root="${DERIVED_DATA_PATH:-${HOME}/Library/Developer/Xcode/DerivedData}"
-xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*Foil*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
-if [[ -z "${xctestrun}" || ! -f "${xctestrun}" ]]; then
-  echo "error: could not locate generated .xctestrun" >&2
-  exit 1
+  find_root="${DERIVED_DATA_PATH:-${HOME}/Library/Developer/Xcode/DerivedData}"
+  xctestrun="$(find "${find_root}" -name '*.xctestrun' -path '*Foil*' -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1 || true)"
+  if [[ -z "${xctestrun}" || ! -f "${xctestrun}" ]]; then
+    echo "error: could not locate generated .xctestrun" >&2
+    exit 1
+  fi
 fi
 
-patched="${xctestrun%.xctestrun}.fixture-openai.xctestrun"
+if [[ "${SKIP_BUILD_FOR_TESTING}" == "1" ]]; then
+  xctestrun_parent="$(cd "$(dirname "${xctestrun}")" && pwd -P)"
+  xctestrun_basename="$(basename "${xctestrun}")"
+  patched="$(mktemp "${xctestrun_parent}/.${xctestrun_basename%.xctestrun}.fixture-openai.XXXXXX")"
+  rm -f "${patched}"
+  patched="${patched}.xctestrun"
+else
+  patched="${xctestrun%.xctestrun}.fixture-openai.xctestrun"
+fi
 cp "${xctestrun}" "${patched}"
 
 ui_target_index=""
@@ -193,11 +248,16 @@ done
 echo "== XCUITest fixture transcription"
 rm -f "${RESULT_PATH}" "${receipt_path}"
 test_log="${tmpdir}/xcuitest.log"
+test_args=(
+  -xctestrun "${patched}"
+  -destination "${DESTINATION}"
+  -only-testing:FoilUITests/FoilUITests/testE2ETranscription
+)
+if [[ -n "${XCTEST_RESULT_BUNDLE_PATH}" ]]; then
+  test_args+=( -resultBundlePath "${XCTEST_RESULT_BUNDLE_PATH}" )
+fi
 set +e
-xcodebuild test-without-building \
-  -xctestrun "${patched}" \
-  -destination "${DESTINATION}" \
-  -only-testing:FoilUITests/FoilUITests/testE2ETranscription \
+xcodebuild test-without-building "${test_args[@]}" \
   2>&1 | tee "${test_log}"
 test_status="${PIPESTATUS[0]}"
 set -e

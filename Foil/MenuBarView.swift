@@ -40,7 +40,7 @@ struct MenuBarView: View {
         appState.sessionPresentation(
             hotkeyLabel: hotkeyLabel,
             hasRetryableFailure: history.retryableRecord != nil,
-            hasLastSuccess: lastSuccess?.text != nil
+            hasLastSuccess: history.lastRecoverableText != nil
         )
     }
 
@@ -131,6 +131,11 @@ struct MenuBarView: View {
             .tint(FoilTheme.deepTeal)
             .accessibilityIdentifier("menu.openFoilButton")
             .help("Open Foil")
+            Button("Copy last result") {
+                if let text = history.lastRecoverableText { copy(text) }
+            }
+            .disabled(history.lastRecoverableText == nil)
+            .accessibilityIdentifier("menu.copyLastResultButton")
         }
     }
 
@@ -777,7 +782,7 @@ struct MenuBarView: View {
         case .pasteAgain:
             onPasteLast?()
         case .copy:
-            if let text = lastSuccess?.text {
+            if let text = history.lastRecoverableText {
                 copy(text)
             }
         }

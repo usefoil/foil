@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct FoilHomeView: View {
@@ -14,7 +15,7 @@ struct FoilHomeView: View {
         appState.sessionPresentation(
             hotkeyLabel: hotkeyLabel,
             hasRetryableFailure: history.retryableRecord != nil,
-            hasLastSuccess: history.successfulRecords.isEmpty == false
+            hasLastSuccess: history.lastRecoverableText != nil
         )
     }
 
@@ -26,15 +27,11 @@ struct FoilHomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 header
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: 16),
-                    GridItem(.flexible(), spacing: 16)
-                ], alignment: .leading, spacing: 16) {
-                    statusPanel
+                statusPanel
+                if appState.needsSetupAttention {
                     setupHealthPanel
-                    recentTranscriptsPanel
-                        .gridCellColumns(2)
                 }
+                recentTranscriptsPanel
             }
             .padding(28)
         }
@@ -49,7 +46,7 @@ struct FoilHomeView: View {
                 Text("Home")
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(FoilTheme.deepTeal)
-                Text("Right Command captures speech and pastes the transcript into your current app.")
+                Text(appState.dictationInstruction)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -77,13 +74,53 @@ struct FoilHomeView: View {
                     .disabled(!primaryControlEnabled)
                     .accessibilityIdentifier("appShell.home.primaryControl")
 
+                    Button("Copy last result") {
+                        if let text = history.lastRecoverableText { copy(text) }
+                    }
+                    .disabled(history.lastRecoverableText == nil)
+                    .accessibilityIdentifier("appShell.home.copyLastResultButton")
+
                     Button("Paste Last") {
                         onPasteLast?()
                     }
-                    .disabled(history.successfulRecords.isEmpty)
+                    .disabled(history.lastRecoverableText == nil)
                     .accessibilityIdentifier("appShell.home.pasteLastButton")
                 }
 
+                Button("Setup and dictation practice") {
+                    NotificationCenter.default.post(name: AppState.resumeSetupNotification, object: nil)
+                }
+                .accessibilityIdentifier("appShell.home.resumeSetupButton")
+
+                HStack {
+                    Label(appState.effectiveTranscriptionMode.displayName, systemImage: "waveform")
+                    Spacer()
+                    Button("Transcription settings") { FoilAppSection.request(.transcription) }
+                }
+                .font(.callout)
+
+                if appState.effectiveTranscriptionMode == .managedLocal {
+                    let coordinator = appState.managedLocalModels
+                    let localStatus = ManagedLocalPresentation.status(
+                        coordinatorState: coordinator?.state,
+                        selectedID: coordinator?.selectedID,
+                        activeID: coordinator?.activeID,
+                        candidateID: coordinator?.candidateID,
+                        recovery: coordinator?.recovery ?? [],
+                        externalError: appState.managedLocalRestoreError
+                    )
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(localStatus.title).font(.caption.weight(.semibold))
+                        Text(localStatus.detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("appShell.home.managedLocalStatus")
+                }
+
+                DisclosureGroup("Text cleanup") {
                 CleanupGroupStatusView(
                     group: appState.defaultCleanupGroup,
                     effectiveMode: appState.effectiveTranscriptProcessingMode,
@@ -91,6 +128,9 @@ struct FoilHomeView: View {
                     accessibilityIdentifier: "appShell.home.cleanupGroupStatus",
                     descriptionAccessibilityIdentifier: "appShell.home.cleanupGroupDescription"
                 )
+                Button("Customize cleanup") { FoilAppSection.request(.cleanup) }
+                }
+                .accessibilityIdentifier("appShell.home.cleanupDisclosure")
             }
         }
     }
@@ -103,7 +143,26 @@ struct FoilHomeView: View {
                     .foregroundStyle(FoilTheme.deepTeal)
                 healthRow(title: "Accessibility", state: appState.accessibilityState)
                 healthRow(title: "Microphone", state: appState.microphoneState)
-                healthRow(title: "API Key", state: appState.apiKeyState)
+                if appState.selectedTranscriptionProvider.requiresAPIKey {
+                    healthRow(title: "API Key", state: appState.apiKeyState)
+                }
+                if appState.effectiveTranscriptionMode == .managedLocal {
+                    healthRow(
+                        title: "Local model",
+                        state: appState.managedLocalRuntime.session?.isRunning == true
+                            ? .ready
+                            : .needsAction("Restore or install a verified model")
+                    )
+                }
+                HStack {
+                    if appState.accessibilityState != .ready {
+                        Button("Enable insertion") { openPrivacy("Privacy_Accessibility") }
+                    }
+                    if appState.microphoneState != .ready {
+                        Button("Microphone access") { openPrivacy("Privacy_Microphone") }
+                    }
+                    Button("Set up transcription") { FoilAppSection.request(.transcription) }
+                }
             }
         }
     }
@@ -116,6 +175,7 @@ struct FoilHomeView: View {
                         .font(.headline)
                         .foregroundStyle(FoilTheme.deepTeal)
                     Spacer()
+                    Button("Open History") { FoilAppSection.request(.history) }
                     if queuedPasteQueue.pendingCount > 0 || queuedPasteQueue.blockedCount > 0 {
                         Text("\(queuedPasteQueue.pendingCount) queued")
                             .font(.caption.weight(.medium))
@@ -124,7 +184,7 @@ struct FoilHomeView: View {
                 }
 
                 if recentSuccesses.isEmpty {
-                    Text("No recent transcripts")
+                    Text(history.isPersistenceEnabled ? "Your first transcript will appear here. Try your shortcut in a text field." : "New history is off. Copy last result stays available until Foil quits or you clear history.")
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 18)
@@ -134,9 +194,14 @@ struct FoilHomeView: View {
                             Text(record.text ?? "")
                                 .lineLimit(2)
                                 .foregroundStyle(.primary)
-                            Text(record.relativeTimestamp)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack {
+                                Text(record.relativeTimestamp)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Copy") { copy(record.text ?? "") }
+                                    .accessibilityLabel("Copy transcript from \(record.relativeTimestamp)")
+                            }
                         }
                         .padding(.vertical, 7)
                         Divider()
@@ -158,7 +223,19 @@ struct FoilHomeView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(FoilTheme.separator)
             )
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func openPrivacy(_ pane: String) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func healthRow(title: String, state: AppState.PermissionState) -> some View {
@@ -174,7 +251,7 @@ struct FoilHomeView: View {
     private func healthText(for state: AppState.PermissionState) -> String {
         switch state {
         case .ready: "Ready"
-        case .needsAction: "Needs attention"
+        case .needsAction(let message): message
         case .unknown: "Not checked"
         }
     }
