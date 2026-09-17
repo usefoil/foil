@@ -1,3 +1,13 @@
+## [1.14.0](https://github.com/usefoil/foil/compare/v1.13.13...v1.14.0) (2026-09-17)
+
+- Add managed local transcription setup that downloads, verifies, and runs the recommended English-only or multilingual Whisper model without requiring Terminal.
+- Redesign first-run onboarding and Home around provider setup, a required practice transcription, shortcut guidance, delivery confidence, and last-result recovery.
+- Preserve History Off and retention preferences across launches, with memory-only result recovery when transcript storage is disabled.
+- Improve managed-model switching, offline relaunch, corrupt-download recovery, runtime ownership, and advanced external-server diagnostics.
+- Hide the idle live-audio signifier when floating status is disabled while retaining recording, transcription, error, and delivery feedback.
+- Remove beta labeling, add the MIT license, and refresh product positioning and setup documentation.
+
+
 ## [1.13.13](https://github.com/usefoil/foil/compare/v1.13.12...v1.13.13) (2026-07-22)
 
 - Prevent empty, `[BLANK_AUDIO]`, and punctuation-only no-speech results from being cleaned, saved to history, or pasted.
