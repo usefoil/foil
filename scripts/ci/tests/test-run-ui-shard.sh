@@ -63,7 +63,10 @@ if (kind === 'xcodebuild') {
     const products=path.join(value('-derivedDataPath'),'Build','Products');fs.mkdirSync(products,{recursive:true});fs.writeFileSync(path.join(products,'Foil.xctestrun'),'fake');
     if(scenario==='multiple-xctestruns')fs.writeFileSync(path.join(products,'Other.xctestrun'),'fake');
   } else if (args.includes('-enumerate-tests')) {
-    const names=['testAlpha','testBeta','testGamma','testE2ETranscription','testLiveMicrophoneSmoke'];
+    const enumerations=fs.readFileSync(calls,'utf8').trim().split('\n').map(JSON.parse).filter(c=>c.kind==='xcodebuild'&&c.args.includes('-enumerate-tests')).length;
+    if(scenario==='enumeration-hang-retry'&&enumerations===1){process.on('SIGTERM',()=>{});setTimeout(()=>process.exit(1),6000);return;}
+    const names=scenario==='automation-timeout-retry'&&enumerations===1?[]:['testAlpha','testBeta','testGamma','testE2ETranscription','testLiveMicrophoneSmoke'];
+    if(scenario==='automation-timeout-retry'&&enumerations===1)console.error('Failed to initialize for UI testing: Timed out while enabling automation mode.');
     if (scenario==='missing-built') names.pop();
     fs.writeFileSync(value('-test-enumeration-output-path'),JSON.stringify(names.map(n=>({identifier:'FoilUITests/FoilUITests/'+n+'()'}))));
   } else {
@@ -101,7 +104,7 @@ const scenarios = [
   ['success','a','passed',1],['success','b','passed',1],['success','c','passed',1],
   ['assertion','c','test_failed',1],['fixture-failure','c','test_failed',1],['skip','a','test_failed',1],
   ['missing-result','a','test_failed',1],['wrong-test','a','test_failed',1],
-  ['malformed','a','infra_failed',1],['build-retry','a','passed',2],['build-always-fails','a','infra_failed',2],
+  ['malformed','a','infra_failed',1],['build-retry','a','passed',2],['automation-timeout-retry','a','passed',2],['enumeration-hang-retry','a','passed',2],['build-always-fails','a','infra_failed',2],
   ['short-budget','a','infra_failed',1],['drift','a','infra_failed',0],['wrong-sha','a','infra_failed',0],
   ['missing-built','a','infra_failed',1],['multiple-xctestruns','a','infra_failed',1],
   ['cleanup-failure','a','infra_failed',1],['signal','a','infra_failed',1],['malformed-preflight','a','infra_failed',0],
@@ -123,9 +126,11 @@ try {
     const started=Date.now();
     const run=spawnSync('/bin/bash',[path.join(ci,'run-ui-shard.sh')],{cwd:root,encoding:'utf8',timeout:15000,
       env:{...process.env,PATH:bin+':'+process.env.PATH,SCENARIO:scenario,CALLS:calls,FOIL_CI_SHARD:shard,GITHUB_RUN_ID:'123',GITHUB_RUN_ATTEMPT:'9',GITHUB_SHA:'abc123',RUNNER_WORKSPACE:workspace,
-        RUN_LIVE_GROQ_TESTS:'1',RUN_LIVE_MICROPHONE_TESTS:'1',FOIL_CI_SHARD_TIMEOUT_SECONDS:scenario==='short-budget'?'179':scenario==='retry-expired'?'185':scenario.includes('hung')?'2':'840'}});
+        RUN_LIVE_GROQ_TESTS:'1',RUN_LIVE_MICROPHONE_TESTS:'1',FOIL_CI_ENUMERATION_TIMEOUT_SECONDS:scenario==='enumeration-hang-retry'?'1':'90',
+        FOIL_CI_SHARD_TIMEOUT_SECONDS:scenario==='short-budget'?'179':scenario==='retry-expired'?'185':scenario.includes('hung')?'2':'840'}});
     assert.equal(run.error,undefined,scenario+': '+run.error);
     if(['hung-report','failed-hung-tree'].includes(scenario))assert.ok(Date.now()-started<5000,'deadline must interrupt a stubborn report collector before finalization');
+    if(scenario==='enumeration-hang-retry')assert.ok(Date.now()-started<5000,'enumeration timeout must interrupt Xcode and retry');
     if(scenario==='hung-finalization-cleanup')assert.ok(Date.now()-started<11000,'finalization must bound an uncooperative cleanup command');
     if(scenario==='signal-stubborn')assert.ok(Date.now()-started<5000,'signal cleanup must not wait indefinitely for an uncooperative child');
     const receipt=JSON.parse(fs.readFileSync(path.join(root,'artifacts','receipt-'+shard+'.json')));
