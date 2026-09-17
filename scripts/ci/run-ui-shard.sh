@@ -181,11 +181,15 @@ attempt() {
   if [ "${#xctestruns[@]}" -ne 1 ]; then infrastructure_kind=ambiguous_xctestrun; return; fi
   local xctestrun_path="${xctestruns[0]}"
   local enumeration_json="$attempt_dir/enumeration.json"
+  local enumeration_log="$attempt_dir/enumeration.log"
   phase=enumeration
   if ! run_command xcodebuild test-without-building -xctestrun "$xctestrun_path" \
     -destination 'platform=macOS,arch=arm64' -enumerate-tests -test-enumeration-style flat \
     -test-enumeration-format json -test-enumeration-output-path "$enumeration_json" \
-    >"$attempt_dir/enumeration.log" 2>&1; then infrastructure_kind=enumeration_command_failed; return; fi
+    >"$enumeration_log" 2>&1; then infrastructure_kind=enumeration_command_failed; return; fi
+  if grep -Fq 'Timed out while enabling automation mode.' "$enumeration_log"; then
+    infrastructure_kind=enumeration_command_failed; return
+  fi
   if ! node "$repo_root/scripts/ci/ui-test-inventory.mjs" check-built --enumeration "$enumeration_json" \
     --manifest "$repo_root/scripts/ci/ui-test-shards.json" >"$attempt_dir/inventory.log" 2>&1; then
     infrastructure_kind=built_inventory_failed; return

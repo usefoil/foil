@@ -63,7 +63,9 @@ if (kind === 'xcodebuild') {
     const products=path.join(value('-derivedDataPath'),'Build','Products');fs.mkdirSync(products,{recursive:true});fs.writeFileSync(path.join(products,'Foil.xctestrun'),'fake');
     if(scenario==='multiple-xctestruns')fs.writeFileSync(path.join(products,'Other.xctestrun'),'fake');
   } else if (args.includes('-enumerate-tests')) {
-    const names=['testAlpha','testBeta','testGamma','testE2ETranscription','testLiveMicrophoneSmoke'];
+    const enumerations=fs.readFileSync(calls,'utf8').trim().split('\n').map(JSON.parse).filter(c=>c.kind==='xcodebuild'&&c.args.includes('-enumerate-tests')).length;
+    const names=scenario==='automation-timeout-retry'&&enumerations===1?[]:['testAlpha','testBeta','testGamma','testE2ETranscription','testLiveMicrophoneSmoke'];
+    if(scenario==='automation-timeout-retry'&&enumerations===1)console.error('Failed to initialize for UI testing: Timed out while enabling automation mode.');
     if (scenario==='missing-built') names.pop();
     fs.writeFileSync(value('-test-enumeration-output-path'),JSON.stringify(names.map(n=>({identifier:'FoilUITests/FoilUITests/'+n+'()'}))));
   } else {
@@ -101,7 +103,7 @@ const scenarios = [
   ['success','a','passed',1],['success','b','passed',1],['success','c','passed',1],
   ['assertion','c','test_failed',1],['fixture-failure','c','test_failed',1],['skip','a','test_failed',1],
   ['missing-result','a','test_failed',1],['wrong-test','a','test_failed',1],
-  ['malformed','a','infra_failed',1],['build-retry','a','passed',2],['build-always-fails','a','infra_failed',2],
+  ['malformed','a','infra_failed',1],['build-retry','a','passed',2],['automation-timeout-retry','a','passed',2],['build-always-fails','a','infra_failed',2],
   ['short-budget','a','infra_failed',1],['drift','a','infra_failed',0],['wrong-sha','a','infra_failed',0],
   ['missing-built','a','infra_failed',1],['multiple-xctestruns','a','infra_failed',1],
   ['cleanup-failure','a','infra_failed',1],['signal','a','infra_failed',1],['malformed-preflight','a','infra_failed',0],

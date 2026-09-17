@@ -68,20 +68,64 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - id: capacity
+        name: Wait for full deterministic runner pool
+        uses: actions/github-script@v8
+        env:
+          DISPATCHED_AT: ${{ needs.detect-changes.outputs.dispatched_at }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const dispatched = Date.parse(process.env.DISPATCHED_AT);
+            if (!Number.isFinite(dispatched)) {
+              core.setFailed('Invalid shard dispatch timestamp; cannot establish start deadline.');
+              return;
+            }
+            const deadline = dispatched + 180000;
+            const names = ['a', 'b', 'c'].map(shard => `Deterministic UI shard ${shard}`);
+            const attempt = Number(process.env.GITHUB_RUN_ATTEMPT);
+            while (true) {
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+                ...context.repo, run_id: context.runId, attempt_number: attempt, per_page: 100,
+              });
+              const startedJobs = names.map(name => jobs.find(job => {
+                const started = Date.parse(job.started_at);
+                return job.name === name && job.runner_id > 0 &&
+                  ['in_progress', 'completed'].includes(job.status) &&
+                  Number.isFinite(started) && started >= dispatched && started <= deadline;
+              }));
+              const missing = names.filter((_, index) => !startedJobs[index]);
+              const runnerIds = startedJobs.filter(Boolean).map(job => job.runner_id);
+              const repeatedRunnerIds = [...new Set(runnerIds.filter((id, index) => runnerIds.indexOf(id) !== index))];
+              if (missing.length === 0 && repeatedRunnerIds.length === 0) {
+                core.info('All three deterministic UI shards started on distinct runners within the 180-second deadline.');
+                return;
+              }
+              if (Date.now() >= deadline) {
+                const details = [];
+                if (missing.length) details.push(`missing ${missing.join(', ')}`);
+                if (repeatedRunnerIds.length) details.push(`shards did not start on three distinct runner IDs (repeated: ${repeatedRunnerIds.join(', ')})`);
+                core.setFailed(`Unavailable runner pool: 180-second start deadline ${new Date(deadline).toISOString()}; ${details.join('; ')}`);
+                return;
+              }
+              await new Promise(resolve => setTimeout(resolve, Math.min(10000, deadline - Date.now())));
+            }
       - id: run
         name: Execute deterministic shard
         env:
           FOIL_CI_SHARD: ${{ matrix.shard }}
+          # Preserve one minute for evidence/cleanup even if pool formation uses its full deadline.
+          FOIL_CI_SHARD_TIMEOUT_SECONDS: "660"
         run: bash scripts/ci/run-ui-shard.sh
       - name: Upload final receipt
-        if: always()
+        if: always() && steps.capacity.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: deterministic-receipt-${{ matrix.shard }}
           path: artifacts/receipt-${{ matrix.shard }}.json
           if-no-files-found: error
       - name: Upload shard diagnostics
-        if: always()
+        if: always() && steps.capacity.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: deterministic-shard-${{ matrix.shard }}
