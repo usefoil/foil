@@ -6,15 +6,15 @@ publishing.
 
 ## Current Public Install Status
 
-- Current public release: Foil `v1.13.13` build `48`.
+- Current public release: Foil `v1.14.0` build `49`.
 - Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
 - Verified command:
   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
   then `brew install --cask foil`.
-- Manual fallback: GitHub release asset `Foil-1.13.13-macos.dmg`, verified against `Foil-1.13.13-macos.dmg.sha256` and the release asset digest.
-- Public cask status: `Casks/foil.rb` version `1.13.13`, SHA-256 `33f682b44b558f84f26622536fe7b162fece6053afb5fe4c38f01e58451d2e79`, matching the GitHub release DMG digest.
-- Release/cask metadata verified on 2026-07-22 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
-- Latest recorded public cask extraction smoke is the v1.13.13 `REQUIRED_COMMIT=2bb92e9952eb660d417e65a5d6bf51952a8c9d12 make check-production-permissions-cask` run recorded below.
+- Manual fallback: GitHub release asset `Foil-1.14.0-macos.dmg`, verified against `Foil-1.14.0-macos.dmg.sha256` and the release asset digest.
+- Public cask status: `Casks/foil.rb` version `1.14.0`, SHA-256 `4cb078ff4a0a448bd2e1b287dfa259b3ac71ad8616e66c1957cf00774aaff482`, matching the GitHub release DMG digest.
+- Release/cask metadata verified on 2026-09-17 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
+- Latest recorded public cask extraction smoke is the v1.14.0 `REQUIRED_COMMIT=efd80d8a77ed7dbd7da6b4aebdc321316d5f7912 make check-production-permissions-cask` run recorded below.
 - Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; the scoped current-account reset and regrant coverage below does not replace that row. The fresh-environment work remains tracked in issue #154 with the runbook in `docs/fresh-machine-homebrew-onboarding-smoke.md`.
 
 ## Test Command Policy
@@ -27,6 +27,47 @@ publishing.
   key into this log, PRs, issues, or CI summaries.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
+
+## v1.14.0 Public Release Verification
+
+Date: 2026-09-17
+
+Scope: public release `v1.14.0` build `49`, release workflow run
+`35240461530`, public GitHub assets, Sparkle appcast, Homebrew cask, and packaged
+managed-local runtime checks against the downloaded public DMG.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| The public release is built from the reviewed and notarized release candidate. | The merge queue or tag could introduce untested content, or the workflow could build a stale branch tip while presenting the expected version. | PR #414 merged as `efd80d8a77ed7dbd7da6b4aebdc321316d5f7912`; its tree `a3532d523ef6e710418d8dc79f593ee7de035d39` exactly matched notarized candidate `0d871de7a1ba807fc7d6f7f582b787c18b662f84`. Local and remote `v1.14.0`, `origin/main`, and Release workflow head all resolved to `efd80d8a77ed7dbd7da6b4aebdc321316d5f7912`. Run `35240461530` passed its tag-checkout guard and completed successfully. | PASS |
+| The production Release configuration compiles after the managed-local UI fixture work. | Debug-only fixture APIs could compile in PR tests but break the signed Release archive. | An initial notarized QA archive exposed `UITestingController` calling DEBUG-only `configureForUITesting`. Commit `0d871de` wrapped that presentation fixture in `#if DEBUG`; `make build CONFIG=Release SIGN_IDENTITY=-` then passed, and Notarized QA Build run `35237093542` checked out that exact commit and completed successfully. The public Release workflow subsequently archived, signed, notarized, and uploaded the same source tree. | PASS |
+| The public DMG bytes, checksum, notarization, and contained app identity agree. | GitHub could publish truncated or different bytes, or the DMG could contain an unsigned, unstapled, stale, or wrongly identified app. | Downloaded DMG SHA-256, `.sha256` asset, GitHub asset digest, and Homebrew cask all matched `4cb078ff4a0a448bd2e1b287dfa259b3ac71ad8616e66c1957cf00774aaff482`; size was `7088048` bytes. DMG Gatekeeper and stapler validation passed. The read-only mounted app reported bundle id `com.neonwatty.Foil`, version `1.14.0`, build `49`, team `B3A6AN2HA4`, and a 32-byte decoded `SUPublicEDKey`; app Gatekeeper and deep strict codesign verification passed. | PASS |
+| The packaged managed-local runtime works in both shipped architecture slices. | Universal binary metadata could look correct while the embedded helper fails to start, authenticate, transcribe, or terminate on one architecture. | Both `Foil` and `Contents/Helpers/whisper-server` reported `x86_64 arm64`. `scripts/test-managed-whisper-runtime.sh --app <mounted-public-app>` passed natively and with `FOIL_RUNTIME_ARCH=x86_64`: exact child/model health identity, rejection of unauthorized routes, real synthetic-speech transcription (`the quick brown fox jumps over the lazy dog`), and parent-EOF termination all passed. The x86_64 execution used Rosetta on Apple Silicon and is not represented as native Intel hardware proof. | PASS |
+| Sparkle points at and cryptographically signs the exact public DMG. | `appcast.xml` could reference the wrong version, URL, build, byte length, or an invalid signature, breaking updates. | Downloaded `appcast.xml` passed XML parsing and reported build `49`, short version `1.14.0`, minimum macOS `14.0`, the exact v1.14.0 DMG URL, and both enclosure lengths `7088048`, matching the downloaded DMG. Its EdDSA signature decoded to 64 bytes. The successful workflow's appcast step ran Sparkle `sign_update --verify` against that DMG and signature before upload. | PASS |
+| The public Homebrew cask points at the same trusted artifact. | The separate tap could lag the release or point at a different SHA, version, or app identity despite a green release workflow. | Public `Casks/foil.rb` reported version `1.14.0`, the exact release URL, and the matching SHA. `REQUIRED_COMMIT=efd80d8a77ed7dbd7da6b4aebdc321316d5f7912 make check-production-permissions-cask` confirmed tag inclusion, extracted Foil `1.14.0` build `49`, verified the production bundle and Sparkle key, and passed Developer ID Gatekeeper and deep codesign with 0 warnings. | PASS |
+| The branded drag-to-Applications DMG presentation is intact. | A technically valid DMG could open in a generic view without the intended install affordance. | Direct Finder inspection showed icon view with the branded `Install Foil` background and instruction, Foil.app on the left, the Applications alias on the right, and the direction arrow. The read-only volume contained `.DS_Store` and `.background/dmg-background.png`; `Applications` resolved to `/Applications`. | PASS |
+| The public cask upgrade installs and launches the intended production app. | Homebrew could retain an older or differently signed app, or LaunchServices could start a copy outside `/Applications`. | `brew upgrade --cask --greedy mean-weasel/foil/foil` installed v1.14.0. `make guide-production-permissions-qa` passed with 0 warnings: `/Applications/Foil.app` reported bundle id `com.neonwatty.Foil`, version `1.14.0`, build `49`, Developer ID team `B3A6AN2HA4`, `Notarized Developer ID`, a 32-byte Sparkle key, and valid deep strict codesign. The active process path was `/Applications/Foil.app/Contents/MacOS/Foil`; direct UI inspection showed the v1.14 first-run onboarding flow. Existing Microphone authorization remained ready, but diagnostics reported `SetupHealth: accessibilityTrusted=false`, so permission readiness is tracked separately below. | PASS: INSTALL/LAUNCH; PENDING: ACCESSIBILITY |
+| The required PR and merge-queue automation passed for the prepared release. | A valid package could still contain an obvious regression or unreviewed release-only workaround. | PR #414 passed Build, Unit Tests, Audio UX Snapshots, four Focused UI Smoke shards, CodeQL, and CI Gate. The merge group additionally passed CI plus live Groq and OpenAI E2E. `bash scripts/test-build-notarized-qa-dmg.sh`, Debug warnings-as-errors, npm production audit, and `git diff --check` passed. `CODEX_REVIEW_HELPER_LEVEL=1 /Applications/ChatGPT.app/Contents/Resources/codex review --base origin/main` reported no actionable defects. | PASS |
+| Full local desktop and UI readiness gates remain explicitly scoped. | Focused CI shards could pass while the complete active-desktop workflows fail, and recording them as equivalent would overstate coverage. | `make qa-local` was not run because its `install` prerequisite would replace the already verified public cask with a source build and then drive paste integrations on this daily-driver desktop. Full `make test-ui` was also not run because it drives the active desktop. PR #414's four Focused UI Smoke shards passed, but they are not claimed as substitutes. Owner: release operator on an idle or dedicated macOS QA account; append the command receipts here. | PENDING: ISOLATED DESKTOP |
+| Live cleanup-quality coverage is tracked separately from its structural checks. | Cleanup behavior could regress against a real provider even when static fixture and structural validation pass. | `make test-cleanup-quality` passed its structural cleanup-profile checks, then failed fast because neither `GROQ_API_KEY` nor `OPENAI_API_KEY` was present. Owner: release operator with a valid provider credential; rerun the same command and append the live receipt without recording the key. | BLOCKED: CREDENTIAL |
+
+Residual risk: production Accessibility readiness remains pending because the
+post-upgrade diagnostic reported `accessibilityTrusted=false`. No TCC reset was
+attempted on this daily-driver account. The operator follow-up is to enable the
+exact `/Applications/Foil.app` row, complete the helper's manual checklist, and
+record quit/relaunch persistence. The packaged helper smoke also does not replace
+the destination-Mac managed-local GUI acceptance in
+`docs/product/managed-local-gui-acceptance.md`: model download and switching,
+normal microphone transcription, and offline relaunch remain unperformed because
+the repository does not provide the machine-specific audio/UI drivers or the
+required user-granted permissions. Owner: destination-Mac release operator;
+append that runbook's receipts here. This verification also did not run the true
+fresh-user matrix, execute on native Intel hardware, or directly execute on
+macOS 14. The public artifact is universal and its x86_64 helper path passed
+under Rosetta, but those unperformed environments are not claimed as covered.
+Issue #154 remains the owner for true fresh-environment consent coverage. These
+pending desktop and credential-dependent gates do not invalidate the published,
+signed artifact evidence above, but they prevent claiming complete setup and
+product readiness for every supported environment.
 
 ## v1.13.13 Public Release Verification
 
