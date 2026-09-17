@@ -284,8 +284,9 @@ final class FoilUITests: XCTestCase {
             app.debugDescription
         )
         XCTAssertTrue(staticTextLabelOrValueContaining("Other running apps").waitForExistence(timeout: 6), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("No other running apps available.").waitForExistence(timeout: 6), app.debugDescription)
 
+        // Legitimate apps may be open on a dedicated runner; this test owns only
+        // the false-positive exclusion policy below.
         XCTAssertFalse(
             app.buttons["settings.cleanupGroups.runningAppAddButton.bundle:com.neonwatty.foil"].exists,
             app.debugDescription

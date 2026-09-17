@@ -697,6 +697,8 @@ struct SettingsView: View {
     }
 
     private var cleanupGroupDetail: some View {
+        // Keep this container unlabelled. On macOS 27 SwiftUI otherwise replaces
+        // descendant accessibility identifiers with the container identifier.
         VStack(alignment: .leading, spacing: 14) {
             cleanupGroupHeader(selectedCleanupGroup)
 
@@ -715,7 +717,6 @@ struct SettingsView: View {
 
             vocabularySettings(isCleanupEnabled: selectedCleanupGroup.processingMode.usesCleanupProvider)
         }
-        .accessibilityIdentifier("settings.cleanupGroups.detail")
     }
 
     private func cleanupGroupHeader(_ group: CleanupGroup) -> some View {
@@ -1504,7 +1505,8 @@ struct SettingsView: View {
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier(identifier)
-                .accessibilityLabel(command)
+            // Text already exposes `command` as its accessibility label. Applying
+            // the same explicit label recurses in macOS 27 during XCUI snapshots.
         }
     }
 

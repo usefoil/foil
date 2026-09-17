@@ -54,6 +54,7 @@ uname -m
 xcodebuild -version
 xcode-select -p
 stat -f '%Su' /dev/console
+ioreg -n Root -d1 -a | plutil -extract IOConsoleLocked raw -o - -
 DevToolsSecurity -status
 df -kP "$FOIL_RUNNER_DIR"
 launchctl list
@@ -69,8 +70,11 @@ sudo xcode-select --switch '<verified-Xcode.app>/Contents/Developer'
 ```
 
 Check `DEVELOPER_DIR` in the runner environment because it can override selection.
-Arrange an awake graphical session and display, disable automatic OS/Xcode
-updates through managed settings, and verify Developer Mode before availability.
+Arrange an awake, unlocked graphical session and display, disable automatic
+screen locking plus automatic OS/Xcode updates through managed settings, and
+verify Developer Mode before availability. The preflight rejects a locked
+console because a per-user runner can remain online while XCUITest is unable to
+foreground the app.
 Use the repository's existing signing setup; do not reset Keychain or TCC data.
 
 When the accepted Xcode is installed outside the globally selected path, pin it

@@ -14,7 +14,7 @@ const baseline = {
 
 test("accepts an exact healthy runner", () => {
   const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "foilci",
-    freeBytes: 40_000_000_000, developerModeEnabled: true, runnerOs: "macOS",
+    freeBytes: 40_000_000_000, screenLocked: false, developerModeEnabled: true, runnerOs: "macOS",
     runnerArch: "ARM64", activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm2"] }
   assert.deepEqual(compareFacts(baseline, facts), [])
 })
@@ -43,10 +43,23 @@ test("checked-in baseline pins the accepted macOS 27 and Xcode 27 builds", () =>
   })
 })
 
+test("rejects a locked or unobservable graphical session", () => {
+  const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "foilci",
+    freeBytes: 40_000_000_000, screenLocked: false, developerModeEnabled: true,
+    runnerOs: "macOS", runnerArch: "ARM64",
+    activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm2"] }
+  assert.deepEqual(compareFacts(baseline, { ...facts, screenLocked: true }), [
+    "screenLocked: expected false, got true"
+  ])
+  assert.deepEqual(compareFacts(baseline, { ...facts, screenLocked: undefined }), [
+    "screenLocked: expected false, got missing"
+  ])
+})
+
 test("reports toolchain drift and competing services", () => {
   const facts = { architecture: "arm64", productVersion: "27.0", buildVersion: "26A428",
     xcodeVersion: "26.3", xcodeBuild: "17C529", runnerName: "foil-mm2",
-    consoleUser: "foilci", freeBytes: 40_000_000_000, developerModeEnabled: true,
+    consoleUser: "foilci", freeBytes: 40_000_000_000, screenLocked: false, developerModeEnabled: true,
     runnerOs: "macOS", runnerArch: "ARM64",
     activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm2", "actions.runner.mean-weasel.mac-mini-2"] }
   assert.deepEqual(compareFacts(baseline, facts), [
@@ -58,7 +71,7 @@ test("reports toolchain drift and competing services", () => {
 
 test("rejects missing and non-finite free space", () => {
   const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "foilci",
-    developerModeEnabled: true, runnerOs: "macOS", runnerArch: "ARM64",
+    screenLocked: false, developerModeEnabled: true, runnerOs: "macOS", runnerArch: "ARM64",
     activeRunnerServices: ["actions.runner.usefoil-foil.foil-mm2"] }
   assert.deepEqual(compareFacts(baseline, facts), [
     "freeBytes: expected at least 30000000000, got missing"
@@ -70,7 +83,7 @@ test("rejects missing and non-finite free space", () => {
 
 test("rejects a sole runner service for another identity", () => {
   const facts = { ...baseline, runnerName: "foil-mm2", consoleUser: "foilci",
-    freeBytes: 40_000_000_000, developerModeEnabled: true, runnerOs: "macOS",
+    freeBytes: 40_000_000_000, screenLocked: false, developerModeEnabled: true, runnerOs: "macOS",
     runnerArch: "ARM64", activeRunnerServices: ["actions.runner.mean-weasel.mac-mini-2"] }
   assert.deepEqual(compareFacts(baseline, facts), [
     "active runner service: expected actions.runner.usefoil-foil.foil-mm2, got actions.runner.mean-weasel.mac-mini-2"

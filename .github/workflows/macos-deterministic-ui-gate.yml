@@ -3,6 +3,24 @@ name: Foil Deterministic UI Gate (Shadow)
 on:
   merge_group:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "Run the full pool or one mm3 readiness shard"
+        required: true
+        default: "pool"
+        type: choice
+        options:
+          - pool
+          - mm3-pilot
+      pilot_shard:
+        description: "Shard to run when mode is mm3-pilot"
+        required: true
+        default: "a"
+        type: choice
+        options:
+          - a
+          - b
+          - c
 
 permissions:
   contents: read
@@ -16,6 +34,7 @@ concurrency:
 jobs:
   detect-changes:
     name: Detect Deterministic UI Changes
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'pool'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -67,6 +86,56 @@ jobs:
         with:
           name: deterministic-shard-${{ matrix.shard }}
           path: artifacts/shard-${{ matrix.shard }}
+          if-no-files-found: warn
+
+  mm3-pilot:
+    name: MM3 deterministic UI pilot (shard ${{ inputs.pilot_shard }})
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'mm3-pilot'
+    runs-on: [self-hosted, macOS, ARM64, foil-deterministic, foil-mm3]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: run
+        name: Execute deterministic shard
+        env:
+          FOIL_CI_SHARD: ${{ inputs.pilot_shard }}
+        run: bash scripts/ci/run-ui-shard.sh
+      - id: validate
+        name: Validate passed mm3 receipt
+        if: always()
+        env:
+          PILOT_SHARD: ${{ inputs.pilot_shard }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const file = `artifacts/receipt-${process.env.PILOT_SHARD}.json`;
+          if (!fs.existsSync(file)) throw new Error(`missing pilot receipt: ${file}`);
+          const receipt = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const failures = [];
+          if (receipt.shard !== process.env.PILOT_SHARD) failures.push(`shard ${receipt.shard}`);
+          if (receipt.classification !== 'passed') failures.push(`classification ${receipt.classification}`);
+          if (receipt.preflight?.status !== 'healthy') failures.push(`preflight ${receipt.preflight?.status}`);
+          if (receipt.preflight?.facts?.runnerName !== 'foil-mm3') failures.push(`runner ${receipt.preflight?.facts?.runnerName}`);
+          if (!Array.isArray(receipt.preflight?.errors) || receipt.preflight.errors.length !== 0) failures.push('preflight errors');
+          if (failures.length) throw new Error(`invalid mm3 pilot receipt: ${failures.join(', ')}`);
+          console.log(`validated passed mm3 pilot receipt for shard ${receipt.shard}`);
+          NODE
+      - name: Upload final receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mm3-pilot-receipt-${{ inputs.pilot_shard }}
+          path: artifacts/receipt-${{ inputs.pilot_shard }}.json
+          if-no-files-found: error
+      - name: Upload shard diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mm3-pilot-shard-${{ inputs.pilot_shard }}
+          path: artifacts/shard-${{ inputs.pilot_shard }}
           if-no-files-found: warn
 
   start-watchdog:
@@ -123,7 +192,7 @@ jobs:
     # Prospective required check. Keep this workflow non-required during shadow rollout.
     name: Foil Deterministic UI Gate
     needs: [detect-changes, shards, start-watchdog]
-    if: always()
+    if: always() && (github.event_name != 'workflow_dispatch' || inputs.mode == 'pool')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

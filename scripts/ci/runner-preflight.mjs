@@ -20,6 +20,7 @@ export function compareFacts(baseline, facts) {
   if (!baseline.allowedConsoleUsers.includes(facts.consoleUser)) {
     errors.push(`consoleUser: expected one of ${baseline.allowedConsoleUsers.join(", ")}, got ${actual(facts.consoleUser)}`)
   }
+  if (facts.screenLocked !== false) errors.push(`screenLocked: expected false, got ${actual(facts.screenLocked)}`)
   if (facts.developerModeEnabled !== true) errors.push(`developerModeEnabled: expected true, got ${actual(facts.developerModeEnabled)}`)
   if (facts.runnerOs !== "macOS") errors.push(`runnerOs: expected macOS, got ${actual(facts.runnerOs)}`)
   if (facts.runnerArch !== "ARM64") errors.push(`runnerArch: expected ARM64, got ${actual(facts.runnerArch)}`)
@@ -50,6 +51,23 @@ function activeRunnerServices() {
     .sort()
 }
 
+function screenLocked() {
+  const root = execFileSync("/usr/sbin/ioreg", ["-n", "Root", "-d1", "-a"])
+  let value
+  try {
+    value = execFileSync("/usr/bin/plutil", ["-extract", "IOConsoleLocked", "raw", "-o", "-", "-"], {
+      encoding: "utf8",
+      input: root,
+      stdio: ["pipe", "pipe", "ignore"]
+    }).trim()
+  } catch {
+    return undefined
+  }
+  if (value === "true") return true
+  if (value === "false") return false
+  return undefined
+}
+
 export function collectFacts(directory = process.cwd()) {
   const xcode = command("/usr/bin/xcodebuild", ["-version"]).split("\n")
   return {
@@ -60,6 +78,7 @@ export function collectFacts(directory = process.cwd()) {
     xcodeVersion: xcode.find(line => line.startsWith("Xcode "))?.slice("Xcode ".length),
     xcodeBuild: xcode.find(line => line.startsWith("Build version "))?.slice("Build version ".length),
     consoleUser: command("/usr/bin/stat", ["-f", "%Su", "/dev/console"]),
+    screenLocked: screenLocked(),
     developerModeEnabled: /currently enabled/i.test(command("/usr/sbin/DevToolsSecurity", ["-status"])),
     freeBytes: freeBytes(directory),
     runnerName: process.env.RUNNER_NAME,

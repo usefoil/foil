@@ -26,7 +26,7 @@ if (kind === 'preflight') {
   const baseline=JSON.parse(fs.readFileSync(value('--baseline'))),runnerName=baseline.allowedRunnerNames[{a:0,b:1,c:2}[env.FOIL_CI_SHARD]];
   const facts={hostname:'fake.local',architecture:baseline.architecture,productVersion:baseline.productVersion,buildVersion:baseline.buildVersion,
     xcodeVersion:baseline.xcodeVersion,xcodeBuild:baseline.xcodeBuild,freeBytes:baseline.minimumFreeBytes+1,runnerName,
-    consoleUser:baseline.allowedConsoleUsers[0],developerModeEnabled:true,runnerOs:'macOS',runnerArch:'ARM64',
+    consoleUser:baseline.allowedConsoleUsers[0],screenLocked:false,developerModeEnabled:true,runnerOs:'macOS',runnerArch:'ARM64',
     activeRunnerServices:['actions.runner.usefoil-foil.'+runnerName]};
   fs.writeFileSync(value('--output'), JSON.stringify({schemaVersion:1,status:scenario==='drift'?'drift':'healthy',facts,errors:scenario==='drift'?['drift']:[]}));
   process.exit(scenario==='drift'?2:0);

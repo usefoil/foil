@@ -6,6 +6,7 @@
   "xcodeVersion": "27.0",
   "xcodeBuild": "27A266a",
   "consoleUser": "foilci",
+  "screenLocked": false,
   "developerModeEnabled": true,
   "freeBytes": 40000000000,
   "runnerName": "foil-mm2",
