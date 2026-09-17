@@ -235,12 +235,14 @@ final class UITestingController {
         } else if args.contains("--seed-managed-language-unanswered") {
             appState.managedDictationLanguage = .unanswered
         }
+        #if DEBUG
         if args.contains("--seed-managed-downloading") {
             appState.managedLocalModels?.configureForUITesting(
                 state: .downloading("base.en", 73_982_105, 147_964_211),
                 candidateID: "base.en"
             )
         }
+        #endif
 
         if args.contains("--seed-microphone-unknown") {
             appState.updateAccessibilityState(isTrusted: true)
