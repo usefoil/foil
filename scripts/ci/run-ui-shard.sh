@@ -10,8 +10,6 @@ case "$FOIL_CI_SHARD" in a|b|c) ;; *) echo 'invalid shard' >&2; exit 2 ;; esac
 [[ "$GITHUB_RUN_ID" =~ ^[0-9]+$ && "$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+$ ]] || exit 2
 timeout_seconds="${FOIL_CI_SHARD_TIMEOUT_SECONDS:-840}"
 [[ "$timeout_seconds" =~ ^[1-9][0-9]*$ ]] || exit 2
-enumeration_timeout_seconds="${FOIL_CI_ENUMERATION_TIMEOUT_SECONDS:-90}"
-[[ "$enumeration_timeout_seconds" =~ ^[1-9][0-9]*$ ]] || exit 2
 export RUN_LIVE_GROQ_TESTS=0 RUN_LIVE_MICROPHONE_TESTS=0
 
 repo_root="$(cd "$(dirname "$0")/../.." && pwd -P)"
@@ -153,6 +151,11 @@ attempt() {
   sha="$(git rev-parse HEAD)"
   node "$repo_root/scripts/ci/ui-test-inventory.mjs" selectors --shard "$FOIL_CI_SHARD" \
     --manifest "$repo_root/scripts/ci/ui-test-shards.json" >"$selector_file"
+  if ! node "$repo_root/scripts/ci/ui-test-inventory.mjs" check \
+    --source "$repo_root/FoilUITests/FoilUITests.swift" \
+    --manifest "$repo_root/scripts/ci/ui-test-shards.json" >"$attempt_dir/inventory.log" 2>&1; then
+    infrastructure_kind=source_inventory_failed; return
+  fi
   if ! run_command node "$repo_root/scripts/ci/runner-preflight.mjs" \
     --baseline "$repo_root/scripts/ci/runner-baseline.json" --output "$preflight" >"$attempt_dir/preflight.log" 2>&1; then
     infrastructure_kind=preflight_failed; return
@@ -182,20 +185,6 @@ attempt() {
   done
   if [ "${#xctestruns[@]}" -ne 1 ]; then infrastructure_kind=ambiguous_xctestrun; return; fi
   local xctestrun_path="${xctestruns[0]}"
-  local enumeration_json="$attempt_dir/enumeration.json"
-  local enumeration_log="$attempt_dir/enumeration.log"
-  phase=enumeration
-  if ! command_timeout="$enumeration_timeout_seconds" run_command xcodebuild test-without-building -xctestrun "$xctestrun_path" \
-    -destination 'platform=macOS,arch=arm64' -enumerate-tests -test-enumeration-style flat \
-    -test-enumeration-format json -test-enumeration-output-path "$enumeration_json" \
-    >"$enumeration_log" 2>&1; then infrastructure_kind=enumeration_command_failed; return; fi
-  if grep -Fq 'Timed out while enabling automation mode.' "$enumeration_log"; then
-    infrastructure_kind=enumeration_command_failed; return
-  fi
-  if ! node "$repo_root/scripts/ci/ui-test-inventory.mjs" check-built --enumeration "$enumeration_json" \
-    --manifest "$repo_root/scripts/ci/ui-test-shards.json" >"$attempt_dir/inventory.log" 2>&1; then
-    infrastructure_kind=built_inventory_failed; return
-  fi
   local selectors=()
   while IFS= read -r candidate; do [ -z "$candidate" ] || selectors+=("$candidate"); done <"$selector_file"
   if [ "${#selectors[@]}" -eq 0 ]; then infrastructure_kind=empty_selectors; return; fi

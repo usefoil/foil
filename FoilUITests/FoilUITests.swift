@@ -496,7 +496,7 @@ final class FoilUITests: XCTestCase {
         )
         assertAppShellSettingsPane(
             navID: "appShell.nav.settings.cleanup",
-            requiredID: "settings.cleanupGroups.root"
+            requiredID: "settings.cleanupGroups.modePicker"
         )
         assertAppShellSettingsPane(
             navID: "appShell.nav.settings.paste",
@@ -1595,6 +1595,10 @@ final class FoilUITests: XCTestCase {
         signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
         XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 7), app.debugDescription)
         XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(
+            waitForElementLabelOrValue(signifier, containing: "Recording delivered", timeout: 4),
+            app.debugDescription
+        )
         XCTAssertEqual(signifier.label, "Recording delivered")
     }
 

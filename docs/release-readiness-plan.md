@@ -2,6 +2,12 @@
 
 This document records the current remediation plan for moving Foil from early beta quality toward a credible public release. It is intended as the shared reference before implementation begins.
 
+## Dedicated Runner Readiness
+
+The provisional `foil-mm1`/`foil-mm2`/`foil-mm3` roles, exact-set evidence schema, bounded cleanup boundary, and required/advisory/manual claim policy are defined in [`release-runner-contract.md`](release-runner-contract.md). The readiness workflow and deterministic UI workflow remain shadow-only. Neither is currently a release authorization or publication prerequisite.
+
+Before enforcement, collect repeated readiness receipts from all three runners on an authorized dispatchable ref, resolve the current deterministic UI failures, approve owners and isolated-account boundaries, and prove the exact candidate-to-publication chain. Missing runtime dispatch evidence is a release-readiness gap, not something local contract tests can waive.
+
 ## XCTest QA Standard
 
 XCTest coverage is the gold standard for deciding whether a feature works. A change is not considered complete because the code compiles, the UI looks correct, or a manual check happened to pass once. Each feature or fix should include deterministic XCTest coverage at the lowest practical level, plus UI or integration coverage when user-visible behavior depends on macOS app state.

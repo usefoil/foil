@@ -1,0 +1,106 @@
+name: Foil Release Runner Readiness (Shadow)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: foil-release-runner-readiness
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    name: Runner readiness slot ${{ matrix.slot }}
+    runs-on: [self-hosted, macOS, ARM64, foil-deterministic]
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        slot: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: capacity
+        name: Require the complete distinct runner pool
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const deadline = Date.now() + 180000;
+            const names = [1, 2, 3].map(slot => `Runner readiness slot ${slot}`);
+            while (true) {
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+                ...context.repo, run_id: context.runId,
+                attempt_number: Number(process.env.GITHUB_RUN_ATTEMPT), per_page: 100,
+              });
+              const active = names.map(name => jobs.find(job =>
+                job.name === name && job.runner_id > 0 && ["in_progress", "completed"].includes(job.status)));
+              const ids = active.filter(Boolean).map(job => job.runner_id);
+              if (active.every(Boolean) && new Set(ids).size === 3) {
+                core.info("All readiness slots are active on three distinct runner IDs.");
+                return;
+              }
+              if (Date.now() >= deadline) {
+                core.setFailed("Readiness pool did not form on three distinct runner IDs within 180 seconds.");
+                return;
+              }
+              await new Promise(resolve => setTimeout(resolve, Math.min(10000, deadline - Date.now())));
+            }
+      - id: readiness
+        name: Collect read-only readiness evidence and clean owned state
+        env:
+          READINESS_SLOT: ${{ matrix.slot }}
+        run: bash scripts/ci/run-release-runner-readiness.sh
+      - name: Upload readiness receipt
+        if: always() && steps.capacity.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-runner-readiness-${{ matrix.slot }}
+          path: artifacts/readiness-${{ matrix.slot }}/receipt-${{ matrix.slot }}.json
+          if-no-files-found: error
+
+  aggregate:
+    name: Foil Release Runner Readiness (Shadow Only)
+    needs: [readiness]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download readiness receipts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-runner-readiness-*
+          path: receipts
+          merge-multiple: true
+      - id: aggregate
+        name: Validate exact runner set and evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p readiness-summary
+          status=0
+          node scripts/ci/release-runner-contract.mjs \
+            --receipts receipts --sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" \
+            --attempt "$GITHUB_RUN_ATTEMPT" --output readiness-summary/result.json || status=$?
+          if [ "${{ needs.readiness.result }}" != success ]; then
+            echo 'Readiness jobs did not all succeed.' >&2
+            status=1
+          fi
+          exit "$status"
+      - name: Upload readiness summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-runner-readiness-summary
+          path: readiness-summary/result.json
+          if-no-files-found: error

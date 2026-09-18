@@ -1,5 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
+import { EXPECTED_RUNNERS, sameExactSet } from "./release-runner-contract.mjs"
 
 const expectedShards = ["a", "b", "c"]
 const baseline = JSON.parse(fs.readFileSync(new URL("./runner-baseline.json", import.meta.url), "utf8"))
@@ -16,10 +17,7 @@ function validExitCode(value) {
   return value === null || (Number.isInteger(value) && value >= 0 && value <= 255)
 }
 
-function sameSet(left, right) {
-  return new Set(left).size === left.length && new Set(right).size === right.length &&
-    left.length === right.length && left.every(value => right.includes(value))
-}
+const sameSet = sameExactSet
 
 function validPreflight(receipt) {
   const preflight = receipt.preflight
@@ -30,7 +28,7 @@ function validPreflight(receipt) {
     if (facts[name] !== baseline[name]) return false
   }
   return isNonEmptyString(facts.hostname) && Number.isFinite(facts.freeBytes) && facts.freeBytes >= baseline.minimumFreeBytes &&
-    baseline.allowedRunnerNames.includes(facts.runnerName) &&
+    sameExactSet(baseline.allowedRunnerNames, EXPECTED_RUNNERS) && EXPECTED_RUNNERS.includes(facts.runnerName) &&
     baseline.allowedConsoleUsers.includes(facts.consoleUser) && facts.developerModeEnabled === true &&
     facts.runnerOs === "macOS" && facts.runnerArch === "ARM64" &&
     Array.isArray(facts.activeRunnerServices) && facts.activeRunnerServices.length === 1 &&
@@ -108,7 +106,7 @@ export function aggregateReceipts(receipts, expectedSha) {
       }
     }
     const runnerNames = completeReceipts.map(receipt => receipt.preflight?.facts?.runnerName)
-    if (!sameSet(runnerNames, baseline.allowedRunnerNames)) {
+    if (!sameSet(runnerNames, EXPECTED_RUNNERS)) {
       runnerInfrastructureFailures.push("receipts do not prove three distinct runner identities")
     }
   }

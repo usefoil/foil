@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() { echo "release-readiness-cleanup: $*" >&2; exit 1; }
+[ "$#" -eq 2 ] && [ "$1" = "--run-root" ] || fail "usage: --run-root PATH"
+run_input="$2"
+[ -d "$run_input" ] || fail "run root must be an existing directory"
+run_root="$(cd "$run_input" && pwd -P)" || fail "cannot resolve run root"
+run_name="${run_root##*/}"
+parent="${run_root%/*}"
+expected_parent_input="${RUNNER_TEMP:?RUNNER_TEMP is required}/foil-readiness-runs"
+[ -d "$expected_parent_input" ] || fail "expected run parent is missing"
+expected_parent="$(cd "$expected_parent_input" && pwd -P)" || fail "cannot resolve expected run parent"
+[ "$parent" = "$expected_parent" ] || fail "unexpected run parent"
+[[ "$run_name" =~ ^[0-9]+-[0-9]+-[123]$ ]] || fail "unexpected run root name"
+[ -f "$run_root/.foil-readiness-owned" ] || fail "missing ownership marker"
+[ "$(find "$run_root" -mindepth 1 -maxdepth 1 -print | wc -l | tr -d ' ')" = "1" ] || fail "run root contains unexpected entries"
+expected="${GITHUB_RUN_ID:?GITHUB_RUN_ID is required}-${GITHUB_RUN_ATTEMPT:?GITHUB_RUN_ATTEMPT is required}-${READINESS_SLOT:?READINESS_SLOT is required}"
+[ "$run_name" = "$expected" ] || fail "run root does not match workflow identity"
+[ "$(cat "$run_root/.foil-readiness-owned")" = "$expected" ] || fail "ownership marker mismatch"
+cd "$expected_parent" || fail "cannot anchor cleanup in expected parent"
+[ "$(pwd -P)" = "$expected_parent" ] || fail "cleanup parent changed during validation"
+[ "$(cd "./$run_name" && pwd -P)" = "$run_root" ] || fail "run root changed during validation"
+rm -- "./$run_name/.foil-readiness-owned"
+rmdir -- "./$run_name"

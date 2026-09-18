@@ -239,7 +239,7 @@ test("aggregate runs the real receipt validator and cannot publish a passed summ
     const directory = fs.mkdtempSync("/tmp/foil-workflow-contract-")
     try {
       fs.mkdirSync(`${directory}/scripts/ci`, { recursive: true })
-      for (const name of ["aggregate-ui-gate.mjs", "runner-baseline.json"]) {
+      for (const name of ["aggregate-ui-gate.mjs", "release-runner-contract.mjs", "runner-baseline.json"]) {
         fs.copyFileSync(`${root}scripts/ci/${name}`, `${directory}/scripts/ci/${name}`)
       }
       fs.symlinkSync(`${root}scripts/ci/tests/fixtures/${fixture}`, `${directory}/receipts`)
