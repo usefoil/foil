@@ -1,3 +1,9 @@
+## [1.14.1](https://github.com/usefoil/foil/compare/v1.14.0...v1.14.1) (2026-09-18)
+
+- Fix advanced external whisper.cpp server startup when Foil is launched outside Terminal by locating FFmpeg in common Homebrew and MacPorts paths.
+- Add clear FFmpeg installation guidance to Settings, onboarding, and the local-server setup documentation.
+
+
 ## [1.14.0](https://github.com/usefoil/foil/compare/v1.13.13...v1.14.0) (2026-09-17)
 
 - Add managed local transcription setup that downloads, verifies, and runs the recommended English-only or multilingual Whisper model without requiring Terminal.
