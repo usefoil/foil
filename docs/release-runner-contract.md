@@ -36,6 +36,14 @@ Readiness and deterministic UI remain advisory shadow evidence. A skipped requir
 
 Runtime proof requires repeated authorized dispatches after this workflow exists on a dispatchable ref. Local contract tests prove only parsing, fail-closed behavior, bounded cleanup, and workflow structure.
 
+## Deterministic shadow pilot boundary
+
+The deterministic UI workflow's `runner-pilot` mode accepts `foil-mm1`, `foil-mm2`, or `foil-mm3` and one `pilot_shard` from `a`, `b`, or `c`. A hosted, credential-free selection check rejects unsupported runner values before the Mac job, even if a dispatch bypasses the UI choice. The pilot routes to the selected machine label and rejects a receipt that is not passed, healthy, from that selected runner, and for that shard. Pilot evidence is diagnostic, not a pool pass or release authorization. The selection check does not prove that a runner remains online, retains its label, or is desktop-ready; the operator must check the live registration and availability immediately before each authorized dispatch, and the Mac job's preflight and receipt must prove runtime readiness. The `pool` mode still requires all three distinct runner identities, exact test coverage, and a passing aggregate.
+
+On 2026-09-19 the operator approved adding only the `foil-mm2` label to repository runner ID 24. A read-after-write runner API check confirmed the exact registration named `foil-mm2` was online and retained `self-hosted`, `macOS`, `ARM64`, and `foil-deterministic` alongside the new machine label. This proves current routing metadata, not durable availability or runtime success. The workflow does not use the runner-listing REST endpoint, which requires repository Administration read unavailable to its `GITHUB_TOKEN`; it uses no added secret.
+
+Before any runtime dispatch, an operator must separately approve the exact workflow/ref/SHA, all nine runner/shard pilot assignments, three consecutive complete pool runs, and the runner-unavailable failure-injection method and restoration owner. The label and shadow-pilot PR approval is not dispatch or merge authorization. Record the run/attempt, runner ID and hostname, preflight, cleanup, final receipt, diagnostics, and aggregate for every run; a missing or cancelled job is a failure, never a silent pass. Do not describe this local pilot contract as runtime proof until those authorized runs and their receipts have been reviewed.
+
 ## Local deterministic remediation record
 
 Read-only evidence from shadow run `35370635011` classified shards A and B as infrastructure failures: test enumeration launched the UI runner and timed out while enabling automation mode. Shard C reached tests and reported two test-harness assertions: the cleanup pane waited for an identifier absent from the captured accessibility tree despite a stable cleanup control being present, and the delivered-state assertion read the preceding processing label before the asynchronous transition completed.
