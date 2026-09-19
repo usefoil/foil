@@ -79,8 +79,12 @@ git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git ~/Developer/whis
 cd ~/Developer/whisper.cpp
 cmake -B build -DWHISPER_BUILD_TESTS=OFF
 cmake --build build -j --config Release
+brew install ffmpeg
 sh ./models/download-ggml-model.sh base.en
 ```
+
+The advanced server's `--convert` option needs FFmpeg. Foil checks common
+Homebrew and MacPorts locations when it starts the server from the app.
 
 Start the local server:
 

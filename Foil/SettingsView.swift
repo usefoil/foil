@@ -1392,6 +1392,12 @@ struct SettingsView: View {
             )
 
             commandBlock(
+                title: "Install FFmpeg for audio conversion",
+                command: selectedLocalWhisperSetupCommands.ffmpegInstallCommand,
+                identifier: "settings.localWhisperFFmpegInstallCommand"
+            )
+
+            commandBlock(
                 title: "Download model",
                 command: selectedLocalWhisperSetupCommands.downloadCommand,
                 identifier: "settings.localWhisperDownloadCommand"

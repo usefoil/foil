@@ -230,7 +230,8 @@ struct OnboardingView: View {
             DisclosureGroup("Advanced Terminal commands") {
                 setupCommand("1. Install source", commands.cloneCommand)
                 setupCommand("2. Build", commands.buildCommand)
-                setupCommand("3. Download model", commands.downloadCommand)
+                setupCommand("3. Install FFmpeg for audio conversion", commands.ffmpegInstallCommand)
+                setupCommand("4. Download model", commands.downloadCommand)
             }
             HStack {
                 Button("Start local model") { onStartLocalServer?(model.id) }
