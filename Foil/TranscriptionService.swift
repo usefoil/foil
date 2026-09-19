@@ -440,6 +440,10 @@ struct LocalWhisperSetupCommands: Equatable {
         """
     }
 
+    var ffmpegInstallCommand: String {
+        "brew install ffmpeg"
+    }
+
     var downloadCommand: String {
         """
         cd \(installPath)
@@ -605,8 +609,13 @@ final class LocalWhisperServerController {
     nonisolated static let defaultReadinessTimeoutNanoseconds: UInt64 = 30_000_000_000
     nonisolated static let maximumStartupOutputBytes = 16_384
     nonisolated static let maximumStartupFailureDetailCharacters = 320
+    nonisolated static let defaultFFmpegSearchDirectories = [
+        "/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"
+    ]
 
     private let fileManager: FileManager
+    private let environment: [String: String]
+    private let ffmpegSearchDirectories: [String]
     private let reachabilityCheck: ReachabilityCheck
     private let delay: Delay
     private let monotonicTime: MonotonicTime
@@ -621,9 +630,13 @@ final class LocalWhisperServerController {
         fileManager: FileManager = .default,
         delay: @escaping Delay = { try await Task.sleep(nanoseconds: $0) },
         monotonicTime: @escaping MonotonicTime = { DispatchTime.now().uptimeNanoseconds },
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        ffmpegSearchDirectories: [String] = LocalWhisperServerController.defaultFFmpegSearchDirectories,
         reachabilityCheck: @escaping ReachabilityCheck = LocalWhisperServerController.defaultReachabilityCheck
     ) {
         self.fileManager = fileManager
+        self.environment = environment
+        self.ffmpegSearchDirectories = ffmpegSearchDirectories
         self.reachabilityCheck = reachabilityCheck
         self.delay = delay
         self.monotonicTime = monotonicTime
@@ -648,11 +661,15 @@ final class LocalWhisperServerController {
         guard fileManager.fileExists(atPath: commands.modelFileURL.path) else {
             return .missingModel(commands.modelFileDisplayPath)
         }
+        guard let launchEnvironment = ffmpegLaunchEnvironment(commands: commands) else {
+            return .failed("FFmpeg is required for local audio conversion. Run brew install ffmpeg, then try again.")
+        }
 
         let serverProcess = Process()
         serverProcess.executableURL = commands.serverBinaryURL
         serverProcess.arguments = commands.startServerArguments
         serverProcess.currentDirectoryURL = commands.installDirectoryURL
+        serverProcess.environment = launchEnvironment
         // whisper-server watches stdin and exits cleanly when it reaches EOF.
         // GUI apps inherit a closed stdin, so keep a pipe open for its lifetime.
         let inputPipe = Pipe()
@@ -701,6 +718,35 @@ final class LocalWhisperServerController {
             DiagnosticLog.write("localWhisperServer: failed error=\(safeDetail)")
             return .failed("Could not start whisper-server: \(safeDetail)")
         }
+    }
+
+    private func ffmpegLaunchEnvironment(commands: LocalWhisperSetupCommands) -> [String: String]? {
+        // Finder-launched apps often lack package-manager bins, while whisper-server
+        // invokes ffmpeg by name when --convert is enabled.
+        let inheritedDirectories = (environment["PATH"] ?? "")
+            .split(separator: ":")
+            .map(String.init)
+        let candidates = inheritedDirectories
+            + [commands.serverBinaryURL.deletingLastPathComponent().path]
+            + ffmpegSearchDirectories
+        for directory in candidates where directory.hasPrefix("/") {
+            let executable = URL(fileURLWithPath: directory, isDirectory: true)
+                .appendingPathComponent("ffmpeg", isDirectory: false)
+            var isDirectory: ObjCBool = false
+            guard fileManager.fileExists(atPath: executable.path, isDirectory: &isDirectory),
+                  !isDirectory.boolValue,
+                  fileManager.isExecutableFile(atPath: executable.path) else { continue }
+
+            var launchEnvironment = environment
+            if !inheritedDirectories.contains(directory) {
+                let inheritedPath = environment["PATH"] ?? ""
+                launchEnvironment["PATH"] = inheritedPath.isEmpty
+                    ? directory
+                    : "\(directory):\(inheritedPath)"
+            }
+            return launchEnvironment
+        }
+        return nil
     }
 
     func waitForReadiness(

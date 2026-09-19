@@ -80,8 +80,9 @@ endpoint. Unassigned apps stay fast and direct with raw transcripts by default.
   work after relaunch without internet access.
 - **External local server — advanced** uses an OpenAI-compatible server that you
   install and manage, defaulting to `http://127.0.0.1:8080/v1`. Settings keeps
-  the copyable whisper.cpp build, model-download, and launch commands in this
-  advanced path.
+  the copyable whisper.cpp build, FFmpeg install, model-download, and launch
+  commands in this advanced path. FFmpeg is required for the server's audio
+  conversion.
 - **Custom OpenAI-compatible** sends audio to the base URL and model you
   configure. API keys are optional when your server allows unauthenticated
   requests.

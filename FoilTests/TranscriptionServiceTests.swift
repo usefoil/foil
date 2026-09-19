@@ -240,6 +240,7 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(commands.cloneCommand.contains("git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git ~/Developer/whisper.cpp"))
         XCTAssertTrue(commands.buildCommand.contains("cmake -B build -DWHISPER_BUILD_TESTS=OFF"))
         XCTAssertTrue(commands.buildCommand.contains("cmake --build build -j --config Release"))
+        XCTAssertEqual(commands.ffmpegInstallCommand, "brew install ffmpeg")
         XCTAssertTrue(commands.downloadCommand.contains("sh ./models/download-ggml-model.sh small.en"))
         XCTAssertTrue(commands.startServerCommand.contains("--host 127.0.0.1"))
         XCTAssertTrue(commands.startServerCommand.contains("--port 8080"))
@@ -281,7 +282,7 @@ final class TranscriptionServiceTests: XCTestCase {
     func testLocalWhisperServerControllerReportsAlreadyRunningBeforeCheckingFiles() async {
         let model = LocalWhisperSetupModel.option(id: .baseEN)
         let commands = LocalWhisperSetupCommands(model: model, installPath: "/tmp/foil-missing-whisper-\(UUID().uuidString)")
-        let controller = LocalWhisperServerController { _ in true }
+        let controller = LocalWhisperServerController(reachabilityCheck: { _ in true })
 
         let result = await controller.start(commands: commands)
 
@@ -294,7 +295,7 @@ final class TranscriptionServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: installURL) }
         let model = LocalWhisperSetupModel.option(id: .baseEN)
         let commands = LocalWhisperSetupCommands(model: model, installPath: installURL.path)
-        let controller = LocalWhisperServerController { _ in false }
+        let controller = LocalWhisperServerController(reachabilityCheck: { _ in false })
 
         let result = await controller.start(commands: commands)
 
@@ -312,11 +313,11 @@ final class TranscriptionServiceTests: XCTestCase {
         try Self.writeExecutableStub(at: commands.serverBinaryURL)
         try Data().write(to: commands.modelFileURL)
         let probeStarted = expectation(description: "Initial reachability probe started")
-        let controller = LocalWhisperServerController { _ in
+        let controller = LocalWhisperServerController(reachabilityCheck: { _ in
             probeStarted.fulfill()
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             return false
-        }
+        })
         let startTask = Task { await controller.start(commands: commands) }
         await fulfillment(of: [probeStarted], timeout: 1)
 
@@ -334,7 +335,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let model = LocalWhisperSetupModel.option(id: .smallEN)
         let commands = LocalWhisperSetupCommands(model: model, installPath: installURL.path)
         try Self.writeExecutableStub(at: commands.serverBinaryURL)
-        let controller = LocalWhisperServerController { _ in false }
+        let controller = LocalWhisperServerController(reachabilityCheck: { _ in false })
 
         let result = await controller.start(commands: commands)
 
@@ -349,7 +350,7 @@ final class TranscriptionServiceTests: XCTestCase {
         let commands = LocalWhisperSetupCommands(model: model, installPath: installURL.path)
         try Data("#!/bin/sh\nexit 0\n".utf8).write(to: commands.serverBinaryURL)
         try Data().write(to: commands.modelFileURL)
-        let controller = LocalWhisperServerController { _ in false }
+        let controller = LocalWhisperServerController(reachabilityCheck: { _ in false })
 
         let result = await controller.start(commands: commands)
 
@@ -358,6 +359,72 @@ final class TranscriptionServiceTests: XCTestCase {
         }
         XCTAssertTrue(message.contains("not executable"))
         XCTAssertTrue(message.contains(commands.serverBinaryURL.path))
+    }
+
+    @MainActor
+    func testLocalWhisperServerControllerFindsFFmpegOutsideGUIPath() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        try FileManager.default.removeItem(
+            at: commands.serverBinaryURL.deletingLastPathComponent().appendingPathComponent("ffmpeg")
+        )
+        let ffmpegDirectory = installURL.appendingPathComponent("homebrew/bin", isDirectory: true)
+        try FileManager.default.createDirectory(at: ffmpegDirectory, withIntermediateDirectories: true)
+        let ffmpegURL = ffmpegDirectory.appendingPathComponent("ffmpeg")
+        try Data("#!/bin/sh\nprintf 'called' > \"$FOIL_TEST_FFMPEG_PROBE\"\n".utf8).write(to: ffmpegURL)
+        chmod(ffmpegURL.path, 0o755)
+        let probeURL = installURL.appendingPathComponent("ffmpeg-probe")
+        try Data("#!/bin/sh\nffmpeg\nread line\n".utf8).write(to: commands.serverBinaryURL)
+        chmod(commands.serverBinaryURL.path, 0o755)
+        try Data().write(to: commands.modelFileURL)
+        let controller = LocalWhisperServerController(
+            environment: ["PATH": "/usr/bin:/bin", "FOIL_TEST_FFMPEG_PROBE": probeURL.path],
+            ffmpegSearchDirectories: [ffmpegDirectory.path],
+            reachabilityCheck: { _ in false }
+        )
+
+        let result = await controller.start(commands: commands)
+        defer { controller.terminate() }
+        for _ in 0..<40 where !FileManager.default.fileExists(atPath: probeURL.path) {
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        XCTAssertEqual(result, .started(commands.localBaseURL))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: probeURL.path), "\(String(describing: controller.startupFailureDetail))")
+        XCTAssertEqual(try String(contentsOf: probeURL, encoding: .utf8), "called")
+        XCTAssertTrue(controller.isProcessRunning)
+    }
+
+    @MainActor
+    func testLocalWhisperServerControllerExplainsMissingFFmpegBeforeLaunch() async throws {
+        let installURL = try Self.makeTemporaryWhisperInstall()
+        defer { try? FileManager.default.removeItem(at: installURL) }
+        let commands = LocalWhisperSetupCommands(
+            model: LocalWhisperSetupModel.option(id: .baseEN),
+            installPath: installURL.path
+        )
+        try FileManager.default.removeItem(
+            at: commands.serverBinaryURL.deletingLastPathComponent().appendingPathComponent("ffmpeg")
+        )
+        try Self.writeExecutableStub(at: commands.serverBinaryURL)
+        try Data().write(to: commands.modelFileURL)
+        let controller = LocalWhisperServerController(
+            environment: ["PATH": ""],
+            ffmpegSearchDirectories: [],
+            reachabilityCheck: { _ in false }
+        )
+
+        let result = await controller.start(commands: commands)
+
+        guard case .failed(let message) = result else {
+            return XCTFail("Expected FFmpeg setup guidance, got \(result)")
+        }
+        XCTAssertTrue(message.contains("brew install ffmpeg"))
+        XCTAssertFalse(controller.isProcessRunning)
     }
 
     @MainActor
@@ -371,7 +438,7 @@ final class TranscriptionServiceTests: XCTestCase {
         try Data("#!/bin/sh\nread line\n".utf8).write(to: commands.serverBinaryURL)
         chmod(commands.serverBinaryURL.path, 0o755)
         try Data().write(to: commands.modelFileURL)
-        let controller = LocalWhisperServerController { _ in false }
+        let controller = LocalWhisperServerController(reachabilityCheck: { _ in false })
 
         let result = await controller.start(commands: commands)
         try await Task.sleep(nanoseconds: 150_000_000)
@@ -614,6 +681,9 @@ final class TranscriptionServiceTests: XCTestCase {
             at: installURL.appendingPathComponent("models", isDirectory: true),
             withIntermediateDirectories: true
         )
+        let ffmpegURL = installURL.appendingPathComponent("build/bin/ffmpeg")
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: ffmpegURL)
+        chmod(ffmpegURL.path, 0o755)
         return installURL
     }
 
