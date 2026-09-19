@@ -5,15 +5,24 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Run the full pool or one mm3 readiness shard"
+        description: "Run the full pool or one named-runner pilot shard"
         required: true
         default: "pool"
         type: choice
         options:
           - pool
-          - mm3-pilot
+          - runner-pilot
+      pilot_runner:
+        description: "Approved named runner for a single-shard pilot"
+        required: true
+        default: "foil-mm3"
+        type: choice
+        options:
+          - foil-mm1
+          - foil-mm2
+          - foil-mm3
       pilot_shard:
-        description: "Shard to run when mode is mm3-pilot"
+        description: "Shard to run when mode is runner-pilot"
         required: true
         default: "a"
         type: choice
@@ -132,10 +141,26 @@ jobs:
           path: artifacts/shard-${{ matrix.shard }}
           if-no-files-found: warn
 
-  mm3-pilot:
-    name: MM3 deterministic UI pilot (shard ${{ inputs.pilot_shard }})
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'mm3-pilot'
-    runs-on: [self-hosted, macOS, ARM64, foil-deterministic, foil-mm3]
+  pilot-selection:
+    name: Validate pilot runner selection
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runner-pilot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reject unsupported runner selection
+        env:
+          PILOT_RUNNER: ${{ inputs.pilot_runner }}
+        run: |
+          case "$PILOT_RUNNER" in
+            foil-mm1|foil-mm2|foil-mm3) ;;
+            *) echo "Pilot runner is not approved for routing: $PILOT_RUNNER" >&2; exit 1 ;;
+          esac
+
+  runner-pilot:
+    name: ${{ inputs.pilot_runner }} deterministic UI pilot (shard ${{ inputs.pilot_shard }})
+    needs: [pilot-selection]
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runner-pilot' && needs.pilot-selection.result == 'success'
+    runs-on: [self-hosted, macOS, ARM64, foil-deterministic, "${{ inputs.pilot_runner }}"]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -148,10 +173,11 @@ jobs:
           FOIL_CI_SHARD: ${{ inputs.pilot_shard }}
         run: bash scripts/ci/run-ui-shard.sh
       - id: validate
-        name: Validate passed mm3 receipt
+        name: Validate passed pilot receipt
         if: always()
         env:
           PILOT_SHARD: ${{ inputs.pilot_shard }}
+          PILOT_RUNNER: ${{ inputs.pilot_runner }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
@@ -160,25 +186,32 @@ jobs:
           const receipt = JSON.parse(fs.readFileSync(file, 'utf8'));
           const failures = [];
           if (receipt.shard !== process.env.PILOT_SHARD) failures.push(`shard ${receipt.shard}`);
+          if (receipt.sha !== process.env.GITHUB_SHA) failures.push(`SHA ${receipt.sha}`);
+          if (receipt.runId !== process.env.GITHUB_RUN_ID || receipt.workflowAttempt !== process.env.GITHUB_RUN_ATTEMPT) failures.push('run identity');
           if (receipt.classification !== 'passed') failures.push(`classification ${receipt.classification}`);
+          if (receipt.interrupted !== false || receipt.buildExit !== 0 || receipt.testExit !== 0 ||
+              (process.env.PILOT_SHARD === 'c' ? receipt.fixtureExit !== 0 : receipt.fixtureExit !== null)) failures.push('incomplete execution');
+          if (!Array.isArray(receipt.expectedTests) || receipt.expectedTests.length === 0 ||
+              !Array.isArray(receipt.executedTests) || receipt.expectedTests.length !== receipt.executedTests.length ||
+              receipt.expectedTests.some((test, index) => test !== [...receipt.executedTests].sort()[index])) failures.push('test coverage');
           if (receipt.preflight?.status !== 'healthy') failures.push(`preflight ${receipt.preflight?.status}`);
-          if (receipt.preflight?.facts?.runnerName !== 'foil-mm3') failures.push(`runner ${receipt.preflight?.facts?.runnerName}`);
+          if (receipt.preflight?.facts?.runnerName !== process.env.PILOT_RUNNER) failures.push(`runner ${receipt.preflight?.facts?.runnerName}`);
           if (!Array.isArray(receipt.preflight?.errors) || receipt.preflight.errors.length !== 0) failures.push('preflight errors');
-          if (failures.length) throw new Error(`invalid mm3 pilot receipt: ${failures.join(', ')}`);
-          console.log(`validated passed mm3 pilot receipt for shard ${receipt.shard}`);
+          if (failures.length) throw new Error(`invalid runner pilot receipt: ${failures.join(', ')}`);
+          console.log(`validated passed ${process.env.PILOT_RUNNER} pilot receipt for shard ${receipt.shard}`);
           NODE
       - name: Upload final receipt
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mm3-pilot-receipt-${{ inputs.pilot_shard }}
+          name: runner-pilot-receipt-${{ inputs.pilot_runner }}-${{ inputs.pilot_shard }}
           path: artifacts/receipt-${{ inputs.pilot_shard }}.json
           if-no-files-found: error
       - name: Upload shard diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mm3-pilot-shard-${{ inputs.pilot_shard }}
+          name: runner-pilot-shard-${{ inputs.pilot_runner }}-${{ inputs.pilot_shard }}
           path: artifacts/shard-${{ inputs.pilot_shard }}
           if-no-files-found: warn
 
