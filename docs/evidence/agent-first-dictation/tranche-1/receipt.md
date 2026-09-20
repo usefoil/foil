@@ -82,8 +82,9 @@ Evidence:
   It asserts an exact result and a one-line `/v1/audio/transcriptions` request log;
   any Cleanup/agent request makes the gate fail.
 
-Residual risk: an isolated arm64 test host built successfully and launched its
-XCUITest runner twice, but macOS rejected UI-test initialization both times with
+Residual risk: isolated arm64 test hosts built successfully and launched their
+XCUITest runners three times, including at PR head `4231698`, but macOS rejected
+UI-test initialization each time with
 `com.apple.LocalAuthentication` code `-4` (`System authentication is running`).
 The test body and fixture assertions never ran. This remains an open gate, recorded
 as a blocked attempt in `fixture-e2e-attempt-20260920.json`, and still needs an idle
