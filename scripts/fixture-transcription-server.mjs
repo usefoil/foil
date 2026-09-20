@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 import http from 'node:http'
-import { writeFileSync } from 'node:fs'
+import { appendFileSync, writeFileSync } from 'node:fs'
 
 const host = process.env.FIXTURE_TRANSCRIPTION_HOST || '127.0.0.1'
 const port = Number(process.env.FIXTURE_TRANSCRIPTION_PORT || '0')
 const readyPath = process.env.FIXTURE_TRANSCRIPTION_READY_PATH || ''
 const receiptPath = process.env.FIXTURE_TRANSCRIPTION_RECEIPT_PATH || ''
+const requestLogPath = process.env.FIXTURE_TRANSCRIPTION_REQUEST_LOG_PATH || ''
 const expectedModel = process.env.FIXTURE_TRANSCRIPTION_MODEL || 'whisper-1'
 const transcript = process.env.FIXTURE_TRANSCRIPTION_TEXT || 'the quick brown fox jumps over the lazy dog.'
 const maxBodyBytes = Number(process.env.FIXTURE_TRANSCRIPTION_MAX_BODY_BYTES || `${10 * 1024 * 1024}`)
@@ -226,6 +227,9 @@ function receiptIsValid(receipt) {
 }
 
 const server = http.createServer(async (request, response) => {
+  if (requestLogPath) {
+    appendFileSync(requestLogPath, `${JSON.stringify({ method: request.method, url: request.url })}\n`)
+  }
   if (request.method === 'GET' && request.url === '/v1/models') {
     sendJSON(response, 200, {
       object: 'list',

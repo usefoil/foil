@@ -1,0 +1,8 @@
+2026-09-20T19:28:52Z automation local correction: requested target=Optional(PasteTarget(appName=TextEdit pid=46290 bundle=com.apple.TextEdit windowID=1098))
+2026-09-20T19:28:52Z automationLocalCorrection: local corrections revision=4 replacements=0 fallback=none
+2026-09-20T19:28:52Z automationLocalCorrection: transcript processing skipped cleanupGroup=default-unassigned-apps mode=raw
+2026-09-20T19:28:52Z automation local correction: result targetBundle=com.apple.TextEdit group=default-unassigned-apps revision=4 replacements=0 provider=none disabled=false
+2026-09-20T19:28:52Z PasteController.paste: asyncOn=true target=Optional(PasteTarget(appName=TextEdit pid=46290 bundle=com.apple.TextEdit windowID=1098))
+2026-09-20T19:28:52Z ASYNC PATH: pasting into TextEdit pid=46290
+2026-09-20T19:28:52Z BackgroundPaste: AX insertion succeeded for TextEdit
+2026-09-20T19:28:52Z insertAsync: Tier 1 (AX) verified for TextEdit

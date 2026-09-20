@@ -1,0 +1,13 @@
+{
+  "configuredRule" : true,
+  "disabledRule" : false,
+  "expectedText" : "foil acceptance Supabase CODEX-CLI-20260920",
+  "expectedTextObserved" : true,
+  "otherTargetBundleIdentifier" : "com.apple.TextEdit",
+  "otherTargetUnchanged" : true,
+  "targetBundleIdentifier" : "com.apple.Terminal",
+  "targetElementRole" : "AXTextArea",
+  "targetProcessIdentifier" : 55703,
+  "targetValueUTF8CountAfter" : 1024,
+  "targetValueUTF8CountBefore" : 1005
+}

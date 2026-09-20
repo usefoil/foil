@@ -1,0 +1,26 @@
+{
+  "kind": "test_foundation_only",
+  "fixture_count": 120,
+  "split": "development",
+  "mutants": {
+    "substring": {
+      "rejected_by": "N01",
+      "reason": "Plural extension is blocked by the trailing letter boundary."
+    },
+    "scope": {
+      "rejected_by": "N21",
+      "reason": "A group-specific rule is inactive in another group."
+    },
+    "disabled": {
+      "rejected_by": "N31",
+      "reason": "A disabled rule cannot replace text."
+    },
+    "recursive": {
+      "rejected_by": "E01",
+      "reason": "Replacement output is never scanned by a later rule."
+    }
+  },
+  "host": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+  "production_engine": "NOT_RUN",
+  "harness_elapsed_seconds": 0.018566124999779277
+}

@@ -1061,7 +1061,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(cleanupPromptEditorValueContains("Clean up the transcript"), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Vocabulary").waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Preferred terms").waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertTrue(staticTextLabelOrValueContaining("applied when you choose Cleanup profile").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("instantly on this Mac").waitForExistence(timeout: 2), app.debugDescription)
 
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup", "--seed-cleanup-formatting-enabled"])
         openSettingsPanel()
@@ -1079,6 +1079,62 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add correction"].waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Preferred terms").waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Fix punctuation, capitalization, filler, stutters").waitForExistence(timeout: 2), app.debugDescription)
+    }
+
+    func testLocalCorrectionCreatePreviewEditDisableAndRelaunch() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--settings-tab-cleanup"])
+        openSettingsPanel()
+
+        let writtenAs = app.textFields["settings.vocabularyCorrectionWrittenAs"]
+        let correctVersion = app.textFields["settings.vocabularyCorrectionCorrectVersion"]
+        XCTAssertTrue(writtenAs.waitForExistence(timeout: 4), app.debugDescription)
+        replaceText(in: writtenAs, with: "super base")
+        replaceText(in: correctVersion, with: "Supabase")
+        clickElement(app.buttons["settings.addVocabularyCorrectionButton"])
+
+        let scope = app.popUpButtons["settings.localCorrectionScope"]
+        XCTAssertTrue(scope.waitForExistence(timeout: 3), app.debugDescription)
+        clickElement(scope)
+        clickElement(app.menuItems["Everywhere"])
+        clickElement(app.checkBoxes["settings.localCorrectionsEnabled"])
+
+        let previewInput = app.textFields["settings.localCorrectionPreviewInput"]
+        replaceText(in: previewInput, with: "use super base now")
+        let previewOutput = app.staticTexts["settings.localCorrectionPreviewOutput"]
+        XCTAssertTrue(
+            elementLabelOrValueContains(previewOutput, "use Supabase now"),
+            app.debugDescription
+        )
+
+        clickElement(app.buttons["settings.editVocabularyCorrectionButton"])
+        XCTAssertEqual(writtenAs.value as? String, "super base")
+        replaceText(in: writtenAs, with: "cloud code")
+        replaceText(in: correctVersion, with: "Claude Code")
+        clickElement(app.buttons["settings.saveVocabularyCorrectionButton"])
+        replaceText(in: previewInput, with: "ask cloud code")
+        XCTAssertTrue(elementLabelOrValueContains(previewOutput, "ask Claude Code"), app.debugDescription)
+
+        relaunchWithArguments(["--ui-testing", "--settings-tab-cleanup"])
+        openSettingsPanel()
+        XCTAssertTrue(app.staticTexts["cloud code -> Claude Code"].waitForExistence(timeout: 4), app.debugDescription)
+        let relaunchedScope = app.popUpButtons["settings.localCorrectionScope"]
+        XCTAssertTrue(elementValueContains(relaunchedScope, "Everywhere"), app.debugDescription)
+        clickElement(relaunchedScope)
+        clickElement(app.menuItems["Off"])
+        let relaunchedPreview = app.textFields["settings.localCorrectionPreviewInput"]
+        replaceText(in: relaunchedPreview, with: "ask cloud code")
+        XCTAssertTrue(
+            elementLabelOrValueContains(
+                app.staticTexts["settings.localCorrectionPreviewOutput"],
+                "ask cloud code"
+            ),
+            app.debugDescription
+        )
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "local-correction-disabled-after-relaunch"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testActiveCleanupModeSelectorPersistsAndScreenshotsResult() {
@@ -1898,7 +1954,10 @@ final class FoilUITests: XCTestCase {
             "E2E_CLEANUP_MODE",
             "E2E_CLEANUP_MODEL",
             "E2E_CLEANUP_BASE_URL",
-            "E2E_CLEANUP_API_KEY"
+            "E2E_CLEANUP_API_KEY",
+            "E2E_LOCAL_CORRECTION_SOURCE",
+            "E2E_LOCAL_CORRECTION_REPLACEMENT",
+            "E2E_EXPECTED_ORIGINAL_TEXT"
         ] {
             if let value = env[key], !value.isEmpty {
                 environment[key] = value
@@ -1925,8 +1984,40 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(pasted.waitForExistence(timeout: timeout),
                       "E2E transcription should complete and paste within \(Int(timeout)) seconds")
 
-        let transcript = (try? String(contentsOfFile: resultPath, encoding: .utf8)) ?? ""
+        let resultURL = URL(fileURLWithPath: resultPath)
+        let transcriptData = (try? Data(contentsOf: resultURL)) ?? Data()
+        let transcript = String(data: transcriptData, encoding: .utf8) ?? ""
         XCTAssertFalse(transcript.isEmpty, "E2E result file should contain the transcript")
+        if let expectedLocalText = env["E2E_EXPECTED_LOCAL_CORRECTION_TEXT"],
+           !expectedLocalText.isEmpty {
+            XCTAssertEqual(
+                transcriptData,
+                Data(expectedLocalText.utf8),
+                "Local correction result must preserve every expected UTF-8 byte"
+            )
+            clickElement(button(id: "menu.historyButton", fallbackLabel: "History"))
+            XCTAssertTrue(
+                staticTextLabelOrValueContaining("Latest original is available").waitForExistence(timeout: 3),
+                app.debugDescription
+            )
+            let copyOriginal = button(id: "history.original.copyButton", fallbackLabel: "Copy original")
+            XCTAssertTrue(copyOriginal.waitForExistence(timeout: 2), app.debugDescription)
+            if let expectedOriginalText = env["E2E_EXPECTED_ORIGINAL_TEXT"],
+               !expectedOriginalText.isEmpty {
+                NSPasteboard.general.clearContents()
+                clickElement(copyOriginal)
+                let copiedOriginal = NSPasteboard.general.string(forType: .string) ?? ""
+                XCTAssertEqual(
+                    Data(copiedOriginal.utf8),
+                    Data(expectedOriginalText.utf8),
+                    "Copy original must preserve every pre-correction UTF-8 byte"
+                )
+            }
+            let attachment = XCTAttachment(screenshot: screenshot(preferredElements: [app.windows["Foil"]]))
+            attachment.name = "local-correction-result-and-original-recovery"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
 
         let expected = "the quick brown fox jumps over the lazy dog"
         let expectedWords = Set(expected.split(separator: " ").map { String($0) })

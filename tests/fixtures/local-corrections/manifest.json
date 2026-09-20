@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "contract": "contract.md",
+  "authorship": "Manually authored expectations; same-author review only. Holdout reserved for first production candidate, not independently reviewed.",
+  "files": {
+    "development.jsonl": {
+      "split": "development",
+      "sha256": "9cd14a82d2ae48cc5f233ccda9ceff0237730ebe991ebd06848dc4c627edc9dc",
+      "count": 120,
+      "categories": {
+        "positive": 40,
+        "negative": 60,
+        "edge": 20
+      }
+    },
+    "holdout.jsonl": {
+      "split": "holdout",
+      "sha256": "78cd470de0202f66229a828e7e2ffb4297969295040489560b77385cebf42354",
+      "count": 30,
+      "categories": {
+        "positive": 10,
+        "negative": 10,
+        "edge": 10
+      }
+    }
+  }
+}

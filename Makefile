@@ -315,6 +315,25 @@ test-live-microphone-qa-script:
 test-installed-live-microphone-qa-script:
 	scripts/test-run-installed-live-microphone-qa.sh
 
+.PHONY: test-local-corrections-contract test-local-correction-engine test-local-correction-performance test-local-correction-fixture-e2e
+test-local-corrections-contract:
+	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p test_local_corrections_harness.py -v
+	python3 tests/local_corrections_harness.py
+
+test-local-correction-engine: test-local-corrections-contract
+	scripts/test-local-correction-engine.sh
+
+test-local-correction-performance:
+	scripts/test-local-correction-performance.sh
+
+test-local-correction-fixture-e2e:
+	FIXTURE_TRANSCRIPTION_TEXT='the quick brown fox jumps over the lazy dog with super base.' \
+	E2E_LOCAL_CORRECTION_SOURCE='super base' \
+	E2E_LOCAL_CORRECTION_REPLACEMENT='Supabase' \
+	E2E_EXPECTED_ORIGINAL_TEXT='the quick brown fox jumps over the lazy dog with super base.' \
+	E2E_EXPECTED_LOCAL_CORRECTION_TEXT='the quick brown fox jumps over the lazy dog with Supabase.' \
+	scripts/run-fixture-transcription-e2e-xcuitest.sh
+
 test-cleanup-quality:
 	swift tests/test_cleanup_quality.swift --require-live-provider
 

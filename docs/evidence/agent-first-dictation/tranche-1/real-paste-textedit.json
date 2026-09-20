@@ -1,0 +1,10 @@
+{
+  "configuredRule" : true,
+  "disabledRule" : false,
+  "expectedText" : "foil acceptance super base TEXTEDIT-ZERO-NETWORK-20260920",
+  "expectedTextObserved" : true,
+  "targetBundleIdentifier" : "com.apple.TextEdit",
+  "targetProcessIdentifier" : 46290,
+  "targetValueUTF8CountAfter" : 104,
+  "targetValueUTF8CountBefore" : 47
+}

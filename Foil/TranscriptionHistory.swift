@@ -5,6 +5,8 @@ struct TranscriptionRecord: Codable, Identifiable {
     let id: UUID
     let timestamp: Date
     var sourceAppName: String?
+    var sourceAppBundleIdentifier: String? = nil
+    var sourceAppPath: String? = nil
     var sourceRecordID: UUID?
     var transformKind: HistoryTransformKind?
     var outcome: Outcome
@@ -34,6 +36,18 @@ struct TranscriptionRecord: Codable, Identifiable {
         return false
     }
 
+    var sourceAppContext: CleanupAppContext? {
+        let context = CleanupAppContext(
+            displayName: sourceAppName,
+            bundleIdentifier: sourceAppBundleIdentifier,
+            appPath: sourceAppPath
+        )
+        guard context.displayName != nil || context.bundleIdentifier != nil || context.appPath != nil else {
+            return nil
+        }
+        return context
+    }
+
     var previewText: String {
         let source = text ?? error ?? ""
         if source.count <= 40 { return source }
@@ -58,12 +72,31 @@ final class TranscriptionHistory {
     private(set) var records: [TranscriptionRecord] = []
     /// Kept only until Foil quits or history is cleared, including when disk history is off.
     private(set) var lastSessionTranscript: String?
+    /// The provider transcript before local correction and Cleanup. Never written to disk.
+    private(set) var lastSessionOriginalTranscript: String?
     private var lastSessionRecordID: UUID?
     var lastRecoverableText: String? {
         if let lastSessionRecordID {
             return records.first { $0.id == lastSessionRecordID }?.text ?? successfulRecords.first?.text
         }
         return lastSessionTranscript ?? successfulRecords.first?.text
+    }
+    var lastRecoverableOriginalText: String? {
+        guard let original = lastSessionOriginalTranscript,
+              let final = lastSessionTranscript,
+              !original.utf8.elementsEqual(final.utf8) else {
+            return nil
+        }
+        if let lastSessionRecordID {
+            guard let currentText = records.first(where: { $0.id == lastSessionRecordID })?.text,
+                  currentText.utf8.elementsEqual(final.utf8) else {
+                return nil
+            }
+        }
+        return original
+    }
+    var canClear: Bool {
+        !records.isEmpty || lastSessionTranscript != nil || lastSessionOriginalTranscript != nil
     }
     private(set) var preferencesError: String?
 
@@ -138,14 +171,22 @@ final class TranscriptionHistory {
         self.init(storageDirectory: dir)
     }
 
-    func addSuccess(text: String, sourceAppName: String? = nil) {
+    func addSuccess(
+        text: String,
+        originalText: String? = nil,
+        sourceAppName: String? = nil
+    ) {
         let record = TranscriptionRecord(
             id: UUID(),
             timestamp: Date(),
             sourceAppName: Self.normalizedSourceAppName(sourceAppName),
             outcome: .success(text: text)
         )
-        rememberLastSession(text: text, recordID: insert(record) ? record.id : nil)
+        rememberLastSession(
+            text: text,
+            originalText: originalText,
+            recordID: insert(record) ? record.id : nil
+        )
     }
 
     func addTransformResult(
@@ -162,10 +203,16 @@ final class TranscriptionHistory {
             transformKind: transformKind,
             outcome: .success(text: text)
         )
-        rememberLastSession(text: text, recordID: insert(record) ? record.id : nil)
+        rememberLastSession(text: text, originalText: nil, recordID: insert(record) ? record.id : nil)
     }
 
-    func addFailure(error: String, audioFileURL: URL?, sourceAppName: String? = nil) {
+    func addFailure(
+        error: String,
+        audioFileURL: URL?,
+        sourceAppName: String? = nil,
+        sourceAppBundleIdentifier: String? = nil,
+        sourceAppPath: String? = nil
+    ) {
         guard isPersistenceEnabled else {
             if let audioFileURL { try? FileManager.default.removeItem(at: audioFileURL) }
             return
@@ -175,12 +222,19 @@ final class TranscriptionHistory {
             id: UUID(),
             timestamp: Date(),
             sourceAppName: Self.normalizedSourceAppName(sourceAppName),
+            sourceAppBundleIdentifier: Self.normalizedSourceAppName(sourceAppBundleIdentifier),
+            sourceAppPath: Self.normalizedSourceAppName(sourceAppPath),
             outcome: .failure(error: error, audioFileURL: retainedAudioURL)
         )
         _ = insert(record)
     }
 
-    func resolveRetry(id: UUID, text: String, sourceAppName: String? = nil) {
+    func resolveRetry(
+        id: UUID,
+        text: String,
+        originalText: String? = nil,
+        sourceAppName: String? = nil
+    ) {
         guard let index = records.firstIndex(where: { $0.id == id }) else { return }
         // Delete the audio file since retry succeeded
         if let audioURL = records[index].audioFileURL {
@@ -190,7 +244,7 @@ final class TranscriptionHistory {
             records[index].sourceAppName = normalizedSourceAppName
         }
         records[index].outcome = .success(text: text)
-        rememberLastSession(text: text, recordID: records[index].id)
+        rememberLastSession(text: text, originalText: originalText, recordID: records[index].id)
         save()
     }
 
@@ -207,6 +261,10 @@ final class TranscriptionHistory {
               let index = records.firstIndex(where: { $0.id == id }),
               !records[index].isFailure else { return }
         records[index].outcome = .success(text: trimmed)
+        if lastSessionRecordID == id {
+            lastSessionTranscript = trimmed
+            lastSessionOriginalTranscript = nil
+        }
         save()
     }
 
@@ -237,6 +295,11 @@ final class TranscriptionHistory {
     func delete(id: UUID) {
         guard let index = records.firstIndex(where: { $0.id == id }) else { return }
         let removed = records.remove(at: index)
+        if lastSessionRecordID == removed.id {
+            lastSessionTranscript = nil
+            lastSessionRecordID = nil
+            lastSessionOriginalTranscript = nil
+        }
         if let audioURL = removed.audioFileURL {
             try? FileManager.default.removeItem(at: audioURL)
         }
@@ -245,6 +308,7 @@ final class TranscriptionHistory {
 
     func clear() {
         lastSessionTranscript = nil
+        lastSessionOriginalTranscript = nil
         lastSessionRecordID = nil
         for record in records {
             if let audioURL = record.audioFileURL {
@@ -258,6 +322,7 @@ final class TranscriptionHistory {
     /// Delete all records older than the given date.
     func deleteOlderThan(_ date: Date) {
         let toDelete = records.filter { $0.timestamp < date }
+        clearLastSessionRecovery(ifDeleting: Set(toDelete.map(\.id)))
         for record in toDelete {
             if let url = record.audioFileURL {
                 try? FileManager.default.removeItem(at: url)
@@ -269,6 +334,7 @@ final class TranscriptionHistory {
 
     /// Delete all records matching the given IDs.
     func deleteAll(ids: Set<UUID>) {
+        clearLastSessionRecovery(ifDeleting: ids)
         for record in records where ids.contains(record.id) {
             if let url = record.audioFileURL {
                 try? FileManager.default.removeItem(at: url)
@@ -335,9 +401,19 @@ final class TranscriptionHistory {
 
     // MARK: - Private
 
-    private func rememberLastSession(text: String, recordID: UUID?) {
+    private func rememberLastSession(text: String, originalText: String?, recordID: UUID?) {
         lastSessionTranscript = text
+        lastSessionOriginalTranscript = originalText.flatMap { original in
+            original.utf8.elementsEqual(text.utf8) ? nil : original
+        }
         lastSessionRecordID = recordID
+    }
+
+    private func clearLastSessionRecovery(ifDeleting ids: Set<UUID>) {
+        guard let lastSessionRecordID, ids.contains(lastSessionRecordID) else { return }
+        lastSessionTranscript = nil
+        lastSessionOriginalTranscript = nil
+        self.lastSessionRecordID = nil
     }
 
     private func insert(_ record: TranscriptionRecord) -> Bool {

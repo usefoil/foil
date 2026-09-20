@@ -109,6 +109,8 @@ struct SettingsView: View {
     @State private var vocabularyWrittenAs = ""
     @State private var vocabularyCorrectVersion = ""
     @State private var vocabularyNote = ""
+    @State private var vocabularyEditingID: UUID?
+    @State private var localCorrectionPreviewInput = ""
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
     private let soundPreviewPlayer = SoundPlayer()
 
@@ -1242,6 +1244,21 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settings.vocabularyHelp")
             }
 
+            Toggle("Apply local corrections on this Mac", isOn: localCorrectionsEnabledBinding)
+                .accessibilityIdentifier("settings.localCorrectionsEnabled")
+            Text("Runs exact phrase replacements before Cleanup. Backtick code and http://, https://, or www. links are left alone. Other links, file paths, and email addresses can be corrected.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("settings.localCorrectionsHelp")
+            if let error = appState.localCorrectionPersistenceError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.localCorrectionsError")
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     TextField("Foil wrote", text: $vocabularyWrittenAs)
@@ -1253,22 +1270,48 @@ struct SettingsView: View {
                 TextField("Optional note", text: $vocabularyNote)
                     .accessibilityIdentifier("settings.vocabularyCorrectionNote")
 
-                Button {
-                    guard appState.addVocabularyCorrection(
-                        writtenAs: vocabularyWrittenAs,
-                        correctVersion: vocabularyCorrectVersion,
-                        note: vocabularyNote
-                    ) != nil else {
-                        return
+                HStack {
+                    Button {
+                        let saved: VocabularyCorrection?
+                        if let vocabularyEditingID {
+                            saved = appState.updateVocabularyCorrection(
+                                id: vocabularyEditingID,
+                                writtenAs: vocabularyWrittenAs,
+                                correctVersion: vocabularyCorrectVersion,
+                                note: vocabularyNote
+                            )
+                        } else {
+                            saved = appState.addVocabularyCorrection(
+                                writtenAs: vocabularyWrittenAs,
+                                correctVersion: vocabularyCorrectVersion,
+                                note: vocabularyNote
+                            )
+                        }
+                        guard saved != nil else { return }
+                        clearVocabularyCorrectionForm()
+                    } label: {
+                        Label(
+                            vocabularyEditingID == nil ? "Add correction" : "Save correction",
+                            systemImage: vocabularyEditingID == nil ? "plus" : "checkmark"
+                        )
                     }
-                    vocabularyWrittenAs = ""
-                    vocabularyCorrectVersion = ""
-                    vocabularyNote = ""
-                } label: {
-                    Label("Add correction", systemImage: "plus")
+                    .accessibilityIdentifier(
+                        vocabularyEditingID == nil
+                            ? "settings.addVocabularyCorrectionButton"
+                            : "settings.saveVocabularyCorrectionButton"
+                    )
+                    .disabled(
+                        vocabularyWrittenAs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                        vocabularyCorrectVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+
+                    if vocabularyEditingID != nil {
+                        Button("Cancel") {
+                            clearVocabularyCorrectionForm()
+                        }
+                        .accessibilityIdentifier("settings.cancelVocabularyCorrectionEditButton")
+                    }
                 }
-                .disabled(vocabularyWrittenAs.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || vocabularyCorrectVersion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier("settings.addVocabularyCorrectionButton")
             }
 
             if appState.vocabularyCorrections.isEmpty {
@@ -1294,8 +1337,42 @@ struct SettingsView: View {
 
                             Spacer()
 
+                            Picker("Local scope", selection: localCorrectionScopeBinding(correction)) {
+                                Text("Off").tag("__off__")
+                                Text("Everywhere").tag("__global__")
+                                ForEach(appState.cleanupGroups.filter(\.isEnabled)) { group in
+                                    Text(group.isDefault ? "Unassigned apps" : group.name).tag(group.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 150)
+                            .accessibilityLabel("Local correction scope")
+                            .accessibilityIdentifier("settings.localCorrectionScope")
+
+                            if appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.enabled == true {
+                                Toggle("Match case", isOn: localCorrectionCaseBinding(correction))
+                                    .toggleStyle(.checkbox)
+                                    .font(.caption)
+                                    .accessibilityIdentifier("settings.localCorrectionCaseSensitive")
+                            }
+
+                            Button {
+                                vocabularyEditingID = correction.id
+                                vocabularyWrittenAs = correction.writtenAs
+                                vocabularyCorrectVersion = correction.correctVersion
+                                vocabularyNote = correction.note ?? ""
+                            } label: {
+                                Image(systemName: "pencil")
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Edit vocabulary correction")
+                            .accessibilityIdentifier("settings.editVocabularyCorrectionButton")
+
                             Button(role: .destructive) {
-                                appState.deleteVocabularyCorrection(id: correction.id)
+                                if appState.deleteVocabularyCorrection(id: correction.id),
+                                   vocabularyEditingID == correction.id {
+                                    clearVocabularyCorrectionForm()
+                                }
                             } label: {
                                 Image(systemName: "trash")
                             }
@@ -1305,6 +1382,41 @@ struct SettingsView: View {
                         }
                         .padding(.vertical, 4)
                         .accessibilityIdentifier("settings.vocabularyCorrectionRow")
+                    }
+                }
+            }
+
+            if appState.canUndoVocabularyCorrectionDeletion {
+                Button("Undo last correction deletion") {
+                    _ = appState.undoVocabularyCorrectionDeletion()
+                }
+                .accessibilityIdentifier("settings.undoVocabularyCorrectionDeletionButton")
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Preview local corrections")
+                    .font(.subheadline.weight(.medium))
+                TextField("Try a transcript", text: $localCorrectionPreviewInput)
+                    .accessibilityIdentifier("settings.localCorrectionPreviewInput")
+                if !localCorrectionPreviewInput.isEmpty {
+                    let preview = appState.previewLocalCorrections(
+                        localCorrectionPreviewInput,
+                        activeGroupID: selectedCleanupGroupID
+                    )
+                    Text(preview.text)
+                        .font(.callout.monospaced())
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("settings.localCorrectionPreviewOutput")
+                    Text("Revision \(appState.localCorrectionSnapshot.revision) · \(preview.replacementCount) replacement\(preview.replacementCount == 1 ? "" : "s")")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("settings.localCorrectionPreviewSummary")
+                    if preview.fallbackReason == .inputTooLarge {
+                        Text("Local corrections are skipped above 64 KiB; the original text is kept intact.")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .accessibilityIdentifier("settings.localCorrectionPreviewFallback")
                     }
                 }
             }
@@ -1321,9 +1433,64 @@ struct SettingsView: View {
 
     private func vocabularyHelpText(isCleanupEnabled: Bool) -> String {
         if isCleanupEnabled {
-            return "Corrections teach Cleanup what Foil wrote and what it should use instead. Preferred terms tell Cleanup which names and phrases to preserve."
+            return "Corrections can run instantly on this Mac and also teach Cleanup what Foil wrote and what it should use instead. Preferred terms tell Cleanup which names and phrases to preserve."
         }
-        return "Vocabulary is saved now and applied when you choose Cleanup profile. Corrections teach Cleanup replacements; preferred terms tell it which names and phrases to preserve."
+        return "Corrections can run instantly on this Mac in Raw mode. You can also use them as guidance when a Cleanup profile is selected."
+    }
+
+    private func clearVocabularyCorrectionForm() {
+        vocabularyEditingID = nil
+        vocabularyWrittenAs = ""
+        vocabularyCorrectVersion = ""
+        vocabularyNote = ""
+    }
+
+    private var localCorrectionsEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appState.localCorrectionSnapshot.isEnabled },
+            set: { enabled in
+                _ = try? appState.setLocalCorrectionsEnabled(enabled)
+            }
+        )
+    }
+
+    private func localCorrectionScopeBinding(_ correction: VocabularyCorrection) -> Binding<String> {
+        Binding(
+            get: {
+                guard let rule = appState.localCorrectionRule(forVocabularyCorrectionID: correction.id),
+                      rule.enabled else {
+                    return "__off__"
+                }
+                guard let groupID = rule.group else { return "__global__" }
+                return appState.cleanupGroups.contains { $0.id == groupID && $0.isEnabled }
+                    ? groupID
+                    : "__off__"
+            },
+            set: { scope in
+                if scope == "__off__" {
+                    _ = try? appState.disableVocabularyLocalCorrection(id: correction.id)
+                } else {
+                    _ = try? appState.setVocabularyCorrectionLocalScope(
+                        id: correction.id,
+                        groupID: scope == "__global__" ? nil : scope
+                    )
+                }
+            }
+        )
+    }
+
+    private func localCorrectionCaseBinding(_ correction: VocabularyCorrection) -> Binding<Bool> {
+        Binding(
+            get: {
+                appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.caseSensitive ?? false
+            },
+            set: { caseSensitive in
+                _ = try? appState.setVocabularyLocalCorrectionCaseSensitive(
+                    id: correction.id,
+                    caseSensitive: caseSensitive
+                )
+            }
+        )
     }
 
     private var selectedLocalWhisperSetupModel: LocalWhisperSetupModel {
@@ -1693,7 +1860,7 @@ struct SettingsView: View {
                     isShowingClearHistoryConfirmation = true
                 }
                 .accessibilityIdentifier("settings.clearHistoryButton")
-                .disabled(history.records.isEmpty)
+                .disabled(!history.canClear)
                 Button("Clear Failed Audio", role: .destructive) {
                     history.clearRetainedFailedAudio()
                 }
