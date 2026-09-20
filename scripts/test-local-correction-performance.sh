@@ -7,6 +7,9 @@ configuration="/tmp/foil-local-correction-benchmark-configuration.json"
 report="${LOCAL_CORRECTION_BENCHMARK_REPORT:-$(mktemp -t foil-local-correction-performance).json}"
 code_signing_allowed="${FOIL_PERFORMANCE_CODE_SIGNING_ALLOWED:-NO}"
 commit="$(git -C "$repo_root" rev-parse HEAD)"
+if [[ "$report" != /* ]]; then
+    report="$repo_root/$report"
+fi
 if [[ -n "$(git -C "$repo_root" status --porcelain)" ]]; then
     commit="${commit}+dirty"
 fi
