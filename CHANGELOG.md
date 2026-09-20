@@ -1,3 +1,11 @@
+## [1.14.2](https://github.com/usefoil/foil/compare/v1.14.1...v1.14.2) (2026-09-20)
+
+- Add instant local transcript corrections for exact phrases such as product and service names before Raw output or Cleanup.
+- Scope each correction globally or to a Cleanup Group, so agent and coding apps can use their own terminology without changing other apps.
+- Add Vocabulary controls to preview, create, edit, enable, disable, and delete corrections, including optional case-sensitive matching.
+- Preserve the original provider transcript for recovery while keeping correction behavior deterministic around code, URLs, disabled rules, and overlapping phrases.
+
+
 ## [1.14.1](https://github.com/usefoil/foil/compare/v1.14.0...v1.14.1) (2026-09-18)
 
 - Fix advanced external whisper.cpp server startup when Foil is launched outside Terminal by locating FFmpeg in common Homebrew and MacPorts paths.
