@@ -6,6 +6,7 @@ workloads="/tmp/foil-local-correction-benchmark-workloads.json"
 configuration="/tmp/foil-local-correction-benchmark-configuration.json"
 report="${LOCAL_CORRECTION_BENCHMARK_REPORT:-$(mktemp -t foil-local-correction-performance).json}"
 code_signing_allowed="${FOIL_PERFORMANCE_CODE_SIGNING_ALLOWED:-NO}"
+derived_data_path="${FOIL_PERFORMANCE_DERIVED_DATA_PATH:-}"
 commit="$(git -C "$repo_root" rev-parse HEAD)"
 if [[ "$report" != /* ]]; then
     report="$repo_root/$report"
@@ -40,7 +41,7 @@ with open(path, "w", encoding="utf-8") as handle:
     }, handle)
 PY
 
-xcodebuild test \
+xcodebuild_arguments=(test \
     -quiet \
     -project "$repo_root/Foil.xcodeproj" \
     -scheme Foil \
@@ -49,7 +50,11 @@ xcodebuild test \
     CODE_SIGNING_ALLOWED="$code_signing_allowed" \
     ENABLE_TESTABILITY=YES \
     SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG \
-    -only-testing:FoilTests/TranscriptionControllerTests/testLocalCorrectionReleasePerformanceGate
+    -only-testing:FoilTests/TranscriptionControllerTests/testLocalCorrectionReleasePerformanceGate)
+if [[ -n "$derived_data_path" ]]; then
+    xcodebuild_arguments+=(-derivedDataPath "$derived_data_path")
+fi
+xcodebuild "${xcodebuild_arguments[@]}"
 
 python3 "$repo_root/tests/local_corrections_harness.py" \
     --benchmark-report "$report"

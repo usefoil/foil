@@ -146,7 +146,6 @@ enum LocalCorrectionEngine {
 
             let match = bestMatch(
                 at: scalarPosition,
-                input: input,
                 normalized: normalized,
                 activeGroup: activeGroup,
                 compiled: compiled,
@@ -161,11 +160,10 @@ enum LocalCorrectionEngine {
                 scalarPosition = match.endScalarPosition
                 replacementCount += 1
             } else {
-                let characterStart = normalized.originalStarts[scalarPosition]
-                repeat {
-                    scalarPosition += 1
-                } while scalarPosition < normalized.scalars.count &&
-                    normalized.originalStarts[scalarPosition] == characterStart
+                scalarPosition = nextCandidatePosition(
+                    afterFailedMatchAt: scalarPosition,
+                    normalized: normalized
+                )
             }
         }
 
@@ -185,8 +183,32 @@ enum LocalCorrectionEngine {
         let scalars: [UInt32]
         let originalStarts: [String.Index]
         let originalEnds: [String.Index]
+        let isASCII: Bool
 
         init(_ input: String) {
+            let utf8 = input.utf8
+            if utf8.allSatisfy({ $0 < 128 }) {
+                var scalars: [UInt32] = []
+                var starts: [String.Index] = []
+                var ends: [String.Index] = []
+                scalars.reserveCapacity(utf8.count)
+                starts.reserveCapacity(utf8.count)
+                ends.reserveCapacity(utf8.count)
+                var index = utf8.startIndex
+                while index < utf8.endIndex {
+                    let next = utf8.index(after: index)
+                    scalars.append(UInt32(utf8[index]))
+                    starts.append(index)
+                    ends.append(next)
+                    index = next
+                }
+                self.scalars = scalars
+                originalStarts = starts
+                originalEnds = ends
+                isASCII = true
+                return
+            }
+
             var scalars: [UInt32] = []
             var starts: [String.Index] = []
             var ends: [String.Index] = []
@@ -204,20 +226,43 @@ enum LocalCorrectionEngine {
             self.scalars = scalars
             originalStarts = starts
             originalEnds = ends
+            isASCII = false
         }
 
         func isCharacterStart(at position: Int) -> Bool {
-            position == 0 || originalStarts[position] != originalStarts[position - 1]
+            isASCII || position == 0 || originalStarts[position] != originalStarts[position - 1]
         }
 
         func isCharacterEnd(at position: Int) -> Bool {
-            position == scalars.count || originalStarts[position] != originalStarts[position - 1]
+            isASCII || position == scalars.count || originalStarts[position] != originalStarts[position - 1]
         }
+    }
+
+    private static func nextCandidatePosition(
+        afterFailedMatchAt start: Int,
+        normalized: NormalizedInput
+    ) -> Int {
+        var position = start
+        let characterStart = normalized.originalStarts[position]
+        repeat {
+            position += 1
+        } while position < normalized.scalars.count &&
+            normalized.originalStarts[position] == characterStart
+
+        guard isBoundaryBlocking(normalized.scalars[start]) else { return position }
+        while position < normalized.scalars.count,
+              isBoundaryBlocking(normalized.scalars[position]) {
+            let nextCharacterStart = normalized.originalStarts[position]
+            repeat {
+                position += 1
+            } while position < normalized.scalars.count &&
+                normalized.originalStarts[position] == nextCharacterStart
+        }
+        return position
     }
 
     private static func bestMatch(
         at start: Int,
-        input: String,
         normalized: NormalizedInput,
         activeGroup: String?,
         compiled: CompiledLocalCorrections,
@@ -226,28 +271,30 @@ enum LocalCorrectionEngine {
         guard !isBoundaryBlocking(normalized.scalars[safe: start - 1]) else { return nil }
 
         var best: Match?
-        scanTrie(
-            compiled.sensitiveTrie,
-            folded: false,
-            start: start,
-            input: input,
-            normalized: normalized,
-            activeGroup: activeGroup,
-            compiled: compiled,
-            protectedRanges: protectedRanges,
-            best: &best
-        )
-        scanTrie(
-            compiled.insensitiveTrie,
-            folded: true,
-            start: start,
-            input: input,
-            normalized: normalized,
-            activeGroup: activeGroup,
-            compiled: compiled,
-            protectedRanges: protectedRanges,
-            best: &best
-        )
+        if compiled.sensitiveTrie.count > 1 {
+            scanTrie(
+                compiled.sensitiveTrie,
+                folded: false,
+                start: start,
+                normalized: normalized,
+                activeGroup: activeGroup,
+                compiled: compiled,
+                protectedRanges: protectedRanges,
+                best: &best
+            )
+        }
+        if compiled.insensitiveTrie.count > 1 {
+            scanTrie(
+                compiled.insensitiveTrie,
+                folded: true,
+                start: start,
+                normalized: normalized,
+                activeGroup: activeGroup,
+                compiled: compiled,
+                protectedRanges: protectedRanges,
+                best: &best
+            )
+        }
         return best
     }
 
@@ -255,7 +302,6 @@ enum LocalCorrectionEngine {
         _ trie: [CompiledLocalCorrections.TrieNode],
         folded: Bool,
         start: Int,
-        input: String,
         normalized: NormalizedInput,
         activeGroup: String?,
         compiled: CompiledLocalCorrections,
@@ -276,8 +322,10 @@ enum LocalCorrectionEngine {
                 continue
             }
 
-            let originalRange = normalized.originalStarts[start]..<normalized.originalEnds[position - 1]
-            guard !protectedRanges.contains(where: { rangesOverlap(originalRange, $0) }) else { continue }
+            if !protectedRanges.isEmpty {
+                let originalRange = normalized.originalStarts[start]..<normalized.originalEnds[position - 1]
+                guard !protectedRanges.contains(where: { rangesOverlap(originalRange, $0) }) else { continue }
+            }
 
             for ruleIndex in trie[nodeIndex].terminalRuleIndexes {
                 let rule = compiled.rules[ruleIndex]
@@ -362,12 +410,18 @@ enum LocalCorrectionEngine {
     }
 
     private static func asciiFold(_ scalar: UInt32) -> UInt32 {
-        (65...90).contains(scalar) ? scalar + 32 : scalar
+        scalar >= 65 && scalar <= 90 ? scalar + 32 : scalar
     }
 
     private static func isBoundaryBlocking(_ value: UInt32?) -> Bool {
-        guard let value, let scalar = Unicode.Scalar(value) else { return false }
-        if value == 95 { return true }
+        guard let value else { return false }
+        if value < 128 {
+            return value == 95 ||
+                (value >= 48 && value <= 57) ||
+                (value >= 65 && value <= 90) ||
+                (value >= 97 && value <= 122)
+        }
+        guard let scalar = Unicode.Scalar(value) else { return false }
         switch scalar.properties.generalCategory {
         case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter,
              .decimalNumber, .letterNumber, .otherNumber,
@@ -389,11 +443,21 @@ enum LocalCorrectionEngine {
     }
 
     private static func protectedRanges(in input: String) -> [Range<String.Index>] {
-        let lines = lineRanges(in: input)
-        let fenceRanges = fencedRanges(in: input, lines: lines)
+        let hasCodeDelimiter = input.contains("`") || input.contains("~")
+        let hasURLPrefix = input.range(of: "http://", options: .caseInsensitive) != nil ||
+            input.range(of: "https://", options: .caseInsensitive) != nil ||
+            input.range(of: "www.", options: .caseInsensitive) != nil
+        guard hasCodeDelimiter || hasURLPrefix else { return [] }
+
+        let lines = hasCodeDelimiter ? lineRanges(in: input) : []
+        let fenceRanges = hasCodeDelimiter ? fencedRanges(in: input, lines: lines) : []
         var ranges = fenceRanges
-        ranges.append(contentsOf: inlineCodeRanges(in: input, lines: lines, fenceRanges: fenceRanges))
-        ranges.append(contentsOf: urlRanges(in: input))
+        if hasCodeDelimiter {
+            ranges.append(contentsOf: inlineCodeRanges(in: input, lines: lines, fenceRanges: fenceRanges))
+        }
+        if hasURLPrefix {
+            ranges.append(contentsOf: urlRanges(in: input))
+        }
         return ranges
     }
 
