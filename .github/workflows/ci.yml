@@ -26,6 +26,36 @@ jobs:
       - name: Validate corpus and production Swift engine
         run: make test-local-correction-engine
 
+  local-correction-performance-intel:
+    name: Local Correction Performance (Intel evidence)
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'codex/local-corrections-tranche-zero'
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
+
+      - name: Verify Intel runner and run Release benchmark
+        env:
+          LOCAL_CORRECTION_BENCHMARK_REPORT: local-correction-performance-intel.json
+        run: |
+          test "$(uname -m)" = "x86_64"
+          make test-local-correction-performance
+
+      - name: Upload benchmark receipt
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: local-correction-performance-intel
+          path: local-correction-performance-intel.json
+          retention-days: 14
+          if-no-files-found: error
+
   detect-changes:
     name: Detect Changed Paths
     runs-on: ubuntu-latest
