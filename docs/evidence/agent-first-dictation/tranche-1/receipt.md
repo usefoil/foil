@@ -110,8 +110,8 @@ The structured receipt is `downgrade-retention-v1.14.1.json`.
 
 ### Performance
 
-Claim: the controller-level local path meets the frozen Apple Silicon budget in an
-optimized Release configuration.
+Claim: the controller-level local path meets the frozen budget on Apple Silicon
+and Intel in an optimized Release configuration.
 
 Strongest realistic failure mode: a fast no-op is measured, compilation is hidden,
 only averages are reported, or the benchmark bypasses the controller.
@@ -119,19 +119,32 @@ only averages are reported, or the benchmark bypasses the controller.
 Evidence: `make test-local-correction-performance` generated the fixed-seed workloads,
 ran 50 compilations, 50 fresh-controller calls, and 1,000 warmed calls per scenario
 at `TranscriptionController.processTranscriptOrRaw`, verified the output SHA-256,
-retained every timing sample, and passed the tranche-zero validator.
+retained every timing sample, and passed the tranche-zero validator. GitHub Actions
+run [35519491914](https://github.com/usefoil/foil/actions/runs/35519491914) repeated
+the benchmark on an `x86_64` runner at PR head `9df2247` and passed the same fixed
+limits.
 
 | Apple Silicon workload | Compile p95 | Cold controller p95 | Warm p50 | Warm p95 | Warm p99 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 500 rules / 10 KiB | 14.46 ms | 4.20 ms | 4.17 ms | 4.25 ms | 4.33 ms |
-| 1,000 rules / 64 KiB | 55.85 ms | 25.41 ms | 24.85 ms | 26.03 ms | 26.32 ms |
+| 500 rules / 10 KiB | 15.04 ms | 0.52 ms | 0.43 ms | 0.44 ms | 0.47 ms |
+| 1,000 rules / 64 KiB | 58.62 ms | 1.43 ms | 1.39 ms | 1.41 ms | 1.43 ms |
+
+| Intel workload | Compile p95 | Cold controller p95 | Warm p50 | Warm p95 | Warm p99 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 500 rules / 10 KiB | 73.44 ms | 1.97 ms | 1.55 ms | 2.16 ms | 2.37 ms |
+| 1,000 rules / 64 KiB | 256.56 ms | 4.28 ms | 3.24 ms | 4.36 ms | 5.23 ms |
 
 Raw samples and output hashes are in
-`local-correction-release-performance-apple-silicon.json`.
+`local-correction-release-performance-apple-silicon.json` and
+`local-correction-release-performance-intel.json`. Both artifacts contain 50 cold
+compilations, 50 fresh-controller calls, and 1,000 warmed calls for each workload.
+The output hashes match across architectures. The Intel artifact SHA-256 is
+`6cfa377847019164908531109c6a8f9217393855b53e643410c36e460bae598a`;
+the exact-head Apple Silicon artifact SHA-256 is
+`10fc5c85ffa0580c55e5cd3f9a4f234bf2c878a5bef81798f3398b95167b663d`.
 
-Residual risk: Intel has not been measured, so these numbers support an Apple
-Silicon claim only. A dedicated interaction trace for maximum-size processing is
-also still open.
+Residual risk: a dedicated interaction trace for maximum-size processing is still
+open; these controller timings do not by themselves prove main-thread responsiveness.
 
 ## Verification summary
 
@@ -140,9 +153,9 @@ also still open.
 - `xcodebuild build-for-testing` passed, compiling the new XCUITest and E2E hooks.
 - Foil and FoilDev builds passed with Swift warnings treated as errors.
 - Shell syntax, Node syntax, and `git diff --check` passed.
-- All required PR checks passed at feature commit `df46a9b`: build, unit tests,
-  four focused UI shards, audio snapshots, local-correction contract, static
-  analysis, CodeQL, and the aggregate CI gate.
+- All required PR checks passed at optimized commit `9df2247`: build, unit tests,
+  four focused UI shards, audio snapshots, local-correction contract, and the
+  aggregate CI gate. The temporary Intel evidence job also passed.
 
 An exploratory `build-for-testing` with warnings promoted across every existing
 test source failed on pre-existing warnings in `PasteQueueTests` and other legacy
@@ -161,4 +174,5 @@ the interrupted broad attempt as green.
 - Perform the exit demo with actual insertion into TextEdit and one installed coding
   agent composer, read back both targets, recover the original, and disable the rule.
 - Review the 30 held-out expectations independently.
-- Run the Release benchmark on Intel before a cross-platform timing claim.
+- Capture an interaction trace during maximum-size local processing and verify the
+  main UI remains responsive.
