@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-20",
+  "result": "pass",
+  "feature_commit": "df46a9be4766e56c327951d40fbbea5eca244a04",
+  "previous_release": {
+    "tag": "v1.14.1",
+    "commit": "0e724488c2b415fa18194e21cc0a49f828a096ee",
+    "version": "1.14.1"
+  },
+  "isolation": {
+    "bundle_identifier": "com.neonwatty.Foil.PR421Downgrade",
+    "application_support_directory": "~/Library/Application Support/Foil PR421 Downgrade QA",
+    "sparkle_disabled_in_temporary_build": true,
+    "production_app_pid_preserved": 38013
+  },
+  "previous_app": {
+    "build_succeeded": true,
+    "strict_code_signature_verification_succeeded": true,
+    "launched": true,
+    "observed_pid": 79814,
+    "observed_process_path_suffix": "/DerivedData/Build/Products/Debug/Foil.app/Contents/MacOS/Foil",
+    "terminated_after_check": true
+  },
+  "local_correction_store": {
+    "file": "local-corrections-v1.json",
+    "sha256_before_previous_app": "692d57f5450a43738ee1fbfb60a091b3e4a6eaf10ddae112589a3cbc842f26ba",
+    "sha256_after_previous_app": "692d57f5450a43738ee1fbfb60a091b3e4a6eaf10ddae112589a3cbc842f26ba",
+    "seed_decode": "schema=1 revision=1 enabled=true rule=super base->Supabase scope=agents",
+    "post_downgrade_decode": "schema=1 revision=1 enabled=true rule=super base->Supabase scope=agents"
+  },
+  "claim": "The previous released app ignores and retains additive local-correction storage, and the current store can read it after returning from the previous app.",
+  "strongest_realistic_failure_mode": "The previous app deletes or rewrites the unknown file, or the current store cannot decode the retained bytes.",
+  "evidence": "An isolated v1.14.1 app process launched against the same isolated Application Support directory. The rule file hash was byte-identical before and after launch, and the current production LocalCorrectionStore implementation decoded the enabled scoped rule afterward."
+}

@@ -1,6 +1,6 @@
 # Tranche 1 evidence receipt
 
-Date: 2026-09-19
+Date: 2026-09-20
 Worktree: `/Users/jeremywatt/.codex/worktrees/foil-local-corrections-tranche-zero/foil`
 Branch: `codex/local-corrections-tranche-zero`
 
@@ -82,9 +82,31 @@ Evidence:
   It asserts an exact result and a one-line `/v1/audio/transcriptions` request log;
   any Cleanup/agent request makes the gate fail.
 
-Residual risk: the fixture XCUITest was compiled but was not launched in this
-active desktop session. Its screenshot and server-request receipt must be captured
-on an idle UI-test host.
+Residual risk: an isolated arm64 test host built successfully and launched its
+XCUITest runner twice, but macOS rejected UI-test initialization both times with
+`com.apple.LocalAuthentication` code `-4` (`System authentication is running`).
+The test body and fixture assertions never ran. This remains an open gate, recorded
+as a blocked attempt in `fixture-e2e-attempt-20260920.json`, and still needs an idle
+UI-test host for the screenshot and server-request receipt.
+
+### Downgrade retention
+
+Claim: returning to the previous released app retains additive local-correction
+data so the current app can read it again.
+
+Strongest realistic failure mode: the previous app deletes or rewrites the unknown
+file, or the current store cannot decode the retained bytes.
+
+Evidence: an isolated build from the exact `v1.14.1` commit
+`0e724488c2b415fa18194e21cc0a49f828a096ee` launched with bundle identifier
+`com.neonwatty.Foil.PR421Downgrade` against a dedicated Application Support
+directory. The rule file SHA-256 was
+`692d57f5450a43738ee1fbfb60a091b3e4a6eaf10ddae112589a3cbc842f26ba`
+before and after the previous app ran. The current production
+`LocalCorrectionStore` then decoded schema 1, revision 1, the enabled state, and
+the scoped `super base -> Supabase` rule. The isolated app passed strict deep code
+signature verification; the installed production Foil process remained running.
+The structured receipt is `downgrade-retention-v1.14.1.json`.
 
 ### Performance
 
@@ -118,6 +140,9 @@ also still open.
 - `xcodebuild build-for-testing` passed, compiling the new XCUITest and E2E hooks.
 - Foil and FoilDev builds passed with Swift warnings treated as errors.
 - Shell syntax, Node syntax, and `git diff --check` passed.
+- All required PR checks passed at feature commit `df46a9b`: build, unit tests,
+  four focused UI shards, audio snapshots, local-correction contract, static
+  analysis, CodeQL, and the aggregate CI gate.
 
 An exploratory `build-for-testing` with warnings promoted across every existing
 test source failed on pre-existing warnings in `PasteQueueTests` and other legacy
@@ -137,4 +162,3 @@ the interrupted broad attempt as green.
   agent composer, read back both targets, recover the original, and disable the rule.
 - Review the 30 held-out expectations independently.
 - Run the Release benchmark on Intel before a cross-platform timing claim.
-- Exercise the documented downgrade path against the previous released app.

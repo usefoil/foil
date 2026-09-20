@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-20",
+  "result": "blocked_before_test_body",
+  "command": "make test-local-correction-fixture-e2e",
+  "isolated_bundle_identifier": "com.neonwatty.Foil.PR421Fixture",
+  "destination": "platform=macOS,arch=arm64",
+  "build_for_testing": "pass",
+  "runner_launch": "pass",
+  "attempts": 2,
+  "test_body_entered": false,
+  "failure_domain": "com.apple.LocalAuthentication",
+  "failure_code": -4,
+  "failure_message": "System authentication is running.",
+  "production_app_pid_preserved": 38013,
+  "assessment": "The macOS UI automation host rejected test initialization before Foil or the fixture assertions ran. This attempt is recorded as a blocked gate, not a product test failure or a pass."
+}
