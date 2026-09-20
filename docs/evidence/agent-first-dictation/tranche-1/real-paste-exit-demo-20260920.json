@@ -1,0 +1,71 @@
+{
+  "app": {
+    "bundle_identifier": "com.neonwatty.Foil.Dev",
+    "path": "/Applications/Foil Dev.app",
+    "production_foil_preserved": true,
+    "version": "1.14.1"
+  },
+  "branch": "codex/local-corrections-tranche-zero",
+  "cleanup": {
+    "logs_show_cleanup_failure": false,
+    "logs_show_cleanup_skipped": true,
+    "processing_mode": "raw",
+    "provider": null
+  },
+  "codex_cli_after_disable": {
+    "configuredRule": false,
+    "disabledRule": true,
+    "expectedText": "foil disabled super base CODEX-CLI-20260920",
+    "expectedTextObserved": true,
+    "otherTargetBundleIdentifier": "com.apple.TextEdit",
+    "otherTargetUnchanged": true,
+    "targetBundleIdentifier": "com.apple.Terminal",
+    "targetElementRole": "AXTextArea",
+    "targetProcessIdentifier": 55703,
+    "targetValueUTF8CountAfter": 1067,
+    "targetValueUTF8CountBefore": 1024
+  },
+  "codex_cli_corrected": {
+    "configuredRule": true,
+    "disabledRule": false,
+    "expectedText": "foil acceptance Supabase CODEX-CLI-20260920",
+    "expectedTextObserved": true,
+    "otherTargetBundleIdentifier": "com.apple.TextEdit",
+    "otherTargetUnchanged": true,
+    "targetBundleIdentifier": "com.apple.Terminal",
+    "targetElementRole": "AXTextArea",
+    "targetProcessIdentifier": 55703,
+    "targetValueUTF8CountAfter": 1024,
+    "targetValueUTF8CountBefore": 1005
+  },
+  "commit_at_execution": "fcaa0dff58a095bb4926b215e8b6207570cce1ae+dirty",
+  "date": "2026-09-20",
+  "host": {
+    "architecture": "arm64",
+    "build": "25F80",
+    "hardware": "Apple M2",
+    "macos": "26.5.1"
+  },
+  "kind": "real_paste_exit_demo",
+  "original_recovery": {
+    "actual_utf8_bytes": 45,
+    "exact_utf8_match": true,
+    "expected_utf8_bytes": 45
+  },
+  "rule": {
+    "replacement": "Supabase",
+    "scope": "automation-agent-group",
+    "source": "super base"
+  },
+  "submitted_to_agent": false,
+  "unassigned_textedit": {
+    "configuredRule": true,
+    "disabledRule": false,
+    "expectedText": "foil acceptance super base TEXTEDIT-ZERO-NETWORK-20260920",
+    "expectedTextObserved": true,
+    "targetBundleIdentifier": "com.apple.TextEdit",
+    "targetProcessIdentifier": 46290,
+    "targetValueUTF8CountAfter": 104,
+    "targetValueUTF8CountBefore": 47
+  }
+}

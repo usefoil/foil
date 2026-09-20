@@ -198,6 +198,42 @@ the exact-head Apple Silicon artifact SHA-256 is
 Residual risk: a dedicated interaction trace for maximum-size processing is still
 open; these controller timings do not by themselves prove main-thread responsiveness.
 
+### Real paste exit demo
+
+Claim: a rule scoped to an agent-app group corrects a real Codex composer, stays
+inactive in an unassigned app, retains the original, and stops applying when
+disabled without invoking Cleanup.
+
+Strongest realistic failure modes: Foil reports delivery while only changing the
+clipboard; the rule leaks into TextEdit; the original cannot be recovered; disabling
+the rule leaves the compiled snapshot active; or a Raw run still contacts a Cleanup
+provider.
+
+Evidence: `/Applications/Foil Dev.app` captured and pasted through the production
+`PasteController` and `TextInserter` into a disposable Codex CLI 0.155.0 composer in
+Terminal. AX readback observed the exact corrected phrase
+`foil acceptance Supabase CODEX-CLI-20260920`; a separately captured TextEdit value
+was byte-for-byte unchanged. The History UI visibly exposed `Latest original is
+available`; Computer Use clicked its real `Copy original` button, and `pbpaste`
+matched all 45 expected UTF-8 bytes of
+`foil acceptance super base CODEX-CLI-20260920`. A second Codex delivery after
+disabling the rule observed the exact uncorrected phrase and again left TextEdit
+unchanged. Neither phrase was submitted to the agent.
+
+The first TextEdit setup attempt disproved the zero-Cleanup claim because the
+pre-existing default group still selected Groq. The acceptance setup was corrected
+to force both scoped and unassigned groups to Raw with provider `none`, then rerun
+from a fresh log baseline. The retained valid logs show
+`transcript processing skipped ... mode=raw`, `provider=none`, no cleanup failure,
+the expected group and revision, and the actual paste fallback route. Structured
+evidence is in `real-paste-exit-demo-20260920.json`; target receipts, sanitized logs,
+and recovered bytes use the `real-paste-*` filenames in this directory.
+
+Residual risk: the coding-agent row uses the installed Codex CLI inside Terminal
+because Computer Use intentionally refuses to control the ChatGPT/Codex desktop app
+that hosts this task. The tested surface is a real Codex composer, and target routing
+is scoped to its Terminal host app.
+
 ## Verification summary
 
 - Focused Xcode selection: **81 passed, 0 failed, 0 skipped** across engine, store,
@@ -221,6 +257,9 @@ open; these controller timings do not by themselves prove main-thread responsive
 - The fixture XCUITest passed **1/1** in 18.544 seconds and retained a cropped
   screenshot showing the corrected `Supabase` result and original-recovery control.
   It also exercised Copy original and compared every copied UTF-8 byte.
+- The real-paste exit demo passed for unassigned TextEdit and a disposable Codex CLI
+  composer, recovered the exact original, then proved the disabled rule no longer
+  applied. Every valid run logged Raw mode and provider `none`.
 - Foil and FoilDev builds passed with Swift warnings treated as errors.
 - Shell syntax, Node syntax, and `git diff --check` passed.
 - All required PR checks passed at post-review implementation commit `9f5b78c` in
@@ -239,10 +278,17 @@ inside an existing Keychain `SecItemAdd`. The new test removed its unnecessary
 Keychain write and passed in the 81-test focused run. This receipt does not relabel
 the interrupted broad attempt as green.
 
-## Remaining tranche gates
+## Deferred post-release gates
 
-- Perform the exit demo with actual insertion into TextEdit and one installed coding
-  agent composer, read back both targets, recover the original, and disable the rule.
-- Review the 30 held-out expectations independently.
+On 2026-09-20, the owner explicitly chose to publish the next release and return
+to these confirmation checks afterward:
+
+- Independently review the 30 held-out expectations.
 - Capture an interaction trace during maximum-size local processing and verify the
-  main UI remains responsive.
+  main UI remains responsive. The first attempt retained no evidence because macOS
+  locked before the interactive probe; the temporary 1,000-rule state was restored.
+
+The optimized production benchmark still proves a 1.43 ms warm p99 for the
+1,000-rule / 64 KiB controller workload on Apple M2 and 5.23 ms on the recorded
+Intel runner. Those measurements limit performance risk but are not relabeled as
+the deferred UI-interaction trace.

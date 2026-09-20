@@ -52,6 +52,8 @@ final class UITestingController {
 
     static let automationMockSuccessNotification =
         Notification.Name("com.neonwatty.Foil.automation.mockSuccess")
+    static let automationLocalCorrectionNotification =
+        Notification.Name("com.neonwatty.Foil.automation.localCorrection")
     static let automationQueuedEnqueueNotification =
         Notification.Name("com.neonwatty.Foil.automation.queuedEnqueue")
     static let automationQueuedDeliverNextNotification =
@@ -79,6 +81,7 @@ final class UITestingController {
     private let history: TranscriptionHistory
     private let usageEventStore: UsageEventStore
     private let pasteController: PasteController
+    private let transcriptionController: TranscriptionController
 
     /// Starts the transcribing spinner animation in the host (AppDelegate).
     private let startTranscribingAnimation: () -> Void
@@ -136,6 +139,7 @@ final class UITestingController {
         history: TranscriptionHistory,
         usageEventStore: UsageEventStore,
         pasteController: PasteController,
+        transcriptionController: TranscriptionController,
         startTranscribingAnimation: @escaping () -> Void,
         stopTranscribingAnimation: @escaping () -> Void,
         onRetry: @escaping () -> Void,
@@ -158,6 +162,7 @@ final class UITestingController {
         self.history = history
         self.usageEventStore = usageEventStore
         self.pasteController = pasteController
+        self.transcriptionController = transcriptionController
         self.startTranscribingAnimation = startTranscribingAnimation
         self.stopTranscribingAnimation = stopTranscribingAnimation
         self.onRetry = onRetry
@@ -424,6 +429,18 @@ final class UITestingController {
             self,
             selector: #selector(runAutomationMockSuccess),
             name: UITestingController.automationMockSuccessNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(runAutomationLocalCorrection(_:)),
+            name: UITestingController.automationLocalCorrectionNotification,
+            object: nil
+        )
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(openHistoryForUITest),
+            name: UITestingController.openHistoryNotification,
             object: nil
         )
         DistributedNotificationCenter.default().addObserver(
@@ -1344,6 +1361,134 @@ final class UITestingController {
                 DiagnosticLog.write("ASYNC PATH: automation smoke pasting via pasteController target=\(target!.appName) pid=\(target!.pid)")
             }
             await pasteController.paste(text: text)
+        }
+    }
+
+    @objc private func runAutomationLocalCorrection(_ notification: Notification) {
+        guard let rawText = notification.userInfo?["rawText"] as? String,
+              let source = notification.userInfo?["source"] as? String,
+              let replacement = notification.userInfo?["replacement"] as? String,
+              let agentBundleIdentifier = notification.userInfo?["agentBundleIdentifier"] as? String,
+              !rawText.isEmpty,
+              !source.isEmpty,
+              !replacement.isEmpty,
+              !agentBundleIdentifier.isEmpty else {
+            DiagnosticLog.write("automation local correction: rejected invalid command")
+            return
+        }
+
+        let shouldConfigure = (notification.userInfo?["configure"] as? NSNumber)?.boolValue ?? false
+        let shouldDisable = (notification.userInfo?["disable"] as? NSNumber)?.boolValue ?? false
+        let target = PasteTarget.captureCurrentTarget()
+        DiagnosticLog.write("automation local correction: requested target=\(String(describing: target))")
+
+        Task { @MainActor in
+            let groupID = "automation-agent-group"
+            let correction: VocabularyCorrection?
+            if shouldConfigure {
+                correction = configureAutomationLocalCorrection(
+                    source: source,
+                    replacement: replacement,
+                    agentBundleIdentifier: agentBundleIdentifier,
+                    groupID: groupID
+                )
+            } else {
+                correction = appState.vocabularyCorrections.first {
+                    $0.writtenAs == source && $0.correctVersion == replacement
+                }
+            }
+
+            if shouldDisable, let correction {
+                _ = try? appState.disableVocabularyLocalCorrection(id: correction.id)
+            }
+
+            appState.asyncPasteEnabled = true
+            appState.recordTargetCapture(target)
+            appState.clearError()
+            appState.transcriptionStage = .transcribingAudio
+            appState.setStatus(.transcribing)
+            startTranscribingAnimation()
+
+            let result = await transcriptionController.processTranscriptOrRaw(
+                rawText: rawText,
+                apiKey: nil,
+                context: "automationLocalCorrection",
+                appContext: target?.cleanupAppContext
+            )
+
+            stopTranscribingAnimation()
+            history.addSuccess(
+                text: result.text,
+                originalText: result.originalText,
+                sourceAppName: target?.appName
+            )
+            appState.setStatus(.idle)
+
+            DiagnosticLog.write(
+                "automation local correction: result targetBundle=\(target?.bundleIdentifier ?? "nil") " +
+                "group=\(result.cleanupGroupID) revision=\(result.localCorrectionRevision) " +
+                "replacements=\(result.localReplacementCount) provider=\(result.cleanupProviderID?.rawValue ?? "none") " +
+                "disabled=\(shouldDisable)"
+            )
+
+            pasteController.setPendingTarget(target)
+            await pasteController.paste(text: result.text)
+        }
+    }
+
+    private func configureAutomationLocalCorrection(
+        source: String,
+        replacement: String,
+        agentBundleIdentifier: String,
+        groupID: String
+    ) -> VocabularyCorrection? {
+        if !appState.cleanupGroups.contains(where: { $0.id == groupID }) {
+            var groups = appState.cleanupGroups
+            groups.append(
+                CleanupGroup(
+                    id: groupID,
+                    name: "Agent apps",
+                    sortOrder: (groups.map(\.sortOrder).max() ?? 0) + 1,
+                    processingMode: .raw,
+                    cleanupProviderID: .none,
+                    cleanupModel: ""
+                )
+            )
+            appState.setCleanupGroups(groups)
+        }
+        _ = appState.updateCleanupGroup(id: groupID) { group in
+            group.name = "Agent apps"
+            group.isEnabled = true
+            group.appMatchers = []
+            group.processingMode = .raw
+            group.cleanupProviderID = .none
+            group.cleanupModel = ""
+        }
+        _ = appState.updateCleanupGroup(id: CleanupGroup.defaultGroupID) { group in
+            group.processingMode = .raw
+            group.cleanupProviderID = .none
+            group.cleanupModel = ""
+        }
+        appState.addAppMatcher(
+            CleanupAppMatcher(displayName: "Codex", bundleIdentifier: agentBundleIdentifier),
+            toCleanupGroupID: groupID
+        )
+
+        guard let correction = appState.addVocabularyCorrection(
+            writtenAs: source,
+            correctVersion: replacement,
+            note: "Automation acceptance fixture"
+        ) else {
+            DiagnosticLog.write("automation local correction: could not create vocabulary correction")
+            return nil
+        }
+        do {
+            _ = try appState.setVocabularyCorrectionLocalScope(id: correction.id, groupID: groupID)
+            _ = try appState.setLocalCorrectionsEnabled(true)
+            return correction
+        } catch {
+            DiagnosticLog.write("automation local correction: could not enable scoped rule")
+            return nil
         }
     }
 

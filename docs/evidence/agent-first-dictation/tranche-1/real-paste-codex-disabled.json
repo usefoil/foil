@@ -1,0 +1,13 @@
+{
+  "configuredRule" : false,
+  "disabledRule" : true,
+  "expectedText" : "foil disabled super base CODEX-CLI-20260920",
+  "expectedTextObserved" : true,
+  "otherTargetBundleIdentifier" : "com.apple.TextEdit",
+  "otherTargetUnchanged" : true,
+  "targetBundleIdentifier" : "com.apple.Terminal",
+  "targetElementRole" : "AXTextArea",
+  "targetProcessIdentifier" : 55703,
+  "targetValueUTF8CountAfter" : 1067,
+  "targetValueUTF8CountBefore" : 1024
+}

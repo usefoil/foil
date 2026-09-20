@@ -1,0 +1,12 @@
+2026-09-20T20:16:27Z automation local correction: requested target=Optional(PasteTarget(appName=Terminal pid=55703 bundle=com.apple.Terminal windowID=1131))
+2026-09-20T20:16:27Z automationLocalCorrection: local corrections revision=7 replacements=0 fallback=none
+2026-09-20T20:16:27Z automationLocalCorrection: transcript processing skipped cleanupGroup=automation-agent-group mode=raw
+2026-09-20T20:16:27Z automation local correction: result targetBundle=com.apple.Terminal group=automation-agent-group revision=7 replacements=0 provider=none disabled=true
+2026-09-20T20:16:27Z PasteController.paste: asyncOn=true target=Optional(PasteTarget(appName=Terminal pid=55703 bundle=com.apple.Terminal windowID=1131))
+2026-09-20T20:16:27Z ASYNC PATH: pasting into Terminal pid=55703
+2026-09-20T20:16:27Z BackgroundPaste: AX selected-text insertion reported success but value did not change
+2026-09-20T20:16:27Z BackgroundPaste: SkyLight skipped — experimental background paste disabled
+2026-09-20T20:16:27Z BackgroundPaste: both approaches failed for Terminal
+2026-09-20T20:16:27Z insertAsync: falling back to Tier 2 (choreography) for Terminal
+2026-09-20T20:16:27Z insertAtTarget: AXRaise result=0 window=<AXUIElement 0xad1b34ab0> {pid=55703}
+2026-09-20T20:16:28Z TextInserter.insert: route=currentApp bytes=43 keepOnClipboard=false

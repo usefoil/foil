@@ -587,6 +587,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             history: history,
             usageEventStore: usageEventStore,
             pasteController: pasteController,
+            transcriptionController: transcriptionController,
             startTranscribingAnimation: { [weak self] in self?.startTranscribingAnimation() },
             stopTranscribingAnimation: { [weak self] in self?.stopTranscribingAnimation() },
             onRetry: { [weak self] in self?.retryLast() },
