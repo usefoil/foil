@@ -15,7 +15,13 @@ final class TranscriptionDelegateSpy: TranscriptionControllerDelegate {
         localCorrectionFallbackReason: LocalCorrectionFallbackReason?
     )] = []
     private(set) var didDetectNoRecognizableAudioCalls: [(audioURL: URL, format: AudioFormat)] = []
-    private(set) var didFailCalls: [(error: Error, errorMessage: String, audioURL: URL, format: AudioFormat)] = []
+    private(set) var didFailCalls: [(
+        error: Error,
+        errorMessage: String,
+        audioURL: URL,
+        format: AudioFormat,
+        appContext: CleanupAppContext?
+    )] = []
 
     func transcriptionController(
         _ controller: TranscriptionController,
@@ -54,9 +60,16 @@ final class TranscriptionDelegateSpy: TranscriptionControllerDelegate {
         didFail error: Error,
         errorMessage: String,
         audioURL: URL,
-        format: AudioFormat
+        format: AudioFormat,
+        appContext: CleanupAppContext?
     ) {
-        didFailCalls.append((error: error, errorMessage: errorMessage, audioURL: audioURL, format: format))
+        didFailCalls.append((
+            error: error,
+            errorMessage: errorMessage,
+            audioURL: audioURL,
+            format: format,
+            appContext: appContext
+        ))
     }
 }
 
@@ -433,7 +446,10 @@ final class TranscriptionControllerTests: XCTestCase {
     }
 
     func testOversizeLocalCorrectionInputFallsBackIntactWithoutRequest() async throws {
-        appState.transcriptProcessingMode = .raw
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        try KeychainHelper.saveCleanupApiKey("cleanup-secret", for: .customOpenAICompatibleChat)
         _ = try appState.saveLocalCorrections(
             [localRule(id: "a", source: "a", replacement: "b", group: nil)],
             isEnabled: true
@@ -454,7 +470,44 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(Array(result.text.utf8), Array(input.utf8))
         XCTAssertEqual(result.localReplacementCount, 0)
         XCTAssertEqual(result.localCorrectionFallbackReason, .inputTooLarge)
+        XCTAssertEqual(result.processingMode, .cleanUp)
+        XCTAssertNil(result.cleanupProviderID)
         XCTAssertEqual(transport.requests.count, 0)
+    }
+
+    func testOversizeInputWithoutApplicableRuleStillUsesCleanup() async throws {
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        try KeychainHelper.saveCleanupApiKey("cleanup-secret", for: .customOpenAICompatibleChat)
+        _ = try appState.saveLocalCorrections(
+            [localRule(id: "other", source: "a", replacement: "b", group: "other")],
+            isEnabled: true
+        )
+        let input = String(repeating: "a", count: LocalCorrectionEngine.maximumInputBytes + 1)
+        let transport = ControllerStubTransport { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/v1/chat/completions")
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (Data(#"{"choices":[{"message":{"content":"clean text"}}]}"#.utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: input,
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "testOversizeWithoutApplicableRule"
+        )
+
+        XCTAssertEqual(result.text, "clean text")
+        XCTAssertEqual(result.localReplacementCount, 0)
+        XCTAssertNil(result.localCorrectionFallbackReason)
+        XCTAssertEqual(result.cleanupProviderID, .customOpenAICompatibleChat)
+        XCTAssertEqual(transport.requests.count, 1)
     }
 
     func testDelayedTranscriptionUsesCapturedRuleScopeAndRevisionAfterGroupDeletion() async throws {
@@ -476,15 +529,16 @@ final class TranscriptionControllerTests: XCTestCase {
             isEnabled: true
         )
         let replacementRule = localRule(id: "new", source: "super base", replacement: "New", group: nil)
-        let transport = ControllerStubTransport { [appState] request in
+        let capturedSnapshot = controller.captureProcessingSnapshot(
+            appContext: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+        )
+        XCTAssertTrue(appState.deleteCleanupGroup(id: "terminal"))
+        let current = try appState.saveLocalCorrections(
+            [replacementRule],
+            isEnabled: true
+        )
+        let transport = ControllerStubTransport { request in
             XCTAssertEqual(request.url?.path, "/v1/audio/transcriptions")
-            try await MainActor.run {
-                XCTAssertTrue(appState!.deleteCleanupGroup(id: "terminal"))
-                _ = try appState!.saveLocalCorrections(
-                    [replacementRule],
-                    isEnabled: true
-                )
-            }
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (Data("super base".utf8), response)
         }
@@ -499,7 +553,8 @@ final class TranscriptionControllerTests: XCTestCase {
         await controller.transcribe(
             audioURL: audioURL,
             format: .wav,
-            appContext: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+            appContext: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal"),
+            processingSnapshot: capturedSnapshot
         )
 
         XCTAssertEqual(captured.revision, 1)
@@ -515,7 +570,7 @@ final class TranscriptionControllerTests: XCTestCase {
             appContext: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
         )
         XCTAssertEqual(next.text, "New")
-        XCTAssertEqual(next.localCorrectionRevision, 2)
+        XCTAssertEqual(next.localCorrectionRevision, current.revision)
         XCTAssertEqual(next.cleanupGroupID, CleanupGroup.defaultGroupID)
     }
 
@@ -693,6 +748,37 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertTrue(receipt.contains("output_length=10"), receipt)
     }
 
+    func testCleanupReceiptMeasuresLocallyCorrectedRequestAndSuccessfulOutput() async throws {
+        let receiptURL = keychainStorageDirectory.appendingPathComponent("corrected-cleanup-receipt.txt")
+        setenv("E2E_CLEANUP_RECEIPT_PATH", receiptURL.path, 1)
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+        _ = try appState.saveLocalCorrections(
+            [localRule(id: "expanded", source: "raw", replacement: "expanded", group: nil)],
+            isEnabled: true
+        )
+        let transport = ControllerStubTransport { request in
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            XCTAssertTrue(body.contains("expanded text"), body)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (Data(#"{"choices":[{"message":{"content":"clean text"}}]}"#.utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw text",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "clean text")
+        let receipt = try String(contentsOf: receiptURL, encoding: .utf8)
+        XCTAssertTrue(receipt.contains("input_length=13"), receipt)
+        XCTAssertTrue(receipt.contains("output_length=10"), receipt)
+    }
+
     func testActiveCleanupProfileUsesUnifiedPromptAndReceiptMode() async throws {
         let receiptURL = keychainStorageDirectory.appendingPathComponent("cleanup-profile-receipt.txt")
         setenv("E2E_CLEANUP_RECEIPT_PATH", receiptURL.path, 1)
@@ -752,6 +838,36 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertTrue(receipt.contains("provider=custom-openai-compatible-chat"), receipt)
         XCTAssertTrue(receipt.contains("mode=cleanUp"), receipt)
         XCTAssertTrue(receipt.contains("error=Invalid API key"), receipt)
+    }
+
+    func testFailedCleanupReceiptMeasuresLocallyCorrectedRequestAndFallback() async throws {
+        let receiptURL = keychainStorageDirectory.appendingPathComponent("corrected-cleanup-failed-receipt.txt")
+        setenv("E2E_CLEANUP_RECEIPT_PATH", receiptURL.path, 1)
+        appState.transcriptProcessingMode = .cleanUp
+        appState.transcriptCleanupProviderID = .customOpenAICompatibleChat
+        appState.customTranscriptCleanupBaseURL = "http://127.0.0.1:11434/v1"
+        appState.customTranscriptCleanupModel = "qwen2.5:7b"
+        _ = try appState.saveLocalCorrections(
+            [localRule(id: "expanded", source: "raw", replacement: "expanded", group: nil)],
+            isEnabled: true
+        )
+        let transport = ControllerStubTransport { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+            return (Data("unauthorized".utf8), response)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "raw text",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "test"
+        )
+
+        XCTAssertEqual(result.text, "expanded text")
+        XCTAssertTrue(result.cleanupFailed)
+        let receipt = try String(contentsOf: receiptURL, encoding: .utf8)
+        XCTAssertTrue(receipt.contains("input_length=13"), receipt)
+        XCTAssertTrue(receipt.contains("output_length=13"), receipt)
     }
 
     func testCleanupRequestIncludesCustomPromptAndPreferredTermsFromAppState() async {
@@ -1089,6 +1205,28 @@ final class TranscriptionControllerTests: XCTestCase {
                         "didTranscribe should not be called when no API key or network fails")
         // didFail or didStart may have been called depending on environment
         // The important invariant: no successful transcription without an API key
+    }
+
+    func testTranscriptionFailureReturnsCapturedAppContextForRetryPersistence() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        let audioURL = try temporaryAudioFile()
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+        let context = CleanupAppContext(
+            displayName: "Renamed Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            appPath: "/System/Applications/Utilities/Terminal.app"
+        )
+        let transport = ControllerStubTransport { _ in throw URLError(.notConnectedToInternet) }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState
+        )
+        controller.delegate = spy
+
+        await controller.transcribe(audioURL: audioURL, format: .wav, appContext: context)
+
+        XCTAssertEqual(spy.didFailCalls.count, 1)
+        XCTAssertEqual(spy.didFailCalls.first?.appContext, context)
     }
 
     func testLocalWhisperTranscribeDoesNotSendSharedOpenAICompatibleApiKey() async throws {
@@ -1572,7 +1710,10 @@ final class TranscriptionControllerTests: XCTestCase {
                 id: "terminal",
                 name: "Terminal",
                 sortOrder: 1,
-                appMatchers: [CleanupAppMatcher(displayName: "Terminal")],
+                appMatchers: [CleanupAppMatcher(
+                    displayName: "Terminal",
+                    bundleIdentifier: "com.apple.Terminal"
+                )],
                 processingMode: .raw
             )
         ])
@@ -1585,7 +1726,8 @@ final class TranscriptionControllerTests: XCTestCase {
         let record = TranscriptionRecord(
             id: UUID(),
             timestamp: Date(),
-            sourceAppName: "Terminal",
+            sourceAppName: "Renamed Terminal",
+            sourceAppBundleIdentifier: "com.apple.Terminal",
             outcome: .failure(error: "previous failure", audioFileURL: tempURL)
         )
         let transport = ControllerStubTransport { request in
@@ -1606,6 +1748,53 @@ final class TranscriptionControllerTests: XCTestCase {
         await controller.retryTranscription(record: record)
 
         XCTAssertEqual(spy.didTranscribeCalls.first?.text, "open Codex")
+        XCTAssertEqual(spy.didFailCalls.count, 0)
+        XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testRetryWithoutSourceAppAppliesOnlyGlobalLocalCorrections() async throws {
+        appState.selectedTranscriptionProviderPresetID = .localWhisperCPP
+        appState.setCleanupGroups([
+            CleanupGroup.defaultGroup(processingMode: .raw)
+        ])
+        _ = try appState.saveLocalCorrections(
+            [
+                localRule(id: "global", source: "codecs", replacement: "Codex", group: nil),
+                localRule(
+                    id: "unassigned",
+                    source: "super base",
+                    replacement: "Supabase",
+                    group: CleanupGroup.defaultGroupID
+                )
+            ],
+            isEnabled: true
+        )
+        let tempURL = try temporaryAudioFile()
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let record = TranscriptionRecord(
+            id: UUID(),
+            timestamp: Date(),
+            sourceAppName: nil,
+            outcome: .failure(error: "previous failure", audioFileURL: tempURL)
+        )
+        let transport = ControllerStubTransport { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (Data("open codecs and super base".utf8), response)
+        }
+        controller = TranscriptionController(
+            transcriptionService: TranscriptionService(transport: transport),
+            appState: appState
+        )
+        controller.delegate = spy
+
+        await controller.retryTranscription(record: record)
+
+        XCTAssertEqual(spy.didTranscribeCalls.first?.text, "open Codex and super base")
         XCTAssertEqual(spy.didFailCalls.count, 0)
         XCTAssertEqual(transport.requests.count, 1)
     }

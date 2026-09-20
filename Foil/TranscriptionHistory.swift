@@ -5,6 +5,8 @@ struct TranscriptionRecord: Codable, Identifiable {
     let id: UUID
     let timestamp: Date
     var sourceAppName: String?
+    var sourceAppBundleIdentifier: String? = nil
+    var sourceAppPath: String? = nil
     var sourceRecordID: UUID?
     var transformKind: HistoryTransformKind?
     var outcome: Outcome
@@ -32,6 +34,18 @@ struct TranscriptionRecord: Codable, Identifiable {
     var isFailure: Bool {
         if case .failure = outcome { return true }
         return false
+    }
+
+    var sourceAppContext: CleanupAppContext? {
+        let context = CleanupAppContext(
+            displayName: sourceAppName,
+            bundleIdentifier: sourceAppBundleIdentifier,
+            appPath: sourceAppPath
+        )
+        guard context.displayName != nil || context.bundleIdentifier != nil || context.appPath != nil else {
+            return nil
+        }
+        return context
     }
 
     var previewText: String {
@@ -80,6 +94,9 @@ final class TranscriptionHistory {
             }
         }
         return original
+    }
+    var canClear: Bool {
+        !records.isEmpty || lastSessionTranscript != nil || lastSessionOriginalTranscript != nil
     }
     private(set) var preferencesError: String?
 
@@ -189,7 +206,13 @@ final class TranscriptionHistory {
         rememberLastSession(text: text, originalText: nil, recordID: insert(record) ? record.id : nil)
     }
 
-    func addFailure(error: String, audioFileURL: URL?, sourceAppName: String? = nil) {
+    func addFailure(
+        error: String,
+        audioFileURL: URL?,
+        sourceAppName: String? = nil,
+        sourceAppBundleIdentifier: String? = nil,
+        sourceAppPath: String? = nil
+    ) {
         guard isPersistenceEnabled else {
             if let audioFileURL { try? FileManager.default.removeItem(at: audioFileURL) }
             return
@@ -199,6 +222,8 @@ final class TranscriptionHistory {
             id: UUID(),
             timestamp: Date(),
             sourceAppName: Self.normalizedSourceAppName(sourceAppName),
+            sourceAppBundleIdentifier: Self.normalizedSourceAppName(sourceAppBundleIdentifier),
+            sourceAppPath: Self.normalizedSourceAppName(sourceAppPath),
             outcome: .failure(error: error, audioFileURL: retainedAudioURL)
         )
         _ = insert(record)

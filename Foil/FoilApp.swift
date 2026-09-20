@@ -270,6 +270,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var modelRoot: URL { root.appendingPathComponent("ManagedModels", isDirectory: true) }
         var historyRoot: URL { root.appendingPathComponent("History", isDirectory: true) }
         var credentialsRoot: URL { root.appendingPathComponent("Credentials", isDirectory: true) }
+        var localCorrectionsFile: URL {
+            root.appendingPathComponent("LocalCorrections", isDirectory: true)
+                .appendingPathComponent(LocalCorrectionStore.fileName)
+        }
         var defaultsSuiteName: String {
             let suffix = root.path.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_" }
             return "com.neonwatty.Foil.ManagedLocalAcceptance." + String(suffix)
@@ -281,6 +285,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var modelRoot: URL { root.appendingPathComponent("ManagedModels", isDirectory: true) }
         var historyRoot: URL { root.appendingPathComponent("History", isDirectory: true) }
         var credentialsRoot: URL { root.appendingPathComponent("Credentials", isDirectory: true) }
+        var localCorrectionsFile: URL {
+            root.appendingPathComponent("LocalCorrections", isDirectory: true)
+                .appendingPathComponent(LocalCorrectionStore.fileName)
+        }
         var defaultsSuiteName: String {
             let suffix = root.path.unicodeScalars.map {
                 CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_"
@@ -356,6 +364,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var localWhisperStartupID: UUID?
     private var managedLocalStartupTask: Task<Void, Never>?
     private var recordingCleanupAppContext: CleanupAppContext?
+    private var recordingProcessingSnapshot: TranscriptProcessingSnapshot?
     private var uiTestingController: UITestingController?
     private var onboardingWindow: NSWindow?
     private var recordingIsOnboardingPractice = false
@@ -408,7 +417,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             KeychainHelper.accountOverride = acceptance == nil ? "test-startup" : "managed-local-acceptance"
         }
         #endif
-        self.appState = AppState(managedModelRoot: acceptance?.modelRoot ?? testing?.modelRoot)
+        let localCorrectionStore = (acceptance?.localCorrectionsFile ?? testing?.localCorrectionsFile)
+            .map { LocalCorrectionStore(fileURL: $0) }
+        self.appState = AppState(
+            managedModelRoot: acceptance?.modelRoot ?? testing?.modelRoot,
+            localCorrectionStore: localCorrectionStore
+        )
         if let acceptance {
             try? FileManager.default.createDirectory(at: acceptance.historyRoot, withIntermediateDirectories: true)
             self.history = TranscriptionHistory(storageDirectory: acceptance.historyRoot)
@@ -1420,6 +1434,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState.onboardingTranscript = nil
             pasteController.clearPendingTarget()
             recordingCleanupAppContext = nil
+            recordingProcessingSnapshot = nil
             appState.clearError()
             recordingController.startRecording()
             return
@@ -1427,6 +1442,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         pasteController.captureTarget()
         let capturedTarget = pasteController.pendingTarget ?? PasteTarget.captureCurrentTarget()
         recordingCleanupAppContext = capturedTarget?.cleanupAppContext
+        recordingProcessingSnapshot = transcriptionController.captureProcessingSnapshot(
+            appContext: recordingCleanupAppContext
+        )
         DiagnosticLog.write("captureTargetThenStartRecording: asyncEnabled=\(appState.asyncPasteEnabled) capturedTarget=\(String(describing: capturedTarget))")
         appState.recordTargetCapture(capturedTarget)
         appState.clearError()
@@ -2053,7 +2071,8 @@ extension AppDelegate: TranscriptionControllerDelegate {
         didFail error: Error,
         errorMessage: String,
         audioURL: URL,
-        format: AudioFormat
+        format: AudioFormat,
+        appContext: CleanupAppContext?
     ) {
         DiagnosticLog.write("AppDelegate: transcriptionController didFail errorMessage=\(errorMessage)")
         transcriptionTask = nil
@@ -2076,11 +2095,23 @@ extension AppDelegate: TranscriptionControllerDelegate {
             pasteController.clearPendingTarget()
             appState.refreshApiKeyState()
             try? FileManager.default.removeItem(at: audioURL)
-            history.addFailure(error: "No API key", audioFileURL: nil)
+            history.addFailure(
+                error: "No API key",
+                audioFileURL: nil,
+                sourceAppName: appContext?.displayName,
+                sourceAppBundleIdentifier: appContext?.bundleIdentifier,
+                sourceAppPath: appContext?.appPath
+            )
         } else {
             // Normal failure: preserve audio for retry
             pasteController.clearPendingTarget()
-            history.addFailure(error: errorMessage, audioFileURL: audioURL)
+            history.addFailure(
+                error: errorMessage,
+                audioFileURL: audioURL,
+                sourceAppName: appContext?.displayName,
+                sourceAppBundleIdentifier: appContext?.bundleIdentifier,
+                sourceAppPath: appContext?.appPath
+            )
             // Do NOT delete audio file -- preserved for retry
         }
 
@@ -2133,9 +2164,16 @@ extension AppDelegate: RecordingControllerDelegate {
         DiagnosticLog.write("AppDelegate: recordingController didStopWithURL=\(audioURL.lastPathComponent)")
         browserMediaController.recordingDidEnd(reason: .stopped)
         let appContext = recordingCleanupAppContext
+        let processingSnapshot = recordingProcessingSnapshot
         recordingCleanupAppContext = nil
+        recordingProcessingSnapshot = nil
         transcriptionTask = Task { @MainActor in
-            await transcriptionController.transcribe(audioURL: audioURL, format: format, appContext: appContext)
+            await transcriptionController.transcribe(
+                audioURL: audioURL,
+                format: format,
+                appContext: appContext,
+                processingSnapshot: processingSnapshot
+            )
         }
     }
 
@@ -2143,6 +2181,7 @@ extension AppDelegate: RecordingControllerDelegate {
         DiagnosticLog.write("AppDelegate: recordingControllerDidStopWithNoAudio")
         browserMediaController.recordingDidEnd(reason: .noAudio)
         recordingCleanupAppContext = nil
+        recordingProcessingSnapshot = nil
         stopTranscribingAnimation()
     }
 
@@ -2150,6 +2189,7 @@ extension AppDelegate: RecordingControllerDelegate {
         DiagnosticLog.write("AppDelegate: recordingControllerDidCancel")
         browserMediaController.recordingDidEnd(reason: .cancelled)
         recordingCleanupAppContext = nil
+        recordingProcessingSnapshot = nil
         appState.setStatus(.idle)
         appState.feedbackMessage = "Recording cancelled"
         pasteController.clearPendingTarget()
@@ -2159,6 +2199,7 @@ extension AppDelegate: RecordingControllerDelegate {
         DiagnosticLog.write("AppDelegate: recordingController didFailWithError=\(error)")
         browserMediaController.recordingDidEnd(reason: .failed)
         recordingCleanupAppContext = nil
+        recordingProcessingSnapshot = nil
         pasteController.clearPendingTarget()
         appState.updateMicrophoneState(isReady: false, message: "Allow microphone access")
         if AudioRecorder.availableInputDevices().isEmpty {

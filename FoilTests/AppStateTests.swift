@@ -102,6 +102,7 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "customCleanupPrompt.summarize")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupPreferredTerms")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupVocabularyCorrections")
+        UserDefaults.standard.removeObject(forKey: "deletedVocabularyCorrectionUndo")
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupVocabularyTerms")
         UserDefaults.standard.removeObject(forKey: "cleanupGroups")
         UserDefaults.standard.removeObject(forKey: "usageMetricsEnabled")
@@ -133,10 +134,16 @@ final class AppStateTests: XCTestCase {
     func testTestProcessKeepsManagedModelsOutOfProductionApplicationSupport() throws {
         let delegate = AppDelegate(singleInstanceGuard: AppStateTestSingleInstanceGuard())
         let modelRoot = try XCTUnwrap(delegate.appState.managedLocalModels?.store.root)
+        let testing = try XCTUnwrap(AppDelegate.testingStorageConfiguration())
 
         XCTAssertTrue(
             modelRoot.path.hasPrefix(FileManager.default.temporaryDirectory.standardizedFileURL.path),
             "Test model storage must stay under the temporary directory, got \(modelRoot.path)"
+        )
+        XCTAssertEqual(
+            delegate.appState.localCorrectionStorageFile.standardizedFileURL,
+            testing.localCorrectionsFile.standardizedFileURL,
+            "Test correction storage must use the same per-session root as the remaining test state"
         )
     }
 
@@ -165,6 +172,11 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(first.root.standardizedFileURL, expectedRoot.standardizedFileURL)
         XCTAssertEqual(relaunched.root.standardizedFileURL, expectedRoot.standardizedFileURL)
         XCTAssertEqual(first.modelRoot.deletingLastPathComponent(), first.root)
+        XCTAssertEqual(
+            first.localCorrectionsFile,
+            first.root.appendingPathComponent("LocalCorrections", isDirectory: true)
+                .appendingPathComponent(LocalCorrectionStore.fileName)
+        )
         XCTAssertTrue(first.defaultsSuiteName.hasPrefix("com.neonwatty.Foil.UITests."))
     }
 
@@ -1759,6 +1771,49 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(resolution.processingMode, .raw)
     }
 
+    func testDeletingCleanupGroupDisablesAndPersistsItsScopedRules() throws {
+        let fileURL = testDirectory.appendingPathComponent("local-corrections-deleted-group.json")
+        let store = LocalCorrectionStore(fileURL: fileURL)
+        let state = AppState(localCorrectionStore: store)
+        let group = state.createCleanupGroup(named: "Agent editors")
+        let correction = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "cloud code", correctVersion: "Claude Code")
+        )
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: group.id)
+        _ = try state.setLocalCorrectionsEnabled(true)
+
+        XCTAssertTrue(state.deleteCleanupGroup(id: group.id))
+
+        let disabledRule = try XCTUnwrap(state.localCorrectionRule(forVocabularyCorrectionID: correction.id))
+        XCTAssertFalse(disabledRule.enabled)
+        XCTAssertEqual(disabledRule.group, group.id)
+        XCTAssertEqual(state.previewLocalCorrections("cloud code", activeGroupID: group.id).text, "cloud code")
+        let reloaded = AppState(localCorrectionStore: store)
+        XCTAssertFalse(try XCTUnwrap(reloaded.localCorrectionRule(forVocabularyCorrectionID: correction.id)).enabled)
+        XCTAssertNil(reloaded.cleanupGroups.first { $0.id == group.id })
+    }
+
+    func testDisablingCleanupGroupDisablesAndPersistsItsScopedRules() throws {
+        let fileURL = testDirectory.appendingPathComponent("local-corrections-disabled-group.json")
+        let store = LocalCorrectionStore(fileURL: fileURL)
+        let state = AppState(localCorrectionStore: store)
+        let group = state.createCleanupGroup(named: "Agent editors")
+        let correction = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "cloud code", correctVersion: "Claude Code")
+        )
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: group.id)
+        _ = try state.setLocalCorrectionsEnabled(true)
+
+        XCTAssertTrue(state.updateCleanupGroup(id: group.id) { $0.isEnabled = false })
+
+        XCTAssertFalse(try XCTUnwrap(state.localCorrectionRule(forVocabularyCorrectionID: correction.id)).enabled)
+        XCTAssertFalse(try XCTUnwrap(state.cleanupGroups.first { $0.id == group.id }).isEnabled)
+        XCTAssertNil(try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: group.id))
+        let reloaded = AppState(localCorrectionStore: store)
+        XCTAssertFalse(try XCTUnwrap(reloaded.localCorrectionRule(forVocabularyCorrectionID: correction.id)).enabled)
+        XCTAssertFalse(try XCTUnwrap(reloaded.cleanupGroups.first { $0.id == group.id }).isEnabled)
+    }
+
     func testRemoveAppMatcherFromCleanupGroupLeavesOtherGroupsUntouched() {
         let state = AppState()
         let terminalMatcher = CleanupAppMatcher(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
@@ -1869,6 +1924,10 @@ final class AppStateTests: XCTestCase {
         let store = LocalCorrectionStore(fileURL: fileURL)
         let state = AppState(localCorrectionStore: store)
         state.transcriptProcessingMode = .raw
+        state.setCleanupGroups([
+            CleanupGroup.defaultGroup(),
+            CleanupGroup(id: "agents", name: "Agents", sortOrder: 1)
+        ])
         let correction = try XCTUnwrap(
             state.addVocabularyCorrection(writtenAs: "super base", correctVersion: "Supabase")
         )
@@ -1906,6 +1965,223 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(reloaded.vocabularyCorrections.isEmpty)
         XCTAssertTrue(reloaded.localCorrectionSnapshot.rules.isEmpty)
         XCTAssertTrue(try store.load().rules.isEmpty)
+
+        let deletedReload = AppState(localCorrectionStore: store)
+        XCTAssertTrue(deletedReload.canUndoVocabularyCorrectionDeletion)
+        XCTAssertTrue(deletedReload.vocabularyCorrections.isEmpty)
+        XCTAssertTrue(deletedReload.localCorrectionSnapshot.rules.isEmpty)
+        XCTAssertTrue(deletedReload.undoVocabularyCorrectionDeletion())
+        XCTAssertEqual(deletedReload.vocabularyCorrections.count, 1)
+        XCTAssertEqual(deletedReload.vocabularyCorrections.first?.id, correction.id)
+        XCTAssertEqual(deletedReload.vocabularyCorrections.first?.writtenAs, "cloud code")
+        XCTAssertEqual(deletedReload.vocabularyCorrections.first?.correctVersion, "Claude Code")
+        XCTAssertEqual(
+            deletedReload.previewLocalCorrections("use cloud code", activeGroupID: "agents").text,
+            "use Claude Code"
+        )
+
+        let restoredReload = AppState(localCorrectionStore: store)
+        XCTAssertFalse(restoredReload.canUndoVocabularyCorrectionDeletion)
+        XCTAssertEqual(restoredReload.vocabularyCorrections.first?.id, correction.id)
+        XCTAssertEqual(restoredReload.vocabularyCorrections.first?.writtenAs, "cloud code")
+        XCTAssertEqual(restoredReload.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.group, "agents")
+    }
+
+    func testReloadReconcilesVocabularyRulesChangedByPreviousVersion() throws {
+        let fileURL = testDirectory.appendingPathComponent("local-corrections-downgrade-reconcile.json")
+        let store = LocalCorrectionStore(fileURL: fileURL)
+        let state = AppState(localCorrectionStore: store)
+        let edited = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "cloud code", correctVersion: "Claude Code")
+        )
+        let deleted = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "super base", correctVersion: "Supabase")
+        )
+        _ = try state.setVocabularyCorrectionLocalScope(id: edited.id, groupID: nil)
+        _ = try state.setVocabularyCorrectionLocalScope(id: deleted.id, groupID: nil)
+        _ = try state.setLocalCorrectionsEnabled(true)
+        let revisionBeforeDowngrade = state.localCorrectionSnapshot.revision
+
+        var previousVersionCorrections = state.vocabularyCorrections.filter { $0.id == edited.id }
+        previousVersionCorrections[0].writtenAs = "code ex"
+        previousVersionCorrections[0].correctVersion = "Codex"
+        let data = try JSONEncoder().encode(previousVersionCorrections)
+        UserDefaults.standard.set(data, forKey: "transcriptCleanupVocabularyCorrections")
+
+        let reloaded = AppState(localCorrectionStore: store)
+
+        XCTAssertEqual(reloaded.localCorrectionSnapshot.revision, revisionBeforeDowngrade + 1)
+        XCTAssertEqual(reloaded.localCorrectionSnapshot.rules.count, 1)
+        XCTAssertEqual(reloaded.localCorrectionRule(forVocabularyCorrectionID: edited.id)?.source, "code ex")
+        XCTAssertEqual(reloaded.localCorrectionRule(forVocabularyCorrectionID: edited.id)?.replacement, "Codex")
+        XCTAssertNil(reloaded.localCorrectionRule(forVocabularyCorrectionID: deleted.id))
+        XCTAssertEqual(reloaded.previewLocalCorrections("use code ex", activeGroupID: nil).text, "use Codex")
+        XCTAssertEqual(reloaded.previewLocalCorrections("use cloud code", activeGroupID: nil).text, "use cloud code")
+        XCTAssertEqual(reloaded.previewLocalCorrections("use super base", activeGroupID: nil).text, "use super base")
+        XCTAssertEqual(try store.load(), reloaded.localCorrectionSnapshot)
+    }
+
+    func testReloadReconcilesUnicodeNormalizationByteChangesFromPreviousVersion() throws {
+        let fileURL = testDirectory.appendingPathComponent("local-corrections-unicode-reconcile.json")
+        let store = LocalCorrectionStore(fileURL: fileURL)
+        let state = AppState(localCorrectionStore: store)
+        let correction = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "cafe", correctVersion: "Caf\u{00E9}")
+        )
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: nil)
+        _ = try state.setLocalCorrectionsEnabled(true)
+        let revisionBeforeDowngrade = state.localCorrectionSnapshot.revision
+        var previousVersionCorrection = correction
+        previousVersionCorrection.correctVersion = "Cafe\u{0301}"
+        UserDefaults.standard.set(
+            try JSONEncoder().encode([previousVersionCorrection]),
+            forKey: "transcriptCleanupVocabularyCorrections"
+        )
+
+        let reloaded = AppState(localCorrectionStore: store)
+        let reconciledRule = try XCTUnwrap(
+            reloaded.localCorrectionRule(forVocabularyCorrectionID: correction.id)
+        )
+        let result = reloaded.previewLocalCorrections("say cafe", activeGroupID: nil)
+
+        XCTAssertEqual(reloaded.localCorrectionSnapshot.revision, revisionBeforeDowngrade + 1)
+        XCTAssertEqual(Array(reconciledRule.replacement.utf8), Array("Cafe\u{0301}".utf8))
+        XCTAssertEqual(Array(result.text.utf8), Array("say Cafe\u{0301}".utf8))
+        XCTAssertEqual(
+            Array(try XCTUnwrap(try store.load().rules.first).replacement.utf8),
+            Array("Cafe\u{0301}".utf8)
+        )
+    }
+
+    func testReloadDeduplicatesPersistedVocabularyIDsBeforeRuleReconciliation() throws {
+        let fileURL = testDirectory.appendingPathComponent("local-corrections-duplicate-vocabulary-id.json")
+        let store = LocalCorrectionStore(fileURL: fileURL)
+        let state = AppState(localCorrectionStore: store)
+        let correction = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "cloud code", correctVersion: "Claude Code")
+        )
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: nil)
+        _ = try state.setLocalCorrectionsEnabled(true)
+        var duplicate = correction
+        duplicate.writtenAs = "code ex"
+        duplicate.correctVersion = "Codex"
+        UserDefaults.standard.set(
+            try JSONEncoder().encode([correction, duplicate]),
+            forKey: "transcriptCleanupVocabularyCorrections"
+        )
+
+        let reloaded = AppState(localCorrectionStore: store)
+
+        XCTAssertEqual(reloaded.vocabularyCorrections.map(\.id), [correction.id])
+        XCTAssertEqual(reloaded.localCorrectionSnapshot.rules.count, 1)
+        XCTAssertEqual(reloaded.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.source, "cloud code")
+        XCTAssertEqual(
+            reloaded.previewLocalCorrections("use cloud code", activeGroupID: nil).text,
+            "use Claude Code"
+        )
+    }
+
+    func testMalformedVocabularyDataCannotDeletePersistedLocalCorrections() throws {
+        let fileURL = testDirectory.appendingPathComponent("local-corrections-malformed-vocabulary.json")
+        let store = LocalCorrectionStore(fileURL: fileURL)
+        let state = AppState(localCorrectionStore: store)
+        let correction = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "cloud code", correctVersion: "Claude Code")
+        )
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: nil)
+        _ = try state.setLocalCorrectionsEnabled(true)
+        let storedSnapshot = try store.load()
+        UserDefaults.standard.set(Data("not-json".utf8), forKey: "transcriptCleanupVocabularyCorrections")
+
+        let reloaded = AppState(localCorrectionStore: store)
+
+        XCTAssertEqual(reloaded.localCorrectionSnapshot, storedSnapshot)
+        XCTAssertEqual(try store.load(), storedSnapshot)
+        XCTAssertEqual(
+            reloaded.previewLocalCorrections("use cloud code", activeGroupID: nil).text,
+            "use Claude Code"
+        )
+    }
+
+    func testUndoRepairsInterruptedDeletionWithVocabularyStillPresent() throws {
+        let fileURL = testDirectory.appendingPathComponent("local-corrections-interrupted-delete.json")
+        let store = LocalCorrectionStore(fileURL: fileURL)
+        let state = AppState(localCorrectionStore: store)
+        let correction = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "code ex", correctVersion: "Codex")
+        )
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: nil)
+        _ = try state.setLocalCorrectionsEnabled(true)
+        XCTAssertTrue(state.deleteVocabularyCorrection(id: correction.id))
+
+        let previousVersionData = try JSONEncoder().encode([correction])
+        UserDefaults.standard.set(previousVersionData, forKey: "transcriptCleanupVocabularyCorrections")
+        let interruptedReload = AppState(localCorrectionStore: store)
+
+        XCTAssertTrue(interruptedReload.canUndoVocabularyCorrectionDeletion)
+        XCTAssertNotNil(interruptedReload.vocabularyCorrections.first { $0.id == correction.id })
+        XCTAssertNil(interruptedReload.localCorrectionRule(forVocabularyCorrectionID: correction.id))
+        XCTAssertTrue(interruptedReload.undoVocabularyCorrectionDeletion())
+        XCTAssertEqual(
+            interruptedReload.previewLocalCorrections("use code ex", activeGroupID: nil).text,
+            "use Codex"
+        )
+        XCTAssertFalse(interruptedReload.canUndoVocabularyCorrectionDeletion)
+    }
+
+    func testUndoRestoresRuleDisabledWhenItsCleanupGroupWasDisabledAfterDeletion() throws {
+        let store = LocalCorrectionStore(
+            fileURL: testDirectory.appendingPathComponent("local-corrections-undo-disabled-group.json")
+        )
+        let state = AppState(localCorrectionStore: store)
+        state.setCleanupGroups([
+            CleanupGroup.defaultGroup(),
+            CleanupGroup(id: "agents", name: "Agents", sortOrder: 1)
+        ])
+        let correction = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "code ex", correctVersion: "Codex")
+        )
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: "agents")
+        _ = try state.setLocalCorrectionsEnabled(true)
+        XCTAssertTrue(state.deleteVocabularyCorrection(id: correction.id))
+        XCTAssertTrue(state.updateCleanupGroup(id: "agents") { $0.isEnabled = false })
+
+        XCTAssertTrue(state.undoVocabularyCorrectionDeletion())
+
+        let restoredRule = try XCTUnwrap(
+            state.localCorrectionRule(forVocabularyCorrectionID: correction.id)
+        )
+        XCTAssertEqual(restoredRule.group, "agents")
+        XCTAssertFalse(restoredRule.enabled)
+        XCTAssertEqual(
+            state.previewLocalCorrections("use code ex", activeGroupID: "agents").text,
+            "use code ex"
+        )
+        XCTAssertFalse(try XCTUnwrap(try store.load().rules.first).enabled)
+        XCTAssertTrue(state.updateCleanupGroup(id: "agents") { $0.isEnabled = true })
+        XCTAssertEqual(
+            state.previewLocalCorrections("use code ex", activeGroupID: "agents").text,
+            "use code ex"
+        )
+    }
+
+    func testUndoConflictConsumesPersistedUndoState() throws {
+        let store = LocalCorrectionStore(
+            fileURL: testDirectory.appendingPathComponent("local-corrections-undo-conflict.json")
+        )
+        let state = AppState(localCorrectionStore: store)
+        let deleted = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "cloud code", correctVersion: "Claude Code")
+        )
+        XCTAssertTrue(state.deleteVocabularyCorrection(id: deleted.id))
+        let replacement = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "cloud code", correctVersion: "Claude Code")
+        )
+        XCTAssertNotEqual(replacement.id, deleted.id)
+
+        XCTAssertFalse(state.undoVocabularyCorrectionDeletion())
+        XCTAssertFalse(state.canUndoVocabularyCorrectionDeletion)
+        XCTAssertFalse(AppState(localCorrectionStore: store).canUndoVocabularyCorrectionDeletion)
     }
 
     func testVocabularyDeleteFailurePreservesCorrectionAndStoredRule() throws {
@@ -1927,6 +2203,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertNotNil(reloaded.vocabularyCorrections.first { $0.id == correction.id })
         XCTAssertNotNil(reloaded.localCorrectionRule(forVocabularyCorrectionID: correction.id))
         XCTAssertNotNil(reloaded.localCorrectionPersistenceError)
+        XCTAssertFalse(reloaded.canUndoVocabularyCorrectionDeletion)
         XCTAssertEqual(try Data(contentsOf: fileURL), before)
     }
 

@@ -174,6 +174,25 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
+    func testFailurePersistsFullSourceAppContextForRetry() throws {
+        let audioURL = testDir.appendingPathComponent("scoped-retry.wav")
+        try Data([0x00]).write(to: audioURL)
+
+        history.addFailure(
+            error: "offline",
+            audioFileURL: audioURL,
+            sourceAppName: "Renamed Terminal",
+            sourceAppBundleIdentifier: "com.apple.Terminal",
+            sourceAppPath: "/System/Applications/Utilities/Terminal.app"
+        )
+
+        let reloaded = TranscriptionHistory(storageDirectory: testDir)
+        let context = try XCTUnwrap(reloaded.retryableRecord?.sourceAppContext)
+        XCTAssertEqual(context.displayName, "Renamed Terminal")
+        XCTAssertEqual(context.bundleIdentifier, "com.apple.Terminal")
+        XCTAssertEqual(context.appPath, "/System/Applications/Utilities/Terminal.app")
+    }
+
     func testCapsAt500() {
         for i in 0..<505 {
             history.addSuccess(text: "entry \(i)")
@@ -388,6 +407,7 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertEqual(reloaded.lastRecoverableText, "Supabase session only")
         XCTAssertEqual(reloaded.lastRecoverableOriginalText, "super base session only")
         XCTAssertTrue(reloaded.records.isEmpty)
+        XCTAssertTrue(reloaded.canClear)
         XCTAssertFalse(FileManager.default.fileExists(atPath: testDir.appendingPathComponent("history.json").path))
         let audio = testDir.appendingPathComponent("private.wav")
         try Data([1, 2]).write(to: audio)
@@ -396,6 +416,10 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertTrue(reloaded.records.isEmpty)
         XCTAssertNil(TranscriptionHistory(storageDirectory: testDir).lastRecoverableText)
         XCTAssertNil(TranscriptionHistory(storageDirectory: testDir).lastRecoverableOriginalText)
+        reloaded.clear()
+        XCTAssertFalse(reloaded.canClear)
+        XCTAssertNil(reloaded.lastRecoverableText)
+        XCTAssertNil(reloaded.lastRecoverableOriginalText)
     }
 
     func testRetentionChoicesSurviveReconstruction() {

@@ -141,6 +141,10 @@ final class ManagedLocalProviderMigrationTests: XCTestCase {
         XCTAssertEqual(configuration.modelRoot.path, root + "/ManagedModels")
         XCTAssertEqual(configuration.historyRoot.path, root + "/History")
         XCTAssertEqual(configuration.credentialsRoot.path, root + "/Credentials")
+        XCTAssertEqual(
+            configuration.localCorrectionsFile.path,
+            root + "/LocalCorrections/" + LocalCorrectionStore.fileName
+        )
         XCTAssertFalse(AppDelegate.isTestingProcess(
             arguments: ["Foil Dev", "--managed-local-gui-acceptance"], environment: [:]
         ), "Acceptance must retain production permission, microphone, installer, and restoration behavior")

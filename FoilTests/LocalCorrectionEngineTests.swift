@@ -69,6 +69,27 @@ final class LocalCorrectionEngineTests: XCTestCase {
         XCTAssertEqual(result.fallbackReason, .inputTooLarge)
     }
 
+    func testOversizeInputWithoutApplicableRuleIsNotAnEngineFallback() throws {
+        let input = String(repeating: "a", count: LocalCorrectionEngine.maximumInputBytes + 1)
+        let empty = try LocalCorrectionEngine.compile([])
+        let otherScope = try LocalCorrectionEngine.compile([
+            rule(id: "other", source: "a", replacement: "b", group: "other")
+        ])
+
+        for compiled in [empty, otherScope] {
+            let result = LocalCorrectionEngine.correct(
+                input,
+                activeGroup: "agents",
+                enabled: true,
+                compiled: compiled
+            )
+
+            XCTAssertEqual(result.text, input)
+            XCTAssertEqual(result.replacementCount, 0)
+            XCTAssertNil(result.fallbackReason)
+        }
+    }
+
     func testDisabledOperationReturnsOriginalBytes() throws {
         let input = "Cafe\u{301} uses super base"
         let compiled = try LocalCorrectionEngine.compile([
@@ -112,6 +133,71 @@ final class LocalCorrectionEngineTests: XCTestCase {
                 .tooManyEnabledRules(LocalCorrectionEngine.maximumEnabledRules + 1)
             )
         }
+    }
+
+    func testValidationCountsConfiguredSourceScalarsBeforeNormalization() {
+        let decomposedSource = String(repeating: "e\u{301}", count: 129)
+
+        XCTAssertEqual(decomposedSource.unicodeScalars.count, 258)
+        XCTAssertThrowsError(
+            try LocalCorrectionEngine.compile([
+                rule(id: "oversize-decomposed", source: decomposedSource, replacement: "x")
+            ])
+        ) { error in
+            XCTAssertEqual(
+                error as? LocalCorrectionValidationError,
+                .phraseTooLong("oversize-decomposed")
+            )
+        }
+    }
+
+    func testCRLFSourceRemainsDistinctAndMatchesAsOneCharacter() throws {
+        let compiled = try LocalCorrectionEngine.compile([
+            rule(id: "crlf", source: "\r\nnext", replacement: "line"),
+            rule(id: "lf", source: "\nnext", replacement: "wrong")
+        ])
+
+        let ascii = LocalCorrectionEngine.correct(
+            "before \r\nnext!",
+            activeGroup: "agents",
+            enabled: true,
+            compiled: compiled
+        )
+        let unicode = LocalCorrectionEngine.correct(
+            "café before \r\nnext!",
+            activeGroup: "agents",
+            enabled: true,
+            compiled: compiled
+        )
+        let loneLF = LocalCorrectionEngine.correct(
+            "before \nnext!",
+            activeGroup: "agents",
+            enabled: true,
+            compiled: compiled
+        )
+
+        XCTAssertEqual(ascii.text, "before line!")
+        XCTAssertEqual(ascii.replacementCount, 1)
+        XCTAssertEqual(unicode.text, "café before line!")
+        XCTAssertEqual(unicode.replacementCount, 1)
+        XCTAssertEqual(loneLF.text, "before wrong!")
+        XCTAssertEqual(loneLF.replacementCount, 1)
+    }
+
+    func testCRLFFenceClosesBeforeFollowingProse() throws {
+        let compiled = try LocalCorrectionEngine.compile([
+            rule(id: "codex", source: "codecs", replacement: "Codex")
+        ])
+
+        let result = LocalCorrectionEngine.correct(
+            "```\r\ncodecs\r\n```\r\ncodecs",
+            activeGroup: "agents",
+            enabled: true,
+            compiled: compiled
+        )
+
+        XCTAssertEqual(result.text, "```\r\ncodecs\r\n```\r\nCodex")
+        XCTAssertEqual(result.replacementCount, 1)
     }
 
     func testTenThousandSeededCasesAreDeterministicScopedAndByteExact() throws {

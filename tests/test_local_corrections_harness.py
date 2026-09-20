@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import hashlib
 import importlib.util
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -151,7 +152,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual(gate.percentile(list(range(1, 101)), .95), 95)
         self.assertEqual(gate.percentile(list(range(1, 101)), .99), 99)
 
-    def test_baseline_copy_isolates_storage_without_changing_processing(self):
+    def test_baseline_copy_is_pinned_and_isolates_only_storage_identity(self):
         root = Path(__file__).resolve().parents[1]
         spec = importlib.util.spec_from_file_location("baseline", root / "scripts/run-local-corrections-baseline.py")
         baseline = importlib.util.module_from_spec(spec)
@@ -167,11 +168,21 @@ class GateTests(unittest.TestCase):
             self.assertEqual(project.count(f"FOIL_APP_BUNDLE_IDENTIFIER = {identity};"), 2)
             self.assertIn(support, (checkout / "Foil/AppBrand.swift").read_text())
             self.assertIn("false // Isolated baseline host", (checkout / "Foil/SparkleUpdater.swift").read_text())
-            changed = {str(p.relative_to(root)) for p in (root / "Foil").glob("*.swift")
-                       if p.read_bytes() != (checkout / p.relative_to(root)).read_bytes()}
+            self.assertFalse((checkout / "Foil/LocalCorrectionEngine.swift").exists())
+            self.assertFalse((checkout / "Foil/LocalCorrectionStore.swift").exists())
+            tracked = subprocess.check_output(
+                ["git", "ls-tree", "-r", "--name-only", baseline.BASELINE_COMMIT, "--", "Foil", "FoilTests"],
+                cwd=root,
+                text=True,
+            ).splitlines()
+            changed = {
+                relative
+                for relative in tracked
+                if subprocess.check_output(
+                    ["git", "show", f"{baseline.BASELINE_COMMIT}:{relative}"], cwd=root
+                ) != (checkout / relative).read_bytes()
+            }
             self.assertEqual(changed, {"Foil/AppBrand.swift", "Foil/SparkleUpdater.swift"})
-            for path in (root / "FoilTests").glob("*.swift"):
-                self.assertEqual(path.read_bytes(), (checkout / path.relative_to(root)).read_bytes())
 
 
 if __name__ == "__main__":

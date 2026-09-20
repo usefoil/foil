@@ -1983,18 +1983,23 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(pasted.waitForExistence(timeout: timeout),
                       "E2E transcription should complete and paste within \(Int(timeout)) seconds")
 
-        let transcript = (try? String(contentsOfFile: resultPath, encoding: .utf8)) ?? ""
+        let resultURL = URL(fileURLWithPath: resultPath)
+        let transcriptData = (try? Data(contentsOf: resultURL)) ?? Data()
+        let transcript = String(data: transcriptData, encoding: .utf8) ?? ""
         XCTAssertFalse(transcript.isEmpty, "E2E result file should contain the transcript")
         if let expectedLocalText = env["E2E_EXPECTED_LOCAL_CORRECTION_TEXT"],
            !expectedLocalText.isEmpty {
-            XCTAssertEqual(transcript.trimmingCharacters(in: .whitespacesAndNewlines), expectedLocalText)
+            XCTAssertEqual(
+                transcriptData,
+                Data(expectedLocalText.utf8),
+                "Local correction result must preserve every expected UTF-8 byte"
+            )
             clickElement(app.buttons["menu.historyButton"])
             XCTAssertTrue(
                 app.otherElements["history.original.recoveryBar"].waitForExistence(timeout: 3),
                 app.debugDescription
             )
             XCTAssertTrue(app.buttons["history.original.copyButton"].exists)
-            XCTAssertTrue(app.buttons["history.original.pasteButton"].exists)
             let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
             attachment.name = "local-correction-result-and-original-recovery"
             attachment.lifetime = .keepAlways

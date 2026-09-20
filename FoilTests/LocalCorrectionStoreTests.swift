@@ -98,6 +98,37 @@ final class LocalCorrectionStoreTests: XCTestCase {
         XCTAssertEqual(try fixture.store.load(), original)
     }
 
+    func testSnapshotSaveReturnsReusableCompiledRulesAndRejectsSameRevisionTampering() throws {
+        let fixture = try makeFixture()
+        let initial = try fixture.store.load()
+        let rules = [rule(id: "supabase", source: "super base", replacement: "Supabase")]
+
+        let saved = try fixture.store.save(
+            rules: rules,
+            isEnabled: true,
+            expectedSnapshot: initial
+        )
+        let result = LocalCorrectionEngine.correct(
+            "use super base",
+            activeGroup: "agents",
+            enabled: saved.snapshot.isEnabled,
+            compiled: saved.compiled
+        )
+        XCTAssertEqual(result.text, "use Supabase")
+
+        let tampered = LocalCorrectionSnapshot(
+            revision: saved.snapshot.revision,
+            isEnabled: true,
+            rules: [rule(id: "tampered", source: "cloud code", replacement: "Claude Code")]
+        )
+        XCTAssertThrowsError(
+            try fixture.store.save(rules: [], expectedSnapshot: tampered)
+        ) { error in
+            XCTAssertEqual(error as? LocalCorrectionStoreError, .unreadable)
+        }
+        XCTAssertEqual(try fixture.store.load(), saved.snapshot)
+    }
+
     func testInvalidRulesNeverReplaceValidSnapshot() throws {
         let fixture = try makeFixture()
         let original = try fixture.store.save(

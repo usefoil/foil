@@ -32,7 +32,7 @@ enum LocalCorrectionStoreError: Error, Equatable {
 final class LocalCorrectionStore {
     static let fileName = "local-corrections-v1.json"
 
-    private let fileURL: URL
+    let fileURL: URL
     private let fileManager: FileManager
     private let atomicWriter: (Data, URL) throws -> Void
     private let encoder: JSONEncoder
@@ -71,6 +71,16 @@ final class LocalCorrectionStore {
     }
 
     func load() throws -> LocalCorrectionSnapshot {
+        try loadCompiled().snapshot
+    }
+
+    func loadCompiled() throws -> (snapshot: LocalCorrectionSnapshot, compiled: CompiledLocalCorrections) {
+        let snapshot = try decodeSnapshot()
+        let compiled = try LocalCorrectionEngine.compile(snapshot.rules)
+        return (snapshot, compiled)
+    }
+
+    private func decodeSnapshot() throws -> LocalCorrectionSnapshot {
         guard fileManager.fileExists(atPath: fileURL.path) else {
             return LocalCorrectionSnapshot()
         }
@@ -95,7 +105,6 @@ final class LocalCorrectionStore {
         do {
             let snapshot = try decoder.decode(LocalCorrectionSnapshot.self, from: data)
             guard snapshot.revision >= 0 else { throw LocalCorrectionStoreError.unreadable }
-            _ = try LocalCorrectionEngine.compile(snapshot.rules)
             return snapshot
         } catch let error as LocalCorrectionStoreError {
             throw error
@@ -135,6 +144,44 @@ final class LocalCorrectionStore {
             throw LocalCorrectionStoreError.writeFailed
         }
         return snapshot
+    }
+
+    /// Saves from an already-loaded snapshot and returns the one compiled rule set
+    /// that AppState can publish. Equality against the on-disk snapshot preserves
+    /// fail-closed writes without recompiling the old and new rules on the main actor.
+    func save(
+        rules: [LocalCorrectionRule],
+        isEnabled: Bool? = nil,
+        expectedSnapshot: LocalCorrectionSnapshot
+    ) throws -> (snapshot: LocalCorrectionSnapshot, compiled: CompiledLocalCorrections) {
+        let current = try decodeSnapshot()
+        guard current == expectedSnapshot else {
+            if current.revision != expectedSnapshot.revision {
+                throw LocalCorrectionStoreError.revisionConflict(
+                    expected: expectedSnapshot.revision,
+                    actual: current.revision
+                )
+            }
+            throw LocalCorrectionStoreError.unreadable
+        }
+
+        let compiled = try LocalCorrectionEngine.compile(rules)
+        let snapshot = LocalCorrectionSnapshot(
+            revision: current.revision + 1,
+            isEnabled: isEnabled ?? current.isEnabled,
+            rules: rules
+        )
+        let data = try encoder.encode(snapshot)
+        do {
+            try fileManager.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try atomicWriter(data, fileURL)
+        } catch {
+            throw LocalCorrectionStoreError.writeFailed
+        }
+        return (snapshot, compiled)
     }
 
     private struct SchemaHeader: Decodable {

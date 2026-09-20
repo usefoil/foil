@@ -373,6 +373,7 @@ final class AppState {
     }
 
     private static let vocabularyCorrectionsKey = "transcriptCleanupVocabularyCorrections"
+    private static let deletedVocabularyCorrectionUndoKey = "deletedVocabularyCorrectionUndo"
     private static let vocabularyTermsKey = "transcriptCleanupVocabularyTerms"
     private static let cleanupGroupsKey = "cleanupGroups"
     private static let usageMetricsEnabledKey = "usageMetricsEnabled"
@@ -383,6 +384,7 @@ final class AppState {
 
     let localPairingBridgeService: LocalPairingBridgeService
     private let localCorrectionStore: LocalCorrectionStore
+    var localCorrectionStorageFile: URL { localCorrectionStore.fileURL }
 
     var soundEffectsEnabled: Bool = true {
         didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
@@ -554,6 +556,14 @@ final class AppState {
     var vocabularyCorrections: [VocabularyCorrection] = [] {
         didSet { Self.saveVocabularyCorrections(vocabularyCorrections) }
     }
+
+    private struct DeletedVocabularyCorrectionUndo: Codable, Equatable {
+        let correction: VocabularyCorrection
+        let rule: LocalCorrectionRule?
+    }
+
+    private var deletedVocabularyCorrectionUndo: DeletedVocabularyCorrectionUndo?
+    var canUndoVocabularyCorrectionDeletion: Bool { deletedVocabularyCorrectionUndo != nil }
 
     private(set) var localCorrectionSnapshot = LocalCorrectionSnapshot()
     private(set) var localCorrectionPersistenceError: String?
@@ -897,16 +907,15 @@ final class AppState {
         isEnabled: Bool? = nil
     ) throws -> LocalCorrectionSnapshot {
         do {
-            let snapshot = try localCorrectionStore.save(
+            let saved = try localCorrectionStore.save(
                 rules: rules,
                 isEnabled: isEnabled,
-                expectedRevision: localCorrectionSnapshot.revision
+                expectedSnapshot: localCorrectionSnapshot
             )
-            let compiled = try LocalCorrectionEngine.compile(snapshot.rules)
-            localCorrectionSnapshot = snapshot
-            compiledLocalCorrections = compiled
+            localCorrectionSnapshot = saved.snapshot
+            compiledLocalCorrections = saved.compiled
             localCorrectionPersistenceError = nil
-            return snapshot
+            return saved.snapshot
         } catch {
             if let validationError = error as? LocalCorrectionValidationError {
                 localCorrectionPersistenceError = validationError.description
@@ -932,6 +941,9 @@ final class AppState {
         groupID: String?
     ) throws -> LocalCorrectionSnapshot? {
         guard let correction = vocabularyCorrections.first(where: { $0.id == id }) else { return nil }
+        guard groupID == nil || cleanupGroups.contains(where: { $0.id == groupID && $0.isEnabled }) else {
+            return nil
+        }
         let ruleID = Self.localRuleID(for: id)
         var rules = localCorrectionSnapshot.rules
         let existingIndex = rules.firstIndex { $0.id == ruleID }
@@ -1021,6 +1033,10 @@ final class AppState {
         mutate(&updatedGroups[index])
         updatedGroups[index].isDefault = wasDefault
         updatedGroups[index].updatedAt = Date()
+        if !updatedGroups[index].isEnabled,
+           !disableLocalCorrections(scopedTo: groupID) {
+            return false
+        }
         cleanupGroups = updatedGroups
         return true
     }
@@ -1031,10 +1047,25 @@ final class AppState {
               let index = cleanupGroups.firstIndex(where: { $0.id == groupID && !$0.isDefault }) else {
             return false
         }
+        guard disableLocalCorrections(scopedTo: groupID) else { return false }
         var updatedGroups = cleanupGroups
         updatedGroups.remove(at: index)
         cleanupGroups = updatedGroups
         return true
+    }
+
+    private func disableLocalCorrections(scopedTo groupID: String) -> Bool {
+        let disabledScopedRules = Self.disablingLocalCorrections(
+            localCorrectionSnapshot.rules,
+            scopedTo: groupID
+        )
+        guard disabledScopedRules != localCorrectionSnapshot.rules else { return true }
+        do {
+            try saveLocalCorrections(disabledScopedRules)
+            return true
+        } catch {
+            return false
+        }
     }
 
     func moveCleanupGroup(id groupID: String, toNonDefaultIndex targetIndex: Int) {
@@ -1165,15 +1196,68 @@ final class AppState {
 
     @discardableResult
     func deleteVocabularyCorrection(id: UUID) -> Bool {
+        guard let correction = vocabularyCorrections.first(where: { $0.id == id }) else { return false }
         let ruleID = Self.localRuleID(for: id)
-        if localCorrectionSnapshot.rules.contains(where: { $0.id == ruleID }) {
+        let rule = localCorrectionSnapshot.rules.first(where: { $0.id == ruleID })
+        let previousUndo = deletedVocabularyCorrectionUndo
+        deletedVocabularyCorrectionUndo = DeletedVocabularyCorrectionUndo(
+            correction: correction,
+            rule: rule
+        )
+        Self.saveDeletedVocabularyCorrectionUndo(deletedVocabularyCorrectionUndo)
+        if rule != nil {
             do {
                 try saveLocalCorrections(localCorrectionSnapshot.rules.filter { $0.id != ruleID })
             } catch {
+                deletedVocabularyCorrectionUndo = previousUndo
+                Self.saveDeletedVocabularyCorrectionUndo(previousUndo)
                 return false
             }
         }
         vocabularyCorrections.removeAll { $0.id == id }
+        return true
+    }
+
+    @discardableResult
+    func undoVocabularyCorrectionDeletion() -> Bool {
+        guard let undo = deletedVocabularyCorrectionUndo else { return false }
+        let correctionAlreadyPresent = vocabularyCorrections.contains { $0.id == undo.correction.id }
+        guard correctionAlreadyPresent || !vocabularyCorrections.contains(where: {
+            $0.writtenAs.caseInsensitiveCompare(undo.correction.writtenAs) == .orderedSame &&
+                $0.correctVersion.caseInsensitiveCompare(undo.correction.correctVersion) == .orderedSame
+        }) else {
+            deletedVocabularyCorrectionUndo = nil
+            Self.saveDeletedVocabularyCorrectionUndo(nil)
+            return false
+        }
+        if let savedRule = undo.rule {
+            let rule = Self.reconciledLocalCorrectionRules(
+                [savedRule],
+                vocabularyCorrections: nil,
+                availableGroupIDs: Set(cleanupGroups.filter(\.isEnabled).map(\.id))
+            )[0]
+            if !Self.localCorrectionRulesAreByteEquivalent(
+                localCorrectionSnapshot.rules.filter { $0.id == rule.id },
+                [rule]
+            ) {
+                var rules = localCorrectionSnapshot.rules
+                if let index = rules.firstIndex(where: { $0.id == rule.id }) {
+                    rules[index] = rule
+                } else {
+                    rules.append(rule)
+                }
+                do {
+                    try saveLocalCorrections(rules)
+                } catch {
+                    return false
+                }
+            }
+        }
+        if !correctionAlreadyPresent {
+            vocabularyCorrections.append(undo.correction)
+        }
+        deletedVocabularyCorrectionUndo = nil
+        Self.saveDeletedVocabularyCorrectionUndo(nil)
         return true
     }
 
@@ -1754,6 +1838,7 @@ final class AppState {
                 "customCleanupPrompt.summarize",
                 "transcriptCleanupPreferredTerms",
                 Self.vocabularyCorrectionsKey,
+                Self.deletedVocabularyCorrectionUndoKey,
                 Self.vocabularyTermsKey,
                 Self.cleanupGroupsKey,
                 Self.usageMetricsEnabledKey,
@@ -1864,7 +1949,9 @@ final class AppState {
             from: defaults.string(forKey: "transcriptCleanupPreferredTerms") ?? ""
         ).joined(separator: "\n")
         isSynchronizingVocabularyText = false
-        vocabularyCorrections = Self.loadVocabularyCorrections()
+        let loadedVocabularyCorrections = Self.loadVocabularyCorrections()
+        vocabularyCorrections = loadedVocabularyCorrections.corrections
+        deletedVocabularyCorrectionUndo = Self.loadDeletedVocabularyCorrectionUndo()
         let storedVocabularyTerms = Self.loadVocabularyTerms()
         vocabularyTerms = storedVocabularyTerms.isEmpty
             ? Self.vocabularyTerms(
@@ -1926,9 +2013,26 @@ final class AppState {
                 store: try managedModelStore ?? ManagedLocalModelStore(root: root))
         } catch { managedLocalRestoreError = error.localizedDescription }
         do {
-            let snapshot = try self.localCorrectionStore.load()
-            localCorrectionSnapshot = snapshot
-            compiledLocalCorrections = try LocalCorrectionEngine.compile(snapshot.rules)
+            let loaded = try self.localCorrectionStore.loadCompiled()
+            let reconciledRules = Self.reconciledLocalCorrectionRules(
+                loaded.snapshot.rules,
+                vocabularyCorrections: loadedVocabularyCorrections.canReconcile
+                    ? vocabularyCorrections
+                    : nil,
+                availableGroupIDs: Set(cleanupGroups.filter(\.isEnabled).map(\.id))
+            )
+            if Self.localCorrectionRulesAreByteEquivalent(reconciledRules, loaded.snapshot.rules) {
+                localCorrectionSnapshot = loaded.snapshot
+                compiledLocalCorrections = loaded.compiled
+            } else {
+                let saved = try self.localCorrectionStore.save(
+                    rules: reconciledRules,
+                    isEnabled: loaded.snapshot.isEnabled,
+                    expectedSnapshot: loaded.snapshot
+                )
+                localCorrectionSnapshot = saved.snapshot
+                compiledLocalCorrections = saved.compiled
+            }
             localCorrectionPersistenceError = nil
         } catch {
             localCorrectionSnapshot = LocalCorrectionSnapshot()
@@ -1971,6 +2075,93 @@ final class AppState {
         "vocabulary:\(vocabularyCorrectionID.uuidString.lowercased())"
     }
 
+    private static func reconciledLocalCorrectionRules(
+        _ rules: [LocalCorrectionRule],
+        vocabularyCorrections: [VocabularyCorrection]?,
+        availableGroupIDs: Set<String>
+    ) -> [LocalCorrectionRule] {
+        let correctionsByRuleID = vocabularyCorrections.map {
+            Dictionary(uniqueKeysWithValues: $0.map { (localRuleID(for: $0.id), $0) })
+        }
+        return rules.compactMap { rule in
+            var reconciledRule = rule
+            if rule.id.hasPrefix("vocabulary:"), let correctionsByRuleID {
+                guard let correction = correctionsByRuleID[rule.id] else { return nil }
+                if !Self.stringsAreByteEquivalent(rule.source, correction.writtenAs) ||
+                    !Self.stringsAreByteEquivalent(rule.replacement, correction.correctVersion) {
+                    reconciledRule = LocalCorrectionRule(
+                        id: rule.id,
+                        source: correction.writtenAs,
+                        replacement: correction.correctVersion,
+                        group: rule.group,
+                        enabled: rule.enabled,
+                        caseSensitive: rule.caseSensitive
+                    )
+                }
+            }
+            guard reconciledRule.enabled,
+                  let groupID = reconciledRule.group,
+                  !availableGroupIDs.contains(groupID) else {
+                return reconciledRule
+            }
+            return LocalCorrectionRule(
+                id: reconciledRule.id,
+                source: reconciledRule.source,
+                replacement: reconciledRule.replacement,
+                group: reconciledRule.group,
+                enabled: false,
+                caseSensitive: reconciledRule.caseSensitive
+            )
+        }
+    }
+
+    private static func stringsAreByteEquivalent(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.utf8.elementsEqual(rhs.utf8)
+    }
+
+    private static func localCorrectionRulesAreByteEquivalent(
+        _ lhs: [LocalCorrectionRule],
+        _ rhs: [LocalCorrectionRule]
+    ) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        return zip(lhs, rhs).allSatisfy { left, right in
+            stringsAreByteEquivalent(left.id, right.id) &&
+                stringsAreByteEquivalent(left.source, right.source) &&
+                stringsAreByteEquivalent(left.replacement, right.replacement) &&
+                left.enabled == right.enabled &&
+                left.caseSensitive == right.caseSensitive &&
+                optionalStringsAreByteEquivalent(left.group, right.group)
+        }
+    }
+
+    private static func optionalStringsAreByteEquivalent(_ lhs: String?, _ rhs: String?) -> Bool {
+        switch (lhs, rhs) {
+        case let (.some(left), .some(right)):
+            stringsAreByteEquivalent(left, right)
+        case (.none, .none):
+            true
+        default:
+            false
+        }
+    }
+
+    private static func disablingLocalCorrections(
+        _ rules: [LocalCorrectionRule],
+        scopedTo groupID: String
+    ) -> [LocalCorrectionRule] {
+        rules.map { rule in
+            guard rule.group == groupID, rule.enabled else { return rule }
+            return LocalCorrectionRule(
+                id: rule.id,
+                source: rule.source,
+                replacement: rule.replacement,
+                group: rule.group,
+                enabled: false,
+                caseSensitive: rule.caseSensitive
+            )
+        }
+    }
+
     private static func vocabularyTerms(from terms: [String], preserving existing: [VocabularyTerm]) -> [VocabularyTerm] {
         let byLowercase = Dictionary(uniqueKeysWithValues: existing.map { ($0.term.lowercased(), $0) })
         return terms.map { term in
@@ -1993,12 +2184,22 @@ final class AppState {
         }
     }
 
-    private static func loadVocabularyCorrections() -> [VocabularyCorrection] {
-        guard let data = defaults.data(forKey: vocabularyCorrectionsKey),
-              let corrections = try? JSONDecoder().decode([VocabularyCorrection].self, from: data) else {
-            return []
+    private static func loadVocabularyCorrections() -> (
+        corrections: [VocabularyCorrection],
+        canReconcile: Bool
+    ) {
+        guard let data = defaults.data(forKey: vocabularyCorrectionsKey) else {
+            return ([], true)
         }
-        return normalizedVocabularyCorrections(corrections)
+        guard let corrections = try? JSONDecoder().decode([VocabularyCorrection].self, from: data) else {
+            return ([], false)
+        }
+        return (normalizedVocabularyCorrections(corrections), true)
+    }
+
+    private static func loadDeletedVocabularyCorrectionUndo() -> DeletedVocabularyCorrectionUndo? {
+        guard let data = defaults.data(forKey: deletedVocabularyCorrectionUndoKey) else { return nil }
+        return try? JSONDecoder().decode(DeletedVocabularyCorrectionUndo.self, from: data)
     }
 
     private static func loadVocabularyTerms() -> [VocabularyTerm] {
@@ -2012,6 +2213,15 @@ final class AppState {
     private static func saveVocabularyCorrections(_ corrections: [VocabularyCorrection]) {
         guard let data = try? JSONEncoder().encode(normalizedVocabularyCorrections(corrections)) else { return }
         defaults.set(data, forKey: vocabularyCorrectionsKey)
+    }
+
+    private static func saveDeletedVocabularyCorrectionUndo(_ undo: DeletedVocabularyCorrectionUndo?) {
+        guard let undo else {
+            defaults.removeObject(forKey: deletedVocabularyCorrectionUndoKey)
+            return
+        }
+        guard let data = try? JSONEncoder().encode(undo) else { return }
+        defaults.set(data, forKey: deletedVocabularyCorrectionUndoKey)
     }
 
     private static func saveVocabularyTerms(_ terms: [VocabularyTerm]) {
@@ -2119,6 +2329,7 @@ final class AppState {
 
     private static func normalizedVocabularyCorrections(_ corrections: [VocabularyCorrection]) -> [VocabularyCorrection] {
         var seen = Set<String>()
+        var seenIDs = Set<UUID>()
         return corrections.compactMap { correction in
             let writtenAs = correction.writtenAs.trimmingCharacters(in: .whitespacesAndNewlines)
             let correctVersion = correction.correctVersion.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2128,8 +2339,9 @@ final class AppState {
                 return nil
             }
             let key = "\(writtenAs.lowercased())\u{1f}\(correctVersion.lowercased())"
-            guard !seen.contains(key) else { return nil }
+            guard !seen.contains(key), !seenIDs.contains(correction.id) else { return nil }
             seen.insert(key)
+            seenIDs.insert(correction.id)
             var normalized = correction
             normalized.writtenAs = writtenAs
             normalized.correctVersion = correctVersion

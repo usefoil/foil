@@ -1246,7 +1246,7 @@ struct SettingsView: View {
 
             Toggle("Apply local corrections on this Mac", isOn: localCorrectionsEnabledBinding)
                 .accessibilityIdentifier("settings.localCorrectionsEnabled")
-            Text("Runs exact phrase replacements before Cleanup. Code spans and web addresses are left alone.")
+            Text("Runs exact phrase replacements before Cleanup. Backtick code and http://, https://, or www. links are left alone. Other links, file paths, and email addresses can be corrected.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1340,7 +1340,7 @@ struct SettingsView: View {
                             Picker("Local scope", selection: localCorrectionScopeBinding(correction)) {
                                 Text("Off").tag("__off__")
                                 Text("Everywhere").tag("__global__")
-                                ForEach(appState.cleanupGroups) { group in
+                                ForEach(appState.cleanupGroups.filter(\.isEnabled)) { group in
                                     Text(group.isDefault ? "Unassigned apps" : group.name).tag(group.id)
                                 }
                             }
@@ -1384,6 +1384,13 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings.vocabularyCorrectionRow")
                     }
                 }
+            }
+
+            if appState.canUndoVocabularyCorrectionDeletion {
+                Button("Undo last correction deletion") {
+                    _ = appState.undoVocabularyCorrectionDeletion()
+                }
+                .accessibilityIdentifier("settings.undoVocabularyCorrectionDeletionButton")
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -1454,7 +1461,10 @@ struct SettingsView: View {
                       rule.enabled else {
                     return "__off__"
                 }
-                return rule.group ?? "__global__"
+                guard let groupID = rule.group else { return "__global__" }
+                return appState.cleanupGroups.contains { $0.id == groupID && $0.isEnabled }
+                    ? groupID
+                    : "__off__"
             },
             set: { scope in
                 if scope == "__off__" {
@@ -1850,7 +1860,7 @@ struct SettingsView: View {
                     isShowingClearHistoryConfirmation = true
                 }
                 .accessibilityIdentifier("settings.clearHistoryButton")
-                .disabled(history.records.isEmpty)
+                .disabled(!history.canClear)
                 Button("Clear Failed Audio", role: .destructive) {
                     history.clearRetainedFailedAudio()
                 }

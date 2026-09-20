@@ -12,13 +12,14 @@ import json
 import os
 from pathlib import Path
 import platform
-import shutil
 import subprocess
 import sys
 import tempfile
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
+BASELINE_COMMIT = "0e724488c2b415fa18194e21cc0a49f828a096ee"
+BASELINE_PATHS = ["Foil", "FoilTests", "FoilUITests", "FoilE2E", "Foil.xcodeproj"]
 SUITES = ["TranscriptionControllerTests", "TranscriptionHistoryTests", "AppStateTests",
           "CleanupGroupTests", "PasteQueueTests", "QueuedPasteTests"]
 
@@ -26,9 +27,16 @@ SUITES = ["TranscriptionControllerTests", "TranscriptionHistoryTests", "AppState
 def prepare(destination):
     checkout = destination / "checkout"
     checkout.mkdir()
-    for name in ["Foil", "FoilTests", "FoilUITests", "FoilE2E", "Foil.xcodeproj"]:
-        shutil.copytree(ROOT / name, checkout / name,
-                        ignore=shutil.ignore_patterns("xcuserdata", "DerivedData"))
+    archive = destination / "baseline-source.tar"
+    with archive.open("wb") as output:
+        subprocess.run(
+            ["git", "archive", "--format=tar", BASELINE_COMMIT, "--", *BASELINE_PATHS],
+            cwd=ROOT,
+            stdout=output,
+            check=True,
+        )
+    subprocess.run(["tar", "-xf", str(archive), "-C", str(checkout)], check=True)
+    archive.unlink()
     suffix = uuid.uuid4().hex
     identity = "com.neonwatty.Foil.Tranche0QA." + suffix
     support = "Foil Tranche0 QA " + suffix
@@ -74,7 +82,11 @@ def main():
     command += ["-only-testing:FoilTests/" + suite for suite in SUITES]
     metadata = {"command": command, "checkout": str(checkout), "bundle_identifier": identity,
                 "application_support_namespace": support, "host": platform.platform(),
-                "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+                "commit": BASELINE_COMMIT,
+                "baseline_commit": BASELINE_COMMIT,
+                "harness_commit": subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
+                ).strip(),
                 "status": "prepared", "physical_cross_app_delivery": "NOT_RUN"}
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     print(f"Artifacts: {output}", flush=True)

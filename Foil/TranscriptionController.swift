@@ -40,8 +40,9 @@ struct TranscriptProcessingResult: Equatable {
     }
 }
 
-private struct TranscriptProcessingSnapshot {
+struct TranscriptProcessingSnapshot {
     let resolution: CleanupGroupResolution
+    let localCorrectionGroupID: String?
     let localCorrections: LocalCorrectionExecutionSnapshot
     let vocabularyCorrections: [VocabularyCorrection]
     let preferredTerms: [String]
@@ -80,7 +81,8 @@ protocol TranscriptionControllerDelegate: AnyObject {
         didFail error: Error,
         errorMessage: String,
         audioURL: URL,
-        format: AudioFormat
+        format: AudioFormat,
+        appContext: CleanupAppContext?
     )
 }
 
@@ -118,7 +120,8 @@ final class TranscriptionController {
     func transcribe(
         audioURL: URL,
         format: AudioFormat,
-        appContext: CleanupAppContext? = nil
+        appContext: CleanupAppContext? = nil,
+        processingSnapshot: TranscriptProcessingSnapshot? = nil
     ) async {
         DiagnosticLog.write("TranscriptionController.transcribe: url=\(audioURL.lastPathComponent) format=\(format.rawValue)")
 
@@ -146,7 +149,8 @@ final class TranscriptionController {
                     didFail: noKeyError,
                     errorMessage: "No API key -- set one via the menu",
                     audioURL: audioURL,
-                    format: format
+                    format: format,
+                    appContext: appContext
                 )
                 return
             }
@@ -158,7 +162,7 @@ final class TranscriptionController {
             var processingResult: TranscriptProcessingResult?
             var cleanupFailed = false
             let service = transcriptionService.withProvider(provider)
-            let processingSnapshot = captureProcessingSnapshot(appContext: appContext)
+            let processingSnapshot = processingSnapshot ?? captureProcessingSnapshot(appContext: appContext)
 
             if useMockTranscription {
                 appState.transcriptionStage = .transcribingAudio
@@ -227,7 +231,14 @@ final class TranscriptionController {
         } catch {
             let msg = errorMessage(from: error)
             DiagnosticLog.write("TranscriptionController: failed error=\(msg)")
-            delegate?.transcriptionController(self, didFail: error, errorMessage: msg, audioURL: audioURL, format: format)
+            delegate?.transcriptionController(
+                self,
+                didFail: error,
+                errorMessage: msg,
+                audioURL: audioURL,
+                format: format,
+                appContext: appContext
+            )
         }
     }
 
@@ -241,7 +252,8 @@ final class TranscriptionController {
                 didFail: sentinelError,
                 errorMessage: "Recording no longer available for retry",
                 audioURL: URL(fileURLWithPath: ""),
-                format: appState.selectedAudioFormat
+                format: appState.selectedAudioFormat,
+                appContext: record.sourceAppContext
             )
             return
         }
@@ -257,16 +269,15 @@ final class TranscriptionController {
                 didFail: noKeyError,
                 errorMessage: "No API key -- set one via the menu",
                 audioURL: audioURL,
-                format: format
+                format: format,
+                appContext: record.sourceAppContext
             )
             return
         }
 
         do {
             let service = transcriptionService.withProvider(provider)
-            let retryAppContext = record.sourceAppName.map {
-                CleanupAppContext(displayName: $0)
-            }
+            let retryAppContext = record.sourceAppContext
             let processingSnapshot = captureProcessingSnapshot(appContext: retryAppContext)
             appState.transcriptionStage = .transcribingAudio
             let rawText = try await service.transcribe(
@@ -307,7 +318,14 @@ final class TranscriptionController {
         } catch {
             let msg = errorMessage(from: error)
             DiagnosticLog.write("TranscriptionController.retryTranscription: failed error=\(msg)")
-            delegate?.transcriptionController(self, didFail: error, errorMessage: msg, audioURL: audioURL, format: format)
+            delegate?.transcriptionController(
+                self,
+                didFail: error,
+                errorMessage: msg,
+                audioURL: audioURL,
+                format: format,
+                appContext: record.sourceAppContext
+            )
         }
     }
 
@@ -333,6 +351,7 @@ final class TranscriptionController {
         var snapshot = captureProcessingSnapshot(appContext: appContext)
         snapshot = TranscriptProcessingSnapshot(
             resolution: snapshot.resolution,
+            localCorrectionGroupID: snapshot.localCorrectionGroupID,
             localCorrections: LocalCorrectionExecutionSnapshot(
                 revision: snapshot.localCorrections.revision,
                 enabled: false,
@@ -378,7 +397,7 @@ final class TranscriptionController {
         let processingMode = resolution.processingMode
         let localResult = LocalCorrectionEngine.correct(
             rawText,
-            activeGroup: resolution.group.id,
+            activeGroup: snapshot.localCorrectionGroupID,
             enabled: snapshot.localCorrections.enabled,
             compiled: snapshot.localCorrections.compiled
         )
@@ -387,6 +406,21 @@ final class TranscriptionController {
             localResult.fallbackReason != .processingDisabled {
             DiagnosticLog.write(
                 "\(context): local corrections revision=\(snapshot.localCorrections.revision) replacements=\(localResult.replacementCount) fallback=\(localResult.fallbackReason?.rawValue ?? "none")"
+            )
+        }
+        if localResult.fallbackReason == .inputTooLarge {
+            return TranscriptProcessingResult(
+                text: rawText,
+                originalText: rawText,
+                cleanupFailed: false,
+                cleanupGroupID: resolution.group.id,
+                cleanupGroupName: resolution.group.name,
+                processingMode: processingMode,
+                cleanupProviderID: nil,
+                cleanupModel: nil,
+                localCorrectionRevision: snapshot.localCorrections.revision,
+                localReplacementCount: 0,
+                localCorrectionFallbackReason: .inputTooLarge
             )
         }
         guard processingMode != .raw else {
@@ -455,7 +489,7 @@ final class TranscriptionController {
                 status: "applied",
                 provider: cleanupProvider,
                 mode: processingMode,
-                inputLength: rawText.count,
+                inputLength: localResult.text.count,
                 outputLength: text.count
             )
             return TranscriptProcessingResult(
@@ -477,8 +511,8 @@ final class TranscriptionController {
                 status: "failed",
                 provider: cleanupProvider,
                 mode: processingMode,
-                inputLength: rawText.count,
-                outputLength: rawText.count,
+                inputLength: localResult.text.count,
+                outputLength: localResult.text.count,
                 error: errorMessage(from: error)
             )
             return TranscriptProcessingResult(
@@ -497,9 +531,14 @@ final class TranscriptionController {
         }
     }
 
-    private func captureProcessingSnapshot(appContext: CleanupAppContext?) -> TranscriptProcessingSnapshot {
-        TranscriptProcessingSnapshot(
-            resolution: appState.resolveCleanupGroup(for: appContext),
+    func captureProcessingSnapshot(appContext: CleanupAppContext?) -> TranscriptProcessingSnapshot {
+        let hasKnownAppContext = appContext.map {
+            $0.displayName != nil || $0.bundleIdentifier != nil || $0.appPath != nil
+        } ?? false
+        let resolution = appState.resolveCleanupGroup(for: appContext)
+        return TranscriptProcessingSnapshot(
+            resolution: resolution,
+            localCorrectionGroupID: hasKnownAppContext ? resolution.group.id : nil,
             localCorrections: appState.localCorrectionExecutionSnapshot(),
             vocabularyCorrections: appState.vocabularyCorrections,
             preferredTerms: appState.preferredTerms

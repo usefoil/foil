@@ -524,7 +524,7 @@ struct HistoryPopoverView: View {
                 isShowingClearConfirmation = true
             }
             .accessibilityIdentifier("history.clearButton")
-            .disabled(history.records.isEmpty)
+            .disabled(!history.canClear)
 
             Menu {
                 Button("Delete Older Than 7 Days") {
@@ -567,12 +567,6 @@ struct HistoryPopoverView: View {
             }
             .controlSize(.small)
             .accessibilityIdentifier("history.original.copyButton")
-            Button("Paste original") {
-                onPaste?(original)
-            }
-            .controlSize(.small)
-            .disabled(onPaste == nil)
-            .accessibilityIdentifier("history.original.pasteButton")
         }
         .padding(.horizontal, 12)
         .padding(.bottom, 10)

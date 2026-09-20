@@ -126,11 +126,12 @@ enum LocalCorrectionEngine {
         guard enabled else {
             return LocalCorrectionResult(text: input, replacementCount: 0, fallbackReason: .processingDisabled)
         }
+        guard !input.isEmpty,
+              compiled.rules.contains(where: { $0.group == nil || $0.group == activeGroup }) else {
+            return LocalCorrectionResult(text: input, replacementCount: 0, fallbackReason: nil)
+        }
         guard input.utf8.count <= maximumInputBytes else {
             return LocalCorrectionResult(text: input, replacementCount: 0, fallbackReason: .inputTooLarge)
-        }
-        guard !input.isEmpty, !compiled.rules.isEmpty else {
-            return LocalCorrectionResult(text: input, replacementCount: 0, fallbackReason: nil)
         }
 
         let inputUTF8 = input.utf8
@@ -210,6 +211,10 @@ enum LocalCorrectionEngine {
         var replacements: [(start: Int, match: ASCIIMatch)] = []
 
         while position < input.count {
+            if !isASCIICharacterStart(input, at: position) {
+                position += 1
+                continue
+            }
             if position > 0, isBoundaryBlockingASCII(input[position - 1]) {
                 position += 1
                 continue
@@ -301,6 +306,7 @@ enum LocalCorrectionEngine {
             position += 1
 
             guard !trie[nodeIndex].terminalRuleIndexes.isEmpty,
+                  isASCIICharacterEnd(input, at: position),
                   position == input.count || !isBoundaryBlockingASCII(input[position]) else {
                 continue
             }
@@ -371,6 +377,14 @@ enum LocalCorrectionEngine {
             (byte >= 97 && byte <= 122)
     }
 
+    private static func isASCIICharacterStart(_ input: [UInt8], at position: Int) -> Bool {
+        position == 0 || input[position] != 10 || input[position - 1] != 13
+    }
+
+    private static func isASCIICharacterEnd(_ input: [UInt8], at position: Int) -> Bool {
+        position == input.count || input[position - 1] != 13 || input[position] != 10
+    }
+
     private struct NormalizedInput {
         let scalars: [UInt32]
         let originalStarts: [String.Index]
@@ -407,9 +421,12 @@ enum LocalCorrectionEngine {
             var index = input.startIndex
             while index < input.endIndex {
                 let next = input.index(after: index)
-                let normalizedCharacter = String(input[index..<next]).precomposedStringWithCanonicalMapping
-                for scalar in normalizedCharacter.unicodeScalars {
-                    scalars.append(scalar.value)
+                let character = String(input[index..<next])
+                let characterScalars = character.unicodeScalars.allSatisfy { $0.value < 128 }
+                    ? character.unicodeScalars.map(\.value)
+                    : character.precomposedStringWithCanonicalMapping.unicodeScalars.map(\.value)
+                for scalar in characterScalars {
+                    scalars.append(scalar)
                     starts.append(index)
                     ends.append(next)
                 }
@@ -560,11 +577,11 @@ enum LocalCorrectionEngine {
             guard !rule.replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw LocalCorrectionValidationError.emptyReplacement(rule.id)
             }
-            let normalized = normalizedScalars(rule.source)
-            guard normalized.count <= maximumPhraseScalars,
+            guard rule.source.unicodeScalars.count <= maximumPhraseScalars,
                   rule.replacement.unicodeScalars.count <= maximumPhraseScalars else {
                 throw LocalCorrectionValidationError.phraseTooLong(rule.id)
             }
+            let normalized = normalizedScalars(rule.source)
             let folded = normalized.map(asciiFold)
             for previous in prior where previous.rule.group == rule.group {
                 let overlaps = previous.rule.caseSensitive && rule.caseSensitive
@@ -598,7 +615,13 @@ enum LocalCorrectionEngine {
     }
 
     private static func normalizedScalars(_ value: String) -> [UInt32] {
-        value.precomposedStringWithCanonicalMapping.unicodeScalars.map(\.value)
+        value.flatMap { character -> [UInt32] in
+            let text = String(character)
+            if text.unicodeScalars.allSatisfy({ $0.value < 128 }) {
+                return text.unicodeScalars.map(\.value)
+            }
+            return text.precomposedStringWithCanonicalMapping.unicodeScalars.map(\.value)
+        }
     }
 
     private static func asciiFold(_ scalar: UInt32) -> UInt32 {
@@ -659,7 +682,7 @@ enum LocalCorrectionEngine {
         var start = input.startIndex
         var index = start
         while index < input.endIndex {
-            if input[index] == "\n" {
+            if input[index] == "\n" || input[index] == "\r\n" {
                 let totalEnd = input.index(after: index)
                 lines.append(Line(start: start, contentEnd: index, totalEnd: totalEnd))
                 start = totalEnd

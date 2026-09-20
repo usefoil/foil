@@ -318,11 +318,17 @@ if ! grep -q '"url":"/v1/audio/transcriptions"' "${request_log_path}"; then
   exit 1
 fi
 
-if [[ -n "${E2E_EXPECTED_LOCAL_CORRECTION_TEXT:-}" && "${app_transcript}" != "${E2E_EXPECTED_LOCAL_CORRECTION_TEXT}" ]]; then
-  echo "error: local correction result did not match exact expected text" >&2
-  echo "actual:   ${app_transcript}" >&2
-  echo "expected: ${E2E_EXPECTED_LOCAL_CORRECTION_TEXT}" >&2
-  exit 1
+if [[ -n "${E2E_EXPECTED_LOCAL_CORRECTION_TEXT:-}" ]]; then
+  expected_result_path="${tmpdir}/expected-result.txt"
+  printf '%s' "${E2E_EXPECTED_LOCAL_CORRECTION_TEXT}" >"${expected_result_path}"
+  if ! cmp -s "${RESULT_PATH}" "${expected_result_path}"; then
+    echo "error: local correction result did not match exact expected UTF-8 bytes" >&2
+    echo "actual bytes:" >&2
+    od -An -tx1 "${RESULT_PATH}" >&2
+    echo "expected bytes:" >&2
+    od -An -tx1 "${expected_result_path}" >&2
+    exit 1
+  fi
 fi
 
 receipt_model="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(r.model || "")' "${receipt_path}")"
