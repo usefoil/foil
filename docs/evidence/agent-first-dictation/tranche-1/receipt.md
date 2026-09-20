@@ -127,18 +127,19 @@ Evidence:
   History off, and cleared state. Raw text remained memory-only and disappeared on
   reconstruction/clear. Both Clear History controls remain enabled for session-only
   recovery and clear both the final and original forms.
-- The fixture E2E gate is available as `make test-local-correction-fixture-e2e`.
-  It compares the result and expected fixture as raw UTF-8 bytes before any recall
-  normalization and asserts a one-line `/v1/audio/transcriptions` request log; any
-  Cleanup/agent request makes the gate fail.
-
-Residual risk: isolated arm64 test hosts built successfully and launched their
-XCUITest runners three times, including at PR head `4231698`, but macOS rejected
-UI-test initialization each time with
-`com.apple.LocalAuthentication` code `-4` (`System authentication is running`).
-The test body and fixture assertions never ran. This remains an open gate, recorded
-as a blocked attempt in `fixture-e2e-attempt-20260920.json`, and still needs an idle
-UI-test host for the screenshot and server-request receipt.
+- `make test-local-correction-fixture-e2e` passed on the local Mac after
+  `FoilUITests-Runner` received Accessibility permission. The fixture returned
+  `super base`; the app wrote the exact UTF-8 corrected result with `Supabase`,
+  showed the memory-only original recovery banner, and Copy original returned the
+  exact pre-correction UTF-8 bytes.
+- The exported request log contains exactly one POST to
+  `/v1/audio/transcriptions`; no Cleanup or agent request occurred. The redacted
+  multipart receipt proves the request contained a WAV file, RIFF/WAVE markers,
+  model `whisper-1`, and a valid transcription payload.
+- The durable pass receipt is `fixture-e2e-pass-20260920.json`; its artifacts include
+  the exact result, request log and receipt, XCUITest log, and a cropped Foil-only
+  History screenshot. The earlier `fixture-e2e-attempt-20260920.json` remains as an
+  audit record of the blocked pre-permission attempts.
 
 ### Downgrade retention
 
@@ -217,6 +218,9 @@ open; these controller timings do not by themselves prove main-thread responsive
   passed; its broad XCTest attempt was blocked by sandboxed Xcode package-cache
   access, so the host-side 29-test result bundle above is the XCTest proof.
 - `xcodebuild build-for-testing` passed, compiling the new XCUITest and E2E hooks.
+- The fixture XCUITest passed **1/1** in 18.544 seconds and retained a cropped
+  screenshot showing the corrected `Supabase` result and original-recovery control.
+  It also exercised Copy original and compared every copied UTF-8 byte.
 - Foil and FoilDev builds passed with Swift warnings treated as errors.
 - Shell syntax, Node syntax, and `git diff --check` passed.
 - All required PR checks passed at post-review implementation commit `9f5b78c` in
@@ -235,10 +239,8 @@ inside an existing Keychain `SecItemAdd`. The new test removed its unnecessary
 Keychain write and passed in the 81-test focused run. This receipt does not relabel
 the interrupted broad attempt as green.
 
-## Remaining tranche gate
+## Remaining tranche gates
 
-- Run `make test-local-correction-fixture-e2e` on an idle desktop and retain its
-  XCUITest screenshot, exact result, and request log.
 - Perform the exit demo with actual insertion into TextEdit and one installed coding
   agent composer, read back both targets, recover the original, and disable the rule.
 - Review the 30 held-out expectations independently.

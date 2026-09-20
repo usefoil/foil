@@ -1956,7 +1956,8 @@ final class FoilUITests: XCTestCase {
             "E2E_CLEANUP_BASE_URL",
             "E2E_CLEANUP_API_KEY",
             "E2E_LOCAL_CORRECTION_SOURCE",
-            "E2E_LOCAL_CORRECTION_REPLACEMENT"
+            "E2E_LOCAL_CORRECTION_REPLACEMENT",
+            "E2E_EXPECTED_ORIGINAL_TEXT"
         ] {
             if let value = env[key], !value.isEmpty {
                 environment[key] = value
@@ -1994,13 +1995,25 @@ final class FoilUITests: XCTestCase {
                 Data(expectedLocalText.utf8),
                 "Local correction result must preserve every expected UTF-8 byte"
             )
-            clickElement(app.buttons["menu.historyButton"])
+            clickElement(button(id: "menu.historyButton", fallbackLabel: "History"))
             XCTAssertTrue(
-                app.otherElements["history.original.recoveryBar"].waitForExistence(timeout: 3),
+                staticTextLabelOrValueContaining("Latest original is available").waitForExistence(timeout: 3),
                 app.debugDescription
             )
-            XCTAssertTrue(app.buttons["history.original.copyButton"].exists)
-            let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            let copyOriginal = button(id: "history.original.copyButton", fallbackLabel: "Copy original")
+            XCTAssertTrue(copyOriginal.waitForExistence(timeout: 2), app.debugDescription)
+            if let expectedOriginalText = env["E2E_EXPECTED_ORIGINAL_TEXT"],
+               !expectedOriginalText.isEmpty {
+                NSPasteboard.general.clearContents()
+                clickElement(copyOriginal)
+                let copiedOriginal = NSPasteboard.general.string(forType: .string) ?? ""
+                XCTAssertEqual(
+                    Data(copiedOriginal.utf8),
+                    Data(expectedOriginalText.utf8),
+                    "Copy original must preserve every pre-correction UTF-8 byte"
+                )
+            }
+            let attachment = XCTAttachment(screenshot: screenshot(preferredElements: [app.windows["Foil"]]))
             attachment.name = "local-correction-result-and-original-recovery"
             attachment.lifetime = .keepAlways
             add(attachment)

@@ -44,6 +44,7 @@ tmpdir="$(mktemp -d)"
 server_pid=""
 patched=""
 receipt_path=""
+request_log_path=""
 server_log=""
 test_log=""
 cleanup_result_path=""
@@ -83,6 +84,9 @@ export_fixture_artifacts() {
   fi
   if [[ -f "${server_log}" ]]; then
     cp "${server_log}" "${XCTEST_ARTIFACT_DIR}/fixture-server.log" || echo "warning: could not export fixture server log" >&2
+  fi
+  if [[ -f "${request_log_path}" ]]; then
+    cp "${request_log_path}" "${XCTEST_ARTIFACT_DIR}/fixture-requests.jsonl" || echo "warning: could not export fixture request log" >&2
   fi
   if [[ -f "${test_log}" ]]; then
     cp "${test_log}" "${XCTEST_ARTIFACT_DIR}/xcuitest.log" || echo "warning: could not export XCUITest log" >&2
@@ -233,7 +237,8 @@ for key in \
   E2E_CLEANUP_API_KEY \
   E2E_LOCAL_CORRECTION_SOURCE \
   E2E_LOCAL_CORRECTION_REPLACEMENT \
-  E2E_EXPECTED_LOCAL_CORRECTION_TEXT; do
+  E2E_EXPECTED_LOCAL_CORRECTION_TEXT \
+  E2E_EXPECTED_ORIGINAL_TEXT; do
   "${PLISTBUDDY}" -c "Delete ${env_root}:${key}" "${patched}" >/dev/null 2>&1 || true
 done
 "${PLISTBUDDY}" -c "Add ${env_root}:E2E_TRANSCRIPTION_PROVIDER string openai-compatible" "${patched}"
@@ -250,7 +255,7 @@ for key in E2E_CLEANUP_PROVIDER E2E_CLEANUP_MODEL E2E_CLEANUP_BASE_URL E2E_CLEAN
     "${PLISTBUDDY}" -c "Add ${env_root}:${key} string ${!key}" "${patched}"
   fi
 done
-for key in E2E_LOCAL_CORRECTION_SOURCE E2E_LOCAL_CORRECTION_REPLACEMENT E2E_EXPECTED_LOCAL_CORRECTION_TEXT; do
+for key in E2E_LOCAL_CORRECTION_SOURCE E2E_LOCAL_CORRECTION_REPLACEMENT E2E_EXPECTED_LOCAL_CORRECTION_TEXT E2E_EXPECTED_ORIGINAL_TEXT; do
   if [[ -n "${!key:-}" ]]; then
     "${PLISTBUDDY}" -c "Add ${env_root}:${key} string ${!key}" "${patched}"
   fi

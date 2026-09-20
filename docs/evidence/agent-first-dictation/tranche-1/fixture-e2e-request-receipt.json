@@ -1,0 +1,17 @@
+{
+  "method": "POST",
+  "url": "/v1/audio/transcriptions",
+  "authorization": "Bearer [REDACTED]",
+  "contentType": "multipart/form-data; boundary=63E48C1B-7BA6-4BC4-B421-66C7366704D2",
+  "contentLength": 93907,
+  "hasMultipartFormData": true,
+  "hasFileField": true,
+  "hasFilename": true,
+  "hasAudioContentType": true,
+  "hasRIFF": true,
+  "hasWAVE": true,
+  "model": "whisper-1",
+  "responseFormat": "text",
+  "language": "",
+  "valid": true
+}

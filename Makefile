@@ -330,6 +330,7 @@ test-local-correction-fixture-e2e:
 	FIXTURE_TRANSCRIPTION_TEXT='the quick brown fox jumps over the lazy dog with super base.' \
 	E2E_LOCAL_CORRECTION_SOURCE='super base' \
 	E2E_LOCAL_CORRECTION_REPLACEMENT='Supabase' \
+	E2E_EXPECTED_ORIGINAL_TEXT='the quick brown fox jumps over the lazy dog with super base.' \
 	E2E_EXPECTED_LOCAL_CORRECTION_TEXT='the quick brown fox jumps over the lazy dog with Supabase.' \
 	scripts/run-fixture-transcription-e2e-xcuitest.sh
 

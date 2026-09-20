@@ -1,0 +1,111 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -xctestrun /Users/jeremywatt/Library/Developer/Xcode/DerivedData/Foil-dnsxmxcjfjucslavgwhfvhyqjgrr/Build/Products/Foil_Foil_macosx26.2-arm64.fixture-openai.xctestrun -destination platform=macOS "-only-testing:FoilUITests/FoilUITests/testE2ETranscription"
+
+2026-09-20 12:06:22.682 xcodebuild[41524:5914223]  DVTDeviceOperation: Encountered a build number "" that is incompatible with DVTBuildVersion.
+2026-09-20 12:06:22.703 xcodebuild[41524:5914202] [MT] DVTDeviceOperation: Encountered a build number "" that is incompatible with DVTBuildVersion.
+2026-09-20 12:06:22.864 xcodebuild[41524:5914202] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-09-20 12:06:22.872 xcodebuild[41524:5914202] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64e, id:00008112-001A61841488201E, name:My Mac }
+{ platform:macOS, arch:arm64, id:00008112-001A61841488201E, name:My Mac }
+{ platform:macOS, arch:x86_64, id:00008112-001A61841488201E, name:My Mac }
+{ platform:macOS, arch:arm64e, variant:Mac Catalyst, id:00008112-001A61841488201E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00008112-001A61841488201E, name:My Mac }
+{ platform:macOS, arch:x86_64, variant:Mac Catalyst, id:00008112-001A61841488201E, name:My Mac }
+{ platform:macOS, arch:arm64e, variant:DriverKit, id:00008112-001A61841488201E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:DriverKit, id:00008112-001A61841488201E, name:My Mac }
+{ platform:macOS, arch:arm64e, variant:Designed for [iPad,iPhone], id:00008112-001A61841488201E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00008112-001A61841488201E, name:My Mac }
+2026-09-20 12:06:23.197 xcodebuild[41524:5914202] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-09-20 12:06:23.955331-0700 FoilUITests-Runner[41539:5914428] [Default] Running tests...
+Test Suite 'Selected tests' started at 2026-09-20 12:06:24.097.
+Test Suite 'FoilUITests.xctest' started at 2026-09-20 12:06:24.097.
+Test Suite 'FoilUITests' started at 2026-09-20 12:06:24.098.
+Test Case '-[FoilUITests.FoilUITests testE2ETranscription]' started.
+    t =     0.00s Start Test at 2026-09-20 12:06:24.098
+    t =     0.10s Set Up
+    t =     1.54s     Open com.neonwatty.Foil
+    t =     1.54s         Launch com.neonwatty.Foil
+    t =     2.19s             Wait for accessibility to load
+    t =     2.29s             Setting up automation session
+    t =     2.29s             Wait for com.neonwatty.Foil to idle
+    t =     2.57s     Checking existence of `"uiTest.controlCenter" Any`
+    t =     2.75s     Waiting 8.0s for "uiTest.controlCenter" Any to exist
+    t =     3.79s         Checking `Expect predicate `existsNoRetry == 1` for object "uiTest.controlCenter" Any`
+    t =     3.79s             Checking existence of `"uiTest.controlCenter" Any`
+    t =     3.94s Terminate com.neonwatty.Foil:41549
+    t =     5.04s Wait for com.neonwatty.Foil to become Not Running
+    t =     6.48s Open com.neonwatty.Foil
+    t =     6.48s     Launch com.neonwatty.Foil
+    t =     6.85s         Wait for accessibility to load
+    t =     6.94s         Setting up automation session
+    t =     6.95s         Wait for com.neonwatty.Foil to idle
+    t =     7.23s Checking existence of `"uiTest.controlCenter" Any`
+    t =     7.40s Waiting 8.0s for "uiTest.controlCenter" Any to exist
+    t =     8.43s     Checking `Expect predicate `existsNoRetry == 1` for object "uiTest.controlCenter" Any`
+    t =     8.44s         Checking existence of `"uiTest.controlCenter" Any`
+    t =     8.56s Checking existence of `"uiTest.controlCenter" Any`
+    t =     8.63s Waiting 10.0s for "uiTest.controlCenter" Any to exist
+    t =     9.66s     Checking `Expect predicate `existsNoRetry == 1` for object "uiTest.controlCenter" Any`
+    t =     9.66s         Checking existence of `"uiTest.controlCenter" Any`
+    t =     9.78s Waiting 30.0s for "Paste command sent to the current app" StaticText to exist
+    t =    10.82s     Checking `Expect predicate `existsNoRetry == 1` for object "Paste command sent to the current app" StaticText`
+    t =    10.82s         Checking existence of `"Paste command sent to the current app" StaticText`
+    t =    10.92s         Capturing element debug description
+    t =    11.85s     Checking `Expect predicate `existsNoRetry == 1` for object "Paste command sent to the current app" StaticText`
+    t =    11.86s         Checking existence of `"Paste command sent to the current app" StaticText`
+    t =    11.96s Checking existence of `"uiTest.controlCenter" Any`
+    t =    12.04s Checking existence of `"Foil UI Test" Window`
+    t =    12.08s Checking existence of `"menu.historyButton" Button`
+    t =    12.13s Checking existence of `"menu.historyButton" Any`
+    t =    12.46s Open com.neonwatty.Foil
+    t =    12.46s     Activate com.neonwatty.Foil
+    t =    12.47s         Wait for com.neonwatty.Foil to idle
+    t =    12.78s Find the "History" Button
+    t =    12.87s Click "uiTest.controlCenter" Button
+    t =    12.87s     Wait for com.neonwatty.Foil to idle
+    t =    12.87s     Find the "uiTest.controlCenter" Button
+    t =    12.93s     Check for interrupting elements affecting "uiTest.controlCenter" Button
+    t =    12.94s     Synthesize event
+    t =    13.47s     Wait for com.neonwatty.Foil to idle
+    t =    13.50s Waiting 3.0s for StaticText (First Match) to exist
+    t =    14.54s     Checking `Expect predicate `existsNoRetry == 1` for object StaticText (First Match)`
+    t =    14.54s         Checking existence of `StaticText (First Match)`
+    t =    14.63s Checking existence of `"history.original.copyButton" Button`
+    t =    14.71s Waiting 2.0s for "Copy original" Button to exist
+    t =    15.74s     Checking `Expect predicate `existsNoRetry == 1` for object "Copy original" Button`
+    t =    15.74s         Checking existence of `"Copy original" Button`
+    t =    16.12s Open com.neonwatty.Foil
+    t =    16.12s     Activate com.neonwatty.Foil
+    t =    16.13s         Wait for com.neonwatty.Foil to idle
+    t =    16.44s Find the "Copy original" Button
+    t =    16.55s Click "history.root" Button
+    t =    16.55s     Wait for com.neonwatty.Foil to idle
+    t =    16.55s     Find the "history.root" Button
+    t =    16.63s     Check for interrupting elements affecting "history.root" Button
+    t =    16.65s     Synthesize event
+    t =    16.98s     Wait for com.neonwatty.Foil to idle
+    t =    16.99s Checking existence of `"Foil" Window`
+    t =    17.10s Find the "Foil" Window
+    t =    17.17s Checking existence of `"Foil" Window`
+    t =    17.24s Find the "Foil" Window
+    t =    17.37s Added attachment named 'local-correction-result-and-original-recovery'
+    t =    17.37s Tear Down
+    t =    17.37s     Terminate com.neonwatty.Foil:41563
+Test Case '-[FoilUITests.FoilUITests testE2ETranscription]' passed (18.544 seconds).
+Test Suite 'FoilUITests' passed at 2026-09-20 12:06:42.642.
+	 Executed 1 test, with 0 failures (0 unexpected) in 18.544 (18.544) seconds
+Test Suite 'FoilUITests.xctest' passed at 2026-09-20 12:06:42.642.
+	 Executed 1 test, with 0 failures (0 unexpected) in 18.544 (18.545) seconds
+Test Suite 'Selected tests' passed at 2026-09-20 12:06:42.643.
+	 Executed 1 test, with 0 failures (0 unexpected) in 18.544 (18.546) seconds
+2026-09-20 12:06:42.936 xcodebuild[41524:5914202] [MT] IDETestOperationsObserverDebug: 19.712 elapsed -- Testing started completed.
+2026-09-20 12:06:42.936 xcodebuild[41524:5914202] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-20 12:06:42.936 xcodebuild[41524:5914202] [MT] IDETestOperationsObserverDebug: 19.712 sec, +19.712 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/jeremywatt/Library/Developer/Xcode/DerivedData/Foil-cntesfkfiwjvfbdfpfypotrqacwm/Logs/Test/Test-Foil-2026.09.20_12-06-22--0700.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
