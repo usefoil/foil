@@ -219,9 +219,11 @@ open; these controller timings do not by themselves prove main-thread responsive
 - `xcodebuild build-for-testing` passed, compiling the new XCUITest and E2E hooks.
 - Foil and FoilDev builds passed with Swift warnings treated as errors.
 - Shell syntax, Node syntax, and `git diff --check` passed.
-- All required PR checks passed at optimized commit `9df2247`: build, unit tests,
-  four focused UI shards, audio snapshots, local-correction contract, and the
-  aggregate CI gate. The temporary Intel evidence job also passed.
+- All required PR checks passed at post-review implementation commit `9f5b78c` in
+  [GitHub Actions run 35528485760](https://github.com/usefoil/foil/actions/runs/35528485760):
+  build, unit tests, four focused UI shards, audio snapshots, local-correction
+  contract, and the aggregate CI gate. CodeQL run 35528483306 also passed. The
+  temporary Intel evidence job passed earlier at optimized commit `9df2247`.
 
 An exploratory `build-for-testing` with warnings promoted across every existing
 test source failed on pre-existing warnings in `PasteQueueTests` and other legacy
