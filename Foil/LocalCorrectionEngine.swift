@@ -58,6 +58,7 @@ struct CompiledLocalCorrections: Sendable {
     fileprivate struct Rule: Sendable {
         let id: String
         let replacement: String
+        let replacementUTF8: [UInt8]
         let group: String?
         let scalarCount: Int
     }
@@ -97,6 +98,7 @@ enum LocalCorrectionEngine {
                 .init(
                     id: rule.id,
                     replacement: rule.replacement,
+                    replacementUTF8: Array(rule.replacement.utf8),
                     group: rule.group,
                     scalarCount: scalars.count
                 )
@@ -129,6 +131,19 @@ enum LocalCorrectionEngine {
         }
         guard !input.isEmpty, !compiled.rules.isEmpty else {
             return LocalCorrectionResult(text: input, replacementCount: 0, fallbackReason: nil)
+        }
+
+        let inputUTF8 = input.utf8
+        if inputUTF8.allSatisfy({ $0 < 128 }) {
+            let bytes = Array(inputUTF8)
+            if !containsProtectedSyntaxASCII(bytes) {
+                return correctUnprotectedASCII(
+                    bytes,
+                    original: input,
+                    activeGroup: activeGroup,
+                    compiled: compiled
+                )
+            }
         }
 
         let normalized = NormalizedInput(input)
@@ -177,6 +192,183 @@ enum LocalCorrectionEngine {
     private struct Match {
         let rule: CompiledLocalCorrections.Rule
         let endScalarPosition: Int
+    }
+
+    private struct ASCIIMatch {
+        let ruleIndex: Int
+        let endBytePosition: Int
+    }
+
+    private static func correctUnprotectedASCII(
+        _ input: [UInt8],
+        original: String,
+        activeGroup: String?,
+        compiled: CompiledLocalCorrections
+    ) -> LocalCorrectionResult {
+        var position = 0
+        var copyStart = 0
+        var replacements: [(start: Int, match: ASCIIMatch)] = []
+
+        while position < input.count {
+            if position > 0, isBoundaryBlockingASCII(input[position - 1]) {
+                position += 1
+                continue
+            }
+
+            if let match = bestASCIIMatch(
+                at: position,
+                input: input,
+                activeGroup: activeGroup,
+                compiled: compiled
+            ) {
+                replacements.append((position, match))
+                position = match.endBytePosition
+            } else if isBoundaryBlockingASCII(input[position]) {
+                repeat {
+                    position += 1
+                } while position < input.count && isBoundaryBlockingASCII(input[position])
+            } else {
+                position += 1
+            }
+        }
+
+        guard !replacements.isEmpty else {
+            return LocalCorrectionResult(text: original, replacementCount: 0, fallbackReason: nil)
+        }
+
+        var output: [UInt8] = []
+        output.reserveCapacity(input.count)
+        for replacement in replacements {
+            output.append(contentsOf: input[copyStart..<replacement.start])
+            output.append(contentsOf: compiled.rules[replacement.match.ruleIndex].replacementUTF8)
+            copyStart = replacement.match.endBytePosition
+        }
+        output.append(contentsOf: input[copyStart..<input.count])
+        return LocalCorrectionResult(
+            text: String(decoding: output, as: UTF8.self),
+            replacementCount: replacements.count,
+            fallbackReason: nil
+        )
+    }
+
+    private static func bestASCIIMatch(
+        at start: Int,
+        input: [UInt8],
+        activeGroup: String?,
+        compiled: CompiledLocalCorrections
+    ) -> ASCIIMatch? {
+        var best: ASCIIMatch?
+        if compiled.sensitiveTrie.count > 1 {
+            scanASCIITrie(
+                compiled.sensitiveTrie,
+                folded: false,
+                start: start,
+                input: input,
+                activeGroup: activeGroup,
+                compiled: compiled,
+                best: &best
+            )
+        }
+        if compiled.insensitiveTrie.count > 1 {
+            scanASCIITrie(
+                compiled.insensitiveTrie,
+                folded: true,
+                start: start,
+                input: input,
+                activeGroup: activeGroup,
+                compiled: compiled,
+                best: &best
+            )
+        }
+        return best
+    }
+
+    private static func scanASCIITrie(
+        _ trie: [CompiledLocalCorrections.TrieNode],
+        folded: Bool,
+        start: Int,
+        input: [UInt8],
+        activeGroup: String?,
+        compiled: CompiledLocalCorrections,
+        best: inout ASCIIMatch?
+    ) {
+        var nodeIndex = 0
+        var position = start
+        while position < input.count {
+            let byte = folded ? asciiFold(input[position]) : input[position]
+            guard let nextNode = trie[nodeIndex].children[UInt32(byte)] else { return }
+            nodeIndex = nextNode
+            position += 1
+
+            guard !trie[nodeIndex].terminalRuleIndexes.isEmpty,
+                  position == input.count || !isBoundaryBlockingASCII(input[position]) else {
+                continue
+            }
+            for ruleIndex in trie[nodeIndex].terminalRuleIndexes {
+                let rule = compiled.rules[ruleIndex]
+                guard rule.group == nil || rule.group == activeGroup else { continue }
+                let candidate = ASCIIMatch(ruleIndex: ruleIndex, endBytePosition: position)
+                if isPreferredASCII(candidate, over: best, rules: compiled.rules) {
+                    best = candidate
+                }
+            }
+        }
+    }
+
+    private static func isPreferredASCII(
+        _ candidate: ASCIIMatch,
+        over current: ASCIIMatch?,
+        rules: [CompiledLocalCorrections.Rule]
+    ) -> Bool {
+        guard let current else { return true }
+        let candidateRule = rules[candidate.ruleIndex]
+        let currentRule = rules[current.ruleIndex]
+        let candidateScoped = candidateRule.group == nil ? 0 : 1
+        let currentScoped = currentRule.group == nil ? 0 : 1
+        if candidateScoped != currentScoped { return candidateScoped > currentScoped }
+        if candidateRule.scalarCount != currentRule.scalarCount {
+            return candidateRule.scalarCount > currentRule.scalarCount
+        }
+        return candidateRule.id < currentRule.id
+    }
+
+    private static func containsProtectedSyntaxASCII(_ input: [UInt8]) -> Bool {
+        var index = 0
+        while index < input.count {
+            let byte = input[index]
+            if byte == 96 || byte == 126 { return true }
+            let folded = asciiFold(byte)
+            if folded == 104,
+               matchesASCIIPrefix([104, 116, 116, 112, 58, 47, 47], in: input, at: index) ||
+                matchesASCIIPrefix([104, 116, 116, 112, 115, 58, 47, 47], in: input, at: index) {
+                return true
+            }
+            if folded == 119,
+               matchesASCIIPrefix([119, 119, 119, 46], in: input, at: index) {
+                return true
+            }
+            index += 1
+        }
+        return false
+    }
+
+    private static func matchesASCIIPrefix(_ prefix: [UInt8], in input: [UInt8], at start: Int) -> Bool {
+        guard start + prefix.count <= input.count else { return false }
+        for offset in prefix.indices where asciiFold(input[start + offset]) != prefix[offset] {
+            return false
+        }
+        return true
+    }
+
+    private static func asciiFold(_ byte: UInt8) -> UInt8 {
+        byte >= 65 && byte <= 90 ? byte + 32 : byte
+    }
+
+    private static func isBoundaryBlockingASCII(_ byte: UInt8) -> Bool {
+        byte == 95 ||
+            (byte >= 48 && byte <= 57) ||
+            (byte >= 65 && byte <= 90) ||
+            (byte >= 97 && byte <= 122)
     }
 
     private struct NormalizedInput {
