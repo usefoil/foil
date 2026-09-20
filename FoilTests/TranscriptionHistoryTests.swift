@@ -82,12 +82,73 @@ final class TranscriptionHistoryTests: XCTestCase {
     }
 
     func testCleanupSuccessStoresOnlyFinalCleanedText() throws {
-        history.addSuccess(text: "Cleaned final text")
+        history.addSuccess(
+            text: "Cleaned final text",
+            originalText: "Raw transcript before cleanup"
+        )
 
         XCTAssertEqual(history.records.first?.text, "Cleaned final text")
+        XCTAssertEqual(history.lastRecoverableOriginalText, "Raw transcript before cleanup")
         let json = try history.exportJSON()
         XCTAssertTrue(json.contains("Cleaned final text"))
         XCTAssertFalse(json.contains("Raw transcript before cleanup"))
+        let persistedData = try Data(contentsOf: testDir.appendingPathComponent("history.json"))
+        XCTAssertFalse(String(decoding: persistedData, as: UTF8.self).contains("Raw transcript before cleanup"))
+
+        let reloaded = TranscriptionHistory(storageDirectory: testDir)
+        XCTAssertNil(reloaded.lastRecoverableOriginalText)
+    }
+
+    func testOriginalRecoveryClearsWithHistoryAndWhenFinalMatches() {
+        history.addSuccess(text: "Supabase", originalText: "super base")
+        XCTAssertEqual(history.lastRecoverableOriginalText, "super base")
+
+        history.clear()
+        XCTAssertNil(history.lastRecoverableOriginalText)
+
+        history.addSuccess(text: "unchanged", originalText: "unchanged")
+        XCTAssertNil(history.lastRecoverableOriginalText)
+    }
+
+    func testDeletingLatestSuccessClearsSessionRecovery() throws {
+        history.addSuccess(text: "Supabase", originalText: "super base")
+        let id = try XCTUnwrap(history.records.first?.id)
+
+        history.delete(id: id)
+
+        XCTAssertNil(history.lastRecoverableText)
+        XCTAssertNil(history.lastRecoverableOriginalText)
+    }
+
+    func testBulkDeletingLatestSuccessClearsSessionRecovery() throws {
+        history.addSuccess(text: "Supabase", originalText: "super base")
+        let id = try XCTUnwrap(history.records.first?.id)
+
+        history.deleteAll(ids: [id])
+
+        XCTAssertNil(history.lastRecoverableText)
+        XCTAssertNil(history.lastRecoverableOriginalText)
+    }
+
+    func testEditingLatestSuccessClearsOriginalRecovery() throws {
+        history.addSuccess(text: "Supabase", originalText: "super base")
+        let id = try XCTUnwrap(history.records.first?.id)
+
+        history.updateSuccess(id: id, text: "Supabase project")
+
+        XCTAssertEqual(history.lastRecoverableText, "Supabase project")
+        XCTAssertNil(history.lastRecoverableOriginalText)
+    }
+
+    func testOriginalRecoveryPreservesCanonicallyEquivalentDifferentBytes() {
+        let decomposed = "Cafe\u{301}"
+        let composed = "Caf\u{E9}"
+        XCTAssertEqual(decomposed, composed)
+        XCTAssertFalse(decomposed.utf8.elementsEqual(composed.utf8))
+
+        history.addSuccess(text: composed, originalText: decomposed)
+
+        XCTAssertEqual(Array(history.lastRecoverableOriginalText?.utf8 ?? "".utf8), Array(decomposed.utf8))
     }
 
     func testCleanupFallbackStoresOnlyRawFinalText() throws {
@@ -320,8 +381,12 @@ final class TranscriptionHistoryTests: XCTestCase {
         history.isPersistenceEnabled = false
         let reloaded = TranscriptionHistory(storageDirectory: testDir)
         XCTAssertFalse(reloaded.isPersistenceEnabled)
-        reloaded.addSuccess(text: "private session only")
-        XCTAssertEqual(reloaded.lastRecoverableText, "private session only")
+        reloaded.addSuccess(
+            text: "Supabase session only",
+            originalText: "super base session only"
+        )
+        XCTAssertEqual(reloaded.lastRecoverableText, "Supabase session only")
+        XCTAssertEqual(reloaded.lastRecoverableOriginalText, "super base session only")
         XCTAssertTrue(reloaded.records.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: testDir.appendingPathComponent("history.json").path))
         let audio = testDir.appendingPathComponent("private.wav")
@@ -330,6 +395,7 @@ final class TranscriptionHistoryTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: audio.path))
         XCTAssertTrue(reloaded.records.isEmpty)
         XCTAssertNil(TranscriptionHistory(storageDirectory: testDir).lastRecoverableText)
+        XCTAssertNil(TranscriptionHistory(storageDirectory: testDir).lastRecoverableOriginalText)
     }
 
     func testRetentionChoicesSurviveReconstruction() {

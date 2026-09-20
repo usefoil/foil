@@ -1965,8 +1965,10 @@ extension AppDelegate: TranscriptionControllerDelegate {
     func transcriptionController(
         _ controller: TranscriptionController,
         didTranscribe text: String,
+        originalText: String,
         audioURL: URL,
-        cleanupFailed: Bool
+        cleanupFailed: Bool,
+        localCorrectionFallbackReason: LocalCorrectionFallbackReason?
     ) {
         DiagnosticLog.write("AppDelegate: transcriptionController didTranscribe textLength=\(text.count) cleanupFailed=\(cleanupFailed)")
         transcriptionTask = nil
@@ -1988,13 +1990,20 @@ extension AppDelegate: TranscriptionControllerDelegate {
 
         if let retryID = retryingRecordID {
             // Retry path: resolve the existing history record
-            history.resolveRetry(id: retryID, text: text, sourceAppName: appState.capturedTargetName)
+            history.resolveRetry(
+                id: retryID,
+                text: text,
+                originalText: originalText,
+                sourceAppName: appState.capturedTargetName
+            )
             retryingRecordID = nil
             appState.transcriptionStage = .pasting
             Task {
                 await pasteController.pasteDirectly(text: text)
                 if cleanupFailed {
-                    appState.feedbackMessage = "Cleanup failed; pasted raw transcript."
+                    appState.feedbackMessage = "Cleanup failed; pasted the fallback transcript."
+                } else if localCorrectionFallbackReason == .inputTooLarge {
+                    appState.feedbackMessage = "Local corrections skipped because the transcript exceeded 64 KiB."
                 }
                 if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
                     NotificationManager.shared.postTranscriptionComplete(preview: text)
@@ -2003,7 +2012,11 @@ extension AppDelegate: TranscriptionControllerDelegate {
             }
         } else {
             // Normal flow: add new success record, handle paste routing
-            history.addSuccess(text: text, sourceAppName: appState.capturedTargetName)
+            history.addSuccess(
+                text: text,
+                originalText: originalText,
+                sourceAppName: appState.capturedTargetName
+            )
 
             DiagnosticLog.write("paste decision: delegating to pasteController asyncOn=\(appState.asyncPasteEnabled) queuedOn=\(appState.queuedPasteEnabled) pendingTarget=\(String(describing: pasteController.pendingTarget))")
             appState.transcriptionStage = .pasting
@@ -2022,7 +2035,9 @@ extension AppDelegate: TranscriptionControllerDelegate {
                     await pasteController.paste(text: text)
                 }
                 if cleanupFailed {
-                    appState.feedbackMessage = "Cleanup failed; pasted raw transcript."
+                    appState.feedbackMessage = "Cleanup failed; pasted the fallback transcript."
+                } else if localCorrectionFallbackReason == .inputTooLarge {
+                    appState.feedbackMessage = "Local corrections skipped because the transcript exceeded 64 KiB."
                 }
                 if UserDefaults.standard.bool(forKey: "notificationsEnabled") {
                     NotificationManager.shared.postTranscriptionComplete(preview: text)

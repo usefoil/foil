@@ -1,0 +1,140 @@
+# Tranche 1 evidence receipt
+
+Date: 2026-09-19
+Worktree: `/Users/jeremywatt/.codex/worktrees/foil-local-corrections-tranche-zero/foil`
+Branch: `codex/local-corrections-tranche-zero`
+
+## Implemented vertical slice
+
+- Versioned local phrase rules with global or Cleanup Group scope, explicit enable,
+  case sensitivity, preview, and Vocabulary create/edit/disable/delete controls.
+- NFC matching with ASCII-only case folding, original byte preservation outside
+  replacements, deterministic overlap precedence, protected code/URL spans, and
+  frozen 1,000-rule/64 KiB limits.
+- Validated atomic persistence with revision conflicts and fail-closed handling for
+  corrupt or future schemas.
+- A captured rule/scope/revision snapshot runs after transcription and before
+  optional Cleanup. Cleanup failure returns the locally corrected transcript.
+- Latest provider text is retained in memory for Copy/Paste original recovery and
+  is cleared with History or process exit. It is never serialized to History.
+- Localhost fixture E2E support records every server request and asserts one
+  transcription request, exact corrected output, and visible recovery controls.
+
+## Claims, failure modes, and proof
+
+### Exact matching and determinism
+
+Claim: the production Swift engine implements the frozen oracle.
+
+Strongest realistic failure mode: the adapter is a no-op, tunes against only the
+development split, changes untouched Unicode bytes, leaks across scope, or rescans
+replacement output.
+
+Evidence:
+
+- `make test-local-correction-engine` passed all **150/150** development and held-out
+  fixtures through the compiled Swift adapter.
+- The gate's deliberately broken substring, scope, disabled-rule, and recursive
+  adapters were rejected by independent expected strings.
+- `LocalCorrectionEngineTests` passed 10,000 fixed-seed generated cases in both
+  original and reversed rule order, with wrong-scope distractors, protected code
+  and URLs, exact UTF-8 comparisons, and bounded output assertions.
+
+Residual risk: the same author still owns the 30-case holdout. Independent review
+of those expected strings remains open.
+
+### Persistence and upgrade safety
+
+Claim: local rules are opt-in and cannot corrupt existing Vocabulary/provider state.
+
+Strongest realistic failure mode: interrupted writes partially replace the file;
+corrupt/future data silently enables corrections; repeated promotion duplicates a
+rule; a failed delete removes Vocabulary while leaving its executable rule.
+
+Evidence: focused store/AppState tests exercised missing data, reload, repeated
+promotion, revision conflict, corrupt and future schemas, an injected interrupted
+write, edit propagation, and deletion write failure. The failure test compared file
+bytes and retained both the Vocabulary pair and rule. Existing processing settings
+were reloaded unchanged. No automatic migration runs; promotion is an explicit UI
+choice, so there is no upgrade-time rule activation.
+
+### Pipeline, fallback, and recovery
+
+Claim: a local-only path sends no Cleanup request, captures delayed-operation state,
+and does not lose the successful provider transcript when Cleanup fails.
+
+Strongest realistic failure mode: a delayed call reads the newly selected group or
+rule revision, Cleanup failure returns the pre-correction text, History persists the
+raw text, or History-off recovery writes transcript content.
+
+Evidence:
+
+- Rejecting transport spies proved zero Cleanup calls in Raw mode.
+- A delayed transcription test deleted its group and changed rules while the
+  provider call was suspended; the pending call used the captured group/revision,
+  and the next call used current state.
+- The Cleanup 500 test observed corrected text in the Cleanup request and callback,
+  while `originalText` retained the provider text.
+- History tests inspected `history.json` bytes, reconstructed the store, exercised
+  History off, and cleared state. Raw text remained memory-only and disappeared on
+  reconstruction/clear.
+- The fixture E2E gate is available as `make test-local-correction-fixture-e2e`.
+  It asserts an exact result and a one-line `/v1/audio/transcriptions` request log;
+  any Cleanup/agent request makes the gate fail.
+
+Residual risk: the fixture XCUITest was compiled but was not launched in this
+active desktop session. Its screenshot and server-request receipt must be captured
+on an idle UI-test host.
+
+### Performance
+
+Claim: the controller-level local path meets the frozen Apple Silicon budget in an
+optimized Release configuration.
+
+Strongest realistic failure mode: a fast no-op is measured, compilation is hidden,
+only averages are reported, or the benchmark bypasses the controller.
+
+Evidence: `make test-local-correction-performance` generated the fixed-seed workloads,
+ran 50 compilations, 50 fresh-controller calls, and 1,000 warmed calls per scenario
+at `TranscriptionController.processTranscriptOrRaw`, verified the output SHA-256,
+retained every timing sample, and passed the tranche-zero validator.
+
+| Apple Silicon workload | Compile p95 | Cold controller p95 | Warm p50 | Warm p95 | Warm p99 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 500 rules / 10 KiB | 14.46 ms | 4.20 ms | 4.17 ms | 4.25 ms | 4.33 ms |
+| 1,000 rules / 64 KiB | 55.85 ms | 25.41 ms | 24.85 ms | 26.03 ms | 26.32 ms |
+
+Raw samples and output hashes are in
+`local-correction-release-performance-apple-silicon.json`.
+
+Residual risk: Intel has not been measured, so these numbers support an Apple
+Silicon claim only. A dedicated interaction trace for maximum-size processing is
+also still open.
+
+## Verification summary
+
+- Focused Xcode selection: **81 passed, 0 failed, 0 skipped** across engine, store,
+  History, AppState, and controller paths.
+- `xcodebuild build-for-testing` passed, compiling the new XCUITest and E2E hooks.
+- Foil and FoilDev builds passed with Swift warnings treated as errors.
+- Shell syntax, Node syntax, and `git diff --check` passed.
+
+An exploratory `build-for-testing` with warnings promoted across every existing
+test source failed on pre-existing warnings in `PasteQueueTests` and other legacy
+tests. The ordinary `build-for-testing` gate passed, and both app products remained
+warning-clean. No warning-clean test-target claim is made.
+
+One broader controller attempt was interrupted after the macOS test host stalled
+inside an existing Keychain `SecItemAdd`. The new test removed its unnecessary
+Keychain write and passed in the 81-test focused run. This receipt does not relabel
+the interrupted broad attempt as green.
+
+## Remaining tranche gate
+
+- Run `make test-local-correction-fixture-e2e` on an idle desktop and retain its
+  XCUITest screenshot, exact result, and request log.
+- Perform the exit demo with actual insertion into TextEdit and one installed coding
+  agent composer, read back both targets, recover the original, and disable the rule.
+- Review the 30 held-out expectations independently.
+- Run the Release benchmark on Intel before a cross-platform timing claim.
+- Exercise the documented downgrade path against the previous released app.

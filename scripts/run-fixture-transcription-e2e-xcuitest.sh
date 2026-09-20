@@ -134,12 +134,15 @@ assert_receipt_bool() {
 
 ready_path="${tmpdir}/ready"
 receipt_path="${tmpdir}/receipt.json"
+request_log_path="${tmpdir}/requests.jsonl"
 server_log="${tmpdir}/server.log"
 
 echo "== Fixture transcription server"
 FIXTURE_TRANSCRIPTION_READY_PATH="${ready_path}" \
 FIXTURE_TRANSCRIPTION_RECEIPT_PATH="${receipt_path}" \
+FIXTURE_TRANSCRIPTION_REQUEST_LOG_PATH="${request_log_path}" \
 FIXTURE_TRANSCRIPTION_MODEL="${MODEL}" \
+FIXTURE_TRANSCRIPTION_TEXT="${FIXTURE_TRANSCRIPTION_TEXT:-the quick brown fox jumps over the lazy dog.}" \
 node scripts/fixture-transcription-server.mjs >"${server_log}" 2>&1 &
 server_pid=$!
 
@@ -227,7 +230,10 @@ for key in \
   E2E_CLEANUP_PROVIDER \
   E2E_CLEANUP_MODEL \
   E2E_CLEANUP_BASE_URL \
-  E2E_CLEANUP_API_KEY; do
+  E2E_CLEANUP_API_KEY \
+  E2E_LOCAL_CORRECTION_SOURCE \
+  E2E_LOCAL_CORRECTION_REPLACEMENT \
+  E2E_EXPECTED_LOCAL_CORRECTION_TEXT; do
   "${PLISTBUDDY}" -c "Delete ${env_root}:${key}" "${patched}" >/dev/null 2>&1 || true
 done
 "${PLISTBUDDY}" -c "Add ${env_root}:E2E_TRANSCRIPTION_PROVIDER string openai-compatible" "${patched}"
@@ -240,6 +246,11 @@ if [[ -n "${E2E_WAV_PATH:-}" ]]; then
   "${PLISTBUDDY}" -c "Add ${env_root}:E2E_WAV_PATH string ${E2E_WAV_PATH}" "${patched}"
 fi
 for key in E2E_CLEANUP_PROVIDER E2E_CLEANUP_MODEL E2E_CLEANUP_BASE_URL E2E_CLEANUP_API_KEY; do
+  if [[ -n "${!key:-}" ]]; then
+    "${PLISTBUDDY}" -c "Add ${env_root}:${key} string ${!key}" "${patched}"
+  fi
+done
+for key in E2E_LOCAL_CORRECTION_SOURCE E2E_LOCAL_CORRECTION_REPLACEMENT E2E_EXPECTED_LOCAL_CORRECTION_TEXT; do
   if [[ -n "${!key:-}" ]]; then
     "${PLISTBUDDY}" -c "Add ${env_root}:${key} string ${!key}" "${patched}"
   fi
@@ -295,6 +306,25 @@ assert_receipt_bool hasFileField
 assert_receipt_bool hasRIFF
 assert_receipt_bool hasWAVE
 
+request_count="$(wc -l <"${request_log_path}" | tr -d ' ')"
+if [[ "${request_count}" != "1" ]]; then
+  echo "error: expected exactly one fixture-server request, got ${request_count}" >&2
+  cat "${request_log_path}" >&2 || true
+  exit 1
+fi
+if ! grep -q '"url":"/v1/audio/transcriptions"' "${request_log_path}"; then
+  echo "error: fixture-server request log did not contain only transcription" >&2
+  cat "${request_log_path}" >&2 || true
+  exit 1
+fi
+
+if [[ -n "${E2E_EXPECTED_LOCAL_CORRECTION_TEXT:-}" && "${app_transcript}" != "${E2E_EXPECTED_LOCAL_CORRECTION_TEXT}" ]]; then
+  echo "error: local correction result did not match exact expected text" >&2
+  echo "actual:   ${app_transcript}" >&2
+  echo "expected: ${E2E_EXPECTED_LOCAL_CORRECTION_TEXT}" >&2
+  exit 1
+fi
+
 receipt_model="$(node -e 'const fs=require("fs"); const r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(r.model || "")' "${receipt_path}")"
 if [[ "${receipt_model}" != "${MODEL}" ]]; then
   echo "error: fixture receipt model ${receipt_model} did not match ${MODEL}" >&2
@@ -304,3 +334,4 @@ fi
 printf 'app_result=%s\n' "${app_transcript}"
 printf 'app_recall=%s\n' "$(word_recall "${app_transcript}")"
 printf 'fixture_receipt=%s\n' "${receipt_path}"
+printf 'fixture_request_log=%s\n' "${request_log_path}"

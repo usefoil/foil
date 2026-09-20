@@ -185,6 +185,7 @@ final class UITestingController {
         if args.contains("--reset-defaults") {
             history.clear()
             _ = usageEventStore.deleteAll()
+            _ = try? appState.saveLocalCorrections([], isEnabled: false)
             appState.soundEffectsEnabled = true
             appState.keepOnClipboard = false
             appState.usageMetricsEnabled = true
@@ -450,6 +451,7 @@ final class UITestingController {
         }
         configureE2EProviderOverrides()
         configureE2ECleanupOverrides()
+        configureE2ELocalCorrectionOverride()
 
         let wavURL: URL
         if let envPath = ProcessInfo.processInfo.environment["E2E_WAV_PATH"],
@@ -658,6 +660,29 @@ final class UITestingController {
             DiagnosticLog.write(
                 "E2E: cleanup provider=custom-openai-compatible-chat baseURL=\(appState.customTranscriptCleanupBaseURL) model=\(appState.customTranscriptCleanupModel)"
             )
+        }
+    }
+
+    private func configureE2ELocalCorrectionOverride() {
+        let env = ProcessInfo.processInfo.environment
+        guard let source = env["E2E_LOCAL_CORRECTION_SOURCE"], !source.isEmpty,
+              let replacement = env["E2E_LOCAL_CORRECTION_REPLACEMENT"], !replacement.isEmpty else {
+            return
+        }
+        let rule = LocalCorrectionRule(
+            id: "e2e-local-correction",
+            source: source,
+            replacement: replacement,
+            group: nil,
+            enabled: true,
+            caseSensitive: false
+        )
+        do {
+            _ = try appState.saveLocalCorrections([rule], isEnabled: true)
+            appState.transcriptProcessingMode = .raw
+            DiagnosticLog.write("E2E: enabled one global local correction")
+        } catch {
+            DiagnosticLog.write("E2E: could not configure local correction")
         }
     }
 

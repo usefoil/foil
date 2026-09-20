@@ -382,6 +382,7 @@ final class AppState {
     }
 
     let localPairingBridgeService: LocalPairingBridgeService
+    private let localCorrectionStore: LocalCorrectionStore
 
     var soundEffectsEnabled: Bool = true {
         didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
@@ -553,6 +554,10 @@ final class AppState {
     var vocabularyCorrections: [VocabularyCorrection] = [] {
         didSet { Self.saveVocabularyCorrections(vocabularyCorrections) }
     }
+
+    private(set) var localCorrectionSnapshot = LocalCorrectionSnapshot()
+    private(set) var localCorrectionPersistenceError: String?
+    private var compiledLocalCorrections = try! LocalCorrectionEngine.compile([])
 
     var vocabularyTerms: [VocabularyTerm] = [] {
         didSet {
@@ -878,6 +883,120 @@ final class AppState {
         )
     }
 
+    func localCorrectionExecutionSnapshot() -> LocalCorrectionExecutionSnapshot {
+        LocalCorrectionExecutionSnapshot(
+            revision: localCorrectionSnapshot.revision,
+            enabled: localCorrectionSnapshot.isEnabled,
+            compiled: compiledLocalCorrections
+        )
+    }
+
+    @discardableResult
+    func saveLocalCorrections(
+        _ rules: [LocalCorrectionRule],
+        isEnabled: Bool? = nil
+    ) throws -> LocalCorrectionSnapshot {
+        do {
+            let snapshot = try localCorrectionStore.save(
+                rules: rules,
+                isEnabled: isEnabled,
+                expectedRevision: localCorrectionSnapshot.revision
+            )
+            let compiled = try LocalCorrectionEngine.compile(snapshot.rules)
+            localCorrectionSnapshot = snapshot
+            compiledLocalCorrections = compiled
+            localCorrectionPersistenceError = nil
+            return snapshot
+        } catch {
+            if let validationError = error as? LocalCorrectionValidationError {
+                localCorrectionPersistenceError = validationError.description
+            } else {
+                localCorrectionPersistenceError = "Could not save local corrections. The previous rules are still active."
+            }
+            throw error
+        }
+    }
+
+    @discardableResult
+    func setLocalCorrectionsEnabled(_ enabled: Bool) throws -> LocalCorrectionSnapshot {
+        try saveLocalCorrections(localCorrectionSnapshot.rules, isEnabled: enabled)
+    }
+
+    func localCorrectionRule(forVocabularyCorrectionID id: UUID) -> LocalCorrectionRule? {
+        localCorrectionSnapshot.rules.first { $0.id == Self.localRuleID(for: id) }
+    }
+
+    @discardableResult
+    func setVocabularyCorrectionLocalScope(
+        id: UUID,
+        groupID: String?
+    ) throws -> LocalCorrectionSnapshot? {
+        guard let correction = vocabularyCorrections.first(where: { $0.id == id }) else { return nil }
+        let ruleID = Self.localRuleID(for: id)
+        var rules = localCorrectionSnapshot.rules
+        let existingIndex = rules.firstIndex { $0.id == ruleID }
+        let rule = LocalCorrectionRule(
+            id: ruleID,
+            source: correction.writtenAs,
+            replacement: correction.correctVersion,
+            group: groupID,
+            enabled: true,
+            caseSensitive: existingIndex.map { rules[$0].caseSensitive } ?? false
+        )
+        if let existingIndex {
+            rules[existingIndex] = rule
+        } else {
+            rules.append(rule)
+        }
+        return try saveLocalCorrections(rules)
+    }
+
+    @discardableResult
+    func disableVocabularyLocalCorrection(id: UUID) throws -> LocalCorrectionSnapshot? {
+        let ruleID = Self.localRuleID(for: id)
+        var rules = localCorrectionSnapshot.rules
+        guard let index = rules.firstIndex(where: { $0.id == ruleID }) else { return nil }
+        let current = rules[index]
+        rules[index] = LocalCorrectionRule(
+            id: current.id,
+            source: current.source,
+            replacement: current.replacement,
+            group: current.group,
+            enabled: false,
+            caseSensitive: current.caseSensitive
+        )
+        return try saveLocalCorrections(rules)
+    }
+
+    @discardableResult
+    func setVocabularyLocalCorrectionCaseSensitive(
+        id: UUID,
+        caseSensitive: Bool
+    ) throws -> LocalCorrectionSnapshot? {
+        let ruleID = Self.localRuleID(for: id)
+        var rules = localCorrectionSnapshot.rules
+        guard let index = rules.firstIndex(where: { $0.id == ruleID }) else { return nil }
+        let current = rules[index]
+        rules[index] = LocalCorrectionRule(
+            id: current.id,
+            source: current.source,
+            replacement: current.replacement,
+            group: current.group,
+            enabled: current.enabled,
+            caseSensitive: caseSensitive
+        )
+        return try saveLocalCorrections(rules)
+    }
+
+    func previewLocalCorrections(_ text: String, activeGroupID: String?) -> LocalCorrectionResult {
+        LocalCorrectionEngine.correct(
+            text,
+            activeGroup: activeGroupID,
+            enabled: localCorrectionSnapshot.isEnabled,
+            compiled: compiledLocalCorrections
+        )
+    }
+
     func setCleanupGroups(_ groups: [CleanupGroup]) {
         cleanupGroups = groups
     }
@@ -1017,6 +1136,26 @@ final class AppState {
             return nil
         }
 
+        if let localIndex = localCorrectionSnapshot.rules.firstIndex(where: {
+            $0.id == Self.localRuleID(for: id)
+        }) {
+            var rules = localCorrectionSnapshot.rules
+            let current = rules[localIndex]
+            rules[localIndex] = LocalCorrectionRule(
+                id: current.id,
+                source: normalizedWrittenAs,
+                replacement: normalizedCorrectVersion,
+                group: current.group,
+                enabled: current.enabled,
+                caseSensitive: current.caseSensitive
+            )
+            do {
+                try saveLocalCorrections(rules)
+            } catch {
+                return nil
+            }
+        }
+
         vocabularyCorrections[index].writtenAs = normalizedWrittenAs
         vocabularyCorrections[index].correctVersion = normalizedCorrectVersion
         vocabularyCorrections[index].note = Self.normalizedOptionalText(note)
@@ -1024,8 +1163,18 @@ final class AppState {
         return vocabularyCorrections[index]
     }
 
-    func deleteVocabularyCorrection(id: UUID) {
+    @discardableResult
+    func deleteVocabularyCorrection(id: UUID) -> Bool {
+        let ruleID = Self.localRuleID(for: id)
+        if localCorrectionSnapshot.rules.contains(where: { $0.id == ruleID }) {
+            do {
+                try saveLocalCorrections(localCorrectionSnapshot.rules.filter { $0.id != ruleID })
+            } catch {
+                return false
+            }
+        }
         vocabularyCorrections.removeAll { $0.id == id }
+        return true
     }
 
     @discardableResult
@@ -1548,9 +1697,14 @@ final class AppState {
         return hasRetryableFailure ? .retry : nil
     }
 
-    init(localPairingBridgeService: LocalPairingBridgeService? = nil, managedModelRoot: URL? = nil,
-         managedModelStore: ManagedLocalModelStore? = nil) {
+    init(
+        localPairingBridgeService: LocalPairingBridgeService? = nil,
+        managedModelRoot: URL? = nil,
+        managedModelStore: ManagedLocalModelStore? = nil,
+        localCorrectionStore: LocalCorrectionStore? = nil
+    ) {
         self.localPairingBridgeService = localPairingBridgeService ?? LocalPairingBridgeService()
+        self.localCorrectionStore = localCorrectionStore ?? LocalCorrectionStore()
 
         let defaults = Self.defaults
         var persistedPresetRawValue = defaults
@@ -1771,6 +1925,16 @@ final class AppState {
             managedLocalModels = ManagedLocalModelCoordinator(runtime: managedLocalRuntime,
                 store: try managedModelStore ?? ManagedLocalModelStore(root: root))
         } catch { managedLocalRestoreError = error.localizedDescription }
+        do {
+            let snapshot = try self.localCorrectionStore.load()
+            localCorrectionSnapshot = snapshot
+            compiledLocalCorrections = try LocalCorrectionEngine.compile(snapshot.rules)
+            localCorrectionPersistenceError = nil
+        } catch {
+            localCorrectionSnapshot = LocalCorrectionSnapshot()
+            compiledLocalCorrections = try! LocalCorrectionEngine.compile([])
+            localCorrectionPersistenceError = "Local corrections could not be read, so they are off. The existing file was left unchanged."
+        }
     }
 
     private static func defaultPresetID(for providerID: TranscriptionProviderID) -> TranscriptionProviderPresetID {
@@ -1801,6 +1965,10 @@ final class AppState {
     private static func normalizedOptionalText(_ value: String?) -> String? {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func localRuleID(for vocabularyCorrectionID: UUID) -> String {
+        "vocabulary:\(vocabularyCorrectionID.uuidString.lowercased())"
     }
 
     private static func vocabularyTerms(from terms: [String], preserving existing: [VocabularyTerm]) -> [VocabularyTerm] {

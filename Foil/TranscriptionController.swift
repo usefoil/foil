@@ -2,12 +2,49 @@ import Foundation
 
 struct TranscriptProcessingResult: Equatable {
     let text: String
+    let originalText: String
     let cleanupFailed: Bool
     let cleanupGroupID: String
     let cleanupGroupName: String
     let processingMode: TranscriptProcessingMode
     let cleanupProviderID: TranscriptCleanupProviderID?
     let cleanupModel: String?
+    let localCorrectionRevision: Int
+    let localReplacementCount: Int
+    let localCorrectionFallbackReason: LocalCorrectionFallbackReason?
+
+    init(
+        text: String,
+        originalText: String? = nil,
+        cleanupFailed: Bool,
+        cleanupGroupID: String,
+        cleanupGroupName: String,
+        processingMode: TranscriptProcessingMode,
+        cleanupProviderID: TranscriptCleanupProviderID?,
+        cleanupModel: String?,
+        localCorrectionRevision: Int = 0,
+        localReplacementCount: Int = 0,
+        localCorrectionFallbackReason: LocalCorrectionFallbackReason? = nil
+    ) {
+        self.text = text
+        self.originalText = originalText ?? text
+        self.cleanupFailed = cleanupFailed
+        self.cleanupGroupID = cleanupGroupID
+        self.cleanupGroupName = cleanupGroupName
+        self.processingMode = processingMode
+        self.cleanupProviderID = cleanupProviderID
+        self.cleanupModel = cleanupModel
+        self.localCorrectionRevision = localCorrectionRevision
+        self.localReplacementCount = localReplacementCount
+        self.localCorrectionFallbackReason = localCorrectionFallbackReason
+    }
+}
+
+private struct TranscriptProcessingSnapshot {
+    let resolution: CleanupGroupResolution
+    let localCorrections: LocalCorrectionExecutionSnapshot
+    let vocabularyCorrections: [VocabularyCorrection]
+    let preferredTerms: [String]
 }
 
 // MARK: - Delegate protocol
@@ -24,8 +61,10 @@ protocol TranscriptionControllerDelegate: AnyObject {
     func transcriptionController(
         _ controller: TranscriptionController,
         didTranscribe text: String,
+        originalText: String,
         audioURL: URL,
-        cleanupFailed: Bool
+        cleanupFailed: Bool,
+        localCorrectionFallbackReason: LocalCorrectionFallbackReason?
     )
 
     /// Called when a provider succeeds but returns no recognizable speech.
@@ -119,6 +158,7 @@ final class TranscriptionController {
             var processingResult: TranscriptProcessingResult?
             var cleanupFailed = false
             let service = transcriptionService.withProvider(provider)
+            let processingSnapshot = captureProcessingSnapshot(appContext: appContext)
 
             if useMockTranscription {
                 appState.transcriptionStage = .transcribingAudio
@@ -145,15 +185,22 @@ final class TranscriptionController {
                 if isPractice {
                     // Practice tests the selected transcription path, without a second provider or usage record.
                     try Task.checkCancellation()
-                    delegate?.transcriptionController(self, didTranscribe: rawText, audioURL: audioURL, cleanupFailed: false)
+                    delegate?.transcriptionController(
+                        self,
+                        didTranscribe: rawText,
+                        originalText: rawText,
+                        audioURL: audioURL,
+                        cleanupFailed: false,
+                        localCorrectionFallbackReason: nil
+                    )
                     return
                 }
-                let processed = await processTranscriptOrRaw(
+                let processed = await processCapturedTranscript(
                     rawText: rawText,
                     apiKey: apiKey,
                     service: service,
                     context: "transcription",
-                    appContext: appContext
+                    snapshot: processingSnapshot
                 )
                 text = processed.text
                 cleanupFailed = processed.cleanupFailed
@@ -162,7 +209,14 @@ final class TranscriptionController {
 
             try Task.checkCancellation()
             DiagnosticLog.write("TranscriptionController: success textLength=\(text.count) cleanupFailed=\(cleanupFailed)")
-            delegate?.transcriptionController(self, didTranscribe: text, audioURL: audioURL, cleanupFailed: cleanupFailed)
+            delegate?.transcriptionController(
+                self,
+                didTranscribe: text,
+                originalText: processingResult?.originalText ?? text,
+                audioURL: audioURL,
+                cleanupFailed: cleanupFailed,
+                localCorrectionFallbackReason: processingResult?.localCorrectionFallbackReason
+            )
             if let processingResult {
                 recordUsageEvent(for: processingResult, appContext: appContext)
             }
@@ -210,6 +264,10 @@ final class TranscriptionController {
 
         do {
             let service = transcriptionService.withProvider(provider)
+            let retryAppContext = record.sourceAppName.map {
+                CleanupAppContext(displayName: $0)
+            }
+            let processingSnapshot = captureProcessingSnapshot(appContext: retryAppContext)
             appState.transcriptionStage = .transcribingAudio
             let rawText = try await service.transcribe(
                 audioFileURL: audioURL,
@@ -227,18 +285,21 @@ final class TranscriptionController {
                 )
                 return
             }
-            let processed = await processTranscriptOrRaw(
+            let processed = await processCapturedTranscript(
                 rawText: rawText,
                 apiKey: apiKey,
                 service: service,
-                context: "retry"
+                context: "retry",
+                snapshot: processingSnapshot
             )
             DiagnosticLog.write("TranscriptionController.retryTranscription: success cleanupFailed=\(processed.cleanupFailed)")
             delegate?.transcriptionController(
                 self,
                 didTranscribe: processed.text,
+                originalText: processed.originalText,
                 audioURL: audioURL,
-                cleanupFailed: processed.cleanupFailed
+                cleanupFailed: processed.cleanupFailed,
+                localCorrectionFallbackReason: processed.localCorrectionFallbackReason
             )
         } catch is CancellationError {
             DiagnosticLog.write("TranscriptionController.retryTranscription: cancelled")
@@ -269,12 +330,23 @@ final class TranscriptionController {
         context: String = "historyReclean",
         appContext: CleanupAppContext? = nil
     ) async -> TranscriptProcessingResult {
-        await processTranscriptOrRaw(
+        var snapshot = captureProcessingSnapshot(appContext: appContext)
+        snapshot = TranscriptProcessingSnapshot(
+            resolution: snapshot.resolution,
+            localCorrections: LocalCorrectionExecutionSnapshot(
+                revision: snapshot.localCorrections.revision,
+                enabled: false,
+                compiled: snapshot.localCorrections.compiled
+            ),
+            vocabularyCorrections: snapshot.vocabularyCorrections,
+            preferredTerms: snapshot.preferredTerms
+        )
+        return await processCapturedTranscript(
             rawText: rawText,
             apiKey: nil,
             service: service,
             context: context,
-            appContext: appContext
+            snapshot: snapshot
         )
     }
 
@@ -286,18 +358,51 @@ final class TranscriptionController {
         context: String,
         appContext: CleanupAppContext? = nil
     ) async -> TranscriptProcessingResult {
-        let resolution = appState.resolveCleanupGroup(for: appContext)
+        await processCapturedTranscript(
+            rawText: rawText,
+            apiKey: apiKey,
+            service: service,
+            context: context,
+            snapshot: captureProcessingSnapshot(appContext: appContext)
+        )
+    }
+
+    private func processCapturedTranscript(
+        rawText: String,
+        apiKey: String?,
+        service: TranscriptionService? = nil,
+        context: String,
+        snapshot: TranscriptProcessingSnapshot
+    ) async -> TranscriptProcessingResult {
+        let resolution = snapshot.resolution
         let processingMode = resolution.processingMode
+        let localResult = LocalCorrectionEngine.correct(
+            rawText,
+            activeGroup: resolution.group.id,
+            enabled: snapshot.localCorrections.enabled,
+            compiled: snapshot.localCorrections.compiled
+        )
+        if snapshot.localCorrections.enabled ||
+            localResult.replacementCount > 0 ||
+            localResult.fallbackReason != .processingDisabled {
+            DiagnosticLog.write(
+                "\(context): local corrections revision=\(snapshot.localCorrections.revision) replacements=\(localResult.replacementCount) fallback=\(localResult.fallbackReason?.rawValue ?? "none")"
+            )
+        }
         guard processingMode != .raw else {
             DiagnosticLog.write("\(context): transcript processing skipped cleanupGroup=\(resolution.group.id) mode=\(processingMode.rawValue)")
             return TranscriptProcessingResult(
-                text: rawText,
+                text: localResult.text,
+                originalText: rawText,
                 cleanupFailed: false,
                 cleanupGroupID: resolution.group.id,
                 cleanupGroupName: resolution.group.name,
                 processingMode: processingMode,
                 cleanupProviderID: nil,
-                cleanupModel: nil
+                cleanupModel: nil,
+                localCorrectionRevision: snapshot.localCorrections.revision,
+                localReplacementCount: localResult.replacementCount,
+                localCorrectionFallbackReason: localResult.fallbackReason
             )
         }
 
@@ -305,13 +410,17 @@ final class TranscriptionController {
         guard cleanupProvider.id != .none else {
             DiagnosticLog.write("\(context): transcript processing skipped because cleanup provider is none")
             return TranscriptProcessingResult(
-                text: rawText,
+                text: localResult.text,
+                originalText: rawText,
                 cleanupFailed: false,
                 cleanupGroupID: resolution.group.id,
                 cleanupGroupName: resolution.group.name,
                 processingMode: processingMode,
                 cleanupProviderID: nil,
-                cleanupModel: nil
+                cleanupModel: nil,
+                localCorrectionRevision: snapshot.localCorrections.revision,
+                localReplacementCount: localResult.replacementCount,
+                localCorrectionFallbackReason: localResult.fallbackReason
             )
         }
 
@@ -330,11 +439,11 @@ final class TranscriptionController {
         let service = service ?? transcriptionService
         appState.transcriptionStage = .cleaningTranscript
         let cleanupRequest = TranscriptCleanupRequest(
-            rawTranscript: rawText,
+            rawTranscript: localResult.text,
             mode: processingMode,
             customPrompt: resolution.customPrompt,
-            vocabularyCorrections: appState.vocabularyCorrections,
-            preferredTerms: appState.preferredTerms,
+            vocabularyCorrections: snapshot.vocabularyCorrections,
+            preferredTerms: snapshot.preferredTerms,
             provider: cleanupProvider
         )
         do {
@@ -351,12 +460,16 @@ final class TranscriptionController {
             )
             return TranscriptProcessingResult(
                 text: text,
+                originalText: rawText,
                 cleanupFailed: false,
                 cleanupGroupID: resolution.group.id,
                 cleanupGroupName: resolution.group.name,
                 processingMode: processingMode,
                 cleanupProviderID: cleanupProvider.id,
-                cleanupModel: cleanupProvider.model
+                cleanupModel: cleanupProvider.model,
+                localCorrectionRevision: snapshot.localCorrections.revision,
+                localReplacementCount: localResult.replacementCount,
+                localCorrectionFallbackReason: localResult.fallbackReason
             )
         } catch {
             DiagnosticLog.write("\(context): cleanup failed mappedMessage=\(errorMessage(from: error))")
@@ -369,15 +482,28 @@ final class TranscriptionController {
                 error: errorMessage(from: error)
             )
             return TranscriptProcessingResult(
-                text: rawText,
+                text: localResult.text,
+                originalText: rawText,
                 cleanupFailed: true,
                 cleanupGroupID: resolution.group.id,
                 cleanupGroupName: resolution.group.name,
                 processingMode: processingMode,
                 cleanupProviderID: cleanupProvider.id,
-                cleanupModel: cleanupProvider.model
+                cleanupModel: cleanupProvider.model,
+                localCorrectionRevision: snapshot.localCorrections.revision,
+                localReplacementCount: localResult.replacementCount,
+                localCorrectionFallbackReason: localResult.fallbackReason
             )
         }
+    }
+
+    private func captureProcessingSnapshot(appContext: CleanupAppContext?) -> TranscriptProcessingSnapshot {
+        TranscriptProcessingSnapshot(
+            resolution: appState.resolveCleanupGroup(for: appContext),
+            localCorrections: appState.localCorrectionExecutionSnapshot(),
+            vocabularyCorrections: appState.vocabularyCorrections,
+            preferredTerms: appState.preferredTerms
+        )
     }
 
     private func recordUsageEvent(for result: TranscriptProcessingResult, appContext: CleanupAppContext?) {

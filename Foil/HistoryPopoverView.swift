@@ -371,6 +371,9 @@ struct HistoryPopoverView: View {
         VStack(spacing: 0) {
             if showsHeader {
                 header
+                if let original = history.lastRecoverableOriginalText {
+                    originalRecoveryBar(original)
+                }
                 Divider()
             }
             searchAndFilters
@@ -545,6 +548,35 @@ struct HistoryPopoverView: View {
         }
         .padding(12)
         .accessibilityIdentifier("history.header")
+    }
+
+    private func originalRecoveryBar(_ original: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.uturn.backward.circle")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Latest original is available")
+                    .font(.caption.weight(.semibold))
+                Text("Kept in memory until Foil quits or History is cleared.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Copy original") {
+                copy(original)
+            }
+            .controlSize(.small)
+            .accessibilityIdentifier("history.original.copyButton")
+            Button("Paste original") {
+                onPaste?(original)
+            }
+            .controlSize(.small)
+            .disabled(onPaste == nil)
+            .accessibilityIdentifier("history.original.pasteButton")
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
+        .accessibilityIdentifier("history.original.recoveryBar")
     }
 
     private var searchAndFilters: some View {
