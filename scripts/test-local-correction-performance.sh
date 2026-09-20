@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 workloads="/tmp/foil-local-correction-benchmark-workloads.json"
 configuration="/tmp/foil-local-correction-benchmark-configuration.json"
 report="${LOCAL_CORRECTION_BENCHMARK_REPORT:-$(mktemp -t foil-local-correction-performance).json}"
+code_signing_allowed="${FOIL_PERFORMANCE_CODE_SIGNING_ALLOWED:-NO}"
 commit="$(git -C "$repo_root" rev-parse HEAD)"
 if [[ -n "$(git -C "$repo_root" status --porcelain)" ]]; then
     commit="${commit}+dirty"
@@ -14,6 +15,11 @@ cleanup() {
     rm -f "$workloads" "$configuration"
 }
 trap cleanup EXIT
+
+if [[ "$code_signing_allowed" != YES && "$code_signing_allowed" != NO ]]; then
+    echo "FOIL_PERFORMANCE_CODE_SIGNING_ALLOWED must be YES or NO" >&2
+    exit 2
+fi
 
 python3 "$repo_root/tests/local_corrections_harness.py" \
     --write-benchmark-workloads "$workloads"
@@ -37,7 +43,7 @@ xcodebuild test \
     -scheme Foil \
     -configuration Release \
     -destination 'platform=macOS' \
-    CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGNING_ALLOWED="$code_signing_allowed" \
     ENABLE_TESTABILITY=YES \
     SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG \
     -only-testing:FoilTests/TranscriptionControllerTests/testLocalCorrectionReleasePerformanceGate
