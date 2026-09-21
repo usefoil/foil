@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		270ABE9D36CFE441150BF7CD /* AgentAccessModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D4B9D46A4C0CC6C28E3A69 /* AgentAccessModels.swift */; };
+		9B236EED8DE7FF8D8C4B838E /* AgentAccessModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D4B9D46A4C0CC6C28E3A69 /* AgentAccessModels.swift */; };
+		10D8D0FE014720323A80539D /* AgentAccessPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA36C187F5BE6230CD605EBE /* AgentAccessPaths.swift */; };
+		818CC6DC8414364EB5D18ADA /* AgentAccessPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA36C187F5BE6230CD605EBE /* AgentAccessPaths.swift */; };
+		B1AC125DFD71928935E9DB43 /* AgentAccessHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8363B5D875D925F1EDA36611 /* AgentAccessHTTP.swift */; };
+		694915CB9E2287BA1F7B56B2 /* AgentAccessHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8363B5D875D925F1EDA36611 /* AgentAccessHTTP.swift */; };
+		C5FB4BEA095AAD1C487E57E0 /* AgentAccessServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CFB0BC7955CE9DBAAEC7DC9 /* AgentAccessServer.swift */; };
+		4F9220EEA967106303358D66 /* AgentAccessServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CFB0BC7955CE9DBAAEC7DC9 /* AgentAccessServer.swift */; };
+		62E110790A0703936539F890 /* AgentAccessOpenAPI.json in Resources */ = {isa = PBXBuildFile; fileRef = EFB924B7C56B16A8D3013155 /* AgentAccessOpenAPI.json */; };
+		6DFF380CF2B198C04373595E /* AgentAccessOpenAPI.json in Resources */ = {isa = PBXBuildFile; fileRef = EFB924B7C56B16A8D3013155 /* AgentAccessOpenAPI.json */; };
+		DB7957B5C832B9319A3CAF7D /* AgentAccessHTTPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0157347280D9DFAE6E0A177F /* AgentAccessHTTPTests.swift */; };
+		DF09A926E8D1AE016CB1553C /* AgentAccessServerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C7C134031D4DFE0D78FE6D9 /* AgentAccessServerTests.swift */; };
 		00CB10F95B63B1FA9B856B25 /* HotkeyMonitorCustomKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F644DBBB77DAB1C03598705 /* HotkeyMonitorCustomKeyTests.swift */; };
 		035120BB19DB2E9FEC1077AB /* ManagedLocalModels.json in Resources */ = {isa = PBXBuildFile; fileRef = 5C81FC48E92585852C5C2895 /* ManagedLocalModels.json */; };
 		042390942A99143541F2D6A9 /* ManagedLocalRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684408303985662C6926D98F /* ManagedLocalRuntime.swift */; };
@@ -207,6 +219,13 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D3D4B9D46A4C0CC6C28E3A69 /* AgentAccessModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessModels.swift; sourceTree = "<group>"; };
+		FA36C187F5BE6230CD605EBE /* AgentAccessPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessPaths.swift; sourceTree = "<group>"; };
+		8363B5D875D925F1EDA36611 /* AgentAccessHTTP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessHTTP.swift; sourceTree = "<group>"; };
+		0CFB0BC7955CE9DBAAEC7DC9 /* AgentAccessServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessServer.swift; sourceTree = "<group>"; };
+		EFB924B7C56B16A8D3013155 /* AgentAccessOpenAPI.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = AgentAccessOpenAPI.json; sourceTree = "<group>"; };
+		0157347280D9DFAE6E0A177F /* AgentAccessHTTPTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessHTTPTests.swift; sourceTree = "<group>"; };
+		9C7C134031D4DFE0D78FE6D9 /* AgentAccessServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessServerTests.swift; sourceTree = "<group>"; };
 		0364A3EA681FE127352D7A68 /* ReleaseNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseNotes.swift; sourceTree = "<group>"; };
 		060256614A30FE900FF0B56C /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
 		0662D2B02AF9975FC2DBE4C3 /* QueuedPaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedPaste.swift; sourceTree = "<group>"; };
@@ -348,6 +367,8 @@
 		354A13AAF6C21B2CF1944369 /* FoilTests */ = {
 			isa = PBXGroup;
 			children = (
+				0157347280D9DFAE6E0A177F /* AgentAccessHTTPTests.swift */,
+				9C7C134031D4DFE0D78FE6D9 /* AgentAccessServerTests.swift */,
 				7CB837E3BE88277ED2418E47 /* AppStateTests.swift */,
 				C512FCF657891FCBA6D2CC45 /* AudioRecorderTests.swift */,
 				FF12011A488A457F1109C190 /* AudioUXSnapshotRendererTests.swift */,
@@ -440,6 +461,10 @@
 		D89C27DAE9C3B12C208E3F37 /* Foil */ = {
 			isa = PBXGroup;
 			children = (
+				8363B5D875D925F1EDA36611 /* AgentAccessHTTP.swift */,
+				D3D4B9D46A4C0CC6C28E3A69 /* AgentAccessModels.swift */,
+				FA36C187F5BE6230CD605EBE /* AgentAccessPaths.swift */,
+				0CFB0BC7955CE9DBAAEC7DC9 /* AgentAccessServer.swift */,
 				E5A9C58EE9C1DC967B1D4A4B /* ApiKeySetupView.swift */,
 				97FF72B3615116DE220AE63E /* AppBrand.swift */,
 				2885F1C7852F237A3ABB7279 /* AppState.swift */,
@@ -509,6 +534,7 @@
 		FF6F9EECD43CABD16123453F /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				EFB924B7C56B16A8D3013155 /* AgentAccessOpenAPI.json */,
 				5C81FC48E92585852C5C2895 /* ManagedLocalModels.json */,
 				34E5F55E3F64C622AF2116E9 /* ManagedWhisperThirdPartyNotices.txt */,
 			);
@@ -659,6 +685,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				62E110790A0703936539F890 /* AgentAccessOpenAPI.json in Resources */,
 				21FE2DF4225B08260946DB8A /* Assets.xcassets in Resources */,
 				FAAA239F65893C01EBD19A35 /* ManagedLocalModels.json in Resources */,
 				70CF3FA1F5C666DF4FB6B8D8 /* ManagedWhisperThirdPartyNotices.txt in Resources */,
@@ -670,6 +697,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6DFF380CF2B198C04373595E /* AgentAccessOpenAPI.json in Resources */,
 				147610C85AA8283044F4C0DE /* Assets.xcassets in Resources */,
 				035120BB19DB2E9FEC1077AB /* ManagedLocalModels.json in Resources */,
 				3A95D97AE70459C6B345ECED /* ManagedWhisperThirdPartyNotices.txt in Resources */,
@@ -744,6 +772,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				694915CB9E2287BA1F7B56B2 /* AgentAccessHTTP.swift in Sources */,
+				9B236EED8DE7FF8D8C4B838E /* AgentAccessModels.swift in Sources */,
+				818CC6DC8414364EB5D18ADA /* AgentAccessPaths.swift in Sources */,
+				4F9220EEA967106303358D66 /* AgentAccessServer.swift in Sources */,
 				6F9F6A0151E1001975DEAA94 /* ApiKeySetupView.swift in Sources */,
 				B5F167F335C4B956863664E8 /* AppBrand.swift in Sources */,
 				A68B7F1749B5EF9BE449C5D7 /* AppState.swift in Sources */,
@@ -835,6 +867,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DB7957B5C832B9319A3CAF7D /* AgentAccessHTTPTests.swift in Sources */,
+				DF09A926E8D1AE016CB1553C /* AgentAccessServerTests.swift in Sources */,
 				6E188014C7882845ECD1BE40 /* AppStateTests.swift in Sources */,
 				44D19A8C12249D516CEBB0BD /* AudioRecorderTests.swift in Sources */,
 				0A4854167B8E80937F822F7B /* AudioUXSnapshotRendererTests.swift in Sources */,
@@ -885,6 +919,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B1AC125DFD71928935E9DB43 /* AgentAccessHTTP.swift in Sources */,
+				270ABE9D36CFE441150BF7CD /* AgentAccessModels.swift in Sources */,
+				10D8D0FE014720323A80539D /* AgentAccessPaths.swift in Sources */,
+				C5FB4BEA095AAD1C487E57E0 /* AgentAccessServer.swift in Sources */,
 				A8F8EFF34B0931D55AF5D356 /* ApiKeySetupView.swift in Sources */,
 				A7E838C401BF31358D130982 /* AppBrand.swift in Sources */,
 				8A381141531C79C84B62887D /* AppState.swift in Sources */,
