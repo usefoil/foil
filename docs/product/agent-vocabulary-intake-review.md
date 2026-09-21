@@ -67,10 +67,11 @@ matching, paste delivery, Cleanup providers, or project-context detection.
 
 ## Recommended architecture and staged delivery
 
-The first tranche consists of the user flow, Foil-owned local API, Agent Access
-settings surface, instructions endpoint, vocabulary operations, proposal review,
-and tests described below. The CLI and MCP sections record possible later adapters;
-they are not first-tranche requirements.
+The first product release consists of the user flow, Foil-owned local API, Agent
+Access settings surface, instructions endpoint, vocabulary operations, proposal
+review, and tests described below. The implementation plan divides that release
+into Tranches 0–4. The CLI and MCP sections record possible later adapters; they are
+not requirements for this release.
 
 ### User flow
 
@@ -125,13 +126,6 @@ web-only agent cannot reach a local Unix socket. A sandboxed local agent may req
 the user's normal approval to run the bootstrap command, but it does not require an
 integration package.
 
-Foil writes a non-secret discovery manifest at the stable path
-`~/Library/Application Support/Foil/agent-api.json` only while Agent Access is
-enabled. It records the active schema, socket path, app version, and optional
-bundled helper path. The manifest makes diagnostics and future socket migrations
-explicit; agents should begin with the fixed instructions command above rather
-than search arbitrary local ports or applications.
-
 Avoid a TCP listener, background daemon, or reuse of the iPhone pairing bridge.
 Unix socket permissions keep browsers and other user accounts outside the API. A
 proposal remains inert until the user applies it in Foil.
@@ -164,7 +158,7 @@ Turning Agent Access off:
 
 - stops accepting new connections;
 - closes active connections;
-- removes the socket and discovery manifest;
+- removes the socket;
 - invalidates in-flight API requests;
 - leaves applied Vocabulary and local rules unchanged; and
 - retains already received proposals for review, with a separate action to discard
@@ -173,7 +167,7 @@ Turning Agent Access off:
 If service startup fails, the toggle returns to off, the socket is absent, and Foil
 shows an actionable local error. It never falls back to TCP or a broader interface.
 
-### Potential bundled CLI convenience after the first tranche
+### Potential bundled CLI convenience after the first release
 
 Add one native executable at a path such as:
 
@@ -205,7 +199,7 @@ Use peer-user validation, owner-only directory and socket permissions, bounded
 request sizes, schema versions, request IDs, and deadlines. A proposal is inert
 until the user applies it in Foil.
 
-### Potential MCP registration after the first tranche
+### Potential MCP registration after the first release
 
 MCP is useful when a user wants Foil's tools to appear automatically in every Codex
 task. It is not required for the local API or bundled CLI. Foil Settings may include
@@ -326,7 +320,7 @@ remain a separate experiment with its own false-positive budget.
 - With Foil running and Agent Access enabled, a fresh shell-capable agent can
   retrieve useful instructions with the documented `curl --unix-socket` bootstrap,
   without MCP, a skill, an `AGENTS.md` edit, a PATH change, or another installation.
-- HTTP-over-Unix-domain-socket is the normative first-tranche interface. If a CLI or
+- HTTP-over-Unix-domain-socket is the normative first-release interface. If a CLI or
   MCP adapter is added later, contract tests prove that it produces equivalent
   structured results for instructions, scopes, listing, preview, proposal, and
   status requests.
@@ -335,8 +329,9 @@ remain a separate experiment with its own false-positive budget.
 - Malformed, future-version, oversized, duplicate-ID, empty, overlong, ambiguous,
   and invalid-scope proposals are rejected without changing Vocabulary or rules.
 - Replaying the same request ID produces the same disposition and no duplicates.
-- A proposal submitted while Agent Access is off is rejected as unavailable and
-  does not launch Foil, enable access, or mutate files.
+- An attempted proposal while Agent Access is off fails to connect because no socket
+  exists. It stores no proposal and does not launch Foil, enable access, or mutate
+  files.
 - More than one queued proposal cannot overwrite another.
 - Proposal payloads and normal diagnostics contain no transcript, credential, or
   repository content supplied by Foil.
@@ -349,13 +344,13 @@ remain a separate experiment with its own false-positive budget.
   Codex or other agent configuration, once the user enables Agent Access.
 - Agent Access defaults to off, persists the user's explicit choice, and starts only
   during Foil's normal app lifecycle.
-- Enabling Agent Access creates an owner-only socket and discovery manifest;
-  disabling it closes existing connections and removes both artifacts.
-- Service startup failure returns the setting to off, leaves no socket or manifest,
-  and shows an actionable error without falling back to TCP.
-- When Foil is closed or Agent Access is off, a tool call returns a bounded,
-  actionable unavailable result; it never launches Foil, changes the setting, or
-  writes app state directly as a fallback.
+- Enabling Agent Access creates an owner-only socket; disabling it closes existing
+  connections and removes the socket.
+- Service startup failure returns the setting to off, leaves no socket, and shows an
+  actionable error without falling back to TCP.
+- When Foil is closed or Agent Access is off, direct `curl` exits nonzero within a
+  documented bound because no server is present. It never launches Foil, changes the
+  setting, or writes app state directly as a fallback.
 - Socket replacement, wrong owner, wrong peer user, protocol mismatch, oversized
   frames, schema version mismatch, and abrupt disconnect all fail without a
   Vocabulary or rule mutation.
@@ -385,7 +380,7 @@ remain a separate experiment with its own false-positive budget.
   it reads the instructions, lists Vocabulary, previews a proposal, and submits it
   for review.
 - Turn Agent Access off while a client is connected and prove the connection closes,
-  new requests fail, the socket and manifest disappear, and no app data changes.
+  new requests fail, the socket disappears, and no app data changes.
 - Relaunch Foil with Agent Access on and off in separate runs and verify the service
   follows the persisted setting without an agent starting it.
 - Reject a second proposal and prove it never affects dictation.
