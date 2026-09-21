@@ -106,6 +106,7 @@ final class AppStateTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "transcriptCleanupVocabularyTerms")
         UserDefaults.standard.removeObject(forKey: "cleanupGroups")
         UserDefaults.standard.removeObject(forKey: "usageMetricsEnabled")
+        UserDefaults.standard.removeObject(forKey: "agentAccessEnabled")
         UserDefaults.standard.removeObject(forKey: "selectedInputDeviceUID")
         UserDefaults.standard.removeObject(forKey: "transcriptionProvider")
         UserDefaults.standard.removeObject(forKey: "transcriptionProviderPreset")

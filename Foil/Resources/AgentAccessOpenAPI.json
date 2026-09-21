@@ -1,24 +1,18 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Foil Agent Access Contract Host",
-    "version": "1.0.0",
-    "description": "Tranche 0 exposes discovery only. It accepts no Vocabulary mutation."
+    "title": "Foil Agent Access",
+    "version": "1.1.0",
+    "description": "Read-only Vocabulary discovery and in-memory correction preview. No endpoint mutates Foil."
   },
-  "servers": [
-    {
-      "url": "http://foil",
-      "description": "HTTP over the Foil owner-only Unix domain socket"
-    }
-  ],
+  "servers": [{"url": "http://foil", "description": "HTTP over Foil's owner-only Unix domain socket"}],
   "paths": {
     "/v1/instructions": {
       "get": {
         "operationId": "getInstructions",
         "responses": {
-          "200": {
-            "description": "Versioned model-readable instructions"
-          }
+          "200": {"description": "Versioned model-readable instructions", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/InstructionsResponse"}}}},
+          "405": {"$ref": "#/components/responses/ErrorResponse"}
         }
       }
     },
@@ -26,9 +20,196 @@
       "get": {
         "operationId": "getOpenAPI",
         "responses": {
-          "200": {
-            "description": "This OpenAPI document"
-          }
+          "200": {"description": "This OpenAPI document", "content": {"application/vnd.oai.openapi+json;version=3.1": {"schema": {"type": "object"}}}},
+          "405": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/vocabulary/scopes": {
+      "get": {
+        "operationId": "listVocabularyScopes",
+        "responses": {
+          "200": {"description": "Allowed cleanup-scope identity and enabled state", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ScopesResponse"}}}},
+          "405": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/vocabulary": {
+      "get": {
+        "operationId": "listVocabulary",
+        "responses": {
+          "200": {"description": "Allowed Vocabulary terms, corrections, and local-rule settings", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/VocabularyResponse"}}}},
+          "405": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/vocabulary/preview": {
+      "post": {
+        "operationId": "previewVocabularyCorrections",
+        "description": "Validate and compile a hypothetical correction set in memory. Nothing is saved.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PreviewRequest"}}}},
+        "responses": {
+          "200": {"description": "Validation issues, normalized corrections, and synthetic examples", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PreviewResponse"}}}},
+          "400": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
+          "413": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "ErrorResponse": {
+        "description": "Stable Agent Access error envelope",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorResponse"}}}
+      }
+    },
+    "schemas": {
+      "InstructionsResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "service", "api_version", "available_operations", "bootstrap_command", "openapi_path", "openapi_command", "unavailable_behavior", "privacy", "limits"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "service": {"type": "string"},
+          "api_version": {"type": "string"},
+          "available_operations": {"type": "array", "items": {"type": "string"}},
+          "bootstrap_command": {"type": "string"},
+          "openapi_path": {"type": "string", "const": "/v1/openapi.json"},
+          "openapi_command": {"type": "string"},
+          "unavailable_behavior": {"type": "string"},
+          "privacy": {"type": "array", "items": {"type": "string"}},
+          "limits": {"$ref": "#/components/schemas/Limits"}
+        }
+      },
+      "Limits": {
+        "type": "object",
+        "required": ["maximum_header_bytes", "maximum_body_bytes", "maximum_correction_pairs", "maximum_spoken_forms_per_pair", "maximum_phrase_scalars", "request_deadline_seconds"],
+        "properties": {
+          "maximum_header_bytes": {"type": "integer"},
+          "maximum_body_bytes": {"type": "integer"},
+          "maximum_correction_pairs": {"type": "integer"},
+          "maximum_spoken_forms_per_pair": {"type": "integer"},
+          "maximum_phrase_scalars": {"type": "integer"},
+          "request_deadline_seconds": {"type": "integer"}
+        }
+      },
+      "VocabularyScope": {
+        "type": "object",
+        "required": ["id", "name", "is_default", "is_enabled"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "is_default": {"type": "boolean"},
+          "is_enabled": {"type": "boolean"}
+        }
+      },
+      "VocabularyTerm": {
+        "type": "object",
+        "required": ["id", "term"],
+        "properties": {
+          "id": {"type": "string"},
+          "term": {"type": "string"},
+          "note": {"type": ["string", "null"]}
+        }
+      },
+      "LocalRule": {
+        "type": "object",
+        "required": ["enabled", "case_sensitive"],
+        "properties": {
+          "enabled": {"type": "boolean"},
+          "case_sensitive": {"type": "boolean"},
+          "scope_id": {"type": ["string", "null"]}
+        }
+      },
+      "VocabularyCorrection": {
+        "type": "object",
+        "required": ["id", "written_as", "correct_version"],
+        "properties": {
+          "id": {"type": "string"},
+          "written_as": {"type": "string"},
+          "correct_version": {"type": "string"},
+          "note": {"type": ["string", "null"]},
+          "local_rule": {"oneOf": [{"$ref": "#/components/schemas/LocalRule"}, {"type": "null"}]}
+        }
+      },
+      "ScopesResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "scopes"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "scopes": {"type": "array", "items": {"$ref": "#/components/schemas/VocabularyScope"}}
+        }
+      },
+      "VocabularyResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "local_corrections_enabled", "terms", "corrections"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "local_corrections_enabled": {"type": "boolean"},
+          "terms": {"type": "array", "items": {"$ref": "#/components/schemas/VocabularyTerm"}},
+          "corrections": {"type": "array", "items": {"$ref": "#/components/schemas/VocabularyCorrection"}}
+        }
+      },
+      "PreviewRequest": {
+        "type": "object",
+        "required": ["corrections"],
+        "properties": {"corrections": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"$ref": "#/components/schemas/PreviewCorrection"}}}
+      },
+      "PreviewCorrection": {
+        "type": "object",
+        "required": ["spoken_forms", "replacement"],
+        "properties": {
+          "spoken_forms": {"type": "array", "minItems": 1, "maxItems": 10, "items": {"type": "string", "maxLength": 256}},
+          "replacement": {"type": "string", "maxLength": 256},
+          "scope_id": {"type": ["string", "null"]},
+          "case_sensitive": {"type": "boolean", "default": false}
+        }
+      },
+      "PreviewIssue": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string"},
+          "message": {"type": "string"},
+          "correction_index": {"type": ["integer", "null"]}
+        }
+      },
+      "PreviewExample": {
+        "type": "object",
+        "required": ["input", "output", "replacement_count"],
+        "properties": {
+          "input": {"type": "string"},
+          "output": {"type": "string"},
+          "replacement_count": {"type": "integer"}
+        }
+      },
+      "PreviewResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "valid", "issues", "normalized_corrections", "examples"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "valid": {"type": "boolean"},
+          "issues": {"type": "array", "items": {"$ref": "#/components/schemas/PreviewIssue"}},
+          "normalized_corrections": {"type": "array", "items": {"$ref": "#/components/schemas/PreviewCorrection"}},
+          "examples": {"type": "array", "items": {"$ref": "#/components/schemas/PreviewExample"}}
+        }
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {"code": {"type": "string"}, "message": {"type": "string"}}
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "error"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "error": {"$ref": "#/components/schemas/ErrorDetail"}
         }
       }
     }
@@ -39,23 +220,12 @@
     "maximum_correction_pairs": 50,
     "maximum_spoken_forms_per_pair": 10,
     "maximum_phrase_scalars": 256,
-    "request_deadline_seconds": 5
+    "request_deadline_seconds": 5,
+    "bootstrap_max_time_seconds": 12
   },
-  "x-foil-proposal-states": [
-    "pending",
-    "applied",
-    "rejected",
-    "discarded"
-  ],
+  "x-foil-proposal-states": ["pending", "applied", "rejected", "discarded"],
   "x-foil-privacy": {
-    "excludes": [
-      "history",
-      "audio",
-      "credentials",
-      "provider_configuration",
-      "project_files",
-      "clipboard",
-      "active_application"
-    ]
+    "same_user_readable": ["scope_id", "scope_name", "scope_enabled", "term", "correction", "note", "local_rule_enabled", "case_sensitive"],
+    "excludes": ["history", "transcript", "audio", "credentials", "provider_configuration", "source_record", "source_app", "timestamps", "project_files", "repository", "clipboard", "active_application"]
   }
 }

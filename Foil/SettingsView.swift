@@ -236,6 +236,44 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.general.versionRow")
             }
 
+            Section("Agent Access") {
+                Toggle("Allow local agents to read Vocabulary", isOn: Binding(
+                    get: { appState.agentAccessEnabled },
+                    set: { appState.setAgentAccessEnabled($0) }
+                ))
+                .accessibilityIdentifier("settings.agentAccess.toggle")
+
+                HStack {
+                    Text("Status")
+                    Spacer()
+                    Text(appState.agentAccessPresentationState.label)
+                        .foregroundStyle(appState.agentAccessPresentationState == .error ? .red : .secondary)
+                        .accessibilityIdentifier("settings.agentAccess.status")
+                        .accessibilityValue(appState.agentAccessPresentationState.rawValue)
+                }
+
+                if let message = appState.agentAccessErrorMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.agentAccess.error")
+                }
+
+                Button("Copy agent instructions command") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(appState.agentAccessBootstrapCommand, forType: .string)
+                }
+                .disabled(appState.agentAccessBootstrapCommand.isEmpty)
+                .accessibilityIdentifier("settings.agentAccess.copyCommand")
+
+                Text("While enabled, local processes running as your macOS user can read Vocabulary names, terms, corrections, and local-rule settings. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("settings.agentAccess.disclosure")
+            }
+
             Toggle("Launch at Login", isOn: Binding(
                 get: { launchAtLoginManager.isEnabled },
                 set: { launchAtLoginManager.setEnabled($0) }

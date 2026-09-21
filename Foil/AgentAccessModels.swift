@@ -6,6 +6,22 @@ enum AgentAccessContract {
     static let serviceName = "Foil Agent Access"
 }
 
+enum AgentAccessPresentationState: String, Equatable {
+    case off
+    case starting
+    case running
+    case error
+
+    var label: String {
+        switch self {
+        case .off: "Off"
+        case .starting: "Starting…"
+        case .running: "Running"
+        case .error: "Could not start"
+        }
+    }
+}
+
 enum AgentAccessProposalState: String, Codable, CaseIterable, Equatable {
     case pending
     case applied
@@ -47,6 +63,9 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
     let apiVersion: String
     let availableOperations: [String]
     let bootstrapCommand: String
+    let openAPIPath: String
+    let openAPICommand: String
+    let unavailableBehavior: String
     let privacy: [String]
     let limits: AgentAccessLimits
 
@@ -55,19 +74,34 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
         self.requestID = requestID
         service = AgentAccessContract.serviceName
         apiVersion = AgentAccessContract.apiVersion
-        availableOperations = ["get_instructions", "get_openapi"]
+        availableOperations = [
+            "get_instructions",
+            "get_openapi",
+            "list_vocabulary_scopes",
+            "list_vocabulary",
+            "preview_vocabulary_corrections"
+        ]
         bootstrapCommand = AgentAccessInstructionsResponse.bootstrapCommand(socketPath: socketPath)
+        openAPIPath = "/v1/openapi.json"
+        openAPICommand = AgentAccessInstructionsResponse.openAPICommand(socketPath: socketPath)
+        unavailableBehavior = "If Foil is closed or Agent Access is off, the command exits nonzero within 12 seconds and no JSON response is available."
         privacy = [
-            "This contract host exposes instructions and its OpenAPI document only.",
+            "Local processes running as the same macOS user can read the allowed Vocabulary fields while Agent Access is enabled.",
             "It does not expose History, audio, credentials, provider configuration, project files, clipboard contents, or the active application.",
-            "It accepts no Vocabulary mutations in this tranche."
+            "Vocabulary endpoints expose names, terms, corrections, and executable-rule settings without source records, source apps, or timestamps.",
+            "Preview validates hypothetical corrections in memory and never saves them. This service accepts no Vocabulary mutations in this tranche."
         ]
         self.limits = limits
     }
 
     static func bootstrapCommand(socketPath: String) -> String {
         let escapedPath = socketPath.replacingOccurrences(of: "'", with: "'\\''")
-        return "/usr/bin/curl --silent --show-error --retry 10 --retry-all-errors --retry-delay 1 --unix-socket '\(escapedPath)' http://foil/v1/instructions"
+        return "/usr/bin/curl --silent --show-error --connect-timeout 1 --max-time 12 --retry 10 --retry-all-errors --retry-delay 1 --unix-socket '\(escapedPath)' http://foil/v1/instructions"
+    }
+
+    static func openAPICommand(socketPath: String) -> String {
+        let escapedPath = socketPath.replacingOccurrences(of: "'", with: "'\\''")
+        return "/usr/bin/curl --silent --show-error --max-time 12 --unix-socket '\(escapedPath)' http://foil/v1/openapi.json"
     }
 
     enum CodingKeys: String, CodingKey {
@@ -77,8 +111,162 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
         case apiVersion = "api_version"
         case availableOperations = "available_operations"
         case bootstrapCommand = "bootstrap_command"
+        case openAPIPath = "openapi_path"
+        case openAPICommand = "openapi_command"
+        case unavailableBehavior = "unavailable_behavior"
         case privacy
         case limits
+    }
+}
+
+struct AgentAccessVocabularyReadModel: Equatable, Sendable {
+    let scopes: [AgentAccessVocabularyScope]
+    let terms: [AgentAccessVocabularyTerm]
+    let corrections: [AgentAccessVocabularyCorrection]
+    let localCorrectionsEnabled: Bool
+}
+
+struct AgentAccessVocabularyScope: Codable, Equatable, Sendable {
+    let id: String
+    let name: String
+    let isDefault: Bool
+    let isEnabled: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case isDefault = "is_default"
+        case isEnabled = "is_enabled"
+    }
+}
+
+struct AgentAccessVocabularyTerm: Codable, Equatable, Sendable {
+    let id: String
+    let term: String
+    let note: String?
+}
+
+struct AgentAccessVocabularyCorrection: Codable, Equatable, Sendable {
+    let id: String
+    let writtenAs: String
+    let correctVersion: String
+    let note: String?
+    let localRule: AgentAccessLocalRule?
+
+    enum CodingKeys: String, CodingKey {
+        case id, note
+        case writtenAs = "written_as"
+        case correctVersion = "correct_version"
+        case localRule = "local_rule"
+    }
+}
+
+struct AgentAccessLocalRule: Codable, Equatable, Sendable {
+    let enabled: Bool
+    let caseSensitive: Bool
+    let scopeID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case caseSensitive = "case_sensitive"
+        case scopeID = "scope_id"
+    }
+}
+
+struct AgentAccessScopesResponse: Codable, Equatable {
+    let schemaVersion = AgentAccessContract.schemaVersion
+    let requestID: String
+    let scopes: [AgentAccessVocabularyScope]
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestID = "request_id"
+        case scopes
+    }
+}
+
+struct AgentAccessVocabularyResponse: Codable, Equatable {
+    let schemaVersion = AgentAccessContract.schemaVersion
+    let requestID: String
+    let localCorrectionsEnabled: Bool
+    let terms: [AgentAccessVocabularyTerm]
+    let corrections: [AgentAccessVocabularyCorrection]
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestID = "request_id"
+        case localCorrectionsEnabled = "local_corrections_enabled"
+        case terms, corrections
+    }
+}
+
+struct AgentAccessPreviewRequest: Codable, Equatable {
+    let corrections: [AgentAccessPreviewCorrection]
+}
+
+struct AgentAccessPreviewCorrection: Codable, Equatable {
+    let spokenForms: [String]
+    let replacement: String
+    let scopeID: String?
+    let caseSensitive: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case spokenForms = "spoken_forms"
+        case replacement
+        case scopeID = "scope_id"
+        case caseSensitive = "case_sensitive"
+    }
+
+    init(spokenForms: [String], replacement: String, scopeID: String?, caseSensitive: Bool) {
+        self.spokenForms = spokenForms
+        self.replacement = replacement
+        self.scopeID = scopeID
+        self.caseSensitive = caseSensitive
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        spokenForms = try container.decode([String].self, forKey: .spokenForms)
+        replacement = try container.decode(String.self, forKey: .replacement)
+        scopeID = try container.decodeIfPresent(String.self, forKey: .scopeID)
+        caseSensitive = try container.decodeIfPresent(Bool.self, forKey: .caseSensitive) ?? false
+    }
+}
+
+struct AgentAccessPreviewResponse: Codable, Equatable {
+    let schemaVersion = AgentAccessContract.schemaVersion
+    let requestID: String
+    let valid: Bool
+    let issues: [AgentAccessPreviewIssue]
+    let normalizedCorrections: [AgentAccessPreviewCorrection]
+    let examples: [AgentAccessPreviewExample]
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestID = "request_id"
+        case valid, issues, examples
+        case normalizedCorrections = "normalized_corrections"
+    }
+}
+
+struct AgentAccessPreviewIssue: Codable, Equatable {
+    let code: String
+    let message: String
+    let correctionIndex: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case code, message
+        case correctionIndex = "correction_index"
+    }
+}
+
+struct AgentAccessPreviewExample: Codable, Equatable {
+    let input: String
+    let output: String
+    let replacementCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case input, output
+        case replacementCount = "replacement_count"
     }
 }
 

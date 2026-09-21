@@ -377,6 +377,7 @@ final class AppState {
     private static let vocabularyTermsKey = "transcriptCleanupVocabularyTerms"
     private static let cleanupGroupsKey = "cleanupGroups"
     private static let usageMetricsEnabledKey = "usageMetricsEnabled"
+    private static let agentAccessEnabledKey = "agentAccessEnabled"
 
     private static var localBridgeDeviceName: String {
         Host.current().localizedName ?? "This Mac"
@@ -384,7 +385,23 @@ final class AppState {
 
     let localPairingBridgeService: LocalPairingBridgeService
     private let localCorrectionStore: LocalCorrectionStore
+    private let preferenceDefaults: UserDefaults
+    private let agentAccessDefaults: UserDefaults
     var localCorrectionStorageFile: URL { localCorrectionStore.fileURL }
+
+    var agentAccessEnabled = false {
+        didSet { agentAccessDefaults.set(agentAccessEnabled, forKey: Self.agentAccessEnabledKey) }
+    }
+    var agentAccessPresentationState: AgentAccessPresentationState = .off
+    var agentAccessErrorMessage: String?
+    var agentAccessBootstrapCommand = ""
+    @ObservationIgnored var agentAccessPreferenceDidChange: ((Bool) -> Void)?
+    @ObservationIgnored var agentAccessReadModelDidChange: (() -> Void)?
+
+    func setAgentAccessEnabled(_ enabled: Bool, notifyController: Bool = true) {
+        agentAccessEnabled = enabled
+        if notifyController { agentAccessPreferenceDidChange?(enabled) }
+    }
 
     var soundEffectsEnabled: Bool = true {
         didSet { Self.defaults.set(soundEffectsEnabled, forKey: "soundEffectsEnabled") }
@@ -400,7 +417,7 @@ final class AppState {
 
     var selectedModel: String = "whisper-large-v3-turbo" {
         didSet {
-            Self.defaults.set(selectedModel, forKey: "whisperModel")
+            preferenceDefaults.set(selectedModel, forKey: "whisperModel")
             resetProviderConnectionTest()
         }
     }
@@ -437,7 +454,7 @@ final class AppState {
 
     var customTranscriptionBaseURL: String = "http://127.0.0.1:8080/v1" {
         didSet {
-            Self.defaults.set(customTranscriptionBaseURL, forKey: "customTranscriptionBaseURL")
+            preferenceDefaults.set(customTranscriptionBaseURL, forKey: "customTranscriptionBaseURL")
             resetProviderConnectionTest()
         }
     }
@@ -550,11 +567,15 @@ final class AppState {
                 preserving: vocabularyTerms
             )
             isSynchronizingVocabularyText = false
+            agentAccessReadModelDidChange?()
         }
     }
 
     var vocabularyCorrections: [VocabularyCorrection] = [] {
-        didSet { Self.saveVocabularyCorrections(vocabularyCorrections) }
+        didSet {
+            Self.saveVocabularyCorrections(vocabularyCorrections)
+            agentAccessReadModelDidChange?()
+        }
     }
 
     private struct DeletedVocabularyCorrectionUndo: Codable, Equatable {
@@ -581,6 +602,7 @@ final class AppState {
                 Self.defaults.set(preferredTermsText, forKey: "transcriptCleanupPreferredTerms")
             }
             isSynchronizingVocabularyText = false
+            agentAccessReadModelDidChange?()
         }
     }
 
@@ -598,6 +620,7 @@ final class AppState {
             Self.saveCleanupGroups(cleanupGroups)
             syncLegacyCleanupFieldsFromDefaultGroup()
             isSynchronizingCleanupGroups = false
+            agentAccessReadModelDidChange?()
         }
     }
 
@@ -915,6 +938,7 @@ final class AppState {
             localCorrectionSnapshot = saved.snapshot
             compiledLocalCorrections = saved.compiled
             localCorrectionPersistenceError = nil
+            agentAccessReadModelDidChange?()
             return saved.snapshot
         } catch {
             if let validationError = error as? LocalCorrectionValidationError {
@@ -1785,12 +1809,17 @@ final class AppState {
         localPairingBridgeService: LocalPairingBridgeService? = nil,
         managedModelRoot: URL? = nil,
         managedModelStore: ManagedLocalModelStore? = nil,
-        localCorrectionStore: LocalCorrectionStore? = nil
+        localCorrectionStore: LocalCorrectionStore? = nil,
+        agentAccessDefaults: UserDefaults? = nil,
+        initialDefaultsOverride: UserDefaults? = nil
     ) {
+        let resolvedDefaults = initialDefaultsOverride ?? Self.defaults
         self.localPairingBridgeService = localPairingBridgeService ?? LocalPairingBridgeService()
         self.localCorrectionStore = localCorrectionStore ?? LocalCorrectionStore()
+        self.preferenceDefaults = resolvedDefaults
+        self.agentAccessDefaults = agentAccessDefaults ?? resolvedDefaults
 
-        let defaults = Self.defaults
+        let defaults = resolvedDefaults
         var persistedPresetRawValue = defaults
             .persistentDomain(forName: Self.defaultsDomainName)?["transcriptionProviderPreset"] as? String
         if ProcessInfo.processInfo.arguments.contains("--reset-defaults") {
@@ -1842,6 +1871,7 @@ final class AppState {
                 Self.vocabularyTermsKey,
                 Self.cleanupGroupsKey,
                 Self.usageMetricsEnabledKey,
+                Self.agentAccessEnabledKey,
                 "selectedInputDeviceUID"
             ] {
                 defaults.removeObject(forKey: key)
@@ -1889,8 +1919,10 @@ final class AppState {
             "customCleanupPrompt.bulletize": "",
             "customCleanupPrompt.numbered": "",
             "customCleanupPrompt.summarize": "",
-            "transcriptCleanupPreferredTerms": ""
+            "transcriptCleanupPreferredTerms": "",
+            Self.agentAccessEnabledKey: false
         ])
+        self.agentAccessDefaults.register(defaults: [Self.agentAccessEnabledKey: false])
 
         onboardingStep = min(max(Self.defaults.integer(forKey: "onboardingStep"), 0), 4)
         // Load persisted values into stored properties.
@@ -1971,6 +2003,7 @@ final class AppState {
         syncLegacyCleanupFieldsFromDefaultGroup()
         keepOnClipboard = defaults.bool(forKey: "keepOnClipboard")
         usageMetricsEnabled = defaults.bool(forKey: Self.usageMetricsEnabledKey)
+        agentAccessEnabled = self.agentAccessDefaults.bool(forKey: Self.agentAccessEnabledKey)
         showFloatingStatus = defaults.bool(forKey: "showFloatingStatus")
         showIdleIndicator = defaults.bool(forKey: "showIdleIndicator")
         asyncPasteEnabled = defaults.bool(forKey: "asyncPasteEnabled")

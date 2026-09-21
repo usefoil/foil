@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AACC20000000000000000001 /* AgentAccessControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACC20000000000000000003 /* AgentAccessControllerTests.swift */; };
+		AACC20000000000000000002 /* AgentAccessContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACC20000000000000000004 /* AgentAccessContractTests.swift */; };
+		AACC10000000000000000001 /* AgentAccessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACC10000000000000000003 /* AgentAccessController.swift */; };
+		AACC10000000000000000002 /* AgentAccessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACC10000000000000000003 /* AgentAccessController.swift */; };
 		270ABE9D36CFE441150BF7CD /* AgentAccessModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D4B9D46A4C0CC6C28E3A69 /* AgentAccessModels.swift */; };
 		9B236EED8DE7FF8D8C4B838E /* AgentAccessModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3D4B9D46A4C0CC6C28E3A69 /* AgentAccessModels.swift */; };
 		10D8D0FE014720323A80539D /* AgentAccessPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA36C187F5BE6230CD605EBE /* AgentAccessPaths.swift */; };
@@ -219,6 +223,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		AACC20000000000000000003 /* AgentAccessControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessControllerTests.swift; sourceTree = "<group>"; };
+		AACC20000000000000000004 /* AgentAccessContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessContractTests.swift; sourceTree = "<group>"; };
+		AACC10000000000000000003 /* AgentAccessController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessController.swift; sourceTree = "<group>"; };
 		D3D4B9D46A4C0CC6C28E3A69 /* AgentAccessModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessModels.swift; sourceTree = "<group>"; };
 		FA36C187F5BE6230CD605EBE /* AgentAccessPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessPaths.swift; sourceTree = "<group>"; };
 		8363B5D875D925F1EDA36611 /* AgentAccessHTTP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessHTTP.swift; sourceTree = "<group>"; };
@@ -367,6 +374,8 @@
 		354A13AAF6C21B2CF1944369 /* FoilTests */ = {
 			isa = PBXGroup;
 			children = (
+				AACC20000000000000000003 /* AgentAccessControllerTests.swift */,
+				AACC20000000000000000004 /* AgentAccessContractTests.swift */,
 				0157347280D9DFAE6E0A177F /* AgentAccessHTTPTests.swift */,
 				9C7C134031D4DFE0D78FE6D9 /* AgentAccessServerTests.swift */,
 				7CB837E3BE88277ED2418E47 /* AppStateTests.swift */,
@@ -461,6 +470,7 @@
 		D89C27DAE9C3B12C208E3F37 /* Foil */ = {
 			isa = PBXGroup;
 			children = (
+				AACC10000000000000000003 /* AgentAccessController.swift */,
 				8363B5D875D925F1EDA36611 /* AgentAccessHTTP.swift */,
 				D3D4B9D46A4C0CC6C28E3A69 /* AgentAccessModels.swift */,
 				FA36C187F5BE6230CD605EBE /* AgentAccessPaths.swift */,
@@ -772,6 +782,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AACC10000000000000000002 /* AgentAccessController.swift in Sources */,
 				694915CB9E2287BA1F7B56B2 /* AgentAccessHTTP.swift in Sources */,
 				9B236EED8DE7FF8D8C4B838E /* AgentAccessModels.swift in Sources */,
 				818CC6DC8414364EB5D18ADA /* AgentAccessPaths.swift in Sources */,
@@ -867,6 +878,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AACC20000000000000000001 /* AgentAccessControllerTests.swift in Sources */,
+				AACC20000000000000000002 /* AgentAccessContractTests.swift in Sources */,
 				DB7957B5C832B9319A3CAF7D /* AgentAccessHTTPTests.swift in Sources */,
 				DF09A926E8D1AE016CB1553C /* AgentAccessServerTests.swift in Sources */,
 				6E188014C7882845ECD1BE40 /* AppStateTests.swift in Sources */,
@@ -919,6 +932,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AACC10000000000000000001 /* AgentAccessController.swift in Sources */,
 				B1AC125DFD71928935E9DB43 /* AgentAccessHTTP.swift in Sources */,
 				270ABE9D36CFE441150BF7CD /* AgentAccessModels.swift in Sources */,
 				10D8D0FE014720323A80539D /* AgentAccessPaths.swift in Sources */,
