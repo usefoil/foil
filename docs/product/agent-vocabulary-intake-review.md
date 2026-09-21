@@ -6,11 +6,12 @@ Date: 2026-09-21
 
 Build an agent-facing proposal path on top of Foil's existing local correction
 engine. Make a versioned local API owned by the Foil app the primary integration.
-Ship a signed CLI helper inside `Foil.app` as a convenience, and keep STDIO MCP as
-an optional adapter for automatic tool discovery. Do not require a plugin, skill,
-MCP registration, PATH modification, or separate download for the primary flow.
-Do not add fuzzy matching, regex, project detection, or direct unattended writes
-in the first version.
+Run it only while Foil is open and the user-controlled **Agent Access** setting is
+enabled. Do not require a plugin, skill, MCP registration, PATH modification,
+helper installation, or separate download for the primary flow. Consider a bundled
+CLI helper and STDIO MCP adapter later only if they materially improve discovery.
+Do not add fuzzy matching, regex, project detection, or direct unattended writes in
+the first version.
 
 The current engine already handles the runtime correction problem. The missing
 piece is a safe way for an agent to submit explicit spoken-form mappings such as:
@@ -64,18 +65,26 @@ There is no supported external command or protocol through which Codex can:
 This is a moderate integration task. It does not require changes to transcription,
 matching, paste delivery, Cleanup providers, or project-context detection.
 
-## Recommended first tranche
+## Recommended architecture and staged delivery
+
+The first tranche consists of the user flow, Foil-owned local API, Agent Access
+settings surface, instructions endpoint, vocabulary operations, proposal review,
+and tests described below. The CLI and MCP sections record possible later adapters;
+they are not first-tranche requirements.
 
 ### User flow
 
-1. The agent calls Foil's stable local instructions endpoint.
-2. The agent submits a bounded JSON proposal containing explicit correction pairs,
+1. The user opens Foil and enables **Agent Access**.
+2. Foil starts its private local service and offers **Copy instructions for my
+   agent**.
+3. The agent calls Foil's stable local instructions endpoint.
+4. The agent submits a bounded JSON proposal containing explicit correction pairs,
    rationale, and a requested Foil scope.
-3. Foil opens or surfaces a pending proposal sheet.
-4. The sheet shows the source phrase, replacement, scope, conflicts, and a preview
+5. Foil opens or surfaces a pending proposal sheet.
+6. The sheet shows the source phrase, replacement, scope, conflicts, and a preview
    using the production engine.
-5. The user edits or selects candidates and applies them.
-6. Foil creates the Vocabulary pairs and linked local rules through one app-owned
+7. The user edits or selects candidates and applies them.
+8. Foil creates the Vocabulary pairs and linked local rules through one app-owned
    coordinator, then returns a receipt with applied, skipped, and rejected items.
 
 An initial proposal can contain multiple spoken forms for one canonical term. Foil
@@ -92,12 +101,9 @@ Foil owns a versioned HTTP-over-Unix-domain-socket API at a stable, documented p
 
 The socket directory and socket are owner-only. Foil accepts a deliberately small
 HTTP subset with bounded headers and bodies, fixed content types, schema versions,
-request IDs, and deadlines. The service is available only while Foil is running.
-The agent can launch Foil by bundle identifier without locating the application:
-
-```sh
-open -gj -b com.neonwatty.Foil
-```
+request IDs, and deadlines. The service is available only while Foil is running and
+the user-controlled **Agent Access** setting is enabled. An agent cannot start Foil,
+enable the service, or change that setting through the API.
 
 The bootstrap endpoint is:
 
@@ -120,10 +126,11 @@ the user's normal approval to run the bootstrap command, but it does not require
 integration package.
 
 Foil writes a non-secret discovery manifest at the stable path
-`~/Library/Application Support/Foil/agent-api.json`. It records the active schema,
-socket path, app version, and bundled helper path. The manifest makes diagnostics
-and future socket migrations explicit; agents should begin with the fixed
-instructions command above rather than search arbitrary local ports or applications.
+`~/Library/Application Support/Foil/agent-api.json` only while Agent Access is
+enabled. It records the active schema, socket path, app version, and optional
+bundled helper path. The manifest makes diagnostics and future socket migrations
+explicit; agents should begin with the fixed instructions command above rather
+than search arbitrary local ports or applications.
 
 Avoid a TCP listener, background daemon, or reuse of the iPhone pairing bridge.
 Unix socket permissions keep browsers and other user accounts outside the API. A
@@ -135,7 +142,38 @@ instructions for my agent** action can place a short prompt containing that comm
 on the clipboard. Once the agent runs it, the returned instructions and schema are
 the complete discovery mechanism.
 
-### Bundled CLI convenience
+### Agent Access UX and lifecycle
+
+Add an Agent Access section to Foil Settings:
+
+```text
+Agent Access                                      [ Off / On ]
+Allow local agents on this Mac to inspect Vocabulary and submit changes for review.
+
+Status: Off | Running | Error
+[Copy instructions for my agent]
+Pending proposals: 0
+```
+
+The setting defaults to off and persists the user's choice. When it is on, Foil
+starts the service during normal app launch. The UI states that access exists only
+while Foil is running and that agents can inspect Vocabulary but cannot read History,
+audio, provider credentials, or project files.
+
+Turning Agent Access off:
+
+- stops accepting new connections;
+- closes active connections;
+- removes the socket and discovery manifest;
+- invalidates in-flight API requests;
+- leaves applied Vocabulary and local rules unchanged; and
+- retains already received proposals for review, with a separate action to discard
+  them.
+
+If service startup fails, the toggle returns to off, the socket is absent, and Foil
+shows an actionable local error. It never falls back to TCP or a broader interface.
+
+### Potential bundled CLI convenience after the first tranche
 
 Add one native executable at a path such as:
 
@@ -153,10 +191,11 @@ foil-agent instructions [topic]
 foil-agent vocabulary scopes|list|preview|propose|status
 ```
 
-The CLI commands are a quoting-safe convenience for agents and diagnostics. The
-helper launches Foil when necessary and waits for the socket for a short, bounded
-interval. It does not need to be copied out of the app or added to `PATH`; Foil can
-provide a **Copy agent command** action containing its resolved absolute path.
+The CLI commands are a quoting-safe convenience for agents and diagnostics. When
+Foil is not running or Agent Access is off, the helper returns a clear unavailable
+status; it cannot launch Foil or enable Agent Access. It does not need to be copied
+out of the app or added to `PATH`; Foil can provide a **Copy agent command** action
+containing its resolved absolute path.
 
 `mcp` is an optional adapter that speaks MCP over standard input and output while
 calling the same local API. Neither CLI nor MCP mode edits Vocabulary preferences or
@@ -166,7 +205,7 @@ Use peer-user validation, owner-only directory and socket permissions, bounded
 request sizes, schema versions, request IDs, and deadlines. A proposal is inert
 until the user applies it in Foil.
 
-### Optional MCP registration
+### Potential MCP registration after the first tranche
 
 MCP is useful when a user wants Foil's tools to appear automatically in every Codex
 task. It is not required for the local API or bundled CLI. Foil Settings may include
@@ -192,8 +231,8 @@ entirely and give their agent the instructions command.
 
 ### Instructions and capability discovery
 
-`GET /v1/instructions`, `foil-agent instructions`, and optional MCP initialization
-all return the same versioned core guidance. It tells the agent:
+`GET /v1/instructions` returns versioned core guidance. Any later CLI or MCP adapter
+must return the same guidance. It tells the agent:
 
 - this server manages Foil vocabulary;
 - read current state before proposing changes;
@@ -201,12 +240,12 @@ all return the same versioned core guidance. It tells the agent:
 - proposals require review in Foil; and
 - Foil never exposes History, audio, credentials, or repository contents here.
 
-The local API is self-describing without relying on an installed skill. The CLI
-equivalent is `foil-agent instructions vocabulary --json`. In optional MCP mode,
-Codex reads concise server-wide `instructions` during initialization and can call a
-read-only `foil_get_instructions` tool for longer guidance by topic.
+The local API is self-describing without relying on an installed skill. A later CLI
+equivalent could be `foil-agent instructions vocabulary --json`. In optional MCP
+mode, Codex would read concise server-wide `instructions` during initialization and
+could call a read-only `foil_get_instructions` tool for longer guidance by topic.
 
-The initial MCP tools are:
+Potential MCP tools are:
 
 - `foil_get_instructions`
 - `foil_list_vocabulary_scopes`
@@ -284,43 +323,41 @@ remain a separate experiment with its own false-positive budget.
 
 ### Proposal contract
 
-- A fresh shell-capable agent can launch Foil and retrieve useful instructions with
-  the documented `open` plus `curl --unix-socket` bootstrap, without MCP, a skill,
-  an `AGENTS.md` edit, a PATH change, or another installation.
-- The HTTP, bundled CLI, and optional MCP entry points produce equivalent structured
-  results for the same instructions, scopes, listing, preview, proposal, and status
-  requests.
+- With Foil running and Agent Access enabled, a fresh shell-capable agent can
+  retrieve useful instructions with the documented `curl --unix-socket` bootstrap,
+  without MCP, a skill, an `AGENTS.md` edit, a PATH change, or another installation.
+- HTTP-over-Unix-domain-socket is the normative first-tranche interface. If a CLI or
+  MCP adapter is added later, contract tests prove that it produces equivalent
+  structured results for instructions, scopes, listing, preview, proposal, and
+  status requests.
 - The OpenAPI document matches every supported route, input, output, limit, and
   error exercised by contract tests.
 - Malformed, future-version, oversized, duplicate-ID, empty, overlong, ambiguous,
   and invalid-scope proposals are rejected without changing Vocabulary or rules.
 - Replaying the same request ID produces the same disposition and no duplicates.
-- A proposal submitted through the bundled CLI while Foil is closed launches Foil,
-  waits for the socket, and appears for review without direct file mutation.
+- A proposal submitted while Agent Access is off is rejected as unavailable and
+  does not launch Foil, enable access, or mutate files.
 - More than one queued proposal cannot overwrite another.
 - Proposal payloads and normal diagnostics contain no transcript, credential, or
   repository content supplied by Foil.
 
-### Packaging and lifecycle
+### Agent Access lifecycle
 
-- Foil and FoilDev contain separately identified, signed helpers and isolated local
-  command endpoints; neither can read or mutate the other's store.
-- Deep strict signature checks and notarization cover the nested helper in the DMG
-  and installed application.
+- Foil and FoilDev use isolated socket paths and stores; neither can read or mutate
+  the other's state.
 - The local API works immediately after installing and launching Foil, without any
-  Codex or other agent configuration.
-- Optionally enabling automatic Codex discovery produces exactly one `foil` MCP
-  entry pointing to the current signed helper. Repeated enable or repair operations
-  create no duplicates.
-- App upgrades preserve a working registration when the bundle path is unchanged.
-  Moving the app produces a detected stale-path state with a working Repair action.
-- Disabling optional MCP removes only Foil's MCP entry without disabling the local
-  API or changing existing Vocabulary or local rules.
-- When Foil is closed, a tool call launches it and either completes through the
-  private socket or returns a bounded actionable timeout; it never writes app state
-  directly as a fallback.
+  Codex or other agent configuration, once the user enables Agent Access.
+- Agent Access defaults to off, persists the user's explicit choice, and starts only
+  during Foil's normal app lifecycle.
+- Enabling Agent Access creates an owner-only socket and discovery manifest;
+  disabling it closes existing connections and removes both artifacts.
+- Service startup failure returns the setting to off, leaves no socket or manifest,
+  and shows an actionable error without falling back to TCP.
+- When Foil is closed or Agent Access is off, a tool call returns a bounded,
+  actionable unavailable result; it never launches Foil, changes the setting, or
+  writes app state directly as a fallback.
 - Socket replacement, wrong owner, wrong peer user, protocol mismatch, oversized
-  frames, app/helper version mismatch, and abrupt disconnect all fail without a
+  frames, schema version mismatch, and abrupt disconnect all fail without a
   Vocabulary or rule mutation.
 
 ### Review and apply
@@ -343,14 +380,18 @@ remain a separate experiment with its own false-positive budget.
 - From a real Codex session, submit a proposal for `super base -> Supabase`, review
   and apply it in Foil, then dictate into Codex and read back `Supabase` from the
   destination.
-- Start a fresh Codex task with no Foil MCP or skill installed. Give it only the
-  documented Foil bootstrap command; verify that it reads the instructions, lists
-  Vocabulary, previews a proposal, and submits it for review.
-- Separately enable optional MCP and verify automatic tool discovery, then remove it
-  and prove the zero-registration bootstrap still works.
+- Start Foil, enable Agent Access, and begin a fresh Codex task with no Foil MCP or
+  skill installed. Give it only the documented Foil bootstrap command; verify that
+  it reads the instructions, lists Vocabulary, previews a proposal, and submits it
+  for review.
+- Turn Agent Access off while a client is connected and prove the connection closes,
+  new requests fail, the socket and manifest disappear, and no app data changes.
+- Relaunch Foil with Agent Access on and off in separate runs and verify the service
+  follows the persisted setting without an agent starting it.
 - Reject a second proposal and prove it never affects dictation.
-- Submit while Foil is closed, relaunch, apply, and verify the receipt and persisted
-  UI state.
+- Attempt submission while Foil is closed and prove it fails without mutation;
+  relaunch Foil, submit after Agent Access starts, apply, and verify the receipt and
+  persisted UI state.
 - Exercise duplicate submission, invalid scope, interrupted proposal write, failed
   Foil persistence, and concurrent UI editing.
 - Re-run the existing 150-case engine gate and focused AppState, store, controller,
@@ -359,12 +400,14 @@ remain a separate experiment with its own false-positive budget.
 
 ## Later tranches
 
-1. Add an explicit user grant for agents allowed to apply within selected scopes
+1. Add a bundled, signed CLI helper only if shell quoting or socket diagnostics make
+   direct `curl` too brittle in real use.
+2. Add optional MCP registration only if automatic tool discovery is useful enough
+   to justify configuration and stale-path repair.
+3. Add an explicit user grant for agents allowed to apply within selected scopes
    without reviewing every batch.
-2. Keep optional MCP and any skill as convenience layers only if they materially
-   improve discovery over the local instructions API.
-3. Explore project-scoped packs after Foil can reliably identify the active project.
-4. Evaluate narrow per-rule tolerance only from a reviewed corpus of real misses.
+4. Explore project-scoped packs after Foil can reliably identify the active project.
+5. Evaluate narrow per-rule tolerance only from a reviewed corpus of real misses.
 
 ## Codex integration references
 
