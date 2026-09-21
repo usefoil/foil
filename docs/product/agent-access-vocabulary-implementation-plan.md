@@ -173,6 +173,9 @@ acceptance gate is green and its strongest failure mode has recorded evidence.
 
 ### Tranche 0 — Contract and Unix-socket proof
 
+**Status:** implemented and acceptance-gated on 2026-09-21. See the
+[Tranche 0 evidence receipt](../evidence/agent-access-vocabulary/tranche-0/receipt.md).
+
 **Purpose:** retire the risky transport and protocol assumptions without adding a
 user-visible setting or allowing mutation.
 

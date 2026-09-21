@@ -1,0 +1,61 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Foil Agent Access Contract Host",
+    "version": "1.0.0",
+    "description": "Tranche 0 exposes discovery only. It accepts no Vocabulary mutation."
+  },
+  "servers": [
+    {
+      "url": "http://foil",
+      "description": "HTTP over the Foil owner-only Unix domain socket"
+    }
+  ],
+  "paths": {
+    "/v1/instructions": {
+      "get": {
+        "operationId": "getInstructions",
+        "responses": {
+          "200": {
+            "description": "Versioned model-readable instructions"
+          }
+        }
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "operationId": "getOpenAPI",
+        "responses": {
+          "200": {
+            "description": "This OpenAPI document"
+          }
+        }
+      }
+    }
+  },
+  "x-foil-limits": {
+    "maximum_header_bytes": 16384,
+    "maximum_body_bytes": 65536,
+    "maximum_correction_pairs": 50,
+    "maximum_spoken_forms_per_pair": 10,
+    "maximum_phrase_scalars": 256,
+    "request_deadline_seconds": 5
+  },
+  "x-foil-proposal-states": [
+    "pending",
+    "applied",
+    "rejected",
+    "discarded"
+  ],
+  "x-foil-privacy": {
+    "excludes": [
+      "history",
+      "audio",
+      "credentials",
+      "provider_configuration",
+      "project_files",
+      "clipboard",
+      "active_application"
+    ]
+  }
+}
