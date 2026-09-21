@@ -1,4 +1,5 @@
 import Darwin
+import CryptoKit
 import Foundation
 
 enum AgentAccessServerError: Error, Equatable, LocalizedError {
@@ -145,7 +146,6 @@ final class AgentAccessServer {
             )
             listenerFD = -1
             ownershipLockFD = -1
-            activeConnections.removeAll()
             socketIdentity = nil
             generation = UUID()
             return value
@@ -158,7 +158,6 @@ final class AgentAccessServer {
         }
         for connection in captured.connections {
             _ = shutdown(connection, SHUT_RDWR)
-            Darwin.close(connection)
         }
         removeSocket(ifIdentityMatches: captured.identity)
         if captured.lock >= 0 {
@@ -297,8 +296,8 @@ final class AgentAccessServer {
                 Darwin.close(connection)
                 continue
             }
-            connectionQueue.async { [weak self] in
-                self?.serve(connection: connection, generation: expectedGeneration)
+            connectionQueue.async { [self] in
+                serve(connection: connection, generation: expectedGeneration)
             }
         }
     }
@@ -314,9 +313,10 @@ final class AgentAccessServer {
     }
 
     private func serve(connection: Int32, generation expectedGeneration: UUID) {
+        let started = DispatchTime.now().uptimeNanoseconds
         defer {
-            let shouldClose = stateLock.withLock { activeConnections.remove(connection) != nil }
-            if shouldClose { Darwin.close(connection) }
+            _ = stateLock.withLock { activeConnections.remove(connection) }
+            Darwin.close(connection)
         }
         configureSendSafety(on: connection)
         var received = Data()
@@ -326,9 +326,28 @@ final class AgentAccessServer {
         while stateLock.withLock({ generation == expectedGeneration && activeConnections.contains(connection) }) {
             switch parser.parse(received) {
             case let .complete(request):
-                send(handler(request), to: connection)
+                guard isActive(connection: connection, generation: expectedGeneration) else { return }
+                let response = handler(request)
+                guard isActive(connection: connection, generation: expectedGeneration) else { return }
+                logRequest(
+                    route: routeLabel(for: request.path),
+                    status: response.status,
+                    requestBytes: received.count,
+                    responseBytes: response.body.count,
+                    requestID: request.requestID,
+                    started: started
+                )
+                send(response, to: connection)
                 return
             case let .failure(error):
+                logRequest(
+                    route: "parse_error",
+                    status: error.status,
+                    requestBytes: received.count,
+                    responseBytes: 0,
+                    requestID: nil,
+                    started: started
+                )
                 send(parseErrorResponse(error), to: connection)
                 return
             case .incomplete:
@@ -355,6 +374,41 @@ final class AgentAccessServer {
             }
             return
         }
+    }
+
+    private func isActive(connection: Int32, generation expectedGeneration: UUID) -> Bool {
+        stateLock.withLock {
+            generation == expectedGeneration && activeConnections.contains(connection)
+        }
+    }
+
+    private func routeLabel(for path: String) -> String {
+        switch path {
+        case "/v1/instructions": "instructions"
+        case "/v1/openapi.json": "openapi"
+        case "/v1/vocabulary/scopes": "vocabulary_scopes"
+        case "/v1/vocabulary": "vocabulary_list"
+        case "/v1/vocabulary/preview": "vocabulary_preview"
+        default: "unknown"
+        }
+    }
+
+    private func logRequest(
+        route: String,
+        status: Int,
+        requestBytes: Int,
+        responseBytes: Int,
+        requestID: String?,
+        started: UInt64
+    ) {
+        let elapsed = DispatchTime.now().uptimeNanoseconds - started
+        let durationMilliseconds = elapsed / 1_000_000
+        let requestIDDigest = requestID.map { value in
+            SHA256.hash(data: Data(value.utf8)).prefix(6).map { String(format: "%02x", $0) }.joined()
+        } ?? "generated"
+        DiagnosticLog.write(
+            "AgentAccess.request route=\(route) status=\(status) request_bytes=\(requestBytes) response_bytes=\(responseBytes) duration_ms=\(durationMilliseconds) request_id_digest=\(requestIDDigest)"
+        )
     }
 
     private func configureSendSafety(on connection: Int32) {

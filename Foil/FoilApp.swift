@@ -363,6 +363,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var localWhisperStartupTask: Task<Void, Never>?
     private var localWhisperStartupID: UUID?
     private var managedLocalStartupTask: Task<Void, Never>?
+    private var agentAccessController: AgentAccessController?
     private var recordingCleanupAppContext: CleanupAppContext?
     private var recordingProcessingSnapshot: TranscriptProcessingSnapshot?
     private var uiTestingController: UITestingController?
@@ -559,6 +560,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         DiagnosticLog.write("applicationDidFinishLaunching")
+        configureAgentAccessAfterSingleInstanceGate()
         if isTesting || isE2ESmoke {
             NSApp.setActivationPolicy(.regular)
         }
@@ -1249,6 +1251,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        agentAccessController?.stop()
+        agentAccessController = nil
         managedLocalStartupTask?.cancel()
         appState.cancelManagedLocalModelOperation()
         appState.managedLocalRuntime.stop()
@@ -1260,6 +1264,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         localWhisperStartupTask = nil
         localWhisperStartupID = nil
         localWhisperServerController.terminate()
+    }
+
+    private func configureAgentAccessAfterSingleInstanceGate() {
+        let paths: AgentAccessPaths
+        if let acceptance = Self.managedLocalAcceptanceConfiguration() {
+            paths = AgentAccessPaths(applicationSupportRoot: acceptance.root, directoryName: "AgentAccess")
+        } else if let testing = Self.testingStorageConfiguration() {
+            paths = AgentAccessPaths(applicationSupportRoot: testing.root, directoryName: "AgentAccess")
+        } else {
+            paths = .current()
+        }
+        do {
+            let startupDelay: UInt64 = ProcessInfo.processInfo.arguments.contains("--agent-access-startup-delay")
+                && ProcessInfo.processInfo.arguments.contains("--ui-testing")
+                ? 1_000_000_000
+                : 0
+            let controller = try AgentAccessController(
+                appState: appState,
+                paths: paths,
+                startupDelayNanoseconds: startupDelay
+            )
+            agentAccessController = controller
+            controller.startIfEnabled()
+        } catch {
+            appState.setAgentAccessEnabled(false, notifyController: false)
+            appState.agentAccessPresentationState = .error
+            appState.agentAccessErrorMessage = error.localizedDescription
+            DiagnosticLog.write("AgentAccess.lifecycle: configuration_failed")
+        }
     }
 
     // MARK: - Hotkey configuration

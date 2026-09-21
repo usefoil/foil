@@ -209,28 +209,32 @@ struct AgentAccessHTTPRequestParser {
 }
 
 struct AgentAccessContractRouter {
+    typealias VocabularyProvider = () -> AgentAccessVocabularyReadModel
+
     let socketPath: String
     let openAPIDocument: Data
     let limits: AgentAccessLimits
+    let vocabularyProvider: VocabularyProvider
 
-    init(socketPath: String, openAPIDocument: Data, limits: AgentAccessLimits = .standard) {
+    init(
+        socketPath: String,
+        openAPIDocument: Data,
+        limits: AgentAccessLimits = .standard,
+        vocabularyProvider: @escaping VocabularyProvider = {
+            AgentAccessVocabularyReadModel(
+                scopes: [], terms: [], corrections: [], localCorrectionsEnabled: false
+            )
+        }
+    ) {
         self.socketPath = socketPath
         self.openAPIDocument = openAPIDocument
         self.limits = limits
+        self.vocabularyProvider = vocabularyProvider
     }
 
     func response(to request: AgentAccessHTTPRequest) -> AgentAccessHTTPResponse {
         let requestID = request.requestID ?? UUID().uuidString.lowercased()
-        guard request.method == .get else {
-            return errorResponse(
-                status: 405,
-                reason: "Method Not Allowed",
-                requestID: requestID,
-                code: "method_not_allowed",
-                message: "This contract host supports GET only."
-            )
-        }
-        guard request.body.isEmpty else {
+        if request.method == .get, !request.body.isEmpty {
             return errorResponse(
                 status: 400,
                 reason: "Bad Request",
@@ -241,6 +245,7 @@ struct AgentAccessContractRouter {
         }
         switch request.path {
         case "/v1/instructions":
+            guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
             let value = AgentAccessInstructionsResponse(
                 requestID: requestID,
                 socketPath: socketPath,
@@ -249,7 +254,45 @@ struct AgentAccessContractRouter {
             return (try? .json(requestID: requestID, value: value))
                 ?? internalError(requestID: requestID)
         case "/v1/openapi.json":
+            guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
             return openAPIResponse(requestID: requestID)
+        case "/v1/vocabulary/scopes":
+            guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
+            let value = AgentAccessScopesResponse(
+                requestID: requestID,
+                scopes: vocabularyProvider().scopes
+            )
+            return (try? .json(requestID: requestID, value: value))
+                ?? internalError(requestID: requestID)
+        case "/v1/vocabulary":
+            guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
+            let model = vocabularyProvider()
+            let value = AgentAccessVocabularyResponse(
+                requestID: requestID,
+                localCorrectionsEnabled: model.localCorrectionsEnabled,
+                terms: model.terms,
+                corrections: model.corrections
+            )
+            return (try? .json(requestID: requestID, value: value))
+                ?? internalError(requestID: requestID)
+        case "/v1/vocabulary/preview":
+            guard request.method == .post else { return methodNotAllowed(requestID: requestID) }
+            guard let value = try? JSONDecoder().decode(AgentAccessPreviewRequest.self, from: request.body) else {
+                return errorResponse(
+                    status: 400,
+                    reason: "Bad Request",
+                    requestID: requestID,
+                    code: "invalid_json",
+                    message: "Preview requires a JSON object with a corrections array."
+                )
+            }
+            let preview = AgentAccessPreviewEvaluator(limits: limits).evaluate(
+                value,
+                requestID: requestID,
+                scopes: vocabularyProvider().scopes
+            )
+            return (try? .json(requestID: requestID, value: preview))
+                ?? internalError(requestID: requestID)
         default:
             return errorResponse(
                 status: 404,
@@ -259,6 +302,16 @@ struct AgentAccessContractRouter {
                 message: "No Agent Access route matches this path."
             )
         }
+    }
+
+    private func methodNotAllowed(requestID: String) -> AgentAccessHTTPResponse {
+        errorResponse(
+            status: 405,
+            reason: "Method Not Allowed",
+            requestID: requestID,
+            code: "method_not_allowed",
+            message: "Use the HTTP method documented for this Agent Access route."
+        )
     }
 
     func parseErrorResponse(_ error: AgentAccessHTTPError, requestID: String = UUID().uuidString.lowercased()) -> AgentAccessHTTPResponse {
@@ -279,6 +332,9 @@ struct AgentAccessContractRouter {
         object["x-foil-schema-version"] = AgentAccessContract.schemaVersion
         object["x-foil-socket-path"] = socketPath
         object["x-foil-bootstrap-command"] = AgentAccessInstructionsResponse.bootstrapCommand(
+            socketPath: socketPath
+        )
+        object["x-foil-openapi-command"] = AgentAccessInstructionsResponse.openAPICommand(
             socketPath: socketPath
         )
         guard let body = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else {
@@ -315,5 +371,143 @@ struct AgentAccessContractRouter {
         let value = AgentAccessErrorBody(requestID: requestID, code: code, message: message)
         return (try? .json(status: status, reason: reason, requestID: requestID, value: value))
             ?? AgentAccessHTTPResponse(status: status, reason: reason, headers: [:], body: Data())
+    }
+}
+
+struct AgentAccessPreviewEvaluator {
+    let limits: AgentAccessLimits
+
+    func evaluate(
+        _ request: AgentAccessPreviewRequest,
+        requestID: String,
+        scopes: [AgentAccessVocabularyScope]
+    ) -> AgentAccessPreviewResponse {
+        var issues: [AgentAccessPreviewIssue] = []
+        var normalized: [AgentAccessPreviewCorrection] = []
+
+        if request.corrections.isEmpty {
+            issues.append(.init(
+                code: "corrections_required",
+                message: "Provide at least one correction to preview.",
+                correctionIndex: nil
+            ))
+        }
+        if request.corrections.count > limits.maximumCorrectionPairs {
+            issues.append(.init(
+                code: "too_many_corrections",
+                message: "At most \(limits.maximumCorrectionPairs) corrections may be previewed.",
+                correctionIndex: nil
+            ))
+        }
+
+        let scopeByID = scopes.reduce(into: [String: AgentAccessVocabularyScope]()) { result, scope in
+            // Persisted cleanup groups may contain duplicate IDs. Keep the first
+            // value so malformed legacy data cannot trap the local API.
+            if result[scope.id] == nil { result[scope.id] = scope }
+        }
+        for (index, correction) in request.corrections.prefix(limits.maximumCorrectionPairs).enumerated() {
+            let replacement = correction.replacement.trimmingCharacters(in: .whitespacesAndNewlines)
+            let scopeID = correction.scopeID?.trimmingCharacters(in: .whitespacesAndNewlines)
+            var forms: [String] = []
+
+            if correction.spokenForms.isEmpty {
+                issues.append(.init(code: "spoken_forms_required", message: "Provide at least one spoken form.", correctionIndex: index))
+            }
+            if correction.spokenForms.count > limits.maximumSpokenFormsPerPair {
+                issues.append(.init(
+                    code: "too_many_spoken_forms",
+                    message: "Each correction supports at most \(limits.maximumSpokenFormsPerPair) spoken forms.",
+                    correctionIndex: index
+                ))
+            }
+            if replacement.isEmpty {
+                issues.append(.init(code: "replacement_required", message: "Replacement cannot be empty.", correctionIndex: index))
+            } else if replacement.unicodeScalars.count > limits.maximumPhraseScalars {
+                issues.append(.init(code: "phrase_too_long", message: "Replacement exceeds the phrase limit.", correctionIndex: index))
+            }
+            if let scopeID, !scopeID.isEmpty {
+                if let scope = scopeByID[scopeID] {
+                    if !scope.isEnabled {
+                        issues.append(.init(code: "scope_disabled", message: "The selected scope is disabled.", correctionIndex: index))
+                    }
+                } else {
+                    issues.append(.init(code: "scope_not_found", message: "The selected scope does not exist.", correctionIndex: index))
+                }
+            }
+
+            for rawForm in correction.spokenForms.prefix(limits.maximumSpokenFormsPerPair) {
+                let form = rawForm.trimmingCharacters(in: .whitespacesAndNewlines)
+                if form.isEmpty {
+                    issues.append(.init(code: "spoken_form_required", message: "Spoken forms cannot be empty.", correctionIndex: index))
+                } else if form.unicodeScalars.count > limits.maximumPhraseScalars {
+                    issues.append(.init(code: "phrase_too_long", message: "A spoken form exceeds the phrase limit.", correctionIndex: index))
+                } else if forms.contains(where: {
+                    LocalCorrectionEngine.aliasesOverlap(
+                        $0,
+                        caseSensitive: correction.caseSensitive,
+                        form,
+                        caseSensitive: correction.caseSensitive
+                    )
+                }) {
+                    issues.append(.init(code: "duplicate_spoken_form", message: "A spoken form is duplicated in this correction.", correctionIndex: index))
+                } else {
+                    forms.append(form)
+                }
+            }
+            normalized.append(.init(
+                spokenForms: forms,
+                replacement: replacement,
+                scopeID: scopeID.flatMap { $0.isEmpty ? nil : $0 },
+                caseSensitive: correction.caseSensitive
+            ))
+        }
+
+        let rules = normalized.enumerated().flatMap { pairIndex, correction in
+            correction.spokenForms.enumerated().map { formIndex, form in
+                LocalCorrectionRule(
+                    id: "preview-\(pairIndex)-\(formIndex)",
+                    source: form,
+                    replacement: correction.replacement,
+                    group: correction.scopeID,
+                    enabled: true,
+                    caseSensitive: correction.caseSensitive
+                )
+            }
+        }
+        var compiled: CompiledLocalCorrections?
+        if issues.isEmpty {
+            do {
+                compiled = try LocalCorrectionEngine.compile(rules)
+            } catch let error as LocalCorrectionValidationError {
+                issues.append(.init(code: "correction_conflict", message: error.description, correctionIndex: nil))
+            } catch {
+                issues.append(.init(code: "correction_invalid", message: "The correction set could not be compiled.", correctionIndex: nil))
+            }
+        }
+
+        let examples: [AgentAccessPreviewExample]
+        if let compiled {
+            examples = normalized.compactMap { correction in
+                guard let form = correction.spokenForms.first else { return nil }
+                let input = "Use \(form) in this project."
+                let result = LocalCorrectionEngine.correct(
+                    input,
+                    activeGroup: correction.scopeID,
+                    enabled: true,
+                    compiled: compiled
+                )
+                return .init(input: input, output: result.text, replacementCount: result.replacementCount)
+            }
+        } else {
+            examples = []
+        }
+
+        return AgentAccessPreviewResponse(
+            requestID: requestID,
+            valid: issues.isEmpty,
+            issues: issues,
+            normalizedCorrections: normalized,
+            examples: examples
+        )
     }
 }

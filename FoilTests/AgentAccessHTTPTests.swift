@@ -149,11 +149,17 @@ final class AgentAccessHTTPTests: XCTestCase {
 
         XCTAssertEqual(response.status, 200)
         XCTAssertEqual(decoded.requestID, "contract-test")
-        XCTAssertEqual(decoded.availableOperations, ["get_instructions", "get_openapi"])
+        XCTAssertEqual(decoded.availableOperations, [
+            "get_instructions", "get_openapi", "list_vocabulary_scopes",
+            "list_vocabulary", "preview_vocabulary_corrections"
+        ])
         XCTAssertEqual(decoded.limits, .standard)
         XCTAssertTrue(decoded.bootstrapCommand.contains("--unix-socket"))
         XCTAssertTrue(decoded.bootstrapCommand.contains("/tmp/Foil Test/agent-v1.sock"))
-        XCTAssertFalse(String(decoding: response.body, as: UTF8.self).localizedCaseInsensitiveContains("vocabulary list"))
+        XCTAssertEqual(decoded.openAPIPath, "/v1/openapi.json")
+        XCTAssertTrue(decoded.openAPICommand.contains("http://foil/v1/openapi.json"))
+        XCTAssertTrue(decoded.openAPICommand.contains("/tmp/Foil Test/agent-v1.sock"))
+        XCTAssertTrue(decoded.unavailableBehavior.contains("exits nonzero within 12 seconds"))
     }
 
     func testOpenAPIRouterAddsRequestMetadataAndMatchesImplementedPaths() throws {
@@ -178,7 +184,14 @@ final class AgentAccessHTTPTests: XCTestCase {
             object["x-foil-bootstrap-command"] as? String,
             AgentAccessInstructionsResponse.bootstrapCommand(socketPath: "/tmp/agent-v1.sock")
         )
-        XCTAssertEqual(Set(paths.keys), ["/v1/instructions", "/v1/openapi.json"])
+        XCTAssertEqual(
+            object["x-foil-openapi-command"] as? String,
+            AgentAccessInstructionsResponse.openAPICommand(socketPath: "/tmp/agent-v1.sock")
+        )
+        XCTAssertEqual(Set(paths.keys), [
+            "/v1/instructions", "/v1/openapi.json", "/v1/vocabulary/scopes",
+            "/v1/vocabulary", "/v1/vocabulary/preview"
+        ])
         let limits = try XCTUnwrap(object["x-foil-limits"] as? [String: Any])
         XCTAssertEqual(limits["maximum_header_bytes"] as? Int, AgentAccessLimits.standard.maximumHeaderBytes)
         XCTAssertEqual(limits["maximum_body_bytes"] as? Int, AgentAccessLimits.standard.maximumBodyBytes)
@@ -190,12 +203,38 @@ final class AgentAccessHTTPTests: XCTestCase {
             object["x-foil-proposal-states"] as? [String],
             AgentAccessProposalState.allCases.map(\.rawValue)
         )
+        let components = try XCTUnwrap(object["components"] as? [String: Any])
+        let schemas = try XCTUnwrap(components["schemas"] as? [String: Any])
+        for schema in [
+            "InstructionsResponse", "ScopesResponse", "VocabularyResponse",
+            "PreviewRequest", "PreviewResponse", "ErrorResponse"
+        ] {
+            XCTAssertNotNil(schemas[schema], "Missing schema \(schema)")
+        }
+        let previewRequest = try XCTUnwrap(schemas["PreviewRequest"] as? [String: Any])
+        let previewProperties = try XCTUnwrap(previewRequest["properties"] as? [String: Any])
+        let corrections = try XCTUnwrap(previewProperties["corrections"] as? [String: Any])
+        XCTAssertEqual(corrections["minItems"] as? Int, 1)
+        for (path, method) in [
+            ("/v1/instructions", "get"),
+            ("/v1/openapi.json", "get"),
+            ("/v1/vocabulary/scopes", "get"),
+            ("/v1/vocabulary", "get"),
+            ("/v1/vocabulary/preview", "post")
+        ] {
+            let pathItem = try XCTUnwrap(paths[path] as? [String: Any])
+            let operation = try XCTUnwrap(pathItem[method] as? [String: Any])
+            let responses = try XCTUnwrap(operation["responses"] as? [String: Any])
+            let success = try XCTUnwrap(responses["200"] as? [String: Any])
+            XCTAssertNotNil(success["content"], "Missing 200 response schema for \(method.uppercased()) \(path)")
+        }
         let privacy = try XCTUnwrap(object["x-foil-privacy"] as? [String: Any])
         XCTAssertEqual(
             Set(try XCTUnwrap(privacy["excludes"] as? [String])),
             [
-                "history", "audio", "credentials", "provider_configuration",
-                "project_files", "clipboard", "active_application"
+                "history", "transcript", "audio", "credentials", "provider_configuration",
+                "source_record", "source_app", "timestamps", "project_files", "repository",
+                "clipboard", "active_application"
             ]
         )
     }

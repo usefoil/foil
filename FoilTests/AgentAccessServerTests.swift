@@ -44,6 +44,26 @@ final class AgentAccessServerTests: XCTestCase {
         }
     }
 
+    func testBootstrapCommandFailsWithinDocumentedBoundWhenSocketIsAbsent() throws {
+        let missing = temporaryRoot.appendingPathComponent("missing.sock")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        process.arguments = [
+            "--silent", "--show-error", "--connect-timeout", "1", "--max-time", "12",
+            "--retry", "10", "--retry-all-errors", "--retry-delay", "1",
+            "--unix-socket", missing.path, "http://foil/v1/instructions"
+        ]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        let started = Date()
+
+        try process.run()
+        process.waitUntilExit()
+
+        XCTAssertNotEqual(process.terminationStatus, 0)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 12.75)
+    }
+
     func testPeerAndStaleSocketOwnershipDecisionsAreFailClosed() {
         let currentUser = getuid()
         XCTAssertTrue(AgentAccessServer.isAllowedPeer(
@@ -87,8 +107,12 @@ final class AgentAccessServerTests: XCTestCase {
         let result = try runCurl(socketURL: fixture.paths.socketURL, path: "/v1/instructions")
         XCTAssertEqual(result.status, 0, result.stderr)
         let decoded = try JSONDecoder().decode(AgentAccessInstructionsResponse.self, from: result.stdout)
-        XCTAssertEqual(decoded.availableOperations, ["get_instructions", "get_openapi"])
+        XCTAssertEqual(decoded.availableOperations.count, 5)
         XCTAssertTrue(decoded.bootstrapCommand.contains(fixture.paths.socketURL.path))
+        let contract = try runCurl(socketURL: fixture.paths.socketURL, path: decoded.openAPIPath)
+        XCTAssertEqual(contract.status, 0, contract.stderr)
+        let openAPI = try XCTUnwrap(try JSONSerialization.jsonObject(with: contract.stdout) as? [String: Any])
+        XCTAssertNotNil((openAPI["paths"] as? [String: Any])?["/v1/vocabulary/preview"])
     }
 
     func testSecondServerCannotReplaceActiveSocket() throws {
@@ -168,6 +192,54 @@ final class AgentAccessServerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.paths.socketURL.path))
     }
 
+    func testStopDuringHandlerPreventsLateResponseAndAllowsCleanRestart() throws {
+        let paths = AgentAccessPaths(applicationSupportRoot: temporaryRoot, directoryName: "Foil")
+        let handlerEntered = DispatchSemaphore(value: 0)
+        let releaseFirstHandler = DispatchSemaphore(value: 0)
+        let callLock = NSLock()
+        var callCount = 0
+        let server = AgentAccessServer(paths: paths) { request in
+            let call = callLock.withLock { () -> Int in
+                callCount += 1
+                return callCount
+            }
+            if call == 1 {
+                handlerEntered.signal()
+                _ = releaseFirstHandler.wait(timeout: .now() + 3)
+            }
+            return AgentAccessHTTPResponse(
+                status: 200,
+                reason: "OK",
+                headers: ["content-type": "application/json"],
+                body: Data(#"{"path":"\#(request.path)"}"#.utf8)
+            )
+        }
+        defer {
+            releaseFirstHandler.signal()
+            server.stop()
+        }
+        try server.start()
+        let oldClient = try connect(to: paths.socketURL)
+        defer { Darwin.close(oldClient) }
+        let request = "GET /v1/instructions HTTP/1.1\r\nHost: foil\r\n\r\n"
+        XCTAssertEqual(Darwin.send(oldClient, request, request.utf8.count, 0), request.utf8.count)
+        XCTAssertEqual(handlerEntered.wait(timeout: .now() + 2), .success)
+
+        server.stop()
+        var byte: UInt8 = 0
+        XCTAssertLessThanOrEqual(Darwin.recv(oldClient, &byte, 1, 0), 0)
+
+        try server.start()
+        let restarted = try runCurl(socketURL: paths.socketURL, path: "/v1/openapi.json")
+        XCTAssertEqual(restarted.status, 0, restarted.stderr)
+        XCTAssertTrue(String(decoding: restarted.stdout, as: UTF8.self).contains("/v1/openapi.json"))
+
+        releaseFirstHandler.signal()
+        usleep(50_000)
+        XCTAssertTrue(server.isRunning)
+        XCTAssertEqual(callLock.withLock { callCount }, 2)
+    }
+
     func testStopLeavesReplacementAtSocketPathUntouched() throws {
         let fixture = try makeServer()
         try fixture.server.start()
@@ -209,6 +281,65 @@ final class AgentAccessServerTests: XCTestCase {
 
         let result = try runCurl(socketURL: fixture.paths.socketURL, path: "/v1/instructions")
         XCTAssertEqual(result.status, 0, result.stderr)
+    }
+
+    func testTwentyConcurrentClientsCompleteWithoutBlockingTheServer() throws {
+        let fixture = try makeServer()
+        defer { fixture.server.stop() }
+        try fixture.server.start()
+        let group = DispatchGroup()
+        let lock = NSLock()
+        var failures: [String] = []
+
+        for index in 0..<20 {
+            group.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                defer { group.leave() }
+                do {
+                    let result = try self.runCurl(
+                        socketURL: fixture.paths.socketURL,
+                        path: index.isMultiple(of: 2) ? "/v1/instructions" : "/v1/openapi.json"
+                    )
+                    if result.status != 0 || result.stdout.isEmpty {
+                        lock.withLock { failures.append("client \(index): \(result.status) \(result.stderr)") }
+                    }
+                } catch {
+                    lock.withLock { failures.append("client \(index): \(error)") }
+                }
+            }
+        }
+
+        XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
+        XCTAssertEqual(failures, [])
+        XCTAssertTrue(fixture.server.isRunning)
+    }
+
+    func testDiagnosticsRecordMetadataWithoutRequestSecrets() throws {
+        let secret = "SECRET_TRANSCRIPT_KEY_PATH_PROVIDER_SOURCE"
+        let logURL = temporaryRoot.appendingPathComponent("diagnostics.log")
+        DiagnosticLog.logURLOverride = logURL
+        DiagnosticLog.isEnabledOverride = true
+        DiagnosticLog.clearForTesting()
+        defer {
+            DiagnosticLog.clearForTesting()
+            DiagnosticLog.logURLOverride = nil
+            DiagnosticLog.isEnabledOverride = nil
+        }
+        let fixture = try makeServer()
+        defer { fixture.server.stop() }
+        try fixture.server.start()
+        let client = try connect(to: fixture.paths.socketURL)
+        defer { Darwin.close(client) }
+        let body = #"{"corrections":[{"spoken_forms":["SECRET_TRANSCRIPT_KEY_PATH_PROVIDER_SOURCE"],"replacement":"safe"}]}"#
+        let request = "POST /v1/vocabulary/preview HTTP/1.1\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\nX-Foil-Request-ID: \(secret)\r\n\r\n\(body)"
+        XCTAssertEqual(Darwin.send(client, request, request.utf8.count, 0), request.utf8.count)
+        var response = [UInt8](repeating: 0, count: 16_384)
+        XCTAssertGreaterThan(Darwin.recv(client, &response, response.count, 0), 0)
+
+        let diagnostics = DiagnosticLog.recentLines(limit: 20).joined(separator: "\n")
+        XCTAssertTrue(diagnostics.contains("route=vocabulary_preview"), diagnostics)
+        XCTAssertTrue(diagnostics.contains("status=200"), diagnostics)
+        XCTAssertFalse(diagnostics.contains(secret), diagnostics)
     }
 
     func testIncompleteClientReceivesBoundedTimeout() throws {

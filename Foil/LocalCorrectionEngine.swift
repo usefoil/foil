@@ -565,7 +565,7 @@ enum LocalCorrectionEngine {
         }
 
         var ids = Set<String>()
-        var prior: [(rule: LocalCorrectionRule, normalized: [UInt32], folded: [UInt32])] = []
+        var prior: [LocalCorrectionRule] = []
         for rule in rules {
             guard !rule.id.isEmpty else { throw LocalCorrectionValidationError.emptyRuleID }
             guard ids.insert(rule.id).inserted else {
@@ -581,18 +581,32 @@ enum LocalCorrectionEngine {
                   rule.replacement.unicodeScalars.count <= maximumPhraseScalars else {
                 throw LocalCorrectionValidationError.phraseTooLong(rule.id)
             }
-            let normalized = normalizedScalars(rule.source)
-            let folded = normalized.map(asciiFold)
-            for previous in prior where previous.rule.group == rule.group {
-                let overlaps = previous.rule.caseSensitive && rule.caseSensitive
-                    ? previous.normalized == normalized
-                    : previous.folded == folded
-                if overlaps {
-                    throw LocalCorrectionValidationError.ambiguousAlias(previous.rule.id, rule.id)
+            for previous in prior where previous.group == rule.group {
+                if aliasesOverlap(
+                    previous.source,
+                    caseSensitive: previous.caseSensitive,
+                    rule.source,
+                    caseSensitive: rule.caseSensitive
+                ) {
+                    throw LocalCorrectionValidationError.ambiguousAlias(previous.id, rule.id)
                 }
             }
-            prior.append((rule, normalized, folded))
+            prior.append(rule)
         }
+    }
+
+    static func aliasesOverlap(
+        _ first: String,
+        caseSensitive firstCaseSensitive: Bool,
+        _ second: String,
+        caseSensitive secondCaseSensitive: Bool
+    ) -> Bool {
+        let firstNormalized = normalizedScalars(first)
+        let secondNormalized = normalizedScalars(second)
+        if firstCaseSensitive && secondCaseSensitive {
+            return firstNormalized == secondNormalized
+        }
+        return firstNormalized.map(asciiFold) == secondNormalized.map(asciiFold)
     }
 
     private static func insert(
