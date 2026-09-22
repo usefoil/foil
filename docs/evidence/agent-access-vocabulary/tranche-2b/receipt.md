@@ -95,7 +95,7 @@ Evidence:
   `400`, `404`, `409`, `422`, `429`, and `503` error mappings.
 - Final `make test`: **922 passed, 0 failed, 4 skipped**. The skips are existing
   opt-in live tests. Result bundle:
-  `/Users/jeremywatt/Library/Developer/Xcode/DerivedData/Foil-esfjepbizuurueaqxtjtjhkgjxxc/Logs/Test/Test-Foil-2026.09.21_18-13-17--0700.xcresult`.
+  `/Users/jeremywatt/Library/Developer/Xcode/DerivedData/Foil-esfjepbizuurueaqxtjtjhkgjxxc/Logs/Test/Test-Foil-2026.09.21_18-43-45--0700.xcresult`.
 - Final `make build-warnings-as-errors` passed.
 - `make test-ci-scripts` passed all workflow, inventory, cleanup, fixture-reuse,
   shard-runner, and aggregate contract checks. The UI inventory reports 89 assigned,
@@ -112,6 +112,14 @@ healthy local XCTest automation session must execute
 the UI portion is considered acceptance-gated. The test is explicitly assigned to
 hosted focused UI shard D and to the complete deterministic UI inventory so a green
 PR cannot silently omit it.
+
+The first explicit hosted execution on PR #431 disproved the original UI-test path
+assumption: the runner's temporary-directory prefix made the socket path exceed
+macOS's Unix-socket limit, and Foil correctly failed closed before submission. The
+test artifact showed the `error` state and unchanged toggle. UI tests now derive a
+short per-session Agent Access root from a SHA-256 digest; a focused unit test proves
+the resulting path is stable across relaunch and passes the production socket-path
+validator.
 
 ## Review tooling
 

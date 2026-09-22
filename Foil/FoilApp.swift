@@ -1,6 +1,7 @@
 import AVFoundation
 import AVFAudio
 import AppKit
+import CryptoKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -282,6 +283,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     struct TestingStorageConfiguration: Equatable {
         let root: URL
+        var agentAccessRoot: URL {
+            let digest = SHA256.hash(data: Data(root.path.utf8))
+                .prefix(8)
+                .map { String(format: "%02x", $0) }
+                .joined()
+            return FileManager.default.temporaryDirectory
+                .appendingPathComponent("FA", isDirectory: true)
+                .appendingPathComponent(digest, isDirectory: true)
+        }
         var modelRoot: URL { root.appendingPathComponent("ManagedModels", isDirectory: true) }
         var historyRoot: URL { root.appendingPathComponent("History", isDirectory: true) }
         var credentialsRoot: URL { root.appendingPathComponent("Credentials", isDirectory: true) }
@@ -1271,7 +1281,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let acceptance = Self.managedLocalAcceptanceConfiguration() {
             paths = AgentAccessPaths(applicationSupportRoot: acceptance.root, directoryName: "AgentAccess")
         } else if let testing = Self.testingStorageConfiguration() {
-            paths = AgentAccessPaths(applicationSupportRoot: testing.root, directoryName: "AgentAccess")
+            paths = AgentAccessPaths(applicationSupportRoot: testing.agentAccessRoot, directoryName: "AgentAccess")
         } else {
             paths = .current()
         }

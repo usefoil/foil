@@ -172,6 +172,12 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(first.root.standardizedFileURL, expectedRoot.standardizedFileURL)
         XCTAssertEqual(relaunched.root.standardizedFileURL, expectedRoot.standardizedFileURL)
+        XCTAssertEqual(first.agentAccessRoot, relaunched.agentAccessRoot)
+        XCTAssertTrue(first.agentAccessRoot.path.hasPrefix(FileManager.default.temporaryDirectory.path))
+        XCTAssertNoThrow(try AgentAccessPaths(
+            applicationSupportRoot: first.agentAccessRoot,
+            directoryName: "AgentAccess"
+        ).validateSocketPath())
         XCTAssertEqual(first.modelRoot.deletingLastPathComponent(), first.root)
         XCTAssertEqual(
             first.localCorrectionsFile,

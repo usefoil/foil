@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import CryptoKit
 import XCTest
 
 final class FoilUITests: XCTestCase {
@@ -2222,9 +2223,16 @@ final class FoilUITests: XCTestCase {
     }
 
     private var agentAccessSocketURL: URL {
-        FileManager.default.temporaryDirectory
+        let storageRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("FoilTests", isDirectory: true)
             .appendingPathComponent(uiTestSessionIdentifier, isDirectory: true)
+        let digest = SHA256.hash(data: Data(storageRoot.path.utf8))
+            .prefix(8)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent("FA", isDirectory: true)
+            .appendingPathComponent(digest, isDirectory: true)
             .appendingPathComponent("AgentAccess", isDirectory: true)
             .appendingPathComponent("agent-v1.sock")
     }
