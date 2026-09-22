@@ -116,10 +116,16 @@ PR cannot silently omit it.
 The first explicit hosted execution on PR #431 disproved the original UI-test path
 assumption: the runner's temporary-directory prefix made the socket path exceed
 macOS's Unix-socket limit, and Foil correctly failed closed before submission. The
-test artifact showed the `error` state and unchanged toggle. UI tests now derive a
-short per-session Agent Access root from a SHA-256 digest; a focused unit test proves
-the resulting path is stable across relaunch and passes the production socket-path
-validator.
+test artifact showed the `error` state and unchanged toggle. A first correction
+still used `FileManager.default.temporaryDirectory`; the second hosted execution
+proved that XCTest expands that URL into its own long container path before curl
+validates it. That run also prompted an audit of cross-process derivation, which
+found that Foil hashes the sanitized session identifier while the test client was
+hashing the raw identifier. The final correction uses the literal shared
+`/tmp/foil-agent/<digest>` root and the same canonical identifier on both sides. The
+focused unit test now asserts the exact derived root, relaunch stability, and the
+production socket-path validator; it passed in
+`/tmp/Foil-Tranche2B-ShortSocket-4.xcresult`.
 
 ## Review tooling
 

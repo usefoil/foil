@@ -1,4 +1,5 @@
 import AVFoundation
+import CryptoKit
 import XCTest
 import CoreGraphics
 @testable import Foil
@@ -172,8 +173,15 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(first.root.standardizedFileURL, expectedRoot.standardizedFileURL)
         XCTAssertEqual(relaunched.root.standardizedFileURL, expectedRoot.standardizedFileURL)
-        XCTAssertEqual(first.agentAccessRoot, relaunched.agentAccessRoot)
-        XCTAssertTrue(first.agentAccessRoot.path.hasPrefix(FileManager.default.temporaryDirectory.path))
+        let agentAccessDigest = SHA256.hash(data: Data(String(sanitizedIdentifier).utf8))
+            .prefix(8)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let expectedAgentAccessRoot = URL(fileURLWithPath: "/tmp", isDirectory: true)
+            .appendingPathComponent("foil-agent", isDirectory: true)
+            .appendingPathComponent(agentAccessDigest, isDirectory: true)
+        XCTAssertEqual(first.agentAccessRoot, expectedAgentAccessRoot)
+        XCTAssertEqual(relaunched.agentAccessRoot, expectedAgentAccessRoot)
         XCTAssertNoThrow(try AgentAccessPaths(
             applicationSupportRoot: first.agentAccessRoot,
             directoryName: "AgentAccess"

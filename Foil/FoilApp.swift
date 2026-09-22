@@ -284,12 +284,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     struct TestingStorageConfiguration: Equatable {
         let root: URL
         var agentAccessRoot: URL {
-            let digest = SHA256.hash(data: Data(root.path.utf8))
+            let digest = SHA256.hash(data: Data(root.lastPathComponent.utf8))
                 .prefix(8)
                 .map { String(format: "%02x", $0) }
                 .joined()
-            return FileManager.default.temporaryDirectory
-                .appendingPathComponent("FA", isDirectory: true)
+            return URL(fileURLWithPath: "/tmp", isDirectory: true)
+                .appendingPathComponent("foil-agent", isDirectory: true)
                 .appendingPathComponent(digest, isDirectory: true)
         }
         var modelRoot: URL { root.appendingPathComponent("ManagedModels", isDirectory: true) }

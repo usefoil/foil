@@ -2223,15 +2223,15 @@ final class FoilUITests: XCTestCase {
     }
 
     private var agentAccessSocketURL: URL {
-        let storageRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("FoilTests", isDirectory: true)
-            .appendingPathComponent(uiTestSessionIdentifier, isDirectory: true)
-        let digest = SHA256.hash(data: Data(storageRoot.path.utf8))
+        let canonicalSessionIdentifier = String(uiTestSessionIdentifier.unicodeScalars.map {
+            CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_"
+        })
+        let digest = SHA256.hash(data: Data(canonicalSessionIdentifier.utf8))
             .prefix(8)
             .map { String(format: "%02x", $0) }
             .joined()
-        return FileManager.default.temporaryDirectory
-            .appendingPathComponent("FA", isDirectory: true)
+        return URL(fileURLWithPath: "/tmp", isDirectory: true)
+            .appendingPathComponent("foil-agent", isDirectory: true)
             .appendingPathComponent(digest, isDirectory: true)
             .appendingPathComponent("AgentAccess", isDirectory: true)
             .appendingPathComponent("agent-v1.sock")
