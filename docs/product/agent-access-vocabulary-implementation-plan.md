@@ -276,6 +276,17 @@ Acceptance:
 
 **Purpose:** let an agent hand bounded work to the user without granting mutation.
 
+Deliver this tranche in two reviewable slices:
+
+- **2A — durable foundation:** versioned request, proposal, snapshot, and receipt
+  models; canonical payload hashing; brand-scoped atomic persistence; replay,
+  conflict, queue, corruption, and simultaneous-submission tests. This slice has no
+  API route or UI and therefore cannot receive a proposal in the shipping app.
+- **2B — submission and review:** validation against live scopes and production
+  matcher behavior; submit/status routes and OpenAPI instructions; pending count;
+  review, edit, omit, reject, and discard UI; lifecycle and privacy integration
+  tests.
+
 Implementation:
 
 - Add versioned proposal and receipt models plus an atomic proposal store under the

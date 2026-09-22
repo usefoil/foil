@@ -4,17 +4,20 @@ import Foundation
 struct AgentAccessPaths: Equatable {
     static let socketFileName = "agent-v1.sock"
     static let lockFileName = ".agent-v1.lock"
+    static let proposalStoreFileName = "agent-vocabulary-proposals-v1.json"
 
     let applicationSupportRoot: URL
     let supportDirectory: URL
     let socketURL: URL
     let lockURL: URL
+    let proposalStoreURL: URL
 
     init(applicationSupportRoot: URL, directoryName: String) {
         self.applicationSupportRoot = applicationSupportRoot.standardizedFileURL
         supportDirectory = self.applicationSupportRoot.appendingPathComponent(directoryName, isDirectory: true)
         socketURL = supportDirectory.appendingPathComponent(Self.socketFileName)
         lockURL = supportDirectory.appendingPathComponent(Self.lockFileName)
+        proposalStoreURL = supportDirectory.appendingPathComponent(Self.proposalStoreFileName)
     }
 
     static func current(fileManager: FileManager = .default) -> AgentAccessPaths {
@@ -37,7 +40,8 @@ struct AgentAccessPaths: Equatable {
         let standardizedSupportDirectory = supportDirectory.standardizedFileURL
         guard standardizedSupportDirectory.deletingLastPathComponent() == applicationSupportRoot,
               socketURL.standardizedFileURL.deletingLastPathComponent() == standardizedSupportDirectory,
-              lockURL.standardizedFileURL.deletingLastPathComponent() == standardizedSupportDirectory else {
+              lockURL.standardizedFileURL.deletingLastPathComponent() == standardizedSupportDirectory,
+              proposalStoreURL.standardizedFileURL.deletingLastPathComponent() == standardizedSupportDirectory else {
             throw AgentAccessPathError.unsafeLayout
         }
         let bytes = Array(socketURL.path.utf8)
