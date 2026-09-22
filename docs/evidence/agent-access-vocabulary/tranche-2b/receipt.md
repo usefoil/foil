@@ -127,6 +127,15 @@ focused unit test now asserts the exact derived root, relaunch stability, and th
 production socket-path validator; it passed in
 `/tmp/Foil-Tranche2B-ShortSocket-4.xcresult`.
 
+The next hosted execution eliminated the path-length error and reached curl, but
+curl could not connect to the independently reconstructed socket path even though
+Foil's UI reported the server running. The end-to-end test now copies Foil's
+advertised bootstrap command, extracts the socket path from that agent-facing
+discovery surface, proves the socket exists, and uses that path with the same short
+connection-retry behavior as the bootstrap command. This removes a duplicate path
+contract from the acceptance test and directly exercises how an agent discovers the
+service. `xcodebuild build-for-testing` passed after this change.
+
 ## Review tooling
 
 Claim: the branch received a second review pass after implementation.

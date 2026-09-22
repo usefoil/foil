@@ -561,12 +561,15 @@ final class FoilUITests: XCTestCase {
         let status = app.descendants(matching: .any)["settings.agentAccess.status"]
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "running", timeout: 4), app.debugDescription)
+        let socketURL = try copyAgentAccessSocketURL()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: socketURL.path), socketURL.path)
 
         let body = #"{"schema_version":1,"request_id":"ui-proposal","scope":{"kind":"global","id":"global"},"corrections":[{"spoken_forms":["super base"],"replacement":"Supabase","note":"Project dependency"}]}"#
         let response = try sendAgentAccessRequest(
             method: "POST",
             path: "/v1/vocabulary/proposals",
-            body: body
+            body: body,
+            socketURL: socketURL
         )
         let object = try XCTUnwrap(
             try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any]
@@ -582,7 +585,7 @@ final class FoilUITests: XCTestCase {
 
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "off", timeout: 4), app.debugDescription)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: agentAccessSocketURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
         clickElement(review)
 
         XCTAssertTrue(elementExists(id: "agentProposals.reviewView", timeout: 3), app.debugDescription)
@@ -2237,12 +2240,36 @@ final class FoilUITests: XCTestCase {
             .appendingPathComponent("agent-v1.sock")
     }
 
-    private func sendAgentAccessRequest(method: String, path: String, body: String? = nil) throws -> String {
+    private func copyAgentAccessSocketURL() throws -> URL {
+        let copy = button(
+            id: "settings.agentAccess.copyCommand",
+            fallbackLabel: "Copy agent instructions command"
+        )
+        XCTAssertTrue(copy.waitForExistence(timeout: 2), app.debugDescription)
+        NSPasteboard.general.clearContents()
+        clickElement(copy)
+        let command = try XCTUnwrap(NSPasteboard.general.string(forType: .string))
+        let marker = "--unix-socket '"
+        let markerRange = try XCTUnwrap(command.range(of: marker), command)
+        let suffix = command[markerRange.upperBound...]
+        let closingQuote = try XCTUnwrap(suffix.firstIndex(of: "'"), command)
+        let path = String(suffix[..<closingQuote])
+        XCTAssertFalse(path.isEmpty, command)
+        return URL(fileURLWithPath: path)
+    }
+
+    private func sendAgentAccessRequest(
+        method: String,
+        path: String,
+        body: String? = nil,
+        socketURL: URL? = nil
+    ) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
         process.arguments = [
-            "--silent", "--show-error", "--max-time", "5",
-            "--unix-socket", agentAccessSocketURL.path,
+            "--silent", "--show-error", "--connect-timeout", "1", "--max-time", "5",
+            "--retry", "3", "--retry-all-errors", "--retry-delay", "0",
+            "--unix-socket", (socketURL ?? agentAccessSocketURL).path,
             "--request", method,
             "--header", "Content-Type: application/json",
             "--data-binary", "@-",
