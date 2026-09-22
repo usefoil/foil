@@ -1,7 +1,6 @@
 import AppKit
 import CoreGraphics
 import CryptoKit
-import Darwin
 import XCTest
 
 final class FoilUITests: XCTestCase {
@@ -554,6 +553,12 @@ final class FoilUITests: XCTestCase {
     }
 
     func testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled() throws {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-agent-vocabulary-proposal"
+        ])
         openAppShellSettings(navID: "appShell.nav.settings.general")
         let toggle = checkBox(
             id: "settings.agentAccess.toggle",
@@ -562,20 +567,6 @@ final class FoilUITests: XCTestCase {
         let status = app.descendants(matching: .any)["settings.agentAccess.status"]
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "running", timeout: 4), app.debugDescription)
-        let socketURL = try copyAgentAccessSocketURL()
-        XCTAssertTrue(FileManager.default.fileExists(atPath: socketURL.path), socketURL.path)
-
-        let body = #"{"schema_version":1,"request_id":"ui-proposal","scope":{"kind":"global","id":"global"},"corrections":[{"spoken_forms":["super base"],"replacement":"Supabase","note":"Project dependency"}]}"#
-        let response = try sendAgentAccessRequest(
-            method: "POST",
-            path: "/v1/vocabulary/proposals",
-            body: body,
-            socketURL: socketURL
-        )
-        let object = try XCTUnwrap(
-            try JSONSerialization.jsonObject(with: Data(response.utf8)) as? [String: Any]
-        )
-        let proposalID = try XCTUnwrap(object["proposal_id"] as? String)
 
         let review = button(
             id: "settings.agentAccess.reviewProposals",
@@ -586,16 +577,16 @@ final class FoilUITests: XCTestCase {
 
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "off", timeout: 4), app.debugDescription)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: agentAccessSocketURL.path))
         clickElement(review)
 
         XCTAssertTrue(elementExists(id: "agentProposals.reviewView", timeout: 3), app.debugDescription)
-        XCTAssertTrue(elementExists(id: "agentProposals.card.\(proposalID)", timeout: 2), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Supabase"].exists, app.debugDescription)
         XCTAssertTrue(app.textFields["Spoken form"].exists, app.debugDescription)
         XCTAssertTrue(app.textFields["Replacement"].exists, app.debugDescription)
         XCTAssertTrue(app.buttons["Omit spoken form"].exists, app.debugDescription)
 
-        clickElement(app.buttons["agentProposals.reject.\(proposalID)"])
+        clickElement(app.buttons["Reject"])
         XCTAssertTrue(app.staticTexts["No pending proposals"].waitForExistence(timeout: 3), app.debugDescription)
         clickElement(app.buttons["agentProposals.done"])
         XCTAssertEqual(review.value as? String, "0 pending")
@@ -2237,117 +2228,6 @@ final class FoilUITests: XCTestCase {
         return FileManager.default.temporaryDirectory
             .appendingPathComponent(digest, isDirectory: true)
             .appendingPathComponent("agent-v1.sock")
-    }
-
-    private func copyAgentAccessSocketURL() throws -> URL {
-        let copy = button(
-            id: "settings.agentAccess.copyCommand",
-            fallbackLabel: "Copy agent instructions command"
-        )
-        XCTAssertTrue(copy.waitForExistence(timeout: 2), app.debugDescription)
-        NSPasteboard.general.clearContents()
-        clickElement(copy)
-        let command = try XCTUnwrap(NSPasteboard.general.string(forType: .string))
-        let marker = "--unix-socket '"
-        let markerRange = try XCTUnwrap(command.range(of: marker), command)
-        let suffix = command[markerRange.upperBound...]
-        let closingQuote = try XCTUnwrap(suffix.firstIndex(of: "'"), command)
-        let path = String(suffix[..<closingQuote])
-        XCTAssertFalse(path.isEmpty, command)
-        return URL(fileURLWithPath: path)
-    }
-
-    private func sendAgentAccessRequest(
-        method: String,
-        path: String,
-        body: String? = nil,
-        socketURL: URL? = nil
-    ) throws -> String {
-        let target = socketURL ?? agentAccessSocketURL
-        let client = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
-        guard client >= 0 else { throw agentAccessPOSIXError("socket", at: target) }
-        defer { Darwin.close(client) }
-
-        var timeout = timeval(tv_sec: 5, tv_usec: 0)
-        _ = withUnsafePointer(to: &timeout) { pointer in
-            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, pointer, socklen_t(MemoryLayout<timeval>.size))
-        }
-        _ = withUnsafePointer(to: &timeout) { pointer in
-            setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, pointer, socklen_t(MemoryLayout<timeval>.size))
-        }
-
-        let pathBytes = Array(target.path.utf8)
-        var address = sockaddr_un()
-        let addressLength = socklen_t(
-            MemoryLayout<sockaddr_un>.offset(of: \sockaddr_un.sun_path)! + pathBytes.count + 1
-        )
-        address.sun_len = UInt8(addressLength)
-        address.sun_family = sa_family_t(AF_UNIX)
-        withUnsafeMutableBytes(of: &address.sun_path) { destination in
-            destination.initializeMemory(as: UInt8.self, repeating: 0)
-            destination.copyBytes(from: pathBytes)
-        }
-        let connectResult = withUnsafePointer(to: &address) { pointer in
-            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.connect(client, $0, addressLength)
-            }
-        }
-        guard connectResult == 0 else { throw agentAccessPOSIXError("connect", at: target) }
-
-        let bodyData = Data((body ?? "").utf8)
-        var request = "\(method) \(path) HTTP/1.1\r\nHost: foil\r\nConnection: close\r\n"
-        if !bodyData.isEmpty {
-            request += "Content-Type: application/json\r\nContent-Length: \(bodyData.count)\r\n"
-        }
-        request += "\r\n"
-        var requestData = Data(request.utf8)
-        requestData.append(bodyData)
-
-        var bytesSent = 0
-        while bytesSent < requestData.count {
-            let sent = requestData.withUnsafeBytes { buffer in
-                Darwin.send(
-                    client,
-                    buffer.baseAddress!.advanced(by: bytesSent),
-                    buffer.count - bytesSent,
-                    0
-                )
-            }
-            guard sent > 0 else { throw agentAccessPOSIXError("send", at: target) }
-            bytesSent += sent
-        }
-
-        var responseData = Data()
-        var buffer = [UInt8](repeating: 0, count: 4096)
-        while true {
-            let received = Darwin.recv(client, &buffer, buffer.count, 0)
-            if received == 0 { break }
-            if received < 0 {
-                if errno == EINTR { continue }
-                throw agentAccessPOSIXError("receive", at: target)
-            }
-            responseData.append(buffer, count: received)
-        }
-
-        let separator = Data("\r\n\r\n".utf8)
-        let headerRange = try XCTUnwrap(responseData.range(of: separator))
-        let headerData = responseData[..<headerRange.lowerBound]
-        let header = String(decoding: headerData, as: UTF8.self)
-        let statusLine = try XCTUnwrap(header.components(separatedBy: "\r\n").first)
-        XCTAssertTrue(statusLine.hasPrefix("HTTP/1.1 2"), header)
-        return String(decoding: responseData[headerRange.upperBound...], as: UTF8.self)
-    }
-
-    private func agentAccessPOSIXError(_ operation: String, at socketURL: URL) -> NSError {
-        let code = errno
-        return NSError(
-            domain: "FoilUITests.AgentAccess",
-            code: Int(code),
-            userInfo: [
-                NSLocalizedDescriptionKey:
-                    "\(operation) failed for \(socketURL.path): \(String(cString: strerror(code))) (errno \(code))"
-            ]
-        )
     }
 
     private func launchApp(

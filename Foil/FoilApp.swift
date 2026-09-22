@@ -622,6 +622,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 #else
                 DiagnosticLog.write("UITesting: selected hotkey cycle skipped outside DEBUG")
                 #endif
+            },
+            onSeedAgentVocabularyProposal: { [weak self] in
+                #if DEBUG
+                self?.agentAccessController?.seedVocabularyProposalForUITesting()
+                #endif
             }
         )
         uiTestingController = uiTestingCtrl

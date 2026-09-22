@@ -103,6 +103,7 @@ final class UITestingController {
     private let onPasteText: (String) -> Void
     private let onReplaceRecordingController: (RecordingController) -> Void
     private let onSimulateSelectedHotkeyCycle: () -> Void
+    private let onSeedAgentVocabularyProposal: () -> Void
 
     // MARK: - Window storage
 
@@ -155,7 +156,8 @@ final class UITestingController {
         onRetryRecord: @escaping (TranscriptionRecord) -> Void,
         onPasteText: @escaping (String) -> Void,
         onReplaceRecordingController: @escaping (RecordingController) -> Void,
-        onSimulateSelectedHotkeyCycle: @escaping () -> Void
+        onSimulateSelectedHotkeyCycle: @escaping () -> Void,
+        onSeedAgentVocabularyProposal: @escaping () -> Void
     ) {
         self.appState = appState
         self.queuedPasteQueue = queuedPasteQueue
@@ -179,6 +181,7 @@ final class UITestingController {
         self.onPasteText = onPasteText
         self.onReplaceRecordingController = onReplaceRecordingController
         self.onSimulateSelectedHotkeyCycle = onSimulateSelectedHotkeyCycle
+        self.onSeedAgentVocabularyProposal = onSeedAgentVocabularyProposal
     }
 
     // MARK: - Configuration entry points
@@ -214,6 +217,7 @@ final class UITestingController {
             appState.experimentalSkyLightPasteEnabled = false
             appState.pauseBrowserMediaWhileRecording = false
             appState.lastPasteSummary = nil
+            appState.setAgentAccessEnabled(false)
             #if DEBUG
             appState.mockTranscriptionEnabled = false
             #endif
@@ -277,6 +281,10 @@ final class UITestingController {
             history.addSuccess(text: "Seeded transcript for UI testing.", sourceAppName: "Messages")
             history.addSuccess(text: "Second searchable transcript.", sourceAppName: "Mail")
             history.addFailure(error: "Seeded network failure", audioFileURL: nil)
+        }
+
+        if args.contains("--seed-agent-vocabulary-proposal") {
+            onSeedAgentVocabularyProposal()
         }
 
         if args.contains("--seed-usage-events") {

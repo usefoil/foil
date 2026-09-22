@@ -251,6 +251,29 @@ final class AgentAccessController {
         }
     }
 
+    #if DEBUG
+    func seedVocabularyProposalForUITesting() {
+        let request = VocabularyProposalRequest(
+            requestID: "ui-proposal",
+            scope: .init(kind: "global", id: "global"),
+            corrections: [
+                .init(
+                    spokenForms: ["super base"],
+                    replacement: "Supabase",
+                    note: "Project dependency"
+                )
+            ]
+        )
+        do {
+            _ = try proposalService.submit(request)
+            refreshProposals()
+        } catch {
+            appState.agentAccessProposalInboxErrorMessage =
+                "Foil could not seed the proposal inbox for UI testing."
+        }
+    }
+    #endif
+
     private func reviseProposal(
         id: String,
         scope: VocabularyProposalScope,

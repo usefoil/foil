@@ -409,6 +409,32 @@ final class AgentAccessControllerTests: XCTestCase {
         withExtendedLifetime(controller) {}
     }
 
+    func testUITestSeedUsesProposalServiceWithoutEnablingAccess() throws {
+        let state = makeState()
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let livePaths = paths()
+        let vocabularyBefore = state.vocabularyCorrections
+        let rulesBefore = state.localCorrectionSnapshot
+        let controller = AgentAccessController(
+            appState: state,
+            paths: livePaths,
+            openAPIDocument: Data("{}".utf8)
+        )
+        defer {
+            controller.stop()
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+
+        controller.seedVocabularyProposalForUITesting()
+
+        XCTAssertFalse(state.agentAccessEnabled)
+        XCTAssertEqual(state.agentAccessPresentationState, .off)
+        XCTAssertEqual(state.agentAccessPendingProposalCount, 1)
+        XCTAssertEqual(state.agentAccessProposals.first?.corrections.first?.replacement, "Supabase")
+        XCTAssertEqual(state.vocabularyCorrections, vocabularyBefore)
+        XCTAssertEqual(state.localCorrectionSnapshot, rulesBefore)
+    }
+
     func testAgentAccessPreferencePersistsInInjectedDefaultsSuite() throws {
         let suiteName = "com.neonwatty.Foil.AgentAccessTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

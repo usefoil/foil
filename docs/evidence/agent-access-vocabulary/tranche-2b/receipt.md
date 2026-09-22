@@ -145,12 +145,17 @@ continues to use Foil's Application Support directory.
 
 The following hosted run again proved the socket existed and Foil reported running,
 but a child `/usr/bin/curl` launched by XCTest still failed before Foil received a
-request. The end-to-end test no longer depends on XCTest's child-process transport:
-it now opens a native Unix socket from the UI-test process, sends a complete HTTP
-request, reads the response, and reports the precise POSIX operation and errno on
-failure. This remains a separate-process client of the Foil app and continues to use
-the path obtained from Foil's copied bootstrap command. The full test target passed
-`xcodebuild build-for-testing` after the client change.
+request. A native Unix-socket client then established the actual boundary: macOS
+returned `EPERM` from `connect` in the hosted UI-test runner even though the socket
+existed. The acceptance gate is therefore split along the sandbox boundary. Real
+server/controller tests submit the HTTP proposal through the production router and
+prove inert persistence and lifecycle behavior. The hosted UI test seeds the same
+request through the production `VocabularyProposalService`, then proves the pending
+proposal survives enable/disable, is editable in review, can be rejected, and never
+applies a correction. `testUITestSeedUsesProposalServiceWithoutEnablingAccess`
+guards that the seed itself validates and persists through the service without
+enabling access or mutating Vocabulary. Cross-process curl confirmation remains a
+manual test outside XCTest's sandbox.
 
 ## Review tooling
 
