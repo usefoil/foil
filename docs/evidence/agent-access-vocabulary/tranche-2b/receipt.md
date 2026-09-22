@@ -97,6 +97,9 @@ Evidence:
   opt-in live tests. Result bundle:
   `/Users/jeremywatt/Library/Developer/Xcode/DerivedData/Foil-esfjepbizuurueaqxtjtjhkgjxxc/Logs/Test/Test-Foil-2026.09.21_18-13-17--0700.xcresult`.
 - Final `make build-warnings-as-errors` passed.
+- `make test-ci-scripts` passed all workflow, inventory, cleanup, fixture-reuse,
+  shard-runner, and aggregate contract checks. The UI inventory reports 89 assigned,
+  1 hardware-dependent exclusion, and 0 errors.
 - `git diff --check`, `plutil -lint Foil.xcodeproj/project.pbxproj`, and
   `python3 -m json.tool Foil/Resources/AgentAccessOpenAPI.json` passed.
 
@@ -106,7 +109,9 @@ automation mode`; diagnostics are preserved under
 `/tmp/Foil-Tranche2B-UI-1.xcresult/Staging/1_Test/Diagnostics/`. Hosted UI CI or a
 healthy local XCTest automation session must execute
 `FoilUITests.testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled` before
-the UI portion is considered acceptance-gated.
+the UI portion is considered acceptance-gated. The test is explicitly assigned to
+hosted focused UI shard D and to the complete deterministic UI inventory so a green
+PR cannot silently omit it.
 
 ## Review tooling
 

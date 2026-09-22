@@ -307,6 +307,7 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testSetupCheckCanBeRunInline
               -only-testing:FoilUITests/FoilUITests/testFloatingWarningShowsExpandedClipboardContext
               -only-testing:FoilUITests/FoilUITests/testControlCenterShowsSeededReadyState
+              -only-testing:FoilUITests/FoilUITests/testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled
 
     steps:
       - name: Checkout code

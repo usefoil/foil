@@ -30,7 +30,9 @@
       "testLiveAudioSignifierIncludesActiveCleanupModeWhileRecording",
       "testFloatingStatusIsDisabledByDefault",
       "testRecordingSoundPickersShowBuiltInDefaults",
-      "testHelpButtonTargetsCanonicalTroubleshootingURL"
+      "testHelpButtonTargetsCanonicalTroubleshootingURL",
+      "testAgentAccessDefaultsOffCopiesCommandAndPersistsUntilDisabled",
+      "testLocalCorrectionCreatePreviewEditDisableAndRelaunch"
     ],
     "b": [
       "testAppShellOpensHomeWithSidebar",
@@ -60,7 +62,8 @@
       "testLiveAudioSignifierUsesEffectiveCleanupModeWhenCleanupUnavailable",
       "testMovedPreferencesLiveInSettingsPanes",
       "testSelectedStartCueIsUsedBeforeRecorderStarts",
-      "testOnboardingNotShownForReturningUser"
+      "testOnboardingNotShownForReturningUser",
+      "testAgentAccessStartupErrorFailsClosedInSettings"
     ],
     "c": [
       "testUsageInsightsShowsPopulatedMetricsFromUsageEventStore",
@@ -90,7 +93,8 @@
       "testLiveAudioSignifierHidesIdleByDefaultAndShowsActiveStates",
       "testFloatingStatusAutoHidesAfterSuccessWhenEnabled",
       "testCustomHotkeyRecorderIsAccessibleButton",
-      "testConfiguredHotkeyChoicesStartAndStopAfterSwitching"
+      "testConfiguredHotkeyChoicesStartAndStopAfterSwitching",
+      "testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled"
     ]
   },
   "specialTests": {
