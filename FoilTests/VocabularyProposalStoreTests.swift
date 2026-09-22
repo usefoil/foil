@@ -164,6 +164,50 @@ final class VocabularyProposalStoreTests: XCTestCase {
         }
     }
 
+    func testReviewRevisionPersistsSeparatelyFromOriginalReplayHash() throws {
+        let fixture = try makeFixture()
+        let request = proposalRequest(id: "request-1")
+        let submission = try fixture.store.submit(request, snapshotToken: proposalSnapshotToken)
+
+        let revised = try fixture.store.revise(
+            id: submission.receipt.proposalID,
+            scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["superbase"], replacement: "Supabase", note: "reviewed")]
+        )
+        let reloaded = try VocabularyProposalStore(fileURL: fixture.fileURL).load().proposals.first
+        let replay = try fixture.store.submit(request, snapshotToken: alternateProposalSnapshotToken)
+
+        XCTAssertNotNil(revised.reviewHash)
+        XCTAssertEqual(reloaded, revised)
+        XCTAssertTrue(replay.wasReplay)
+        XCTAssertEqual(replay.receipt.proposalID, submission.receipt.proposalID)
+        XCTAssertEqual(reloaded?.scope, .init(kind: "global", id: "global"))
+        XCTAssertEqual(reloaded?.corrections.first?.spokenForms, ["superbase"])
+    }
+
+    func testTamperedReviewedPayloadFailsClosed() throws {
+        let fixture = try makeFixture()
+        let submission = try fixture.store.submit(
+            proposalRequest(id: "request-1"),
+            snapshotToken: proposalSnapshotToken
+        )
+        _ = try fixture.store.revise(
+            id: submission.receipt.proposalID,
+            scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["superbase"], replacement: "Supabase")]
+        )
+        let original = try String(contentsOf: fixture.fileURL, encoding: .utf8)
+        let tampered = try XCTUnwrap(
+            original.replacingOccurrences(of: "superbase", with: "cloud code").data(using: .utf8)
+        )
+        try tampered.write(to: fixture.fileURL)
+
+        XCTAssertThrowsError(try fixture.store.load()) { error in
+            XCTAssertEqual(error as? VocabularyProposalStoreError, .unreadable)
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.fileURL), tampered)
+    }
+
     func testPendingProposalCannotBeMarkedAppliedWithoutTheFutureCoordinator() throws {
         let fixture = try makeFixture()
         let submission = try fixture.store.submit(proposalRequest(id: "request-1"), snapshotToken: proposalSnapshotToken)

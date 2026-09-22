@@ -11,8 +11,13 @@
 		E2E1B9EE0635AD0A67C12223 /* VocabularyProposalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D470FC76AFD65D7C6671EC64 /* VocabularyProposalModels.swift */; };
 		55013F29587B35BE77D9B6F9 /* VocabularyProposalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501084DCE710BB7A45D0A7B4 /* VocabularyProposalStore.swift */; };
 		7B429408EB4D019B907142B1 /* VocabularyProposalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501084DCE710BB7A45D0A7B4 /* VocabularyProposalStore.swift */; };
+		A2B200000000000000000001 /* VocabularyProposalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B200000000000000000005 /* VocabularyProposalService.swift */; };
+		A2B200000000000000000002 /* VocabularyProposalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B200000000000000000005 /* VocabularyProposalService.swift */; };
+		A2B200000000000000000003 /* VocabularyProposalReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B200000000000000000006 /* VocabularyProposalReviewView.swift */; };
+		A2B200000000000000000004 /* VocabularyProposalReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B200000000000000000006 /* VocabularyProposalReviewView.swift */; };
 		6C6A7B41FBA7E8C911D6B74F /* VocabularyProposalContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20DE4D23E86D37A6D5BF256C /* VocabularyProposalContractTests.swift */; };
 		CC1C4AF77003141CBD35ABF1 /* VocabularyProposalStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F27C9782AB4522A8C70BB5 /* VocabularyProposalStoreTests.swift */; };
+		A2B200000000000000000007 /* VocabularyProposalServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2B200000000000000000008 /* VocabularyProposalServiceTests.swift */; };
 		AACC20000000000000000001 /* AgentAccessControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACC20000000000000000003 /* AgentAccessControllerTests.swift */; };
 		AACC20000000000000000002 /* AgentAccessContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACC20000000000000000004 /* AgentAccessContractTests.swift */; };
 		AACC10000000000000000001 /* AgentAccessController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACC10000000000000000003 /* AgentAccessController.swift */; };
@@ -231,8 +236,11 @@
 /* Begin PBXFileReference section */
 		D470FC76AFD65D7C6671EC64 /* VocabularyProposalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalModels.swift; sourceTree = "<group>"; };
 		501084DCE710BB7A45D0A7B4 /* VocabularyProposalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalStore.swift; sourceTree = "<group>"; };
+		A2B200000000000000000005 /* VocabularyProposalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalService.swift; sourceTree = "<group>"; };
+		A2B200000000000000000006 /* VocabularyProposalReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalReviewView.swift; sourceTree = "<group>"; };
 		20DE4D23E86D37A6D5BF256C /* VocabularyProposalContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalContractTests.swift; sourceTree = "<group>"; };
 		B9F27C9782AB4522A8C70BB5 /* VocabularyProposalStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalStoreTests.swift; sourceTree = "<group>"; };
+		A2B200000000000000000008 /* VocabularyProposalServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalServiceTests.swift; sourceTree = "<group>"; };
 		AACC20000000000000000003 /* AgentAccessControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessControllerTests.swift; sourceTree = "<group>"; };
 		AACC20000000000000000004 /* AgentAccessContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessContractTests.swift; sourceTree = "<group>"; };
 		AACC10000000000000000003 /* AgentAccessController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessController.swift; sourceTree = "<group>"; };
@@ -390,6 +398,7 @@
 				9C7C134031D4DFE0D78FE6D9 /* AgentAccessServerTests.swift */,
 				20DE4D23E86D37A6D5BF256C /* VocabularyProposalContractTests.swift */,
 				B9F27C9782AB4522A8C70BB5 /* VocabularyProposalStoreTests.swift */,
+				A2B200000000000000000008 /* VocabularyProposalServiceTests.swift */,
 				7CB837E3BE88277ED2418E47 /* AppStateTests.swift */,
 				C512FCF657891FCBA6D2CC45 /* AudioRecorderTests.swift */,
 				FF12011A488A457F1109C190 /* AudioUXSnapshotRendererTests.swift */,
@@ -489,6 +498,8 @@
 				0CFB0BC7955CE9DBAAEC7DC9 /* AgentAccessServer.swift */,
 				D470FC76AFD65D7C6671EC64 /* VocabularyProposalModels.swift */,
 				501084DCE710BB7A45D0A7B4 /* VocabularyProposalStore.swift */,
+				A2B200000000000000000005 /* VocabularyProposalService.swift */,
+				A2B200000000000000000006 /* VocabularyProposalReviewView.swift */,
 				E5A9C58EE9C1DC967B1D4A4B /* ApiKeySetupView.swift */,
 				97FF72B3615116DE220AE63E /* AppBrand.swift */,
 				2885F1C7852F237A3ABB7279 /* AppState.swift */,
@@ -803,6 +814,8 @@
 				4F9220EEA967106303358D66 /* AgentAccessServer.swift in Sources */,
 				2A65A763D3DC5E5237A1D718 /* VocabularyProposalModels.swift in Sources */,
 				55013F29587B35BE77D9B6F9 /* VocabularyProposalStore.swift in Sources */,
+				A2B200000000000000000002 /* VocabularyProposalService.swift in Sources */,
+				A2B200000000000000000004 /* VocabularyProposalReviewView.swift in Sources */,
 				6F9F6A0151E1001975DEAA94 /* ApiKeySetupView.swift in Sources */,
 				B5F167F335C4B956863664E8 /* AppBrand.swift in Sources */,
 				A68B7F1749B5EF9BE449C5D7 /* AppState.swift in Sources */,
@@ -900,6 +913,7 @@
 				DF09A926E8D1AE016CB1553C /* AgentAccessServerTests.swift in Sources */,
 				6C6A7B41FBA7E8C911D6B74F /* VocabularyProposalContractTests.swift in Sources */,
 				CC1C4AF77003141CBD35ABF1 /* VocabularyProposalStoreTests.swift in Sources */,
+				A2B200000000000000000007 /* VocabularyProposalServiceTests.swift in Sources */,
 				6E188014C7882845ECD1BE40 /* AppStateTests.swift in Sources */,
 				44D19A8C12249D516CEBB0BD /* AudioRecorderTests.swift in Sources */,
 				0A4854167B8E80937F822F7B /* AudioUXSnapshotRendererTests.swift in Sources */,
@@ -957,6 +971,8 @@
 				C5FB4BEA095AAD1C487E57E0 /* AgentAccessServer.swift in Sources */,
 				E2E1B9EE0635AD0A67C12223 /* VocabularyProposalModels.swift in Sources */,
 				7B429408EB4D019B907142B1 /* VocabularyProposalStore.swift in Sources */,
+				A2B200000000000000000001 /* VocabularyProposalService.swift in Sources */,
+				A2B200000000000000000003 /* VocabularyProposalReviewView.swift in Sources */,
 				A8F8EFF34B0931D55AF5D356 /* ApiKeySetupView.swift in Sources */,
 				A7E838C401BF31358D130982 /* AppBrand.swift in Sources */,
 				8A381141531C79C84B62887D /* AppState.swift in Sources */,

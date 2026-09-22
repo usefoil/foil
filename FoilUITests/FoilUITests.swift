@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import CryptoKit
 import XCTest
 
 final class FoilUITests: XCTestCase {
@@ -485,7 +486,7 @@ final class FoilUITests: XCTestCase {
         openAppShellSettings(navID: "appShell.nav.settings.general")
         let toggle = checkBox(
             id: "settings.agentAccess.toggle",
-            fallbackLabel: "Allow local agents to read Vocabulary"
+            fallbackLabel: "Allow local agents to access Vocabulary"
         )
         let status = app.descendants(matching: .any)["settings.agentAccess.status"]
         let copy = button(
@@ -516,7 +517,7 @@ final class FoilUITests: XCTestCase {
         openAppShellSettings(navID: "appShell.nav.settings.general")
         let relaunchedToggle = checkBox(
             id: "settings.agentAccess.toggle",
-            fallbackLabel: "Allow local agents to read Vocabulary"
+            fallbackLabel: "Allow local agents to access Vocabulary"
         )
         let relaunchedStatus = app.descendants(matching: .any)["settings.agentAccess.status"]
         XCTAssertTrue(relaunchedToggle.waitForExistence(timeout: 4), app.debugDescription)
@@ -540,7 +541,7 @@ final class FoilUITests: XCTestCase {
 
         let toggle = checkBox(
             id: "settings.agentAccess.toggle",
-            fallbackLabel: "Allow local agents to read Vocabulary"
+            fallbackLabel: "Allow local agents to access Vocabulary"
         )
         clickElement(toggle)
 
@@ -549,6 +550,59 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "0")
         XCTAssertTrue(elementExists(id: "settings.agentAccess.error", timeout: 2), app.debugDescription)
         XCTAssertEqual(try Data(contentsOf: agentAccessSocketURL), Data("sentinel".utf8))
+    }
+
+    func testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled() throws {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-agent-vocabulary-proposal"
+        ])
+        openAppShellSettings(navID: "appShell.nav.settings.general")
+        let toggle = checkBox(
+            id: "settings.agentAccess.toggle",
+            fallbackLabel: "Allow local agents to access Vocabulary"
+        )
+        let status = app.descendants(matching: .any)["settings.agentAccess.status"]
+        clickElement(toggle)
+        XCTAssertTrue(waitForElementLabelOrValue(status, containing: "running", timeout: 4), app.debugDescription)
+
+        let review = button(
+            id: "settings.agentAccess.reviewProposals",
+            fallbackLabel: "Review vocabulary proposals"
+        )
+        XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertEqual(review.value as? String, "1 pending")
+
+        clickElement(toggle)
+        XCTAssertTrue(waitForElementLabelOrValue(status, containing: "off", timeout: 4), app.debugDescription)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: agentAccessSocketURL.path))
+        let reviewAfterDisable = button(
+            id: "settings.agentAccess.reviewProposals",
+            fallbackLabel: "Review vocabulary proposals"
+        )
+        XCTAssertEqual(reviewAfterDisable.value as? String, "1 pending")
+        clickElement(reviewAfterDisable)
+
+        XCTAssertTrue(
+            app.buttons["agentProposals.done"].waitForExistence(timeout: 5),
+            app.debugDescription
+        )
+        let spokenForm = app.textFields["Spoken form"]
+        let replacement = app.textFields["Replacement"]
+        XCTAssertEqual(spokenForm.value as? String, "super base", app.debugDescription)
+        XCTAssertEqual(replacement.value as? String, "Supabase", app.debugDescription)
+        XCTAssertTrue(app.buttons["Omit spoken form"].exists, app.debugDescription)
+
+        clickElement(app.buttons["Reject"])
+        XCTAssertTrue(app.staticTexts["No pending proposals"].waitForExistence(timeout: 3), app.debugDescription)
+        clickElement(app.buttons["agentProposals.done"])
+        let reviewAfterRejection = button(
+            id: "settings.agentAccess.reviewProposals",
+            fallbackLabel: "Review vocabulary proposals"
+        )
+        XCTAssertEqual(reviewAfterRejection.value as? String, "0 pending")
     }
 
     func testAppShellShowsAllSettingsSidebarPanes() {
@@ -2177,10 +2231,15 @@ final class FoilUITests: XCTestCase {
     }
 
     private var agentAccessSocketURL: URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("FoilTests", isDirectory: true)
-            .appendingPathComponent(uiTestSessionIdentifier, isDirectory: true)
-            .appendingPathComponent("AgentAccess", isDirectory: true)
+        let canonicalSessionIdentifier = String(uiTestSessionIdentifier.unicodeScalars.map {
+            CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_"
+        })
+        let digest = SHA256.hash(data: Data(canonicalSessionIdentifier.utf8))
+            .prefix(4)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return FileManager.default.temporaryDirectory
+            .appendingPathComponent(digest, isDirectory: true)
             .appendingPathComponent("agent-v1.sock")
     }
 

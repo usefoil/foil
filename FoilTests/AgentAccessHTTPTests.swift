@@ -151,7 +151,8 @@ final class AgentAccessHTTPTests: XCTestCase {
         XCTAssertEqual(decoded.requestID, "contract-test")
         XCTAssertEqual(decoded.availableOperations, [
             "get_instructions", "get_openapi", "list_vocabulary_scopes",
-            "list_vocabulary", "preview_vocabulary_corrections"
+            "list_vocabulary", "preview_vocabulary_corrections",
+            "propose_vocabulary_corrections", "get_vocabulary_proposal_status"
         ])
         XCTAssertEqual(decoded.limits, .standard)
         XCTAssertTrue(decoded.bootstrapCommand.contains("--unix-socket"))
@@ -190,7 +191,8 @@ final class AgentAccessHTTPTests: XCTestCase {
         )
         XCTAssertEqual(Set(paths.keys), [
             "/v1/instructions", "/v1/openapi.json", "/v1/vocabulary/scopes",
-            "/v1/vocabulary", "/v1/vocabulary/preview"
+            "/v1/vocabulary", "/v1/vocabulary/preview", "/v1/vocabulary/proposals",
+            "/v1/vocabulary/proposals/{proposal_id}"
         ])
         let limits = try XCTUnwrap(object["x-foil-limits"] as? [String: Any])
         XCTAssertEqual(limits["maximum_header_bytes"] as? Int, AgentAccessLimits.standard.maximumHeaderBytes)
@@ -207,7 +209,8 @@ final class AgentAccessHTTPTests: XCTestCase {
         let schemas = try XCTUnwrap(components["schemas"] as? [String: Any])
         for schema in [
             "InstructionsResponse", "ScopesResponse", "VocabularyResponse",
-            "PreviewRequest", "PreviewResponse", "ErrorResponse"
+            "PreviewRequest", "PreviewResponse", "ProposalRequest", "ProposalResponse",
+            "ErrorResponse"
         ] {
             XCTAssertNotNil(schemas[schema], "Missing schema \(schema)")
         }
@@ -220,12 +223,15 @@ final class AgentAccessHTTPTests: XCTestCase {
             ("/v1/openapi.json", "get"),
             ("/v1/vocabulary/scopes", "get"),
             ("/v1/vocabulary", "get"),
-            ("/v1/vocabulary/preview", "post")
+            ("/v1/vocabulary/preview", "post"),
+            ("/v1/vocabulary/proposals", "post"),
+            ("/v1/vocabulary/proposals/{proposal_id}", "get")
         ] {
             let pathItem = try XCTUnwrap(paths[path] as? [String: Any])
             let operation = try XCTUnwrap(pathItem[method] as? [String: Any])
             let responses = try XCTUnwrap(operation["responses"] as? [String: Any])
-            let success = try XCTUnwrap(responses["200"] as? [String: Any])
+            let successCode = path == "/v1/vocabulary/proposals" ? "201" : "200"
+            let success = try XCTUnwrap(responses[successCode] as? [String: Any])
             XCTAssertNotNil(success["content"], "Missing 200 response schema for \(method.uppercased()) \(path)")
         }
         let privacy = try XCTUnwrap(object["x-foil-privacy"] as? [String: Any])

@@ -1,6 +1,7 @@
 import AVFoundation
 import AVFAudio
 import AppKit
+import CryptoKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -282,6 +283,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     struct TestingStorageConfiguration: Equatable {
         let root: URL
+        var agentAccessRoot: URL { FileManager.default.temporaryDirectory }
+        var agentAccessDirectoryName: String {
+            let digest = SHA256.hash(data: Data(root.lastPathComponent.utf8))
+                .prefix(4)
+                .map { String(format: "%02x", $0) }
+                .joined()
+            return digest
+        }
         var modelRoot: URL { root.appendingPathComponent("ManagedModels", isDirectory: true) }
         var historyRoot: URL { root.appendingPathComponent("History", isDirectory: true) }
         var credentialsRoot: URL { root.appendingPathComponent("Credentials", isDirectory: true) }
@@ -612,6 +621,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.simulateSelectedHotkeyCycleForUITesting()
                 #else
                 DiagnosticLog.write("UITesting: selected hotkey cycle skipped outside DEBUG")
+                #endif
+            },
+            onSeedAgentVocabularyProposal: { [weak self] in
+                #if DEBUG
+                self?.agentAccessController?.seedVocabularyProposalForUITesting()
                 #endif
             }
         )
@@ -1271,7 +1285,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let acceptance = Self.managedLocalAcceptanceConfiguration() {
             paths = AgentAccessPaths(applicationSupportRoot: acceptance.root, directoryName: "AgentAccess")
         } else if let testing = Self.testingStorageConfiguration() {
-            paths = AgentAccessPaths(applicationSupportRoot: testing.root, directoryName: "AgentAccess")
+            paths = AgentAccessPaths(
+                applicationSupportRoot: testing.agentAccessRoot,
+                directoryName: testing.agentAccessDirectoryName
+            )
         } else {
             paths = .current()
         }

@@ -1,4 +1,5 @@
 import AVFoundation
+import CryptoKit
 import XCTest
 import CoreGraphics
 @testable import Foil
@@ -172,6 +173,26 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(first.root.standardizedFileURL, expectedRoot.standardizedFileURL)
         XCTAssertEqual(relaunched.root.standardizedFileURL, expectedRoot.standardizedFileURL)
+        let agentAccessDigest = SHA256.hash(data: Data(String(sanitizedIdentifier).utf8))
+            .prefix(4)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        XCTAssertEqual(first.agentAccessRoot, FileManager.default.temporaryDirectory)
+        XCTAssertEqual(relaunched.agentAccessRoot, FileManager.default.temporaryDirectory)
+        XCTAssertEqual(first.agentAccessDirectoryName, agentAccessDigest)
+        XCTAssertEqual(relaunched.agentAccessDirectoryName, agentAccessDigest)
+        XCTAssertNoThrow(try AgentAccessPaths(
+            applicationSupportRoot: first.agentAccessRoot,
+            directoryName: first.agentAccessDirectoryName
+        ).validateSocketPath())
+        let hostedRunnerTemporaryDirectory = URL(
+            fileURLWithPath: "/Users/runner/Library/Containers/com.neonwatty.FoilUITests.xctrunner/Data/tmp",
+            isDirectory: true
+        )
+        XCTAssertNoThrow(try AgentAccessPaths(
+            applicationSupportRoot: hostedRunnerTemporaryDirectory,
+            directoryName: first.agentAccessDirectoryName
+        ).validateSocketPath())
         XCTAssertEqual(first.modelRoot.deletingLastPathComponent(), first.root)
         XCTAssertEqual(
             first.localCorrectionsFile,

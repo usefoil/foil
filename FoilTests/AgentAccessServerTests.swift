@@ -107,7 +107,7 @@ final class AgentAccessServerTests: XCTestCase {
         let result = try runCurl(socketURL: fixture.paths.socketURL, path: "/v1/instructions")
         XCTAssertEqual(result.status, 0, result.stderr)
         let decoded = try JSONDecoder().decode(AgentAccessInstructionsResponse.self, from: result.stdout)
-        XCTAssertEqual(decoded.availableOperations.count, 5)
+        XCTAssertEqual(decoded.availableOperations.count, 7)
         XCTAssertTrue(decoded.bootstrapCommand.contains(fixture.paths.socketURL.path))
         let contract = try runCurl(socketURL: fixture.paths.socketURL, path: decoded.openAPIPath)
         XCTAssertEqual(contract.status, 0, contract.stderr)

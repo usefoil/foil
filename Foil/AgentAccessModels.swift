@@ -79,7 +79,9 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
             "get_openapi",
             "list_vocabulary_scopes",
             "list_vocabulary",
-            "preview_vocabulary_corrections"
+            "preview_vocabulary_corrections",
+            "propose_vocabulary_corrections",
+            "get_vocabulary_proposal_status"
         ]
         bootstrapCommand = AgentAccessInstructionsResponse.bootstrapCommand(socketPath: socketPath)
         openAPIPath = "/v1/openapi.json"
@@ -89,7 +91,8 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
             "Local processes running as the same macOS user can read the allowed Vocabulary fields while Agent Access is enabled.",
             "It does not expose History, audio, credentials, provider configuration, project files, clipboard contents, or the active application.",
             "Vocabulary endpoints expose names, terms, corrections, and executable-rule settings without source records, source apps, or timestamps.",
-            "Preview validates hypothetical corrections in memory and never saves them. This service accepts no Vocabulary mutations in this tranche."
+            "Preview validates hypothetical corrections in memory and never saves them.",
+            "Proposals are saved for review and remain inert. This API has no apply operation; agents cannot apply Vocabulary changes."
         ]
         self.limits = limits
     }
@@ -119,7 +122,7 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
     }
 }
 
-struct AgentAccessVocabularyReadModel: Equatable, Sendable {
+struct AgentAccessVocabularyReadModel: Encodable, Equatable, Sendable {
     let scopes: [AgentAccessVocabularyScope]
     let terms: [AgentAccessVocabularyTerm]
     let corrections: [AgentAccessVocabularyCorrection]
@@ -267,6 +270,37 @@ struct AgentAccessPreviewExample: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case input, output
         case replacementCount = "replacement_count"
+    }
+}
+
+struct AgentAccessProposalResponse: Codable, Equatable {
+    let schemaVersion = AgentAccessContract.schemaVersion
+    let requestID: String
+    let clientRequestID: String
+    let proposalID: String
+    let state: AgentAccessProposalState
+    let replayed: Bool
+    let createdAt: Date
+    let updatedAt: Date
+
+    init(requestID: String, receipt: VocabularyProposalReceipt, replayed: Bool) {
+        self.requestID = requestID
+        clientRequestID = receipt.requestID
+        proposalID = receipt.proposalID
+        state = receipt.state
+        self.replayed = replayed
+        createdAt = receipt.createdAt
+        updatedAt = receipt.updatedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestID = "request_id"
+        case clientRequestID = "client_request_id"
+        case proposalID = "proposal_id"
+        case state, replayed
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
     }
 }
 

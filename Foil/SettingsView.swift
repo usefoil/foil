@@ -111,6 +111,7 @@ struct SettingsView: View {
     @State private var vocabularyNote = ""
     @State private var vocabularyEditingID: UUID?
     @State private var localCorrectionPreviewInput = ""
+    @State private var isShowingAgentProposals = false
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
     private let soundPreviewPlayer = SoundPlayer()
 
@@ -237,7 +238,7 @@ struct SettingsView: View {
             }
 
             Section("Agent Access") {
-                Toggle("Allow local agents to read Vocabulary", isOn: Binding(
+                Toggle("Allow local agents to access Vocabulary", isOn: Binding(
                     get: { appState.agentAccessEnabled },
                     set: { appState.setAgentAccessEnabled($0) }
                 ))
@@ -267,11 +268,35 @@ struct SettingsView: View {
                 .disabled(appState.agentAccessBootstrapCommand.isEmpty)
                 .accessibilityIdentifier("settings.agentAccess.copyCommand")
 
-                Text("While enabled, local processes running as your macOS user can read Vocabulary names, terms, corrections, and local-rule settings. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
+                Button {
+                    isShowingAgentProposals = true
+                } label: {
+                    HStack {
+                        Text("Review vocabulary proposals")
+                        Spacer()
+                        Text("\(appState.agentAccessPendingProposalCount)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityIdentifier("settings.agentAccess.reviewProposals")
+                .accessibilityValue("\(appState.agentAccessPendingProposalCount) pending")
+
+                if let message = appState.agentAccessProposalInboxErrorMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.agentAccess.proposalError")
+                }
+
+                Text("While enabled, local processes running as your macOS user can read Vocabulary names, terms, corrections, and local-rule settings, and submit inert changes for review. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("settings.agentAccess.disclosure")
+            }
+            .sheet(isPresented: $isShowingAgentProposals) {
+                VocabularyProposalReviewView(appState: appState)
             }
 
             Toggle("Launch at Login", isOn: Binding(

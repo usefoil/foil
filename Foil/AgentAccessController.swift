@@ -22,6 +22,50 @@ final class AgentAccessReadModelStore: @unchecked Sendable {
     }
 }
 
+final class AgentAccessProposalGate: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var activeGeneration: UUID?
+    private var inFlightCount = 0
+
+    func activate(_ generation: UUID) {
+        condition.lock()
+        activeGeneration = generation
+        condition.unlock()
+    }
+
+    func deactivateAndWait() {
+        condition.lock()
+        activeGeneration = nil
+        while inFlightCount > 0 {
+            condition.wait()
+        }
+        condition.unlock()
+    }
+
+    func withPermit<T>(
+        _ generation: UUID,
+        operation: () throws -> T
+    ) rethrows -> T? {
+        condition.lock()
+        guard activeGeneration == generation else {
+            condition.unlock()
+            return nil
+        }
+        inFlightCount += 1
+        condition.unlock()
+
+        defer {
+            condition.lock()
+            inFlightCount -= 1
+            if inFlightCount == 0 {
+                condition.broadcast()
+            }
+            condition.unlock()
+        }
+        return try operation()
+    }
+}
+
 @MainActor
 final class AgentAccessController {
     typealias ServerFactory = (
@@ -37,6 +81,9 @@ final class AgentAccessController {
     private let serverFactory: ServerFactory
     private let startupDelayNanoseconds: UInt64
     private let readModelStore = AgentAccessReadModelStore()
+    private let proposalGate = AgentAccessProposalGate()
+    private let proposalStore: VocabularyProposalStore
+    private var proposalService: VocabularyProposalService!
     private var server: AgentAccessServing?
     private var startupTask: Task<Void, Never>?
     private var lifecycleGeneration = UUID()
@@ -46,6 +93,7 @@ final class AgentAccessController {
         paths: AgentAccessPaths,
         limits: AgentAccessLimits = .standard,
         openAPIDocument: Data,
+        proposalStore: VocabularyProposalStore? = nil,
         startupDelayNanoseconds: UInt64 = 0,
         serverFactory: @escaping ServerFactory = { paths, limits, handler in
             AgentAccessServer(paths: paths, limits: limits, handler: handler)
@@ -55,8 +103,17 @@ final class AgentAccessController {
         self.paths = paths
         self.limits = limits
         self.openAPIDocument = openAPIDocument
+        self.proposalStore = proposalStore ?? VocabularyProposalStore(fileURL: paths.proposalStoreURL)
         self.startupDelayNanoseconds = startupDelayNanoseconds
         self.serverFactory = serverFactory
+        proposalService = VocabularyProposalService(
+            store: self.proposalStore,
+            readModelStore: readModelStore,
+            limits: limits,
+            didChange: { [weak self] in
+                Task { @MainActor in self?.refreshProposals() }
+            }
+        )
         appState.agentAccessBootstrapCommand = AgentAccessInstructionsResponse.bootstrapCommand(
             socketPath: paths.socketURL.path
         )
@@ -65,6 +122,12 @@ final class AgentAccessController {
         }
         appState.agentAccessReadModelDidChange = { [weak self] in
             self?.refreshReadModel()
+        }
+        appState.agentAccessProposalRevisionDidRequest = { [weak self] id, scope, corrections in
+            self?.reviseProposal(id: id, scope: scope, corrections: corrections)
+        }
+        appState.agentAccessProposalTransitionDidRequest = { [weak self] id, state in
+            self?.transitionProposal(id: id, to: state)
         }
         refreshReadModel()
     }
@@ -81,6 +144,7 @@ final class AgentAccessController {
             appState: appState,
             paths: paths,
             openAPIDocument: Data(contentsOf: url),
+            proposalStore: VocabularyProposalStore(fileURL: paths.proposalStoreURL),
             startupDelayNanoseconds: startupDelayNanoseconds
         )
     }
@@ -129,18 +193,37 @@ final class AgentAccessController {
     }
 
     private func finishStart(generation expectedGeneration: UUID) {
+        let proposalService = proposalService!
         let router = AgentAccessContractRouter(
             socketPath: paths.socketURL.path,
             openAPIDocument: openAPIDocument,
             limits: limits,
-            vocabularyProvider: { [readModelStore] in readModelStore.snapshot() }
+            vocabularyProvider: { [readModelStore] in readModelStore.snapshot() },
+            proposalSubmitter: { [proposalService, proposalGate] request in
+                guard let submission = try proposalGate.withPermit(expectedGeneration, operation: {
+                    try proposalService.submit(request)
+                }) else {
+                    throw VocabularyProposalServiceError.unavailable
+                }
+                return submission
+            },
+            proposalStatusProvider: { [proposalService, proposalGate] id in
+                guard let receipt = try proposalGate.withPermit(expectedGeneration, operation: {
+                    try proposalService.status(id: id)
+                }) else {
+                    throw VocabularyProposalServiceError.unavailable
+                }
+                return receipt
+            }
         )
         let candidate = serverFactory(paths, limits) { request in
             router.response(to: request)
         }
         do {
+            proposalGate.activate(expectedGeneration)
             try candidate.start()
             guard lifecycleGeneration == expectedGeneration, appState.agentAccessEnabled else {
+                proposalGate.deactivateAndWait()
                 candidate.stop()
                 return
             }
@@ -148,6 +231,7 @@ final class AgentAccessController {
             appState.agentAccessPresentationState = .running
             DiagnosticLog.write("AgentAccess.lifecycle: running")
         } catch {
+            proposalGate.deactivateAndWait()
             candidate.stop()
             server = nil
             guard lifecycleGeneration == expectedGeneration else { return }
@@ -159,6 +243,7 @@ final class AgentAccessController {
     }
 
     func stop() {
+        proposalGate.deactivateAndWait()
         lifecycleGeneration = UUID()
         startupTask?.cancel()
         startupTask = nil
@@ -172,6 +257,81 @@ final class AgentAccessController {
 
     func refreshReadModel() {
         readModelStore.update(Self.makeReadModel(from: appState))
+        refreshProposals()
+    }
+
+    func refreshProposals() {
+        do {
+            let snapshot = try proposalService.snapshot()
+            let proposals = snapshot.proposals.sorted { $0.createdAt > $1.createdAt }
+            appState.agentAccessProposals = proposals
+            appState.agentAccessProposalPreviews = Dictionary(uniqueKeysWithValues: proposals.map {
+                ($0.id, proposalService.preview(for: $0, requestID: "review-\($0.id)"))
+            })
+            let currentToken = try proposalService.currentSnapshotToken()
+            appState.agentAccessStaleProposalIDs = Set(
+                proposals.lazy.filter { $0.snapshotToken != currentToken }.map(\.id)
+            )
+            appState.agentAccessProposalInboxErrorMessage = nil
+        } catch {
+            appState.agentAccessProposals = []
+            appState.agentAccessProposalPreviews = [:]
+            appState.agentAccessStaleProposalIDs = []
+            appState.agentAccessProposalInboxErrorMessage = "Foil could not read the proposal inbox. The stored file was left unchanged."
+            DiagnosticLog.write("AgentAccess.proposals: load_failed")
+        }
+    }
+
+    #if DEBUG
+    func seedVocabularyProposalForUITesting() {
+        let request = VocabularyProposalRequest(
+            requestID: "ui-proposal",
+            scope: .init(kind: "global", id: "global"),
+            corrections: [
+                .init(
+                    spokenForms: ["super base"],
+                    replacement: "Supabase",
+                    note: "Project dependency"
+                )
+            ]
+        )
+        do {
+            _ = try proposalService.submit(request)
+            refreshProposals()
+        } catch {
+            appState.agentAccessProposalInboxErrorMessage =
+                "Foil could not seed the proposal inbox for UI testing."
+        }
+    }
+    #endif
+
+    private func reviseProposal(
+        id: String,
+        scope: VocabularyProposalScope,
+        corrections: [VocabularyProposalCorrection]
+    ) {
+        do {
+            _ = try proposalService.revise(id: id, scope: scope, corrections: corrections)
+            refreshProposals()
+            DiagnosticLog.write("AgentAccess.proposals: revised proposal_id=\(id)")
+        } catch let VocabularyProposalServiceError.validation(_, message) {
+            appState.agentAccessProposalInboxErrorMessage = message
+        } catch {
+            appState.agentAccessProposalInboxErrorMessage = "Foil could not save the reviewed proposal."
+            DiagnosticLog.write("AgentAccess.proposals: revise_failed proposal_id=\(id)")
+        }
+    }
+
+    private func transitionProposal(id: String, to state: AgentAccessProposalState) {
+        guard state == .rejected || state == .discarded else { return }
+        do {
+            _ = try proposalService.transition(id: id, to: state)
+            refreshProposals()
+            DiagnosticLog.write("AgentAccess.proposals: transitioned proposal_id=\(id) state=\(state.rawValue)")
+        } catch {
+            appState.agentAccessProposalInboxErrorMessage = "Foil could not update the proposal."
+            DiagnosticLog.write("AgentAccess.proposals: transition_failed proposal_id=\(id)")
+        }
     }
 
     static func makeReadModel(from appState: AppState) -> AgentAccessVocabularyReadModel {
