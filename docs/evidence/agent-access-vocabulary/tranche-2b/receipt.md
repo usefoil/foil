@@ -28,7 +28,7 @@ Evidence:
   submission, byte-preserving request-ID conflict and capacity errors, relaunch,
   terminal-state transitions, reviewed-content integrity, corruption, tampering,
   atomic-write failure, and owner-only `0600` persistence.
-- The focused proposal/controller/HTTP suite passed **49 tests with 0 failures**:
+- The focused proposal/controller/HTTP/server suite passed **68 tests with 0 failures**:
 
   ```sh
   xcodebuild test -scheme Foil -configuration Debug -destination 'platform=macOS' \
@@ -36,7 +36,8 @@ Evidence:
     -only-testing:FoilTests/VocabularyProposalStoreTests \
     -only-testing:FoilTests/AgentAccessControllerTests \
     -only-testing:FoilTests/AgentAccessHTTPTests \
-    -resultBundlePath /tmp/Foil-Tranche2B-Focused-4.xcresult
+    -only-testing:FoilTests/AgentAccessServerTests \
+    -resultBundlePath /tmp/Foil-Tranche2B-DisableRace-Focused-1.xcresult
   ```
 
 Residual risk / follow-up: Tranche 3 must add the separately reviewed transactional
@@ -93,9 +94,9 @@ Evidence:
 - HTTP contract tests compare the exact seven operations and routes in instructions,
   runtime routing, and OpenAPI, including `201` create, `200` replay, and stable
   `400`, `404`, `409`, `422`, `429`, and `503` error mappings.
-- Final `make test`: **922 passed, 0 failed, 4 skipped**. The skips are existing
+- Final `make test`: **924 passed, 0 failed, 4 skipped**. The skips are existing
   opt-in live tests. Result bundle:
-  `/Users/jeremywatt/Library/Developer/Xcode/DerivedData/Foil-esfjepbizuurueaqxtjtjhkgjxxc/Logs/Test/Test-Foil-2026.09.21_18-43-45--0700.xcresult`.
+  `/Users/jeremywatt/Library/Developer/Xcode/DerivedData/Foil-esfjepbizuurueaqxtjtjhkgjxxc/Logs/Test/Test-Foil-2026.09.22_05-51-43--0700.xcresult`.
 - Final `make build-warnings-as-errors` passed.
 - `make test-ci-scripts` passed all workflow, inventory, cleanup, fixture-reuse,
   shard-runner, and aggregate contract checks. The UI inventory reports 89 assigned,
@@ -178,8 +179,14 @@ contains an untested integration error.
 
 Evidence: `codex review --uncommitted` was attempted. The installed CLI refused the
 configured `gpt-5.6-sol` model because it requires a newer Codex version, so no CLI
-review result is claimed. A direct manual audit then found and fixed the stale
-review-validation defect described above, followed by the focused and full-suite
-reruns.
+review result is claimed. A direct manual audit found and fixed the stale
+review-validation defect described above. A final independent subagent review then
+found a shutdown race: a handler could pass the proposal gate, the user could turn
+Agent Access off, and the synchronous store write could finish after `stop()` had
+returned. The gate now issues in-flight leases and deactivation waits for every
+accepted proposal operation before stopping the server or presenting Off.
 
-Residual risk / follow-up: hosted code review remains required before merge.
+`testDisableWaitsForInFlightProposalCommitBeforeReportingOff` blocks the atomic
+writer during a real captured-handler submission and proves the write finishes
+before the server stops. The focused controller suite passed **12 tests with 0
+failures** in `/tmp/Foil-Tranche2B-DisableRace-2.xcresult`.

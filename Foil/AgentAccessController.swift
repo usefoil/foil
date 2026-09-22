@@ -23,19 +23,46 @@ final class AgentAccessReadModelStore: @unchecked Sendable {
 }
 
 final class AgentAccessProposalGate: @unchecked Sendable {
-    private let lock = NSLock()
+    private let condition = NSCondition()
     private var activeGeneration: UUID?
+    private var inFlightCount = 0
 
     func activate(_ generation: UUID) {
-        lock.withLock { activeGeneration = generation }
+        condition.lock()
+        activeGeneration = generation
+        condition.unlock()
     }
 
-    func deactivate() {
-        lock.withLock { activeGeneration = nil }
+    func deactivateAndWait() {
+        condition.lock()
+        activeGeneration = nil
+        while inFlightCount > 0 {
+            condition.wait()
+        }
+        condition.unlock()
     }
 
-    func permits(_ generation: UUID) -> Bool {
-        lock.withLock { activeGeneration == generation }
+    func withPermit<T>(
+        _ generation: UUID,
+        operation: () throws -> T
+    ) rethrows -> T? {
+        condition.lock()
+        guard activeGeneration == generation else {
+            condition.unlock()
+            return nil
+        }
+        inFlightCount += 1
+        condition.unlock()
+
+        defer {
+            condition.lock()
+            inFlightCount -= 1
+            if inFlightCount == 0 {
+                condition.broadcast()
+            }
+            condition.unlock()
+        }
+        return try operation()
     }
 }
 
@@ -173,16 +200,20 @@ final class AgentAccessController {
             limits: limits,
             vocabularyProvider: { [readModelStore] in readModelStore.snapshot() },
             proposalSubmitter: { [proposalService, proposalGate] request in
-                guard proposalGate.permits(expectedGeneration) else {
+                guard let submission = try proposalGate.withPermit(expectedGeneration, operation: {
+                    try proposalService.submit(request)
+                }) else {
                     throw VocabularyProposalServiceError.unavailable
                 }
-                return try proposalService.submit(request)
+                return submission
             },
             proposalStatusProvider: { [proposalService, proposalGate] id in
-                guard proposalGate.permits(expectedGeneration) else {
+                guard let receipt = try proposalGate.withPermit(expectedGeneration, operation: {
+                    try proposalService.status(id: id)
+                }) else {
                     throw VocabularyProposalServiceError.unavailable
                 }
-                return try proposalService.status(id: id)
+                return receipt
             }
         )
         let candidate = serverFactory(paths, limits) { request in
@@ -192,7 +223,7 @@ final class AgentAccessController {
             proposalGate.activate(expectedGeneration)
             try candidate.start()
             guard lifecycleGeneration == expectedGeneration, appState.agentAccessEnabled else {
-                proposalGate.deactivate()
+                proposalGate.deactivateAndWait()
                 candidate.stop()
                 return
             }
@@ -200,7 +231,7 @@ final class AgentAccessController {
             appState.agentAccessPresentationState = .running
             DiagnosticLog.write("AgentAccess.lifecycle: running")
         } catch {
-            proposalGate.deactivate()
+            proposalGate.deactivateAndWait()
             candidate.stop()
             server = nil
             guard lifecycleGeneration == expectedGeneration else { return }
@@ -212,7 +243,7 @@ final class AgentAccessController {
     }
 
     func stop() {
-        proposalGate.deactivate()
+        proposalGate.deactivateAndWait()
         lifecycleGeneration = UUID()
         startupTask?.cancel()
         startupTask = nil

@@ -7,6 +7,7 @@ final class AgentAccessControllerTests: XCTestCase {
     private final class ServerStub: AgentAccessServing {
         var startError: Error?
         var onStart: (() -> Void)?
+        var onStop: (() -> Void)?
         private(set) var startCount = 0
         private(set) var stopCount = 0
 
@@ -16,7 +17,44 @@ final class AgentAccessControllerTests: XCTestCase {
             if let startError { throw startError }
         }
 
-        func stop() { stopCount += 1 }
+        func stop() {
+            stopCount += 1
+            onStop?()
+        }
+    }
+
+    private final class EventRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var events: [String] = []
+
+        func record(_ event: String) {
+            lock.withLock { events.append(event) }
+        }
+
+        func snapshot() -> [String] {
+            lock.withLock { events }
+        }
+    }
+
+    private final class HandlerBox: @unchecked Sendable {
+        let handler: AgentAccessServer.Handler
+
+        init(_ handler: @escaping AgentAccessServer.Handler) {
+            self.handler = handler
+        }
+    }
+
+    private final class ResponseBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var response: AgentAccessHTTPResponse?
+
+        func set(_ response: AgentAccessHTTPResponse) {
+            lock.withLock { self.response = response }
+        }
+
+        func get() -> AgentAccessHTTPResponse? {
+            lock.withLock { response }
+        }
     }
 
     private struct StartFailure: Error, LocalizedError {
@@ -406,6 +444,75 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertEqual(state.agentAccessPendingProposalCount, 0)
         XCTAssertEqual(state.vocabularyCorrections, vocabularyBefore)
         XCTAssertEqual(state.localCorrectionSnapshot, rulesBefore)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testDisableWaitsForInFlightProposalCommitBeforeReportingOff() async throws {
+        let state = makeState()
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let livePaths = paths()
+        let recorder = EventRecorder()
+        let writerStarted = DispatchSemaphore(value: 0)
+        let writerDelay = DispatchSemaphore(value: 0)
+        let proposalStore = VocabularyProposalStore(
+            fileURL: livePaths.proposalStoreURL,
+            atomicWriter: { data, url in
+                recorder.record("write_started")
+                writerStarted.signal()
+                _ = writerDelay.wait(timeout: .now() + 0.3)
+                try data.write(to: url, options: .atomic)
+                recorder.record("write_finished")
+            }
+        )
+        var handler: AgentAccessServer.Handler?
+        let server = ServerStub()
+        server.onStop = { recorder.record("server_stopped") }
+        let controller = AgentAccessController(
+            appState: state,
+            paths: livePaths,
+            openAPIDocument: Data("{}".utf8),
+            proposalStore: proposalStore
+        ) { _, _, capturedHandler in
+            handler = capturedHandler
+            return server
+        }
+        defer { try? FileManager.default.removeItem(at: livePaths.supportDirectory) }
+
+        state.setAgentAccessEnabled(true)
+        let didStart = await waitUntil {
+            handler != nil && state.agentAccessPresentationState == .running
+        }
+        XCTAssertTrue(didStart)
+        let request = AgentAccessHTTPRequest(
+            method: .post,
+            path: "/v1/vocabulary/proposals",
+            headers: [:],
+            body: try JSONEncoder().encode(VocabularyProposalRequest(
+                requestID: "in-flight-request",
+                scope: .init(kind: "global", id: "global"),
+                corrections: [.init(spokenForms: ["super base"], replacement: "Supabase")]
+            ))
+        )
+        let handlerBox = HandlerBox(try XCTUnwrap(handler))
+        let responseBox = ResponseBox()
+        let responseFinished = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            responseBox.set(handlerBox.handler(request))
+            responseFinished.signal()
+        }
+
+        XCTAssertEqual(writerStarted.wait(timeout: .now() + 1), .success)
+        state.setAgentAccessEnabled(false)
+        XCTAssertEqual(responseFinished.wait(timeout: .now() + 1), .success)
+
+        XCTAssertEqual(responseBox.get()?.status, 201)
+        XCTAssertEqual(state.agentAccessPresentationState, .off)
+        XCTAssertEqual(server.stopCount, 1)
+        XCTAssertEqual(try proposalStore.load().proposals.count, 1)
+        let events = recorder.snapshot()
+        let writeFinished = try XCTUnwrap(events.firstIndex(of: "write_finished"))
+        let serverStopped = try XCTUnwrap(events.firstIndex(of: "server_stopped"))
+        XCTAssertLessThan(writeFinished, serverStopped, events.joined(separator: ", "))
         withExtendedLifetime(controller) {}
     }
 
