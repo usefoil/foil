@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A3C000000000000000000002 /* VocabularyCatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000000000000000000001 /* VocabularyCatalogStore.swift */; };
+		A3C000000000000000000003 /* VocabularyCatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000000000000000000001 /* VocabularyCatalogStore.swift */; };
+		A3C000000000000000000005 /* VocabularyCatalogStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000000000000000000004 /* VocabularyCatalogStoreTests.swift */; };
 		2A65A763D3DC5E5237A1D718 /* VocabularyProposalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D470FC76AFD65D7C6671EC64 /* VocabularyProposalModels.swift */; };
 		E2E1B9EE0635AD0A67C12223 /* VocabularyProposalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D470FC76AFD65D7C6671EC64 /* VocabularyProposalModels.swift */; };
 		55013F29587B35BE77D9B6F9 /* VocabularyProposalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 501084DCE710BB7A45D0A7B4 /* VocabularyProposalStore.swift */; };
@@ -234,6 +237,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A3C000000000000000000001 /* VocabularyCatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyCatalogStore.swift; sourceTree = "<group>"; };
+		A3C000000000000000000004 /* VocabularyCatalogStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyCatalogStoreTests.swift; sourceTree = "<group>"; };
 		D470FC76AFD65D7C6671EC64 /* VocabularyProposalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalModels.swift; sourceTree = "<group>"; };
 		501084DCE710BB7A45D0A7B4 /* VocabularyProposalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalStore.swift; sourceTree = "<group>"; };
 		A2B200000000000000000005 /* VocabularyProposalService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyProposalService.swift; sourceTree = "<group>"; };
@@ -392,6 +397,7 @@
 		354A13AAF6C21B2CF1944369 /* FoilTests */ = {
 			isa = PBXGroup;
 			children = (
+				A3C000000000000000000004 /* VocabularyCatalogStoreTests.swift */,
 				AACC20000000000000000003 /* AgentAccessControllerTests.swift */,
 				AACC20000000000000000004 /* AgentAccessContractTests.swift */,
 				0157347280D9DFAE6E0A177F /* AgentAccessHTTPTests.swift */,
@@ -491,6 +497,7 @@
 		D89C27DAE9C3B12C208E3F37 /* Foil */ = {
 			isa = PBXGroup;
 			children = (
+				A3C000000000000000000001 /* VocabularyCatalogStore.swift */,
 				AACC10000000000000000003 /* AgentAccessController.swift */,
 				8363B5D875D925F1EDA36611 /* AgentAccessHTTP.swift */,
 				D3D4B9D46A4C0CC6C28E3A69 /* AgentAccessModels.swift */,
@@ -807,6 +814,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A3C000000000000000000003 /* VocabularyCatalogStore.swift in Sources */,
 				AACC10000000000000000002 /* AgentAccessController.swift in Sources */,
 				694915CB9E2287BA1F7B56B2 /* AgentAccessHTTP.swift in Sources */,
 				9B236EED8DE7FF8D8C4B838E /* AgentAccessModels.swift in Sources */,
@@ -907,6 +915,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A3C000000000000000000005 /* VocabularyCatalogStoreTests.swift in Sources */,
 				AACC20000000000000000001 /* AgentAccessControllerTests.swift in Sources */,
 				AACC20000000000000000002 /* AgentAccessContractTests.swift in Sources */,
 				DB7957B5C832B9319A3CAF7D /* AgentAccessHTTPTests.swift in Sources */,
@@ -964,6 +973,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A3C000000000000000000002 /* VocabularyCatalogStore.swift in Sources */,
 				AACC10000000000000000001 /* AgentAccessController.swift in Sources */,
 				B1AC125DFD71928935E9DB43 /* AgentAccessHTTP.swift in Sources */,
 				270ABE9D36CFE441150BF7CD /* AgentAccessModels.swift in Sources */,

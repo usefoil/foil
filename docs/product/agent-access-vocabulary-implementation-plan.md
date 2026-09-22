@@ -340,6 +340,13 @@ Acceptance:
 **Purpose:** complete the useful workflow with one recoverable commit path for
 Vocabulary metadata, linked rules, and receipts.
 
+Delivery is split into two reviewable PRs. **Tranche 3A** provides the dormant v2
+catalog, migration/fingerprint checks, and atomic persistence foundation; see its
+[evidence receipt](../evidence/agent-access-vocabulary/tranche-3a/receipt.md).
+**Tranche 3B** activates the catalog through the coordinator and adds reviewed
+proposal apply. Proposal apply remains unavailable until 3B passes the complete
+Tranche 3 acceptance gate below.
+
 Implementation:
 
 - Add a main-actor `VocabularyCorrectionCoordinator` and route current UI mutation

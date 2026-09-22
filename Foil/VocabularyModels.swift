@@ -1,6 +1,6 @@
 import Foundation
 
-struct VocabularyCorrection: Codable, Identifiable, Equatable {
+struct VocabularyCorrection: Codable, Identifiable, Equatable, Sendable {
     var id: UUID
     var writtenAs: String
     var correctVersion: String
