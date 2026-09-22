@@ -22,7 +22,7 @@ enum AgentAccessPresentationState: String, Equatable {
     }
 }
 
-enum AgentAccessProposalState: String, Codable, CaseIterable, Equatable {
+enum AgentAccessProposalState: String, Codable, CaseIterable, Equatable, Sendable {
     case pending
     case applied
     case rejected
