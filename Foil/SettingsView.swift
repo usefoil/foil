@@ -1444,7 +1444,6 @@ struct SettingsView: View {
                             .accessibilityIdentifier("settings.deleteVocabularyCorrectionButton")
                         }
                         .padding(.vertical, 4)
-                        .accessibilityIdentifier("settings.vocabularyCorrectionRow")
                     }
                 }
             }

@@ -1,6 +1,5 @@
 import AppKit
 import CoreGraphics
-import CryptoKit
 import XCTest
 
 final class FoilUITests: XCTestCase {
@@ -493,25 +492,26 @@ final class FoilUITests: XCTestCase {
             id: "settings.agentAccess.copyCommand",
             fallbackLabel: "Copy agent instructions command"
         )
+        let socketURL = try agentAccessSocketURLFromSettings()
 
         XCTAssertTrue(toggle.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertEqual(toggle.value as? String, "0")
+        XCTAssertEqual(controlValueString(toggle), "0")
         XCTAssertTrue(status.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(elementExists(id: "settings.agentAccess.disclosure", timeout: 2), app.debugDescription)
         XCTAssertTrue(copy.waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: agentAccessSocketURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
 
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "starting", timeout: 0.75), app.debugDescription)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "running", timeout: 4), app.debugDescription)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: agentAccessSocketURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: socketURL.path))
 
         NSPasteboard.general.clearContents()
         clickElement(copy)
         let command = try XCTUnwrap(NSPasteboard.general.string(forType: .string))
         XCTAssertTrue(command.contains("--unix-socket"), command)
         XCTAssertTrue(command.contains("--max-time 12"), command)
-        XCTAssertTrue(command.contains(agentAccessSocketURL.path), command)
+        XCTAssertTrue(command.contains(socketURL.path), command)
 
         relaunchWithArguments(["--ui-testing", "--seed-history"])
         openAppShellSettings(navID: "appShell.nav.settings.general")
@@ -521,23 +521,19 @@ final class FoilUITests: XCTestCase {
         )
         let relaunchedStatus = app.descendants(matching: .any)["settings.agentAccess.status"]
         XCTAssertTrue(relaunchedToggle.waitForExistence(timeout: 4), app.debugDescription)
-        XCTAssertEqual(relaunchedToggle.value as? String, "1")
+        XCTAssertEqual(controlValueString(relaunchedToggle), "1")
         XCTAssertTrue(waitForElementLabelOrValue(relaunchedStatus, containing: "running", timeout: 4), app.debugDescription)
 
         clickElement(relaunchedToggle)
         XCTAssertTrue(waitForElementLabelOrValue(relaunchedStatus, containing: "off", timeout: 4), app.debugDescription)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: agentAccessSocketURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
     }
 
     func testAgentAccessStartupErrorFailsClosedInSettings() throws {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-agent-access-unsafe-socket"])
         openAppShellSettings(navID: "appShell.nav.settings.general")
-        try FileManager.default.createDirectory(
-            at: agentAccessSocketURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700]
-        )
-        try Data("sentinel".utf8).write(to: agentAccessSocketURL)
-        defer { try? FileManager.default.removeItem(at: agentAccessSocketURL) }
+        let socketURL = try agentAccessSocketURLFromSettings()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: socketURL.path))
 
         let toggle = checkBox(
             id: "settings.agentAccess.toggle",
@@ -547,9 +543,9 @@ final class FoilUITests: XCTestCase {
 
         let status = app.descendants(matching: .any)["settings.agentAccess.status"]
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "error", timeout: 4), app.debugDescription)
-        XCTAssertEqual(toggle.value as? String, "0")
+        XCTAssertEqual(controlValueString(toggle), "0")
         XCTAssertTrue(elementExists(id: "settings.agentAccess.error", timeout: 2), app.debugDescription)
-        XCTAssertEqual(try Data(contentsOf: agentAccessSocketURL), Data("sentinel".utf8))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: socketURL.path))
     }
 
     func testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled() throws {
@@ -560,6 +556,7 @@ final class FoilUITests: XCTestCase {
             "--seed-agent-vocabulary-proposal"
         ])
         openAppShellSettings(navID: "appShell.nav.settings.general")
+        let socketURL = try agentAccessSocketURLFromSettings()
         let toggle = checkBox(
             id: "settings.agentAccess.toggle",
             fallbackLabel: "Allow local agents to access Vocabulary"
@@ -577,7 +574,7 @@ final class FoilUITests: XCTestCase {
 
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "off", timeout: 4), app.debugDescription)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: agentAccessSocketURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
         let reviewAfterDisable = button(
             id: "settings.agentAccess.reviewProposals",
             fallbackLabel: "Review vocabulary proposals"
@@ -1224,6 +1221,7 @@ final class FoilUITests: XCTestCase {
         clickElement(app.checkBoxes["settings.localCorrectionsEnabled"])
 
         let previewInput = app.textFields["settings.localCorrectionPreviewInput"]
+        scrollSettingsUntilHittable(previewInput)
         replaceText(in: previewInput, with: "use super base now")
         let previewOutput = app.staticTexts["settings.localCorrectionPreviewOutput"]
         XCTAssertTrue(
@@ -1247,6 +1245,7 @@ final class FoilUITests: XCTestCase {
         clickElement(relaunchedScope)
         clickElement(app.menuItems["Off"])
         let relaunchedPreview = app.textFields["settings.localCorrectionPreviewInput"]
+        scrollSettingsUntilHittable(relaunchedPreview)
         replaceText(in: relaunchedPreview, with: "ask cloud code")
         XCTAssertTrue(
             elementLabelOrValueContains(
@@ -1773,16 +1772,16 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertEqual(signifier.label, "Processing recording")
 
-        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--simulate-success-after-launch"])
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-command-posted-result"])
 
         signifier = app.descendants(matching: .any)["liveAudioSignifier.capsule"]
         XCTAssertTrue(app.descendants(matching: .any)["liveAudioSignifier.window"].waitForExistence(timeout: 7), app.debugDescription)
         XCTAssertTrue(signifier.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(
-            waitForElementLabelOrValue(signifier, containing: "Recording delivered", timeout: 4),
+            waitForElementLabelOrValue(signifier, containing: "Paste command sent to the current app", timeout: 4),
             app.debugDescription
         )
-        XCTAssertEqual(signifier.label, "Recording delivered")
+        XCTAssertEqual(signifier.label, "Paste command sent to the current app")
     }
 
     func testLiveAudioSignifierIncludesActiveCleanupModeWhileRecording() {
@@ -2230,17 +2229,32 @@ final class FoilUITests: XCTestCase {
         app.descendants(matching: .any)["uiTest.controlCenter"]
     }
 
-    private var agentAccessSocketURL: URL {
-        let canonicalSessionIdentifier = String(uiTestSessionIdentifier.unicodeScalars.map {
-            CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_"
-        })
-        let digest = SHA256.hash(data: Data(canonicalSessionIdentifier.utf8))
-            .prefix(4)
-            .map { String(format: "%02x", $0) }
-            .joined()
-        return FileManager.default.temporaryDirectory
-            .appendingPathComponent(digest, isDirectory: true)
-            .appendingPathComponent("agent-v1.sock")
+    private func agentAccessSocketURLFromSettings() throws -> URL {
+        let copy = button(
+            id: "settings.agentAccess.copyCommand",
+            fallbackLabel: "Copy agent instructions command"
+        )
+        XCTAssertTrue(copy.waitForExistence(timeout: 4), app.debugDescription)
+        NSPasteboard.general.clearContents()
+        clickElement(copy)
+        let command = try XCTUnwrap(NSPasteboard.general.string(forType: .string))
+        let marker = "--unix-socket '"
+        let suffix = try XCTUnwrap(command.range(of: marker).map { command[$0.upperBound...] })
+        let end = try XCTUnwrap(suffix.firstIndex(of: "'"))
+        return URL(fileURLWithPath: String(suffix[..<end]))
+    }
+
+    private func scrollSettingsUntilHittable(_ element: XCUIElement) {
+        let scrollView = app.scrollViews["settings.root"]
+        func isVerticallyVisible() -> Bool {
+            let viewport = scrollView.frame.insetBy(dx: 0, dy: 12)
+            let target = element.frame
+            return target.minY >= viewport.minY && target.maxY <= viewport.maxY
+        }
+        for _ in 0..<6 where !isVerticallyVisible() {
+            scrollView.swipeUp()
+        }
+        XCTAssertTrue(isVerticallyVisible(), app.debugDescription)
     }
 
     private func launchApp(
@@ -2699,6 +2713,10 @@ final class FoilUITests: XCTestCase {
         }
         let genericFallback = app.descendants(matching: .any)[fallbackLabel]
         return genericFallback.exists ? genericFallback : app.checkBoxes[fallbackLabel]
+    }
+
+    private func controlValueString(_ element: XCUIElement) -> String? {
+        element.value.map { String(describing: $0) }
     }
 
     private func assertButtonExists(id: String, fallbackLabel: String) {

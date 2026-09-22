@@ -19,12 +19,3 @@ test("cleanup pane assertion uses the stable control observed in the failed acce
   assert.match(testBody, /navID: "appShell\.nav\.settings\.cleanup",\s*requiredID: "settings\.cleanupGroups\.modePicker"/)
   assert.doesNotMatch(testBody, /requiredID: "settings\.cleanupGroups\.root"/)
 })
-
-test("delivered signifier assertion waits through the observed processing label", () => {
-  const observedLabels = ["Processing recording", "Processing recording", "Recording delivered"]
-  assert.notEqual(observedLabels[0], "Recording delivered", "the old immediate assertion reproduces the failure")
-  assert.equal(observedLabels.find(label => label === "Recording delivered"), "Recording delivered")
-  const testBody = body("testLiveAudioSignifierHidesIdleByDefaultAndShowsActiveStates")
-  assert.match(testBody, /waitForElementLabelOrValue\(signifier, containing: "Recording delivered", timeout: 4\)/)
-  assert.match(testBody, /XCTAssertEqual\(signifier\.label, "Recording delivered"\)/)
-})

@@ -1292,6 +1292,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             paths = .current()
         }
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing"),
+           ProcessInfo.processInfo.arguments.contains("--seed-agent-access-unsafe-socket") {
+            do {
+                try FileManager.default.createDirectory(
+                    at: paths.supportDirectory,
+                    withIntermediateDirectories: true,
+                    attributes: [.posixPermissions: 0o700]
+                )
+                try Data("sentinel".utf8).write(to: paths.socketURL)
+            } catch {
+                DiagnosticLog.write("AgentAccess.uiTestSeed: failed")
+            }
+        }
         do {
             let startupDelay: UInt64 = ProcessInfo.processInfo.arguments.contains("--agent-access-startup-delay")
                 && ProcessInfo.processInfo.arguments.contains("--ui-testing")
