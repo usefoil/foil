@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import CryptoKit
+import Darwin
 import XCTest
 
 final class FoilUITests: XCTestCase {
@@ -2262,38 +2263,91 @@ final class FoilUITests: XCTestCase {
         body: String? = nil,
         socketURL: URL? = nil
     ) throws -> String {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-        process.arguments = [
-            "--silent", "--show-error", "--connect-timeout", "1", "--max-time", "5",
-            "--retry", "3", "--retry-all-errors", "--retry-delay", "0",
-            "--unix-socket", (socketURL ?? agentAccessSocketURL).path,
-            "--request", method,
-            "--header", "Content-Type: application/json",
-            "--data-binary", "@-",
-            "http://foil\(path)"
-        ]
-        let input = Pipe()
-        let output = Pipe()
-        process.standardInput = input
-        process.standardOutput = output
-        process.standardError = output
-        try process.run()
-        if let body {
-            try input.fileHandleForWriting.write(contentsOf: Data(body.utf8))
+        let target = socketURL ?? agentAccessSocketURL
+        let client = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        guard client >= 0 else { throw agentAccessPOSIXError("socket", at: target) }
+        defer { Darwin.close(client) }
+
+        var timeout = timeval(tv_sec: 5, tv_usec: 0)
+        _ = withUnsafePointer(to: &timeout) { pointer in
+            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, pointer, socklen_t(MemoryLayout<timeval>.size))
         }
-        try input.fileHandleForWriting.close()
-        process.waitUntilExit()
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        let text = String(decoding: data, as: UTF8.self)
-        guard process.terminationStatus == 0 else {
-            throw NSError(
-                domain: "FoilUITests.AgentAccess",
-                code: Int(process.terminationStatus),
-                userInfo: [NSLocalizedDescriptionKey: text]
-            )
+        _ = withUnsafePointer(to: &timeout) { pointer in
+            setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, pointer, socklen_t(MemoryLayout<timeval>.size))
         }
-        return text
+
+        let pathBytes = Array(target.path.utf8)
+        var address = sockaddr_un()
+        let addressLength = socklen_t(
+            MemoryLayout<sockaddr_un>.offset(of: \sockaddr_un.sun_path)! + pathBytes.count + 1
+        )
+        address.sun_len = UInt8(addressLength)
+        address.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &address.sun_path) { destination in
+            destination.initializeMemory(as: UInt8.self, repeating: 0)
+            destination.copyBytes(from: pathBytes)
+        }
+        let connectResult = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.connect(client, $0, addressLength)
+            }
+        }
+        guard connectResult == 0 else { throw agentAccessPOSIXError("connect", at: target) }
+
+        let bodyData = Data((body ?? "").utf8)
+        var request = "\(method) \(path) HTTP/1.1\r\nHost: foil\r\nConnection: close\r\n"
+        if !bodyData.isEmpty {
+            request += "Content-Type: application/json\r\nContent-Length: \(bodyData.count)\r\n"
+        }
+        request += "\r\n"
+        var requestData = Data(request.utf8)
+        requestData.append(bodyData)
+
+        var bytesSent = 0
+        while bytesSent < requestData.count {
+            let sent = requestData.withUnsafeBytes { buffer in
+                Darwin.send(
+                    client,
+                    buffer.baseAddress!.advanced(by: bytesSent),
+                    buffer.count - bytesSent,
+                    0
+                )
+            }
+            guard sent > 0 else { throw agentAccessPOSIXError("send", at: target) }
+            bytesSent += sent
+        }
+
+        var responseData = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while true {
+            let received = Darwin.recv(client, &buffer, buffer.count, 0)
+            if received == 0 { break }
+            if received < 0 {
+                if errno == EINTR { continue }
+                throw agentAccessPOSIXError("receive", at: target)
+            }
+            responseData.append(buffer, count: received)
+        }
+
+        let separator = Data("\r\n\r\n".utf8)
+        let headerRange = try XCTUnwrap(responseData.range(of: separator))
+        let headerData = responseData[..<headerRange.lowerBound]
+        let header = String(decoding: headerData, as: UTF8.self)
+        let statusLine = try XCTUnwrap(header.components(separatedBy: "\r\n").first)
+        XCTAssertTrue(statusLine.hasPrefix("HTTP/1.1 2"), header)
+        return String(decoding: responseData[headerRange.upperBound...], as: UTF8.self)
+    }
+
+    private func agentAccessPOSIXError(_ operation: String, at socketURL: URL) -> NSError {
+        let code = errno
+        return NSError(
+            domain: "FoilUITests.AgentAccess",
+            code: Int(code),
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "\(operation) failed for \(socketURL.path): \(String(cString: strerror(code))) (errno \(code))"
+            ]
+        )
     }
 
     private func launchApp(

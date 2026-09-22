@@ -143,6 +143,15 @@ the exact 77-byte hosted temporary-directory prefix and proves the resulting soc
 path remains within the production `sockaddr_un` limit. Production Agent Access
 continues to use Foil's Application Support directory.
 
+The following hosted run again proved the socket existed and Foil reported running,
+but a child `/usr/bin/curl` launched by XCTest still failed before Foil received a
+request. The end-to-end test no longer depends on XCTest's child-process transport:
+it now opens a native Unix socket from the UI-test process, sends a complete HTTP
+request, reads the response, and reports the precise POSIX operation and errno on
+failure. This remains a separate-process client of the Foil app and continues to use
+the path obtained from Foil's copied bootstrap command. The full test target passed
+`xcodebuild build-for-testing` after the client change.
+
 ## Review tooling
 
 Claim: the branch received a second review pass after implementation.
