@@ -163,6 +163,12 @@ review button after shutdown and after rejection, and verifies the seeded spoken
 form and replacement through their editable fields. `xcodebuild build-for-testing`
 passed after this correction.
 
+The next split UI run opened the review sheet and exposed the seeded correction,
+but the identifier attached to the sheet's `NavigationStack` did not appear on any
+accessibility node. The failure artifact showed the sheet, `super base`, `Supabase`,
+and the uniquely identified Done button in the accessibility tree. The test now
+waits for that Done button as its sheet-open assertion before inspecting the fields.
+
 ## Review tooling
 
 Claim: the branch received a second review pass after implementation.

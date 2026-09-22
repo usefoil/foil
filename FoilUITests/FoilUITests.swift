@@ -585,7 +585,10 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(reviewAfterDisable.value as? String, "1 pending")
         clickElement(reviewAfterDisable)
 
-        XCTAssertTrue(elementExists(id: "agentProposals.reviewView", timeout: 5), app.debugDescription)
+        XCTAssertTrue(
+            app.buttons["agentProposals.done"].waitForExistence(timeout: 5),
+            app.debugDescription
+        )
         let spokenForm = app.textFields["Spoken form"]
         let replacement = app.textFields["Replacement"]
         XCTAssertEqual(spokenForm.value as? String, "super base", app.debugDescription)
