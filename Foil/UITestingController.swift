@@ -399,6 +399,11 @@ final class UITestingController {
             appState.clipboardFeedback = "Text is on the clipboard"
         }
 
+        if args.contains("--seed-command-posted-result") {
+            appState.setStatus(.idle)
+            appState.recordPaste(.currentAppCommandPosted)
+        }
+
         if args.contains("--seed-recording") {
             appState.setStatus(.recording)
             appState.recordingStartTime = Date()
