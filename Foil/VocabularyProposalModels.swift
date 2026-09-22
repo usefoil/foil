@@ -123,6 +123,7 @@ struct VocabularyProposal: Codable, Equatable, Sendable, Identifiable {
     let id: String
     let requestID: String
     let requestHash: String
+    let reviewHash: String?
     let state: AgentAccessProposalState
     let scope: VocabularyProposalScope
     let corrections: [VocabularyProposalCorrection]
@@ -134,10 +135,35 @@ struct VocabularyProposal: Codable, Equatable, Sendable, Identifiable {
         case id
         case requestID = "request_id"
         case requestHash = "request_hash"
+        case reviewHash = "review_hash"
         case state, scope, corrections
         case snapshotToken = "snapshot_token"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+    }
+
+    init(
+        id: String,
+        requestID: String,
+        requestHash: String,
+        reviewHash: String? = nil,
+        state: AgentAccessProposalState,
+        scope: VocabularyProposalScope,
+        corrections: [VocabularyProposalCorrection],
+        snapshotToken: String,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.requestID = requestID
+        self.requestHash = requestHash
+        self.reviewHash = reviewHash
+        self.state = state
+        self.scope = scope
+        self.corrections = corrections
+        self.snapshotToken = snapshotToken
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
     }
 
     func receipt() -> VocabularyProposalReceipt {

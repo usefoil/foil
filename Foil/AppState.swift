@@ -395,12 +395,33 @@ final class AppState {
     var agentAccessPresentationState: AgentAccessPresentationState = .off
     var agentAccessErrorMessage: String?
     var agentAccessBootstrapCommand = ""
+    var agentAccessProposals: [VocabularyProposal] = []
+    var agentAccessProposalPreviews: [String: AgentAccessPreviewResponse] = [:]
+    var agentAccessStaleProposalIDs: Set<String> = []
+    var agentAccessProposalInboxErrorMessage: String?
+    var agentAccessPendingProposalCount: Int {
+        agentAccessProposals.lazy.filter { $0.state == .pending }.count
+    }
     @ObservationIgnored var agentAccessPreferenceDidChange: ((Bool) -> Void)?
     @ObservationIgnored var agentAccessReadModelDidChange: (() -> Void)?
+    @ObservationIgnored var agentAccessProposalRevisionDidRequest: ((String, VocabularyProposalScope, [VocabularyProposalCorrection]) -> Void)?
+    @ObservationIgnored var agentAccessProposalTransitionDidRequest: ((String, AgentAccessProposalState) -> Void)?
 
     func setAgentAccessEnabled(_ enabled: Bool, notifyController: Bool = true) {
         agentAccessEnabled = enabled
         if notifyController { agentAccessPreferenceDidChange?(enabled) }
+    }
+
+    func reviseAgentAccessProposal(
+        id: String,
+        scope: VocabularyProposalScope,
+        corrections: [VocabularyProposalCorrection]
+    ) {
+        agentAccessProposalRevisionDidRequest?(id, scope, corrections)
+    }
+
+    func transitionAgentAccessProposal(id: String, to state: AgentAccessProposalState) {
+        agentAccessProposalTransitionDidRequest?(id, state)
     }
 
     var soundEffectsEnabled: Bool = true {

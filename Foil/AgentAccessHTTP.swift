@@ -27,6 +27,7 @@ struct AgentAccessHTTPResponse: Equatable {
         value: T
     ) throws -> AgentAccessHTTPResponse {
         let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]
         return AgentAccessHTTPResponse(
             status: status,
@@ -210,11 +211,15 @@ struct AgentAccessHTTPRequestParser {
 
 struct AgentAccessContractRouter {
     typealias VocabularyProvider = () -> AgentAccessVocabularyReadModel
+    typealias ProposalSubmitter = (VocabularyProposalRequest) throws -> VocabularyProposalSubmission
+    typealias ProposalStatusProvider = (String) throws -> VocabularyProposalReceipt
 
     let socketPath: String
     let openAPIDocument: Data
     let limits: AgentAccessLimits
     let vocabularyProvider: VocabularyProvider
+    let proposalSubmitter: ProposalSubmitter?
+    let proposalStatusProvider: ProposalStatusProvider?
 
     init(
         socketPath: String,
@@ -224,12 +229,16 @@ struct AgentAccessContractRouter {
             AgentAccessVocabularyReadModel(
                 scopes: [], terms: [], corrections: [], localCorrectionsEnabled: false
             )
-        }
+        },
+        proposalSubmitter: ProposalSubmitter? = nil,
+        proposalStatusProvider: ProposalStatusProvider? = nil
     ) {
         self.socketPath = socketPath
         self.openAPIDocument = openAPIDocument
         self.limits = limits
         self.vocabularyProvider = vocabularyProvider
+        self.proposalSubmitter = proposalSubmitter
+        self.proposalStatusProvider = proposalStatusProvider
     }
 
     func response(to request: AgentAccessHTTPRequest) -> AgentAccessHTTPResponse {
@@ -293,7 +302,61 @@ struct AgentAccessContractRouter {
             )
             return (try? .json(requestID: requestID, value: preview))
                 ?? internalError(requestID: requestID)
+        case "/v1/vocabulary/proposals":
+            guard request.method == .post else { return methodNotAllowed(requestID: requestID) }
+            guard let proposalSubmitter else { return unavailableResponse(requestID: requestID) }
+            guard let proposal = try? JSONDecoder().decode(VocabularyProposalRequest.self, from: request.body) else {
+                return errorResponse(
+                    status: 400,
+                    reason: "Bad Request",
+                    requestID: requestID,
+                    code: "invalid_json",
+                    message: "Proposal requires a versioned request ID, scope, and corrections array."
+                )
+            }
+            do {
+                let submission = try proposalSubmitter(proposal)
+                let value = AgentAccessProposalResponse(
+                    requestID: requestID,
+                    receipt: submission.receipt,
+                    replayed: submission.wasReplay
+                )
+                return (try? .json(
+                    status: submission.wasReplay ? 200 : 201,
+                    reason: submission.wasReplay ? "OK" : "Created",
+                    requestID: requestID,
+                    value: value
+                )) ?? internalError(requestID: requestID)
+            } catch {
+                return proposalErrorResponse(error, requestID: requestID)
+            }
         default:
+            if request.path.hasPrefix("/v1/vocabulary/proposals/") {
+                guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
+                guard let proposalStatusProvider else { return unavailableResponse(requestID: requestID) }
+                let proposalID = String(request.path.dropFirst("/v1/vocabulary/proposals/".count))
+                guard !proposalID.isEmpty, !proposalID.contains("/") else {
+                    return errorResponse(
+                        status: 404,
+                        reason: "Not Found",
+                        requestID: requestID,
+                        code: "proposal_not_found",
+                        message: "No proposal matches that ID."
+                    )
+                }
+                do {
+                    let receipt = try proposalStatusProvider(proposalID)
+                    let value = AgentAccessProposalResponse(
+                        requestID: requestID,
+                        receipt: receipt,
+                        replayed: false
+                    )
+                    return (try? .json(requestID: requestID, value: value))
+                        ?? internalError(requestID: requestID)
+                } catch {
+                    return proposalErrorResponse(error, requestID: requestID)
+                }
+            }
             return errorResponse(
                 status: 404,
                 reason: "Not Found",
@@ -302,6 +365,38 @@ struct AgentAccessContractRouter {
                 message: "No Agent Access route matches this path."
             )
         }
+    }
+
+    private func proposalErrorResponse(_ error: Error, requestID: String) -> AgentAccessHTTPResponse {
+        guard let error = error as? VocabularyProposalServiceError else {
+            return unavailableResponse(requestID: requestID)
+        }
+        switch error {
+        case .invalidRequestID:
+            return errorResponse(status: 400, reason: "Bad Request", requestID: requestID, code: "invalid_request_id", message: "Proposal request_id must be 1-128 visible ASCII characters.")
+        case .invalidScope:
+            return errorResponse(status: 422, reason: "Unprocessable Content", requestID: requestID, code: "invalid_scope", message: "Choose global scope or an enabled Cleanup Group returned by the scopes endpoint.")
+        case let .validation(code, message):
+            return errorResponse(status: 422, reason: "Unprocessable Content", requestID: requestID, code: code, message: message)
+        case .requestConflict:
+            return errorResponse(status: 409, reason: "Conflict", requestID: requestID, code: "request_id_conflict", message: "That request_id was already used for different proposal content.")
+        case .queueFull:
+            return errorResponse(status: 429, reason: "Too Many Requests", requestID: requestID, code: "proposal_queue_full", message: "Review or discard pending proposals before submitting another.")
+        case .notFound:
+            return errorResponse(status: 404, reason: "Not Found", requestID: requestID, code: "proposal_not_found", message: "No proposal matches that ID.")
+        case .unavailable:
+            return unavailableResponse(requestID: requestID)
+        }
+    }
+
+    private func unavailableResponse(requestID: String) -> AgentAccessHTTPResponse {
+        errorResponse(
+            status: 503,
+            reason: "Service Unavailable",
+            requestID: requestID,
+            code: "proposal_store_unavailable",
+            message: "Foil cannot access the proposal inbox. Open Settings to review the local error."
+        )
     }
 
     private func methodNotAllowed(requestID: String) -> AgentAccessHTTPResponse {

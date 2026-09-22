@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Foil Agent Access",
-    "version": "1.1.0",
-    "description": "Read-only Vocabulary discovery and in-memory correction preview. No endpoint mutates Foil."
+    "version": "1.2.0",
+    "description": "Vocabulary discovery, in-memory preview, and inert proposals that require review in Foil. Agents cannot apply changes."
   },
   "servers": [{"url": "http://foil", "description": "HTTP over Foil's owner-only Unix domain socket"}],
   "paths": {
@@ -53,6 +53,35 @@
           "400": {"$ref": "#/components/responses/ErrorResponse"},
           "405": {"$ref": "#/components/responses/ErrorResponse"},
           "413": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/vocabulary/proposals": {
+      "post": {
+        "operationId": "proposeVocabularyCorrections",
+        "description": "Validate and save an inert proposal for review in Foil. This does not apply Vocabulary changes.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalRequest"}}}},
+        "responses": {
+          "201": {"description": "Proposal created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalResponse"}}}},
+          "200": {"description": "Idempotent replay of an existing proposal", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalResponse"}}}},
+          "400": {"$ref": "#/components/responses/ErrorResponse"},
+          "409": {"$ref": "#/components/responses/ErrorResponse"},
+          "422": {"$ref": "#/components/responses/ErrorResponse"},
+          "429": {"$ref": "#/components/responses/ErrorResponse"},
+          "503": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/vocabulary/proposals/{proposal_id}": {
+      "get": {
+        "operationId": "getVocabularyProposalStatus",
+        "description": "Return the durable disposition of a proposal.",
+        "parameters": [{"name": "proposal_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {
+          "200": {"description": "Proposal status", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalResponse"}}}},
+          "404": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
+          "503": {"$ref": "#/components/responses/ErrorResponse"}
         }
       }
     }
@@ -196,6 +225,48 @@
           "issues": {"type": "array", "items": {"$ref": "#/components/schemas/PreviewIssue"}},
           "normalized_corrections": {"type": "array", "items": {"$ref": "#/components/schemas/PreviewCorrection"}},
           "examples": {"type": "array", "items": {"$ref": "#/components/schemas/PreviewExample"}}
+        }
+      },
+      "ProposalScope": {
+        "type": "object",
+        "required": ["kind", "id"],
+        "properties": {
+          "kind": {"type": "string", "enum": ["global", "cleanup_group"]},
+          "id": {"type": "string", "description": "Use global for global scope, or an enabled scope ID returned by listVocabularyScopes."}
+        }
+      },
+      "ProposalCorrection": {
+        "type": "object",
+        "required": ["spoken_forms", "replacement"],
+        "properties": {
+          "spoken_forms": {"type": "array", "minItems": 1, "maxItems": 10, "items": {"type": "string", "maxLength": 256}},
+          "replacement": {"type": "string", "maxLength": 256},
+          "note": {"type": ["string", "null"], "maxLength": 256},
+          "case_sensitive": {"type": "boolean", "default": false}
+        }
+      },
+      "ProposalRequest": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "scope", "corrections"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "scope": {"$ref": "#/components/schemas/ProposalScope"},
+          "corrections": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"$ref": "#/components/schemas/ProposalCorrection"}}
+        }
+      },
+      "ProposalResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "client_request_id", "proposal_id", "state", "replayed", "created_at", "updated_at"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "client_request_id": {"type": "string"},
+          "proposal_id": {"type": "string", "format": "uuid"},
+          "state": {"type": "string", "enum": ["pending", "applied", "rejected", "discarded"]},
+          "replayed": {"type": "boolean"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
         }
       },
       "ErrorDetail": {

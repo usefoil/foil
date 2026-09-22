@@ -276,6 +276,12 @@ Acceptance:
 
 **Purpose:** let an agent hand bounded work to the user without granting mutation.
 
+**Status:** 2A is implemented and acceptance-gated. 2B is implemented with local
+unit, contract, integration, privacy, build, and matcher gates passing; the focused
+macOS UI smoke remains pending because the local XCTest runner timed out before it
+could enable automation mode. See the
+[Tranche 2B evidence receipt](../evidence/agent-access-vocabulary/tranche-2b/receipt.md).
+
 Deliver this tranche in two reviewable slices:
 
 - **2A — durable foundation:** versioned request, proposal, snapshot, and receipt

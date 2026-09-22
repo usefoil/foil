@@ -6,6 +6,7 @@ enum VocabularyProposalStoreError: Error, Equatable {
     case unsupportedRequestSchema(Int)
     case invalidRequestID
     case correctionsRequired
+    case invalidReview
     case invalidSnapshotToken
     case queueFull(maximum: Int)
     case requestIDConflict(String)
@@ -115,6 +116,7 @@ final class VocabularyProposalStore: @unchecked Sendable {
             id: makeID().uuidString.lowercased(),
             requestID: request.requestID,
             requestHash: requestHash,
+            reviewHash: nil,
             state: .pending,
             scope: request.scope,
             corrections: request.corrections,
@@ -127,6 +129,61 @@ final class VocabularyProposalStore: @unchecked Sendable {
             proposals: current.proposals + [proposal]
         ))
         return VocabularyProposalSubmission(receipt: proposal.receipt(), wasReplay: false)
+    }
+
+    @discardableResult
+    func revise(
+        id: String,
+        scope: VocabularyProposalScope,
+        corrections: [VocabularyProposalCorrection]
+    ) throws -> VocabularyProposal {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let current = try decodeSnapshot()
+        guard let index = current.proposals.firstIndex(where: { $0.id == id }) else {
+            throw VocabularyProposalStoreError.proposalNotFound(id)
+        }
+        let existing = current.proposals[index]
+        guard existing.state == .pending else {
+            throw VocabularyProposalStoreError.invalidStateTransition(from: existing.state, to: .pending)
+        }
+        let reviewedRequest = VocabularyProposalRequest(
+            requestID: existing.requestID,
+            scope: scope,
+            corrections: corrections
+        ).canonicalized()
+        guard !reviewedRequest.corrections.isEmpty,
+              reviewedRequest.corrections.allSatisfy({ !$0.spokenForms.isEmpty }) else {
+            throw VocabularyProposalStoreError.invalidReview
+        }
+        let reviewHash: String
+        do {
+            reviewHash = try reviewedRequest.canonicalPayloadDigest()
+        } catch {
+            throw VocabularyProposalStoreError.invalidReview
+        }
+        if existing.scope == reviewedRequest.scope,
+           existing.corrections == reviewedRequest.corrections {
+            return existing
+        }
+
+        let updated = VocabularyProposal(
+            id: existing.id,
+            requestID: existing.requestID,
+            requestHash: existing.requestHash,
+            reviewHash: reviewHash,
+            state: existing.state,
+            scope: reviewedRequest.scope,
+            corrections: reviewedRequest.corrections,
+            snapshotToken: existing.snapshotToken,
+            createdAt: existing.createdAt,
+            updatedAt: normalizedTimestamp()
+        )
+        var proposals = current.proposals
+        proposals[index] = updated
+        try persist(VocabularyProposalSnapshot(revision: current.revision + 1, proposals: proposals))
+        return updated
     }
 
     @discardableResult
@@ -151,6 +208,7 @@ final class VocabularyProposalStore: @unchecked Sendable {
             id: existing.id,
             requestID: existing.requestID,
             requestHash: existing.requestHash,
+            reviewHash: existing.reviewHash,
             state: state,
             scope: existing.scope,
             corrections: existing.corrections,
@@ -246,7 +304,12 @@ final class VocabularyProposalStore: @unchecked Sendable {
             corrections: proposal.corrections
         )
         guard request == request.canonicalized() else { return false }
-        return try request.canonicalPayloadDigest() == proposal.requestHash
+        let currentDigest = try request.canonicalPayloadDigest()
+        if let reviewHash = proposal.reviewHash {
+            guard isSHA256Digest(reviewHash) else { return false }
+            return currentDigest == reviewHash
+        }
+        return currentDigest == proposal.requestHash
     }
 
     private struct SchemaHeader: Decodable {

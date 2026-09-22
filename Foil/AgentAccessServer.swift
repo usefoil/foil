@@ -389,7 +389,11 @@ final class AgentAccessServer {
         case "/v1/vocabulary/scopes": "vocabulary_scopes"
         case "/v1/vocabulary": "vocabulary_list"
         case "/v1/vocabulary/preview": "vocabulary_preview"
-        default: "unknown"
+        case "/v1/vocabulary/proposals": "vocabulary_proposal_submit"
+        default:
+            path.hasPrefix("/v1/vocabulary/proposals/")
+                ? "vocabulary_proposal_status"
+                : "unknown"
         }
     }
 

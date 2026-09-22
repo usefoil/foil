@@ -295,12 +295,23 @@ final class AgentAccessControllerTests: XCTestCase {
             path: "/v1/vocabulary/preview",
             body: previewBody
         ))
+        let proposalAliasSecret = "SECRET_PROPOSAL_ALIAS"
+        let proposalReplacementSecret = "SECRET_PROPOSAL_REPLACEMENT"
+        let proposalNoteSecret = "SECRET_PROPOSAL_NOTE"
+        let proposalBody = Data(#"{"schema_version":1,"request_id":"privacy-proposal","scope":{"kind":"global","id":"global"},"corrections":[{"spoken_forms":["SECRET_PROPOSAL_ALIAS"],"replacement":"SECRET_PROPOSAL_REPLACEMENT","note":"SECRET_PROPOSAL_NOTE"}]}"#.utf8)
+        exposed.append(try sendHTTPRequest(
+            to: livePaths.socketURL,
+            method: "POST",
+            path: "/v1/vocabulary/proposals",
+            body: proposalBody
+        ))
         let diagnostics = DiagnosticLog.recentLines(limit: 100).joined(separator: "\n")
         let responseText = String(decoding: exposed, as: UTF8.self)
 
         for secret in [
             providerSecret, baseURLSecret, historySecret, keySecret, pathSecret,
-            sourceAppSecret, sourceRecordSecret.uuidString, "SECRET_LOCAL_RULE_PATH"
+            sourceAppSecret, sourceRecordSecret.uuidString, "SECRET_LOCAL_RULE_PATH",
+            proposalAliasSecret, proposalReplacementSecret, proposalNoteSecret
         ] {
             XCTAssertFalse(responseText.contains(secret), "Response leaked \(secret)")
             XCTAssertFalse(diagnostics.contains(secret), "Diagnostics leaked \(secret)")
@@ -329,6 +340,72 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertEqual(server.startCount, 0)
         XCTAssertEqual(server.stopCount, 0)
         XCTAssertEqual(state.agentAccessPresentationState, .off)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testProposalSubmissionIsInertAndCapturedHandlerFailsAfterDisable() async throws {
+        let state = makeState()
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let livePaths = paths()
+        let proposalStore = VocabularyProposalStore(fileURL: livePaths.proposalStoreURL)
+        let vocabularyBefore = state.vocabularyCorrections
+        let rulesBefore = state.localCorrectionSnapshot
+        var handler: AgentAccessServer.Handler?
+        let server = ServerStub()
+        let controller = AgentAccessController(
+            appState: state,
+            paths: livePaths,
+            openAPIDocument: Data("{}".utf8),
+            proposalStore: proposalStore
+        ) { _, _, capturedHandler in
+            handler = capturedHandler
+            return server
+        }
+        defer { try? FileManager.default.removeItem(at: livePaths.supportDirectory) }
+
+        state.setAgentAccessEnabled(true)
+        let didStart = await waitUntil { handler != nil && state.agentAccessPresentationState == .running }
+        XCTAssertTrue(didStart)
+        let firstBody = try JSONEncoder().encode(VocabularyProposalRequest(
+            requestID: "request-1",
+            scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["super base"], replacement: "Supabase")]
+        ))
+        let created = (try XCTUnwrap(handler))(AgentAccessHTTPRequest(
+            method: .post,
+            path: "/v1/vocabulary/proposals",
+            headers: [:],
+            body: firstBody
+        ))
+
+        XCTAssertEqual(created.status, 201)
+        let didPublish = await waitUntil { state.agentAccessPendingProposalCount == 1 }
+        XCTAssertTrue(didPublish)
+        XCTAssertEqual(state.vocabularyCorrections, vocabularyBefore)
+        XCTAssertEqual(state.localCorrectionSnapshot, rulesBefore)
+
+        state.setAgentAccessEnabled(false)
+        let secondBody = try JSONEncoder().encode(VocabularyProposalRequest(
+            requestID: "request-2",
+            scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["cloud code"], replacement: "Claude Code")]
+        ))
+        let disabled = (try XCTUnwrap(handler))(AgentAccessHTTPRequest(
+            method: .post,
+            path: "/v1/vocabulary/proposals",
+            headers: [:],
+            body: secondBody
+        ))
+
+        XCTAssertEqual(disabled.status, 503)
+        XCTAssertEqual(try proposalStore.load().proposals.count, 1)
+        XCTAssertEqual(state.agentAccessPendingProposalCount, 1)
+
+        let proposalID = try XCTUnwrap(state.agentAccessProposals.first?.id)
+        state.transitionAgentAccessProposal(id: proposalID, to: .rejected)
+        XCTAssertEqual(state.agentAccessPendingProposalCount, 0)
+        XCTAssertEqual(state.vocabularyCorrections, vocabularyBefore)
+        XCTAssertEqual(state.localCorrectionSnapshot, rulesBefore)
         withExtendedLifetime(controller) {}
     }
 
