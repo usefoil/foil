@@ -157,6 +157,12 @@ guards that the seed itself validates and persists through the service without
 enabling access or mutating Vocabulary. Cross-process curl confirmation remains a
 manual test outside XCTest's sandbox.
 
+The first split UI run reached the pending-count assertion but exposed a stale
+SwiftUI element handle after Agent Access changed state. The test now re-queries the
+review button after shutdown and after rejection, and verifies the seeded spoken
+form and replacement through their editable fields. `xcodebuild build-for-testing`
+passed after this correction.
+
 ## Review tooling
 
 Claim: the branch received a second review pass after implementation.

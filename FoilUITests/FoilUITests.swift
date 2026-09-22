@@ -578,18 +578,28 @@ final class FoilUITests: XCTestCase {
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "off", timeout: 4), app.debugDescription)
         XCTAssertFalse(FileManager.default.fileExists(atPath: agentAccessSocketURL.path))
-        clickElement(review)
+        let reviewAfterDisable = button(
+            id: "settings.agentAccess.reviewProposals",
+            fallbackLabel: "Review vocabulary proposals"
+        )
+        XCTAssertEqual(reviewAfterDisable.value as? String, "1 pending")
+        clickElement(reviewAfterDisable)
 
-        XCTAssertTrue(elementExists(id: "agentProposals.reviewView", timeout: 3), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Supabase"].exists, app.debugDescription)
-        XCTAssertTrue(app.textFields["Spoken form"].exists, app.debugDescription)
-        XCTAssertTrue(app.textFields["Replacement"].exists, app.debugDescription)
+        XCTAssertTrue(elementExists(id: "agentProposals.reviewView", timeout: 5), app.debugDescription)
+        let spokenForm = app.textFields["Spoken form"]
+        let replacement = app.textFields["Replacement"]
+        XCTAssertEqual(spokenForm.value as? String, "super base", app.debugDescription)
+        XCTAssertEqual(replacement.value as? String, "Supabase", app.debugDescription)
         XCTAssertTrue(app.buttons["Omit spoken form"].exists, app.debugDescription)
 
         clickElement(app.buttons["Reject"])
         XCTAssertTrue(app.staticTexts["No pending proposals"].waitForExistence(timeout: 3), app.debugDescription)
         clickElement(app.buttons["agentProposals.done"])
-        XCTAssertEqual(review.value as? String, "0 pending")
+        let reviewAfterRejection = button(
+            id: "settings.agentAccess.reviewProposals",
+            fallbackLabel: "Review vocabulary proposals"
+        )
+        XCTAssertEqual(reviewAfterRejection.value as? String, "0 pending")
     }
 
     func testAppShellShowsAllSettingsSidebarPanes() {
