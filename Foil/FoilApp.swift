@@ -283,14 +283,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     struct TestingStorageConfiguration: Equatable {
         let root: URL
-        var agentAccessRoot: URL {
+        var agentAccessRoot: URL { FileManager.default.temporaryDirectory }
+        var agentAccessDirectoryName: String {
             let digest = SHA256.hash(data: Data(root.lastPathComponent.utf8))
-                .prefix(8)
+                .prefix(4)
                 .map { String(format: "%02x", $0) }
                 .joined()
-            return URL(fileURLWithPath: "/tmp", isDirectory: true)
-                .appendingPathComponent("foil-agent", isDirectory: true)
-                .appendingPathComponent(digest, isDirectory: true)
+            return digest
         }
         var modelRoot: URL { root.appendingPathComponent("ManagedModels", isDirectory: true) }
         var historyRoot: URL { root.appendingPathComponent("History", isDirectory: true) }
@@ -1281,7 +1280,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let acceptance = Self.managedLocalAcceptanceConfiguration() {
             paths = AgentAccessPaths(applicationSupportRoot: acceptance.root, directoryName: "AgentAccess")
         } else if let testing = Self.testingStorageConfiguration() {
-            paths = AgentAccessPaths(applicationSupportRoot: testing.agentAccessRoot, directoryName: "AgentAccess")
+            paths = AgentAccessPaths(
+                applicationSupportRoot: testing.agentAccessRoot,
+                directoryName: testing.agentAccessDirectoryName
+            )
         } else {
             paths = .current()
         }

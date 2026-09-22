@@ -121,10 +121,8 @@ still used `FileManager.default.temporaryDirectory`; the second hosted execution
 proved that XCTest expands that URL into its own long container path before curl
 validates it. That run also prompted an audit of cross-process derivation, which
 found that Foil hashes the sanitized session identifier while the test client was
-hashing the raw identifier. The final correction uses the literal shared
-`/tmp/foil-agent/<digest>` root and the same canonical identifier on both sides. The
-focused unit test now asserts the exact derived root, relaunch stability, and the
-production socket-path validator; it passed in
+hashing the raw identifier. A focused unit test then asserted the exact derived
+root, relaunch stability, and the production socket-path validator; it passed in
 `/tmp/Foil-Tranche2B-ShortSocket-4.xcresult`.
 
 The next hosted execution eliminated the path-length error and reached curl, but
@@ -135,6 +133,15 @@ discovery surface, proves the socket exists, and uses that path with the same sh
 connection-retry behavior as the bootstrap command. This removes a duplicate path
 contract from the acceptance test and directly exercises how an agent discovers the
 service. `xcodebuild build-for-testing` passed after this change.
+
+That hosted run proved the advertised global `/tmp` socket existed but remained
+unreachable from XCTest's external curl process, consistent with the runner's
+container boundary. The test-only transport now lives back inside the shared XCTest
+temporary container, with its layout reduced to
+`<temporary-directory>/<8-hex-session-digest>/agent-v1.sock`. A unit fixture uses
+the exact 77-byte hosted temporary-directory prefix and proves the resulting socket
+path remains within the production `sockaddr_un` limit. Production Agent Access
+continues to use Foil's Application Support directory.
 
 ## Review tooling
 

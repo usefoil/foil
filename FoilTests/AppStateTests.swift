@@ -174,17 +174,24 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(first.root.standardizedFileURL, expectedRoot.standardizedFileURL)
         XCTAssertEqual(relaunched.root.standardizedFileURL, expectedRoot.standardizedFileURL)
         let agentAccessDigest = SHA256.hash(data: Data(String(sanitizedIdentifier).utf8))
-            .prefix(8)
+            .prefix(4)
             .map { String(format: "%02x", $0) }
             .joined()
-        let expectedAgentAccessRoot = URL(fileURLWithPath: "/tmp", isDirectory: true)
-            .appendingPathComponent("foil-agent", isDirectory: true)
-            .appendingPathComponent(agentAccessDigest, isDirectory: true)
-        XCTAssertEqual(first.agentAccessRoot, expectedAgentAccessRoot)
-        XCTAssertEqual(relaunched.agentAccessRoot, expectedAgentAccessRoot)
+        XCTAssertEqual(first.agentAccessRoot, FileManager.default.temporaryDirectory)
+        XCTAssertEqual(relaunched.agentAccessRoot, FileManager.default.temporaryDirectory)
+        XCTAssertEqual(first.agentAccessDirectoryName, agentAccessDigest)
+        XCTAssertEqual(relaunched.agentAccessDirectoryName, agentAccessDigest)
         XCTAssertNoThrow(try AgentAccessPaths(
             applicationSupportRoot: first.agentAccessRoot,
-            directoryName: "AgentAccess"
+            directoryName: first.agentAccessDirectoryName
+        ).validateSocketPath())
+        let hostedRunnerTemporaryDirectory = URL(
+            fileURLWithPath: "/Users/runner/Library/Containers/com.neonwatty.FoilUITests.xctrunner/Data/tmp",
+            isDirectory: true
+        )
+        XCTAssertNoThrow(try AgentAccessPaths(
+            applicationSupportRoot: hostedRunnerTemporaryDirectory,
+            directoryName: first.agentAccessDirectoryName
         ).validateSocketPath())
         XCTAssertEqual(first.modelRoot.deletingLastPathComponent(), first.root)
         XCTAssertEqual(

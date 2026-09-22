@@ -2230,13 +2230,11 @@ final class FoilUITests: XCTestCase {
             CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "_"
         })
         let digest = SHA256.hash(data: Data(canonicalSessionIdentifier.utf8))
-            .prefix(8)
+            .prefix(4)
             .map { String(format: "%02x", $0) }
             .joined()
-        return URL(fileURLWithPath: "/tmp", isDirectory: true)
-            .appendingPathComponent("foil-agent", isDirectory: true)
+        return FileManager.default.temporaryDirectory
             .appendingPathComponent(digest, isDirectory: true)
-            .appendingPathComponent("AgentAccess", isDirectory: true)
             .appendingPathComponent("agent-v1.sock")
     }
 
