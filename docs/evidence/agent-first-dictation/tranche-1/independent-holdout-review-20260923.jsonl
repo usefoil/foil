@@ -1,0 +1,30 @@
+{"id": "HP01", "expected": "Ask Claude Code about Supabase.", "reason": "Both active aliases occur as complete phrases."}
+{"id": "HP02", "expected": "Use Supabase…", "reason": "The ellipsis allows the phrase boundary."}
+{"id": "HP03", "expected": "‘Supabase’", "reason": "Quotation marks allow phrase boundaries."}
+{"id": "HP04", "expected": "☕Supabase", "reason": "The emoji before the phrase allows its boundary."}
+{"id": "HP05", "expected": "Supabase\rnext", "reason": "The carriage return follows a complete phrase and remains unchanged."}
+{"id": "HP06", "expected": "Pin [Claude Code].", "reason": "Brackets allow phrase boundaries."}
+{"id": "HP07", "expected": "Use Vercel; ask Codex.", "reason": "Both active aliases occur as complete phrases."}
+{"id": "HP08", "expected": "Supabase + Claude Code", "reason": "Both separate occurrences match."}
+{"id": "HP09", "expected": "My name is Foil.", "reason": "ASCII case-insensitive matching applies."}
+{"id": "HP10", "expected": "Try (FooBar).", "reason": "The punctuation inside the source is literal and surrounding parentheses allow boundaries."}
+{"id": "HN01", "expected": "mysuper base", "reason": "The preceding letter prevents a phrase boundary."}
+{"id": "HN02", "expected": "super base_2", "reason": "The following underscore prevents a phrase boundary."}
+{"id": "HN03", "expected": "super base٣", "reason": "The following Unicode digit prevents a phrase boundary."}
+{"id": "HN04", "expected": "界super base", "reason": "The preceding Unicode letter prevents a phrase boundary."}
+{"id": "HN05", "expected": "Use super\u000bbase", "reason": "Vertical tab does not match the literal space in the source."}
+{"id": "HN06", "expected": "~~~text\nsuper base", "reason": "The unclosed tilde fence protects to EOF."}
+{"id": "HN07", "expected": "   ```text\nsuper base\n   ```", "reason": "The three-space-indented backtick fence protects its content."}
+{"id": "HN08", "expected": "`one super base two`", "reason": "The alias lies inside a closed inline code span."}
+{"id": "HN09", "expected": "`one` `super base`", "reason": "The alias lies inside the second inline code span."}
+{"id": "HN10", "expected": "SUPER base", "reason": "The case-sensitive source differs from the input."}
+{"id": "HE01", "expected": "https://host/codecs Codex", "reason": "The URL token is protected; the later standalone occurrence matches."}
+{"id": "HE02", "expected": "``super ` base`` Supabase", "reason": "The equal-length double-backtick span protects the first text; the later alias matches."}
+{"id": "HE03", "expected": "~~~\nsuper base\n~~~\nSupabase", "reason": "The closed fence protects the first alias; the later alias matches."}
+{"id": "HE04", "expected": "Supabase Supabase Auth", "reason": "Resolve left to right, choosing the longer phrase at the second start."}
+{"id": "HE05", "expected": "codecs̈", "reason": "The following combining mark prevents matching within its grapheme."}
+{"id": "HE06", "expected": "B C D", "reason": "Each original occurrence is replaced once; replacements are not rescanned."}
+{"id": "HE07", "expected": "café Supabase", "reason": "The unrelated accented word remains byte-for-byte; the alias matches."}
+{"id": "HE08", "expected": "ＣＯＤＥＣＳ", "reason": "Compatibility-width characters are not folded to ASCII."}
+{"id": "HE09", "expected": "Supabase auth", "reason": "The longer disabled rule is ignored; the shorter enabled rule matches."}
+{"id": "HE10", "expected": "X baz", "reason": "The leftmost starting candidate wins before the overlapping later candidate."}

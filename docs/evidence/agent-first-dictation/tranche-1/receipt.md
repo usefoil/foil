@@ -292,3 +292,40 @@ The optimized production benchmark still proves a 1.43 ms warm p99 for the
 1,000-rule / 64 KiB controller workload on Apple M2 and 5.23 ms on the recorded
 Intel runner. Those measurements limit performance risk but are not relabeled as
 the deferred UI-interaction trace.
+
+## Issue #423 confirmation (2026-09-23)
+
+The independent reviewer received the frozen matching contract and a 30-case
+packet with `expected` and `reason` removed. The reviewer derived all 30 outputs
+without reading the implementation or holdout file. A separate exact UTF-8
+comparison found **30/30 matches**, no discrepancies, and no ambiguities. The
+holdout SHA-256 remains `78cd470de0202f66229a828e7e2ffb4297969295040489560b77385cebf42354`;
+the independent answers and provenance are in
+`independent-holdout-review-20260923.jsonl` and
+`issue-423-confirmation-20260923.json`.
+
+The maximum-rule interaction trace used a disposable Debug app state on this
+MacBook Air (macOS 26.5.1), seeded with 1,000 enabled rules. On the merged
+1.14.2 engine, changing a rule took about **7.3 seconds** from scope selection
+to a refreshed screenshot. A process sample captured 1,919 main-thread samples
+inside the pairwise alias validation during that action. This disproved the
+original no-stall acceptance claim. The follow-up change indexes aliases by
+scope and ASCII-folded normalized source while retaining the exact overlap
+rules and first-conflict error order. The sampled stack excerpt is in
+`max-rule-main-thread-sample-20260923.txt`.
+
+On the optimized candidate, the same direct UI path created a vocabulary pair,
+freed one slot, activated a new rule at the 1,000-enabled limit, edited it,
+disabled and re-enabled it, previewed `ask cloud code` as `ask Claude Code`,
+then deleted it. Every measured mutation reached a refreshed screenshot in
+**1.0–1.2 seconds**. The store ended at revision 19 with 999 enabled rules,
+the deleted rule absent, and the remaining visible rule disabled. Relaunch
+preserved that state. The JSON receipt gives per-action times and the isolation
+method. Two XCUITest attempts timed out enabling macOS automation before any
+test body ran; native computer use exercised the real controls instead.
+
+For the optimized candidate, `make test-local-correction-engine` passed 18
+harness tests and all 150 production-engine fixtures; the full macOS unit run
+passed **938 tests**, skipped four opt-in live cases, and failed none. The
+warning-clean Debug app build passed. These results apply to the worktree
+candidate until the fix is merged and CI completes.

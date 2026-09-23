@@ -84,6 +84,17 @@ enum LocalCorrectionEngine {
     static let maximumEnabledRules = 1_000
     static let maximumPhraseScalars = 256
 
+    private struct AliasKey: Hashable {
+        let group: String?
+        let foldedSource: [UInt32]
+    }
+
+    private struct PriorAlias {
+        let id: String
+        let normalizedSource: [UInt32]
+        let caseSensitive: Bool
+    }
+
     static func compile(_ rules: [LocalCorrectionRule]) throws -> CompiledLocalCorrections {
         try validate(rules)
 
@@ -565,7 +576,7 @@ enum LocalCorrectionEngine {
         }
 
         var ids = Set<String>()
-        var prior: [LocalCorrectionRule] = []
+        var priorByAlias: [AliasKey: [PriorAlias]] = [:]
         for rule in rules {
             guard !rule.id.isEmpty else { throw LocalCorrectionValidationError.emptyRuleID }
             guard ids.insert(rule.id).inserted else {
@@ -581,17 +592,19 @@ enum LocalCorrectionEngine {
                   rule.replacement.unicodeScalars.count <= maximumPhraseScalars else {
                 throw LocalCorrectionValidationError.phraseTooLong(rule.id)
             }
-            for previous in prior where previous.group == rule.group {
-                if aliasesOverlap(
-                    previous.source,
-                    caseSensitive: previous.caseSensitive,
-                    rule.source,
-                    caseSensitive: rule.caseSensitive
-                ) {
+            let normalizedSource = normalizedScalars(rule.source)
+            let key = AliasKey(group: rule.group, foldedSource: normalizedSource.map(asciiFold))
+            for previous in priorByAlias[key] ?? [] {
+                if !previous.caseSensitive || !rule.caseSensitive ||
+                    previous.normalizedSource == normalizedSource {
                     throw LocalCorrectionValidationError.ambiguousAlias(previous.id, rule.id)
                 }
             }
-            prior.append(rule)
+            priorByAlias[key, default: []].append(PriorAlias(
+                id: rule.id,
+                normalizedSource: normalizedSource,
+                caseSensitive: rule.caseSensitive
+            ))
         }
     }
 

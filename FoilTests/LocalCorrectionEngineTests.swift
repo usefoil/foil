@@ -118,6 +118,19 @@ final class LocalCorrectionEngineTests: XCTestCase {
         }
     }
 
+    func testValidationAllowsDistinctCaseSensitiveAliasesButRejectsInsensitiveOverlap() throws {
+        let sensitive = [
+            rule(id: "upper", source: "Codex", replacement: "Upper", caseSensitive: true),
+            rule(id: "lower", source: "codex", replacement: "Lower", caseSensitive: true)
+        ]
+        XCTAssertNoThrow(try LocalCorrectionEngine.compile(sensitive))
+        XCTAssertThrowsError(try LocalCorrectionEngine.compile(sensitive + [
+            rule(id: "folded", source: "CODEX", replacement: "Folded", caseSensitive: false)
+        ])) { error in
+            XCTAssertEqual(error as? LocalCorrectionValidationError, .ambiguousAlias("upper", "folded"))
+        }
+    }
+
     func testValidationCountsOnlyEnabledRulesTowardLimit() throws {
         let disabled = (0...LocalCorrectionEngine.maximumEnabledRules).map { index in
             rule(id: "disabled-\(index)", source: "disabled-\(index)", replacement: "x", enabled: false)
