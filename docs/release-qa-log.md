@@ -6,16 +6,16 @@ publishing.
 
 ## Current Public Install Status
 
-- Current public release: Foil `v1.14.0` build `49`.
+- Current public release: Foil `v1.14.3` build `52`.
 - Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
 - Verified command:
   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
   then `brew install --cask foil`.
-- Manual fallback: GitHub release asset `Foil-1.14.0-macos.dmg`, verified against `Foil-1.14.0-macos.dmg.sha256` and the release asset digest.
-- Public cask status: `Casks/foil.rb` version `1.14.0`, SHA-256 `4cb078ff4a0a448bd2e1b287dfa259b3ac71ad8616e66c1957cf00774aaff482`, matching the GitHub release DMG digest.
-- Release/cask metadata verified on 2026-09-17 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
-- Latest recorded public cask extraction smoke is the v1.14.0 `REQUIRED_COMMIT=efd80d8a77ed7dbd7da6b4aebdc321316d5f7912 make check-production-permissions-cask` run recorded below.
-- Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; the scoped current-account reset and regrant coverage below does not replace that row. The fresh-environment work remains tracked in issue #154 with the runbook in `docs/fresh-machine-homebrew-onboarding-smoke.md`.
+- Manual fallback: GitHub release asset `Foil-1.14.3-macos.dmg`, verified against `Foil-1.14.3-macos.dmg.sha256` and the release asset digest.
+- Public cask status: `Casks/foil.rb` version `1.14.3`, SHA-256 `4921a970436f1cf09205f95e1765a838b02b7c04df22921c4c122c9885cdc158`, matching the GitHub release DMG digest.
+- Release/cask metadata verified on 2026-09-23 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
+- Latest recorded public cask extraction smoke is the v1.14.3 `REQUIRED_COMMIT=12844530abc01a19fb2fd5857380a06f1e4952f8 make check-production-permissions-cask` run recorded below.
+- Remaining external smoke for v1.14.3: run a true fresh-machine or disposable fresh-user onboarding walkthrough; earlier current-account and release checks do not replace that row. Use `docs/fresh-machine-homebrew-onboarding-smoke.md`.
 
 ## Test Command Policy
 
@@ -27,6 +27,21 @@ publishing.
   key into this log, PRs, issues, or CI summaries.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
+
+## v1.14.3 Public Release Verification
+
+| Gate | Command / steps | Result | Artifact / notes |
+| --- | --- | --- | --- |
+| Tagged source and release workflow | Compare `origin/main`, `v1.14.3`, release target, and workflow checkout; inspect [release run 35884472380](https://github.com/usefoil/foil/actions/runs/35884472380) | PASS | PR #435 merged as `12844530abc01a19fb2fd5857380a06f1e4952f8`; main, tag, and release target match. Release workflow succeeded, including tag verification, Developer ID signing, notarization, appcast generation, and cask update. |
+| Notarized QA candidate | [QA run 35883585588](https://github.com/usefoil/foil/actions/runs/35883585588); SHA-256, `stapler`, `spctl`, `PlistBuddy`, and deep strict `codesign` on mounted and copied app | PASS | Exact-commit 1.14.3/build 52 QA DMG SHA-256 `f280b6b965b1b5a3e94a3748dcd785ce9c441c19baa0579c1016c52b2ba56c3e` matched its checksum. Gatekeeper accepted the notarized DMG and app; the app has bundle ID `com.neonwatty.Foil`, a 32-byte Sparkle public key, and a valid deep signature. |
+| Public release and assets | `gh release view v1.14.3`; GitHub release API; downloaded asset checksum | PASS | [v1.14.3](https://github.com/usefoil/foil/releases/tag/v1.14.3) published 2026-09-23, neither draft nor prerelease. DMG SHA-256 `4921a970436f1cf09205f95e1765a838b02b7c04df22921c4c122c9885cdc158` matches the checksum asset and GitHub asset digest. |
+| Public DMG and app | `xcrun stapler validate`; `spctl` for DMG and mounted app; `codesign --verify --deep --strict`; `PlistBuddy` | PASS | DMG and app were accepted as `Notarized Developer ID`. Mounted app has bundle ID `com.neonwatty.Foil`, version `1.14.3`, build `52`, and a 32-byte Sparkle public key. DMG includes `Foil.app`, `Applications`, `.background/dmg-background.png`, and `.DS_Store`. |
+| Sparkle appcast | `xmllint --noout`; parse `appcast.xml` and compare its enclosure with downloaded DMG | PASS | Appcast has version `52`, short version `1.14.3`, minimum macOS `14.0`, the correct release URL and DMG length `7601056`, plus nonempty `sparkle:edSignature` and `sparkle:length`. Release workflow verified the signature. |
+| Public Homebrew cask and temporary install | Inspect `mean-weasel/homebrew-foil/Casks/foil.rb`; `TEMP_APP_DIR=/tmp/foil-v1.14.3-cask-check REQUIRED_COMMIT=12844530abc01a19fb2fd5857380a06f1e4952f8 make check-production-permissions-cask` | PASS | Tap reports version `1.14.3`, correct DMG URL, and matching SHA-256. The helper fetched and extracted the public cask, verified version/build, bundle identity, notarization, and deep signature, and finished with zero warnings. It did not alter `/Applications`. |
+| Finder DMG presentation | Open mounted DMG in Finder and inspect background and icon positions | DEFERRED | Structural contents passed, but the Mac was locked when Computer Use attempted the visual check. |
+| `/Applications` launch and fresh-user permissions | `make guide-production-permissions-qa`; `docs/fresh-machine-homebrew-onboarding-smoke.md` | DEFERRED | The locked Mac prevented the production launch and permission UI walkthrough. No TCC reset was attempted on the daily-driver account. A fresh-user walkthrough still needs to be run for v1.14.3. |
+
+Known P0/P1 issues: None found in the release build, signatures, appcast, public cask, or temporary cask install. Finder presentation and live setup-permission behavior remain unverified for this release.
 
 ## v1.14.0 Public Release Verification
 
