@@ -1,3 +1,12 @@
+## [1.14.3](https://github.com/usefoil/foil/compare/v1.14.2...v1.14.3) (2026-09-23)
+
+- Add optional Agent Access in Settings so a local Codex agent can discover Foil's vocabulary API through a copied command, without a separate plugin or MCP registration.
+- Let agents inspect vocabulary and scopes, preview local corrections, and suggest terms such as “super base” → “Supabase.”
+- Add an in-app inbox where users can edit, omit, reject, or discard suggestions before they affect active vocabulary.
+- Add durable, atomic storage and a catalog foundation for future reviewed application of suggestions.
+- Speed up vocabulary changes at the 1,000-rule limit by removing a validation bottleneck.
+
+
 ## [1.14.2](https://github.com/usefoil/foil/compare/v1.14.1...v1.14.2) (2026-09-20)
 
 - Add instant local transcript corrections for exact phrases such as product and service names before Raw output or Cleanup.
