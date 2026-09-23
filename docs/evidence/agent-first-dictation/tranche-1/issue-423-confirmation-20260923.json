@@ -1,0 +1,48 @@
+{
+  "date": "2026-09-23",
+  "issue": 423,
+  "base_commit": "ec69608afce35df866a4289b37d6093d9acd2869",
+  "machine": "MacBook Air, arm64, macOS 26.5.1 (25F80)",
+  "app": "Foil 1.14.2 (build 51), Debug, ad hoc signed, isolated acceptance state",
+  "blind_review": {
+    "reviewer": "independent Codex subagent with no expected outputs or implementation access",
+    "holdout_sha256": "78cd470de0202f66229a828e7e2ffb4297969295040489560b77385cebf42354",
+    "blinded_packet_sha256": "5cd4ba5b2fff336f810f89bfb147b4b001c88a826dc997ceee0133165595dbcc",
+    "independent_answers": "independent-holdout-review-20260923.jsonl",
+    "independent_answers_sha256": "8b15036bff9585a10d6c79eb86638ed6bf573e035e9a25f403ae4f113bb6c85a",
+    "count": 30,
+    "id_order_matched": true,
+    "utf8_discrepancies": 0,
+    "ambiguities": 0
+  },
+  "maximum_rule_ui": {
+    "method": "Native computer use against Foil's isolated Debug acceptance state; timing is scope selection or button click through a refreshed screenshot, including automation overhead.",
+    "seed": "999 unique global rules plus one visible vocabulary-linked rule, all enabled; the run kept at most 1,000 enabled rules.",
+    "original_behavior_seconds": {
+      "disable_rule": 7.317,
+      "reenable_rule": 7.382
+    },
+    "original_stack_sample": "An 8-second sample captured 1,944 main-thread samples in AppState.saveLocalCorrections, 1,937 in LocalCorrectionEngine.compile, and 1,919 in LocalCorrectionEngine.validate, repeatedly normalizing aliases in pairwise comparison.",
+    "original_stack_sample_excerpt": "max-rule-main-thread-sample-20260923.txt",
+    "optimized_behavior_seconds": {
+      "create_vocabulary": 1.162,
+      "disable_existing_rule": 1.020,
+      "activate_new_rule_at_limit": 1.021,
+      "save_edited_rule": 1.156,
+      "disable_edited_rule": 1.005,
+      "reenable_edited_rule": 1.020,
+      "delete_edited_rule": 1.222
+    },
+    "preview_at_limit": "ask cloud code -> ask Claude Code; 1 replacement",
+    "preview_after_delete": "ask cloud code; 0 replacements",
+    "final_store": {
+      "revision": 19,
+      "total_rules": 1000,
+      "enabled_rules": 999,
+      "deleted_rule_absent": true
+    },
+    "relaunch": "Foil reopened with the remaining vocabulary rule Off, the edited/deleted rule absent, and the stored rule counts unchanged.",
+    "app_result": "No crash, hang, or visible multi-second stall after indexed alias validation."
+  },
+  "automation_note": "Two ad hoc signed XCUITest attempts timed out while enabling automation mode before entering the test body; the direct UI run above exercised the same real controls instead. The temporary launch and test helpers were removed from the final source diff."
+}
