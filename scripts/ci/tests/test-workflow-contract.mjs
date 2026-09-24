@@ -16,9 +16,21 @@ const step = (job, id) => {
 }
 const always = value => assert.match(value, /^(?:\$\{\{\s*)?always\(\)(?:\s*\}\})?$/)
 
-test("shadow triggers serialize the dedicated pool with only read permissions", () => {
+test("persistent self-hosted Mac workflows require manual dispatch", () => {
+  const workflows = new URL("../../../.github/workflows/", import.meta.url)
+  for (const name of fs.readdirSync(workflows).filter(value => value.endsWith(".yml"))) {
+    const config = load(fs.readFileSync(new URL(name, workflows), "utf8"))
+    const selfHosted = Object.values(config.jobs ?? {}).some(job =>
+      JSON.stringify(job["runs-on"] ?? "").includes("self-hosted"))
+    if (!selfHosted) continue
+    const triggers = Object.keys(config.on)
+    assert.deepEqual(triggers, ["workflow_dispatch"], `${name} must not automatically run code on a persistent Mac`)
+  }
+})
+
+test("shadow Mac pool is manually dispatched with only read permissions", () => {
   const config = workflow()
-  assert.deepEqual(Object.keys(config.on).sort(), ["merge_group", "workflow_dispatch"])
+  assert.deepEqual(Object.keys(config.on), ["workflow_dispatch"])
   assert.deepEqual(config.permissions, { contents: "read", actions: "read" })
   assert.equal(config.concurrency["cancel-in-progress"], false)
   assert.equal(config.concurrency.group, "foil-deterministic-ui-gate")

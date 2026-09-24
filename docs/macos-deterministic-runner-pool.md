@@ -4,6 +4,26 @@ This runbook prepares three interchangeable, repository-scoped runners for
 `usefoil/foil`. The workflow remains **shadow/non-required** until host evidence,
 coverage, timing, and the unavailable-runner behavior have been accepted.
 
+## Public-repository security boundary
+
+Foil is a public repository. Persistent self-hosted Macs can retain state across
+jobs, so repository code must not reach them automatically from a pull request,
+merge queue, or push. GitHub [warns against persistent self-hosted runners for
+public repositories](https://docs.github.com/en/actions/reference/security/secure-use).
+The deterministic UI gate, Local macOS E2E, and macOS CI eligibility workflows
+therefore use `workflow_dispatch` only. The required pull-request and merge-queue
+`CI Gate` continues on GitHub-hosted runners.
+
+Keep the `foilci` account logged out or the screen locked outside an authorized,
+supervised test window. For a manual UI run, log into its graphical desktop,
+verify `/dev/console` reports `foilci` and the screen is unlocked, dispatch a
+reviewed commit, collect receipts, then lock the screen again. A runner being
+online does not establish desktop readiness. Do not disable FileVault or enable
+automatic login to make a runner available. Keep this account non-admin and free
+of personal data and unnecessary credentials; restrict SSH and screen-sharing
+access to the management host. The LAN boundary alone does not limit code a
+GitHub Actions job executes on these Macs.
+
 ## Authorization and host inventory
 
 Runner registration/replacement, service changes, reboots, OS/Xcode upgrades,
