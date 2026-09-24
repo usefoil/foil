@@ -9,6 +9,8 @@ const { load } = createRequire(import.meta.url)("js-yaml")
 const root = new URL("../../../", import.meta.url).pathname
 const source = () => fs.readFileSync(new URL("../../../.github/workflows/macos-deterministic-ui-gate.yml", import.meta.url), "utf8")
 const workflow = () => load(source())
+const ciSource = () => fs.readFileSync(new URL("../../../.github/workflows/ci.yml", import.meta.url), "utf8")
+const ciWorkflow = () => load(ciSource())
 const step = (job, id) => {
   const found = job.steps.find(value => value.id === id)
   assert.ok(found, `missing step ${id}`)
@@ -269,6 +271,60 @@ test("Make exposes all script suites including the workflow contract", () => {
   const result = spawnSync("make", ["-n", "test-ci-scripts", "ci-runner-preflight", "test-deterministic-ui-shard"], { cwd: root, encoding: "utf8" })
   assert.equal(result.status, 0, result.stderr)
   for (const value of ["tests/*.test.mjs", "test-workflow-contract.mjs", "test-runner-cleanup.sh", "test-fixture-e2e-build-reuse.sh", "test-run-ui-shard.sh", "runner-preflight.mjs", "run-ui-shard.sh"]) assert.ok(result.stdout.includes(value), value)
+})
+
+test("CI makes the Agent Access contract and installed smoke required gates with retained evidence", () => {
+  const config = ciWorkflow()
+  const contract = config.jobs["agent-access-contract"]
+  assert.equal(contract.name, "Agent Access Contract")
+  assert.equal(contract["runs-on"], "macos-15")
+  assert.equal(contract["timeout-minutes"], 15)
+  const contractRun = contract.steps.find(value => value.run?.includes("make test-agent-access"))
+  assert.ok(contractRun)
+  assert.equal(contractRun.env.AGENT_ACCESS_RESULT_BUNDLE, "AgentAccessResults.xcresult")
+  assert.match(contractRun.run, /make test-agent-access\n\s*make test-local-correction-performance/)
+  const contractUpload = contract.steps.find(value => value.uses?.startsWith("actions/upload-artifact@"))
+  always(contractUpload.if)
+  assert.deepEqual(contractUpload.with, {
+    name: "agent-access-results", path: "AgentAccessResults.xcresult",
+    "retention-days": 14, "if-no-files-found": "error",
+  })
+
+  const installed = config.jobs["agent-access-installed"]
+  assert.deepEqual(installed.needs, ["detect-changes"])
+  assert.match(installed.if, /needs\.detect-changes\.outputs\.code == 'true'/)
+  const installedRun = installed.steps.find(value => value.run === "make test-agent-access-installed")
+  assert.deepEqual(installedRun.env, {
+    AGENT_ACCESS_AD_HOC_SIGNING: "1",
+    AGENT_ACCESS_SMOKE_ARTIFACT_DIR: "/tmp/foil-agent-access-installed",
+  })
+  assert.ok(Buffer.byteLength(`${installedRun.env.AGENT_ACCESS_SMOKE_ARTIFACT_DIR}/production/state/AgentAccess/agent-v1.sock`) <= 103)
+  const installedUpload = installed.steps.find(value => value.uses?.startsWith("actions/upload-artifact@"))
+  always(installedUpload.if)
+  assert.deepEqual(installedUpload.with, {
+    name: "agent-access-installed-artifacts", path: "/tmp/foil-agent-access-installed",
+    "retention-days": 14, "if-no-files-found": "error",
+  })
+
+  const gate = config.jobs["ci-gate"]
+  assert.ok(gate.needs.includes("agent-access-contract"))
+  assert.ok(gate.needs.includes("agent-access-installed"))
+  const gateStep = gate.steps.find(value => value.run?.includes("Agent Access contract did not pass"))
+  assert.equal(gateStep.env.AGENT_ACCESS_CONTRACT_RESULT, "${{ needs.agent-access-contract.result }}")
+  assert.equal(gateStep.env.AGENT_ACCESS_INSTALLED_RESULT, "${{ needs.agent-access-installed.result }}")
+  assert.match(gateStep.run, /AGENT_ACCESS_CONTRACT_RESULT.*!= "success"/)
+  assert.match(gateStep.run, /for result in .*AGENT_ACCESS_INSTALLED_RESULT/)
+})
+
+test("CI includes all four Agent Access settings and proposal UI boundaries", () => {
+  const matrix = ciWorkflow().jobs["ui-tests"].strategy.matrix.include
+  const selected = matrix.flatMap(value => value.tests.match(/FoilUITests\/FoilUITests\/\w+/g) ?? [])
+  for (const testName of [
+    "testAgentAccessDefaultsOffCopiesCommandAndPersistsUntilDisabled",
+    "testAgentAccessStartupErrorFailsClosedInSettings",
+    "testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled",
+    "testAgentVocabularyProposalReviewedApplyCreatesCatalogEntriesWithoutEnablingSwitch",
+  ]) assert.equal(selected.filter(value => value.endsWith(testName)).length, 1, testName)
 })
 
 test("aggregate runs the real receipt validator and cannot publish a passed summary after shard failure", () => {
