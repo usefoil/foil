@@ -266,6 +266,9 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
 
+      - name: Set up ephemeral local signing identity
+        run: make setup-local-signing
+
       - name: Run signed installed-app Agent Access smoke
         env:
           AGENT_ACCESS_SMOKE_ARTIFACT_DIR: agent-access-installed-artifacts

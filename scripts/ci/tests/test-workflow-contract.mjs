@@ -293,6 +293,7 @@ test("CI makes the Agent Access contract and installed smoke required gates with
   const installed = config.jobs["agent-access-installed"]
   assert.deepEqual(installed.needs, ["detect-changes"])
   assert.match(installed.if, /needs\.detect-changes\.outputs\.code == 'true'/)
+  assert.ok(installed.steps.some(value => value.run === "make setup-local-signing"))
   const installedRun = installed.steps.find(value => value.run === "make test-agent-access-installed")
   assert.equal(installedRun.env.AGENT_ACCESS_SMOKE_ARTIFACT_DIR, "agent-access-installed-artifacts")
   const installedUpload = installed.steps.find(value => value.uses?.startsWith("actions/upload-artifact@"))
