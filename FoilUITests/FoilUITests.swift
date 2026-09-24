@@ -602,6 +602,34 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(reviewAfterRejection.value as? String, "0 pending")
     }
 
+    func testAgentVocabularyProposalReviewedApplyCreatesCatalogEntriesWithoutEnablingSwitch() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-agent-vocabulary-proposal"
+        ])
+        openAppShellSettings(navID: "appShell.nav.settings.general")
+        let review = button(
+            id: "settings.agentAccess.reviewProposals",
+            fallbackLabel: "Review vocabulary proposals"
+        )
+        XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
+        clickElement(review)
+        let applyByLabel = app.buttons["Apply reviewed corrections"]
+        XCTAssertTrue(applyByLabel.waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(applyByLabel.isEnabled, app.debugDescription)
+        clickElement(applyByLabel)
+        XCTAssertTrue(app.staticTexts["No pending proposals"].waitForExistence(timeout: 4), app.debugDescription)
+        clickElement(app.buttons["agentProposals.done"])
+
+        clickElement(app.descendants(matching: .any)["appShell.nav.settings.cleanup"])
+        XCTAssertTrue(app.staticTexts["super base -> Supabase"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Superbase -> Supabase"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["codecs -> Codex"].exists, app.debugDescription)
+        XCTAssertEqual(controlValueString(app.checkBoxes["settings.localCorrectionsEnabled"]), "0")
+    }
+
     func testAppShellShowsAllSettingsSidebarPanes() {
         let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
         XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)

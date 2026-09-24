@@ -129,6 +129,9 @@ final class AgentAccessController {
         appState.agentAccessProposalTransitionDidRequest = { [weak self] id, state in
             self?.transitionProposal(id: id, to: state)
         }
+        appState.agentAccessProposalApplyDidRequest = { [weak self] id in
+            self?.applyProposal(id: id)
+        }
         refreshReadModel()
     }
 
@@ -262,6 +265,7 @@ final class AgentAccessController {
 
     func refreshProposals() {
         do {
+            try proposalStore.reconcileAppliedReceipts(appState.appliedVocabularyProposalReceipts)
             let snapshot = try proposalService.snapshot()
             let proposals = snapshot.proposals.sorted { $0.createdAt > $1.createdAt }
             appState.agentAccessProposals = proposals
@@ -289,9 +293,14 @@ final class AgentAccessController {
             scope: .init(kind: "global", id: "global"),
             corrections: [
                 .init(
-                    spokenForms: ["super base"],
+                    spokenForms: ["super base", "Superbase"],
                     replacement: "Supabase",
                     note: "Project dependency"
+                ),
+                .init(
+                    spokenForms: ["codecs"],
+                    replacement: "Codex",
+                    note: "Review scope because codecs is also an ordinary word"
                 )
             ]
         )
@@ -331,6 +340,42 @@ final class AgentAccessController {
         } catch {
             appState.agentAccessProposalInboxErrorMessage = "Foil could not update the proposal."
             DiagnosticLog.write("AgentAccess.proposals: transition_failed proposal_id=\(id)")
+        }
+    }
+
+    private func applyProposal(id: String) {
+        do {
+            guard let proposal = try proposalStore.proposal(id: id) else {
+                throw VocabularyProposalServiceError.notFound
+            }
+            let currentToken = try proposalService.validateForApply(proposal)
+            let result = try appState.applyReviewedVocabularyProposal(
+                proposal,
+                currentSnapshotToken: currentToken
+            )
+            _ = try proposalStore.markApplied(from: result.receipt)
+            refreshReadModel()
+            DiagnosticLog.write(
+                "AgentAccess.proposals: applied proposal_id=\(id) replay=\(result.wasReplay) items=\(result.receipt.items.count)"
+            )
+        } catch VocabularyCorrectionCoordinatorError.staleProposal {
+            refreshProposals()
+            appState.agentAccessProposalInboxErrorMessage =
+                "Vocabulary changed after this proposal arrived. Review a fresh proposal before applying."
+        } catch let VocabularyProposalServiceError.validation(_, message) {
+            appState.agentAccessProposalInboxErrorMessage = message
+        } catch {
+            // A catalog receipt is durable before inbox reconciliation. A later
+            // refresh or relaunch retries the inert proposal-state update.
+            do {
+                try proposalStore.reconcileAppliedReceipts(appState.appliedVocabularyProposalReceipts)
+            } catch {}
+            refreshProposals()
+            if appState.agentAccessProposalInboxErrorMessage == nil {
+                appState.agentAccessProposalInboxErrorMessage =
+                    "Foil could not apply this proposal. The previous catalog is still active."
+            }
+            DiagnosticLog.write("AgentAccess.proposals: apply_failed proposal_id=\(id)")
         }
     }
 

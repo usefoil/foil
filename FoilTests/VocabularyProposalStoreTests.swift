@@ -224,6 +224,53 @@ final class VocabularyProposalStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fixture.fileURL), before)
     }
 
+    func testDurableCatalogReceiptMarksProposalAppliedIdempotently() throws {
+        let fixture = try makeFixture()
+        let submission = try fixture.store.submit(
+            proposalRequest(id: "request-1"),
+            snapshotToken: proposalSnapshotToken
+        )
+        let receipt = VocabularyAppliedProposalReceipt(
+            proposalID: submission.receipt.proposalID,
+            requestID: submission.receipt.requestID,
+            catalogRevision: 2,
+            items: [],
+            appliedAt: Date(timeIntervalSince1970: 20)
+        )
+
+        let first = try fixture.store.markApplied(from: receipt)
+        let second = try fixture.store.markApplied(from: receipt)
+
+        XCTAssertEqual(first.state, .applied)
+        XCTAssertEqual(second, first)
+        XCTAssertEqual(try fixture.store.load().proposals.first?.state, .applied)
+    }
+
+    func testReceiptReconciliationRecoversCrashAfterCatalogCommit() throws {
+        let fixture = try makeFixture()
+        let first = try fixture.store.submit(
+            proposalRequest(id: "request-1"),
+            snapshotToken: proposalSnapshotToken
+        )
+        let second = try fixture.store.submit(
+            proposalRequest(id: "request-2"),
+            snapshotToken: proposalSnapshotToken
+        )
+        let receipt = VocabularyAppliedProposalReceipt(
+            proposalID: first.receipt.proposalID,
+            requestID: first.receipt.requestID,
+            catalogRevision: 4,
+            items: [],
+            appliedAt: Date(timeIntervalSince1970: 30)
+        )
+
+        try fixture.store.reconcileAppliedReceipts([receipt])
+
+        let proposals = try fixture.store.load().proposals
+        XCTAssertEqual(proposals.first { $0.id == first.receipt.proposalID }?.state, .applied)
+        XCTAssertEqual(proposals.first { $0.id == second.receipt.proposalID }?.state, .pending)
+    }
+
     func testInvalidEnvelopeDoesNotCreateStore() throws {
         let fixture = try makeFixture()
         let emptyID = proposalRequest(id: "   ")

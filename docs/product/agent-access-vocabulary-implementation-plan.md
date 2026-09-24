@@ -343,9 +343,9 @@ Vocabulary metadata, linked rules, and receipts.
 Delivery is split into two reviewable PRs. **Tranche 3A** provides the dormant v2
 catalog, migration/fingerprint checks, and atomic persistence foundation; see its
 [evidence receipt](../evidence/agent-access-vocabulary/tranche-3a/receipt.md).
-**Tranche 3B** activates the catalog through the coordinator and adds reviewed
-proposal apply. Proposal apply remains unavailable until 3B passes the complete
-Tranche 3 acceptance gate below.
+**Tranche 3B** is implemented and activates the catalog through the coordinator,
+including reviewed proposal apply. See the
+[Tranche 3B evidence receipt](../evidence/agent-access-vocabulary/tranche-3b/receipt.md).
 
 Implementation:
 

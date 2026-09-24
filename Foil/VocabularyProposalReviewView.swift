@@ -74,6 +74,35 @@ private struct VocabularyProposalEditorCard: View {
             }
     }
 
+    private var reviewedScope: VocabularyProposalScope {
+        draft.scopeID == ProposalDraft.globalScopeID
+            ? VocabularyProposalScope(kind: "global", id: "global")
+            : VocabularyProposalScope(kind: "cleanup_group", id: draft.scopeID)
+    }
+
+    private var reviewedCorrections: [VocabularyProposalCorrection] {
+        draft.corrections.map { correction in
+            let normalizedNote = correction.note.trimmingCharacters(in: .whitespacesAndNewlines)
+            return VocabularyProposalCorrection(
+                spokenForms: correction.spokenForms.map(\.value),
+                replacement: correction.replacement,
+                note: normalizedNote.isEmpty ? nil : normalizedNote,
+                caseSensitive: correction.caseSensitive
+            )
+        }
+    }
+
+    private var hasUnsavedEdits: Bool {
+        reviewedScope != proposal.scope || reviewedCorrections != proposal.corrections
+    }
+
+    private var canApply: Bool {
+        canSave
+            && !hasUnsavedEdits
+            && preview?.valid == true
+            && !appState.agentAccessStaleProposalIDs.contains(proposal.id)
+    }
+
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -169,8 +198,14 @@ private struct VocabularyProposalEditorCard: View {
 
                 HStack {
                     Button("Save review edits") { save() }
-                        .disabled(!canSave)
+                        .disabled(!canSave || !hasUnsavedEdits)
                         .accessibilityIdentifier("agentProposals.save.\(proposal.id)")
+                    Button("Apply reviewed corrections") {
+                        appState.applyAgentAccessProposal(id: proposal.id)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canApply)
+                    .accessibilityIdentifier("agentProposals.apply.\(proposal.id)")
                     Spacer()
                     Button("Reject", role: .destructive) {
                         appState.transitionAgentAccessProposal(id: proposal.id, to: .rejected)
@@ -182,7 +217,11 @@ private struct VocabularyProposalEditorCard: View {
                     .accessibilityIdentifier("agentProposals.discard.\(proposal.id)")
                 }
 
-                Text("Saving edits keeps this proposal pending. No corrections are applied yet.")
+                Text(
+                    appState.localCorrectionSnapshot.isEnabled
+                        ? "Saving edits keeps this proposal pending until you apply it."
+                        : "Local corrections are off. Applying saves these entries but does not turn them on."
+                )
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -195,20 +234,10 @@ private struct VocabularyProposalEditorCard: View {
     }
 
     private func save() {
-        let scope = draft.scopeID == ProposalDraft.globalScopeID
-            ? VocabularyProposalScope(kind: "global", id: "global")
-            : VocabularyProposalScope(kind: "cleanup_group", id: draft.scopeID)
         appState.reviseAgentAccessProposal(
             id: proposal.id,
-            scope: scope,
-            corrections: draft.corrections.map { correction in
-                VocabularyProposalCorrection(
-                    spokenForms: correction.spokenForms.map(\.value),
-                    replacement: correction.replacement,
-                    note: correction.note,
-                    caseSensitive: correction.caseSensitive
-                )
-            }
+            scope: reviewedScope,
+            corrections: reviewedCorrections
         )
     }
 }
