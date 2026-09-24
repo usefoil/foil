@@ -21,6 +21,9 @@ Set AGENT_ACCESS_SMOKE_ARTIFACT_DIR to retain evidence at an explicit path. The
 directory must not already exist. KEEP_AGENT_ACCESS_SMOKE_ARTIFACTS=1 retains the
 default temporary evidence directory.
 
+Set AGENT_ACCESS_AD_HOC_SIGNING=1 on a clean machine without a signing identity.
+Xcode will ad-hoc sign and seal the Debug bundles before strict verification.
+
 This harness uses DEBUG-only isolated-state and shutdown controls. It does not
 claim notarized Release-artifact proof; use the Notarized QA Build and installed
 production QA workflows for that boundary.
@@ -39,6 +42,11 @@ fi
 if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" ]]; then
   echo "error: REQUIRE_NOTARIZATION is unsupported because this smoke uses DEBUG-only controls" >&2
   echo "Use the Notarized QA Build and installed production QA workflows instead." >&2
+  exit 2
+fi
+
+if [[ "${AGENT_ACCESS_AD_HOC_SIGNING:-0}" != "0" && "${AGENT_ACCESS_AD_HOC_SIGNING:-0}" != "1" ]]; then
+  echo "error: AGENT_ACCESS_AD_HOC_SIGNING must be 0 or 1" >&2
   exit 2
 fi
 
@@ -106,15 +114,23 @@ build_setting() {
 
 source_foil_app="${FOIL_APP_PATH:-}"
 source_dev_app="${FOIL_DEV_APP_PATH:-}"
+build_apps() {
+  if [[ "${AGENT_ACCESS_AD_HOC_SIGNING:-0}" == "1" ]]; then
+    make "$@" 'SIGNING_FLAGS=CODE_SIGN_IDENTITY="-" CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Manual ENABLE_HARDENED_RUNTIME=NO'
+  else
+    make "$@"
+  fi
+}
+
 if [[ -z "$source_foil_app" && -z "$source_dev_app" ]]; then
-  make build build-dev
+  build_apps build build-dev
   source_foil_app="$(build_setting Foil BUILT_PRODUCTS_DIR)/Foil.app"
   source_dev_app="$(build_setting FoilDev BUILT_PRODUCTS_DIR)/Foil Dev.app"
 elif [[ -z "$source_foil_app" ]]; then
-  make build
+  build_apps build
   source_foil_app="$(build_setting Foil BUILT_PRODUCTS_DIR)/Foil.app"
 elif [[ -z "$source_dev_app" ]]; then
-  make build-dev
+  build_apps build-dev
   source_dev_app="$(build_setting FoilDev BUILT_PRODUCTS_DIR)/Foil Dev.app"
 fi
 
