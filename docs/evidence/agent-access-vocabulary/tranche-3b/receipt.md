@@ -42,9 +42,10 @@ made explicitly first-match and the exact apply row was added to the hosted shar
 The next hosted result bundle exposed the exact interaction failure: the action
 buttons were four points below the sheet viewport, so they were not hittable and
 the generic coordinate fallback landed outside the sheet. The tests now scroll the
-proposal sheet until the chosen action is genuinely hittable, then prove rejection
-through the zero-pending inbox count and apply through the three durable catalog
-rows.
+proposal sheet until the chosen action is geometrically inside the visible viewport
+and hittable (macOS reports clipped SwiftUI descendants as hittable), then prove
+rejection through the zero-pending inbox count and apply through the three durable
+catalog rows.
 
 ## Failure, stale-review, replay, and crash boundaries fail closed
 

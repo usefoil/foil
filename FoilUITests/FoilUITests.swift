@@ -2291,10 +2291,15 @@ final class FoilUITests: XCTestCase {
     private func scrollProposalReviewUntilHittable(_ element: XCUIElement) {
         let scrollView = app.sheets.firstMatch.scrollViews.firstMatch
         XCTAssertTrue(scrollView.waitForExistence(timeout: 3), app.debugDescription)
-        for _ in 0..<6 where !element.isHittable {
+        func isVerticallyVisible() -> Bool {
+            let viewport = scrollView.frame.insetBy(dx: 0, dy: 12)
+            let target = element.frame
+            return target.minY >= viewport.minY && target.maxY <= viewport.maxY
+        }
+        for _ in 0..<6 where !isVerticallyVisible() {
             scrollView.swipeUp()
         }
-        XCTAssertTrue(element.isHittable, app.debugDescription)
+        XCTAssertTrue(isVerticallyVisible() && element.isHittable, app.debugDescription)
     }
 
     private func launchApp(
