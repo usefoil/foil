@@ -39,6 +39,10 @@ test workers. The focused row is assigned to hosted UI shard D before merge. Its
 first hosted run exposed an older proposal-review assertion that assumed one
 replacement field; the seed now contains two corrections, so the assertion was
 made explicitly first-match and the exact apply row was added to the hosted shard.
+The next hosted run proved the transitions occurred but exposed that macOS does
+not publish `ContentUnavailableView`'s title as an XCUI `staticText`. The tests now
+wait for the acted-on control to disappear, then prove rejection through the
+zero-pending inbox count and apply through the three durable catalog rows.
 
 ## Failure, stale-review, replay, and crash boundaries fail closed
 

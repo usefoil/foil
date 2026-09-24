@@ -592,8 +592,9 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(replacement.value as? String, "Supabase", app.debugDescription)
         XCTAssertTrue(app.buttons["Omit spoken form"].exists, app.debugDescription)
 
-        clickElement(app.buttons["Reject"])
-        XCTAssertTrue(app.staticTexts["No pending proposals"].waitForExistence(timeout: 3), app.debugDescription)
+        let reject = app.buttons["Reject"]
+        clickElement(reject)
+        XCTAssertTrue(reject.waitForNonExistence(timeout: 3), app.debugDescription)
         clickElement(app.buttons["agentProposals.done"])
         let reviewAfterRejection = button(
             id: "settings.agentAccess.reviewProposals",
@@ -620,7 +621,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(applyByLabel.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(applyByLabel.isEnabled, app.debugDescription)
         clickElement(applyByLabel)
-        XCTAssertTrue(app.staticTexts["No pending proposals"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(applyByLabel.waitForNonExistence(timeout: 4), app.debugDescription)
         clickElement(app.buttons["agentProposals.done"])
 
         clickElement(app.descendants(matching: .any)["appShell.nav.settings.cleanup"])
