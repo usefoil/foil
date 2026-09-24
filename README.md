@@ -20,6 +20,7 @@ result where you were typing.
 - Hold-to-record, toggle mode, and customizable hotkeys
 - Local whisper.cpp, Groq, OpenAI Whisper, and custom OpenAI-compatible providers
 - App-specific Cleanup Groups for direct agent prompts or polished human writing
+- Optional local Agent Access for reviewed Vocabulary proposals from coding agents
 - Automatic paste with history, retry, and clipboard recovery
 - Searchable local transcription history
 - Local usage insights for words, sessions, time saved, and top apps
@@ -90,6 +91,11 @@ endpoint. Unassigned apps stay fast and direct with raw transcripts by default.
 See the
 [local whisper.cpp guide](docs/local-openai-compatible-transcription-e2e.md)
 for setup details.
+
+To let a local coding agent inspect Vocabulary and submit an inert proposal, enable
+Agent Access in Settings and paste Foil's copied bootstrap command into the task.
+See the [Agent Access guide](docs/agent-access.md) for the complete review, scope,
+privacy, and shutdown workflow.
 
 ## Privacy
 

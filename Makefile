@@ -315,7 +315,13 @@ test-live-microphone-qa-script:
 test-installed-live-microphone-qa-script:
 	scripts/test-run-installed-live-microphone-qa.sh
 
-.PHONY: test-local-corrections-contract test-local-correction-engine test-local-correction-performance test-local-correction-fixture-e2e
+.PHONY: test-agent-access test-agent-access-installed test-local-corrections-contract test-local-correction-engine test-local-correction-performance test-local-correction-fixture-e2e
+test-agent-access:
+	scripts/test-agent-access.sh
+
+test-agent-access-installed:
+	scripts/run-agent-access-installed-smoke.sh
+
 test-local-corrections-contract:
 	PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p test_local_corrections_harness.py -v
 	python3 tests/local_corrections_harness.py

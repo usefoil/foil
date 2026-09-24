@@ -1,7 +1,7 @@
 # Agent Access Vocabulary Implementation Plan
 
 Date: 2026-09-21
-Status: Proposed
+Status: Implemented through Tranche 4; release publication remains separate
 Design basis: `docs/product/agent-vocabulary-intake-review.md`
 
 ## Outcome
@@ -406,6 +406,10 @@ Acceptance:
   regress.
 
 ### Tranche 4 — Installed-app and release proof
+
+**Status:** implemented on 2026-09-24. Local acceptance evidence is recorded in the
+[Tranche 4 receipt](../evidence/agent-access-vocabulary/tranche-4/receipt.md);
+notarization/stapling and live hardware checks remain release-candidate gates.
 
 **Purpose:** prove that the feature works outside XCTest and does not weaken app
 packaging or privacy.
