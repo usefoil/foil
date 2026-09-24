@@ -39,9 +39,9 @@ Evidence:
 Residual risk / follow-up: no separate visible Codex task was created because the
 user did not request task creation, so the smoke executes the same
 self-describing command sequence directly rather than claiming a fresh-task
-operator pass. A future release candidate must run the script with
-`REQUIRE_NOTARIZATION=1`; local Debug bundles are signed and structurally verified
-but are not notarized or stapled.
+operator pass. The harness uses DEBUG-only isolated-state and shutdown controls;
+a future release candidate must use the separate Notarized QA Build and installed
+production QA workflows rather than claiming notarization from this script.
 
 ## Live shutdown is fail closed and does not mutate Vocabulary
 

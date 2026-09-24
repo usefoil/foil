@@ -11,14 +11,19 @@ Usage: scripts/run-agent-access-installed-smoke.sh
 Builds Foil and Foil Dev unless FOIL_APP_PATH and FOIL_DEV_APP_PATH are set,
 copies both signed app bundles into a temporary install directory, and proves:
   - both bundle signatures and identities are valid;
-  - copied-command discovery, scopes, preview, proposal, and status work over curl;
+  - every documented Agent Access operation works over real Unix-socket curl;
+  - no remote apply route exists and a rejected attempt leaves state byte-identical;
   - Foil and Foil Dev use separate sockets, catalogs, and proposal stores;
   - turning Agent Access off removes each socket without changing catalog/proposal bytes;
   - proposal content is absent from diagnostics and status responses.
 
-Set REQUIRE_NOTARIZATION=1 only for a Developer ID release artifact. That mode also
-runs Gatekeeper assessment and stapler validation. Local Debug builds are not
-claimed as notarized.
+Set AGENT_ACCESS_SMOKE_ARTIFACT_DIR to retain evidence at an explicit path. The
+directory must not already exist. KEEP_AGENT_ACCESS_SMOKE_ARTIFACTS=1 retains the
+default temporary evidence directory.
+
+This harness uses DEBUG-only isolated-state and shutdown controls. It does not
+claim notarized Release-artifact proof; use the Notarized QA Build and installed
+production QA workflows for that boundary.
 EOF
 }
 
@@ -31,7 +36,26 @@ if [[ $# -ne 0 ]]; then
   exit 2
 fi
 
-smoke_root="$(mktemp -d /tmp/foil-agent-access-installed.XXXXXX)"
+if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" ]]; then
+  echo "error: REQUIRE_NOTARIZATION is unsupported because this smoke uses DEBUG-only controls" >&2
+  echo "Use the Notarized QA Build and installed production QA workflows instead." >&2
+  exit 2
+fi
+
+requested_artifact_dir="${AGENT_ACCESS_SMOKE_ARTIFACT_DIR:-}"
+if [[ -n "$requested_artifact_dir" ]]; then
+  case "$requested_artifact_dir" in
+    /*) smoke_root="$requested_artifact_dir" ;;
+    *) smoke_root="$repository_root/$requested_artifact_dir" ;;
+  esac
+  if [[ -e "$smoke_root" ]]; then
+    echo "error: AGENT_ACCESS_SMOKE_ARTIFACT_DIR already exists: $smoke_root" >&2
+    exit 2
+  fi
+  mkdir -p "$smoke_root"
+else
+  smoke_root="$(mktemp -d /tmp/foil-agent-access-installed.XXXXXX)"
+fi
 install_root="$smoke_root/Applications"
 production_runtime="$smoke_root/production"
 development_runtime="$smoke_root/development"
@@ -64,7 +88,7 @@ cleanup() {
         tail -40 "$log" >&2 || true
       fi
     done
-  elif [[ "${KEEP_AGENT_ACCESS_SMOKE_ARTIFACTS:-0}" == "1" ]]; then
+  elif [[ "${KEEP_AGENT_ACCESS_SMOKE_ARTIFACTS:-0}" == "1" || -n "$requested_artifact_dir" ]]; then
     echo "artifacts=$smoke_root"
   else
     rm -rf "$smoke_root"
@@ -82,9 +106,15 @@ build_setting() {
 
 source_foil_app="${FOIL_APP_PATH:-}"
 source_dev_app="${FOIL_DEV_APP_PATH:-}"
-if [[ -z "$source_foil_app" || -z "$source_dev_app" ]]; then
+if [[ -z "$source_foil_app" && -z "$source_dev_app" ]]; then
   make build build-dev
   source_foil_app="$(build_setting Foil BUILT_PRODUCTS_DIR)/Foil.app"
+  source_dev_app="$(build_setting FoilDev BUILT_PRODUCTS_DIR)/Foil Dev.app"
+elif [[ -z "$source_foil_app" ]]; then
+  make build
+  source_foil_app="$(build_setting Foil BUILT_PRODUCTS_DIR)/Foil.app"
+elif [[ -z "$source_dev_app" ]]; then
+  make build-dev
   source_dev_app="$(build_setting FoilDev BUILT_PRODUCTS_DIR)/Foil Dev.app"
 fi
 
@@ -109,10 +139,6 @@ verify_bundle() {
   if [[ "$actual_identifier" != "$expected_identifier" ]]; then
     echo "error: expected $expected_identifier, found $actual_identifier in $app" >&2
     exit 1
-  fi
-  if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" ]]; then
-    /usr/sbin/spctl --assess --type execute --verbose=2 "$app"
-    /usr/bin/xcrun stapler validate "$app"
   fi
 }
 
@@ -189,6 +215,16 @@ curl_post() {
     "http://foil$path" >"$output"
 }
 
+curl_post_status() {
+  local socket=$1
+  local path=$2
+  local request=$3
+  local output=$4
+  /usr/bin/curl --silent --show-error --connect-timeout 1 --max-time 12 \
+    --unix-socket "$socket" -H 'Content-Type: application/json' --data-binary "@$request" \
+    --output "$output" --write-out '%{http_code}' "http://foil$path"
+}
+
 run_id="$$-$(date +%s)"
 diagnostic_canary="agent-diagnostic-canary-$run_id"
 production_request="$smoke_root/production-proposal.json"
@@ -206,14 +242,18 @@ cat >"$development_request" <<JSON
 JSON
 
 production_instructions="$smoke_root/production-instructions.json"
+production_openapi="$smoke_root/production-openapi.json"
 production_scopes="$smoke_root/production-scopes.json"
+production_vocabulary="$smoke_root/production-vocabulary.json"
 production_preview="$smoke_root/production-preview.json"
 production_proposal="$smoke_root/production-proposal-response.json"
 development_instructions="$smoke_root/development-instructions.json"
 development_proposal="$smoke_root/development-proposal-response.json"
 
 curl_get "$production_socket" /v1/instructions "$production_instructions"
+curl_get "$production_socket" /v1/openapi.json "$production_openapi"
 curl_get "$production_socket" /v1/vocabulary/scopes "$production_scopes"
+curl_get "$production_socket" /v1/vocabulary "$production_vocabulary"
 curl_post "$production_socket" /v1/vocabulary/preview "$preview_request" "$production_preview"
 curl_post "$production_socket" /v1/vocabulary/proposals "$production_request" "$production_proposal"
 curl_get "$development_socket" /v1/instructions "$development_instructions"
@@ -226,20 +266,32 @@ development_status="$smoke_root/development-status.json"
 curl_get "$production_socket" "/v1/vocabulary/proposals/$production_proposal_id" "$production_status"
 curl_get "$development_socket" "/v1/vocabulary/proposals/$development_proposal_id" "$development_status"
 
-python3 - "$production_instructions" "$production_scopes" "$production_preview" "$production_proposal" "$production_status" "$production_socket" "$production_proposal_id" <<'PY'
+python3 - "$production_instructions" "$production_openapi" "$production_scopes" "$production_vocabulary" "$production_preview" "$production_proposal" "$production_status" "$production_socket" "$production_proposal_id" <<'PY'
 import json
 import pathlib
 import sys
 
-instructions, scopes, preview, proposal, status = [json.load(open(path)) for path in sys.argv[1:6]]
-socket, proposal_id = sys.argv[6:8]
+instructions, openapi, scopes, vocabulary, preview, proposal, status = [
+    json.load(open(path)) for path in sys.argv[1:8]
+]
+socket, proposal_id = sys.argv[8:10]
 required = {
-    "get_instructions", "list_vocabulary_scopes", "preview_vocabulary_corrections",
-    "propose_vocabulary_corrections", "get_vocabulary_proposal_status",
+    "get_instructions", "get_openapi", "list_vocabulary_scopes", "list_vocabulary",
+    "preview_vocabulary_corrections", "propose_vocabulary_corrections",
+    "get_vocabulary_proposal_status",
 }
-assert required.issubset(instructions["available_operations"])
+assert set(instructions["available_operations"]) == required
 assert socket in instructions["bootstrap_command"]
+assert openapi["openapi"] == "3.1.0"
+assert set(openapi["paths"]) == {
+    "/v1/instructions", "/v1/openapi.json", "/v1/vocabulary/scopes",
+    "/v1/vocabulary", "/v1/vocabulary/preview", "/v1/vocabulary/proposals",
+    "/v1/vocabulary/proposals/{proposal_id}",
+}
 assert isinstance(scopes["scopes"], list)
+assert isinstance(vocabulary["local_corrections_enabled"], bool)
+assert isinstance(vocabulary["terms"], list)
+assert isinstance(vocabulary["corrections"], list)
 assert preview["valid"] is True, preview
 assert [item["replacement"] for item in preview["normalized_corrections"]] == ["Supabase", "Codex"]
 assert proposal["proposal_id"] == proposal_id
@@ -247,8 +299,9 @@ assert proposal["state"] == "pending"
 assert proposal["replayed"] is False
 assert status["proposal_id"] == proposal_id
 assert status["state"] == "pending"
+status_text = pathlib.Path(sys.argv[7]).read_text()
 for forbidden in ("super base", "Superbase", "Supabase", "codecs", "Codex", "agent-diagnostic-canary"):
-    assert forbidden not in pathlib.Path(sys.argv[5]).read_text(), forbidden
+    assert forbidden not in status_text, forbidden
 PY
 
 for required_file in "$production_store" "$development_store" "$production_catalog" "$development_catalog"; do
@@ -257,6 +310,27 @@ for required_file in "$production_store" "$development_store" "$production_catal
     exit 1
   fi
 done
+
+denied_apply_request="$smoke_root/denied-remote-apply-request.json"
+denied_apply_response="$smoke_root/denied-remote-apply-response.json"
+printf '{"proposal_id":"%s"}\n' "$production_proposal_id" >"$denied_apply_request"
+denied_apply_store_hash=$(shasum -a 256 "$production_store" | awk '{print $1}')
+denied_apply_catalog_hash=$(shasum -a 256 "$production_catalog" | awk '{print $1}')
+denied_apply_status=$(curl_post_status \
+  "$production_socket" "/v1/vocabulary/apply" "$denied_apply_request" "$denied_apply_response")
+if [[ "$denied_apply_status" != "404" ]]; then
+  echo "error: nonexistent remote apply route returned HTTP $denied_apply_status instead of 404" >&2
+  exit 1
+fi
+python3 - "$denied_apply_response" <<'PY'
+import json
+import sys
+
+response = json.load(open(sys.argv[1]))
+assert response["error"]["code"] == "route_not_found", response
+PY
+[[ "$denied_apply_store_hash" == "$(shasum -a 256 "$production_store" | awk '{print $1}')" ]]
+[[ "$denied_apply_catalog_hash" == "$(shasum -a 256 "$production_catalog" | awk '{print $1}')" ]]
 
 python3 - "$production_store" "$development_store" "$production_proposal_id" "$development_proposal_id" "$run_id" <<'PY'
 import json
@@ -331,16 +405,16 @@ for diagnostic_file in "$production_diagnostics" "$development_diagnostics"; do
   fi
 done
 
-echo "status=pass"
-echo "bundles=Foil,Foil Dev"
-echo "signatures=verified"
-echo "socket_isolation=verified"
-echo "proposal_store_isolation=verified"
-echo "copied_command_flow=instructions,scopes,preview,submit,status"
-echo "disable_cleanup=socket-removed,lock-released,catalog-and-proposals-byte-identical"
-echo "diagnostic_content_leak=absent"
-if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" ]]; then
-  echo "notarization=gatekeeper-and-stapler-verified"
-else
-  echo "notarization=not-claimed-for-local-debug-build"
-fi
+receipt="$smoke_root/receipt.txt"
+{
+  echo "status=pass"
+  echo "bundles=Foil,Foil Dev"
+  echo "signatures=verified"
+  echo "socket_isolation=verified"
+  echo "proposal_store_isolation=verified"
+  echo "copied_command_flow=instructions,openapi,scopes,vocabulary,preview,submit,status"
+  echo "remote_apply=absent,request-rejected-404,catalog-and-proposals-byte-identical"
+  echo "disable_cleanup=socket-removed,lock-released,catalog-and-proposals-byte-identical"
+  echo "diagnostic_content_leak=absent"
+  echo "notarization=not-claimed-debug-controls-only"
+} | tee "$receipt"

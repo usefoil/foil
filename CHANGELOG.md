@@ -2,6 +2,7 @@
 
 - Let users apply reviewed Agent Access Vocabulary proposals through Foil's atomic local catalog while preserving the global corrections switch and original recovery text.
 - Add installed Foil/Foil Dev isolation, shutdown, signing, curl, and privacy smoke coverage plus a user guide for the copied Agent Access command.
+- Require dedicated Agent Access contract, performance, installed-app, complete-route, denied-apply, and UI coverage in pull-request and merge-queue CI.
 
 
 ## [1.14.3](https://github.com/usefoil/foil/compare/v1.14.2...v1.14.3) (2026-09-23)
