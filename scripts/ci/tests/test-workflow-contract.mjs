@@ -19,9 +19,11 @@ const always = value => assert.match(value, /^(?:\$\{\{\s*)?always\(\)(?:\s*\}\}
 test("persistent self-hosted Mac workflows require manual dispatch", () => {
   const workflows = new URL("../../../.github/workflows/", import.meta.url)
   for (const name of fs.readdirSync(workflows).filter(value => value.endsWith(".yml"))) {
-    const yaml = fs.readFileSync(new URL(name, workflows), "utf8")
-    if (!/runs-on:\s*\[self-hosted,\s*macOS/.test(yaml)) continue
-    const triggers = Object.keys(load(yaml).on)
+    const config = load(fs.readFileSync(new URL(name, workflows), "utf8"))
+    const selfHosted = Object.values(config.jobs ?? {}).some(job =>
+      JSON.stringify(job["runs-on"] ?? "").includes("self-hosted"))
+    if (!selfHosted) continue
+    const triggers = Object.keys(config.on)
     assert.deepEqual(triggers, ["workflow_dispatch"], `${name} must not automatically run code on a persistent Mac`)
   }
 })
