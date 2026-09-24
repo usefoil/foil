@@ -1,11 +1,6 @@
 name: Local macOS E2E
 
 on:
-  merge_group:
-    branches: [main]
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:

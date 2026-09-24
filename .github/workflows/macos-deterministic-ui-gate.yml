@@ -1,7 +1,6 @@
 name: Foil Deterministic UI Gate (Shadow)
 
 on:
-  merge_group:
   workflow_dispatch:
     inputs:
       mode:

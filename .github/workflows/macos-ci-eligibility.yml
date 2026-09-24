@@ -1,10 +1,6 @@
 name: Apple Agent Kit macOS CI Eligibility
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/workflows/macos-ci-eligibility.yml
   workflow_dispatch:
 
 permissions:
