@@ -289,7 +289,7 @@ final class AgentAccessController {
     #if DEBUG
     func seedVocabularyProposalForUITesting() {
         let request = VocabularyProposalRequest(
-            requestID: "ui-proposal",
+            requestID: "ui-proposal-\(UUID().uuidString)",
             scope: .init(kind: "global", id: "global"),
             corrections: [
                 .init(

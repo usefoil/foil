@@ -46,6 +46,10 @@ proposal sheet until the chosen action is geometrically inside the visible viewp
 and hittable (macOS reports clipped SwiftUI descendants as hittable), then prove
 rejection through the zero-pending inbox count and apply through the three durable
 catalog rows.
+That hosted rejection then exposed cross-test seed reuse: the next app process
+submitted the same test-only request ID and correctly received the prior rejected
+proposal. UI-test seeds now use a fresh request ID per launch, preserving production
+idempotency while isolating independently reset UI scenarios.
 
 ## Failure, stale-review, replay, and crash boundaries fail closed
 
