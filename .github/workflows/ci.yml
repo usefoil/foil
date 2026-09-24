@@ -269,7 +269,7 @@ jobs:
       - name: Run signed installed-app Agent Access smoke
         env:
           AGENT_ACCESS_AD_HOC_SIGNING: "1"
-          AGENT_ACCESS_SMOKE_ARTIFACT_DIR: agent-access-installed-artifacts
+          AGENT_ACCESS_SMOKE_ARTIFACT_DIR: /tmp/foil-agent-access-installed
         run: make test-agent-access-installed
 
       - name: Upload installed-app evidence
@@ -277,7 +277,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: agent-access-installed-artifacts
-          path: agent-access-installed-artifacts
+          path: /tmp/foil-agent-access-installed
           retention-days: 14
           if-no-files-found: error
 

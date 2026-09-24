@@ -296,12 +296,13 @@ test("CI makes the Agent Access contract and installed smoke required gates with
   const installedRun = installed.steps.find(value => value.run === "make test-agent-access-installed")
   assert.deepEqual(installedRun.env, {
     AGENT_ACCESS_AD_HOC_SIGNING: "1",
-    AGENT_ACCESS_SMOKE_ARTIFACT_DIR: "agent-access-installed-artifacts",
+    AGENT_ACCESS_SMOKE_ARTIFACT_DIR: "/tmp/foil-agent-access-installed",
   })
+  assert.ok(Buffer.byteLength(`${installedRun.env.AGENT_ACCESS_SMOKE_ARTIFACT_DIR}/production/state/AgentAccess/agent-v1.sock`) <= 103)
   const installedUpload = installed.steps.find(value => value.uses?.startsWith("actions/upload-artifact@"))
   always(installedUpload.if)
   assert.deepEqual(installedUpload.with, {
-    name: "agent-access-installed-artifacts", path: "agent-access-installed-artifacts",
+    name: "agent-access-installed-artifacts", path: "/tmp/foil-agent-access-installed",
     "retention-days": 14, "if-no-files-found": "error",
   })
 
