@@ -110,6 +110,7 @@ final class UITestingController {
     private var uiTestWindow: NSWindow?
     private var uiTestAppShellWindow: NSWindow?
     private var uiTestHistoryWindow: NSWindow?
+    private var agentAccessInstalledSmokeTimer: Timer?
     private var recordingEvents: [RecordingEventSnapshot] = []
 
     private struct StateSnapshot: Encodable {
@@ -287,6 +288,15 @@ final class UITestingController {
             onSeedAgentVocabularyProposal()
         }
 
+        #if DEBUG
+        if args.contains("--agent-access-installed-smoke") {
+            if args.contains("--seed-agent-access-enabled") {
+                appState.setAgentAccessEnabled(true)
+            }
+            configureAgentAccessInstalledSmokeControl()
+        }
+        #endif
+
         if args.contains("--seed-usage-events") {
             seedUsageEvents()
         }
@@ -435,6 +445,33 @@ final class UITestingController {
         applyTransientUITestState(args: args)
         writeStateSnapshot()
     }
+
+    #if DEBUG
+    private func configureAgentAccessInstalledSmokeControl() {
+        guard let path = ProcessInfo.processInfo.environment["FOIL_AGENT_ACCESS_SMOKE_CONTROL_FILE"],
+              path.hasPrefix("/") else {
+            DiagnosticLog.write("AgentAccess.installedSmoke: missing_control_file")
+            return
+        }
+        let controlURL = URL(fileURLWithPath: path, isDirectory: false).standardizedFileURL
+        agentAccessInstalledSmokeTimer?.invalidate()
+        agentAccessInstalledSmokeTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) {
+            [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard let data = try? Data(contentsOf: controlURL),
+                      String(decoding: data, as: UTF8.self)
+                        .trimmingCharacters(in: .whitespacesAndNewlines) == "disable" else {
+                    return
+                }
+                try? FileManager.default.removeItem(at: controlURL)
+                self.appState.setAgentAccessEnabled(false)
+                self.agentAccessInstalledSmokeTimer?.invalidate()
+                self.agentAccessInstalledSmokeTimer = nil
+            }
+        }
+    }
+    #endif
 
     func configureAutomationSmokeIfNeeded() {
         guard ProcessInfo.processInfo.arguments.contains("--automation-smoke") else { return }

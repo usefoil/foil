@@ -1,3 +1,9 @@
+## Unreleased
+
+- Let users apply reviewed Agent Access Vocabulary proposals through Foil's atomic local catalog while preserving the global corrections switch and original recovery text.
+- Add installed Foil/Foil Dev isolation, shutdown, signing, curl, and privacy smoke coverage plus a user guide for the copied Agent Access command.
+
+
 ## [1.14.3](https://github.com/usefoil/foil/compare/v1.14.2...v1.14.3) (2026-09-23)
 
 - Add optional Agent Access in Settings so a local Codex agent can discover Foil's vocabulary API through a copied command, without a separate plugin or MCP registration.
