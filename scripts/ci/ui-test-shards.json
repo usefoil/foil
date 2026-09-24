@@ -94,7 +94,8 @@
       "testFloatingStatusAutoHidesAfterSuccessWhenEnabled",
       "testCustomHotkeyRecorderIsAccessibleButton",
       "testConfiguredHotkeyChoicesStartAndStopAfterSwitching",
-      "testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled"
+      "testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled",
+      "testAgentVocabularyProposalReviewedApplyCreatesCatalogEntriesWithoutEnablingSwitch"
     ]
   },
   "specialTests": {

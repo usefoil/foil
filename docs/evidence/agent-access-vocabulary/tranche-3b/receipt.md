@@ -35,7 +35,10 @@ Evidence:
 
 Residual risk / follow-up: the new XCUITest compiled, but this desktop's XCTest
 manager timed out before enabling automation and then could not materialize later
-test workers. The focused UI row must run on the hosted UI shard before merge.
+test workers. The focused row is assigned to hosted UI shard D before merge. Its
+first hosted run exposed an older proposal-review assertion that assumed one
+replacement field; the seed now contains two corrections, so the assertion was
+made explicitly first-match and the exact apply row was added to the hosted shard.
 
 ## Failure, stale-review, replay, and crash boundaries fail closed
 

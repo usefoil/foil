@@ -586,8 +586,8 @@ final class FoilUITests: XCTestCase {
             app.buttons["agentProposals.done"].waitForExistence(timeout: 5),
             app.debugDescription
         )
-        let spokenForm = app.textFields["Spoken form"]
-        let replacement = app.textFields["Replacement"]
+        let spokenForm = app.textFields["Spoken form"].firstMatch
+        let replacement = app.textFields["Replacement"].firstMatch
         XCTAssertEqual(spokenForm.value as? String, "super base", app.debugDescription)
         XCTAssertEqual(replacement.value as? String, "Supabase", app.debugDescription)
         XCTAssertTrue(app.buttons["Omit spoken form"].exists, app.debugDescription)
