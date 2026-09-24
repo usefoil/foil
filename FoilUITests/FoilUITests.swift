@@ -593,6 +593,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Omit spoken form"].exists, app.debugDescription)
 
         let reject = app.buttons["Reject"]
+        scrollProposalReviewUntilHittable(reject)
         clickElement(reject)
         XCTAssertTrue(reject.waitForNonExistence(timeout: 3), app.debugDescription)
         clickElement(app.buttons["agentProposals.done"])
@@ -619,6 +620,7 @@ final class FoilUITests: XCTestCase {
         clickElement(review)
         let applyByLabel = app.buttons["Apply reviewed corrections"]
         XCTAssertTrue(applyByLabel.waitForExistence(timeout: 4), app.debugDescription)
+        scrollProposalReviewUntilHittable(applyByLabel)
         XCTAssertTrue(applyByLabel.isEnabled, app.debugDescription)
         clickElement(applyByLabel)
         XCTAssertTrue(applyByLabel.waitForNonExistence(timeout: 4), app.debugDescription)
@@ -2284,6 +2286,15 @@ final class FoilUITests: XCTestCase {
             scrollView.swipeUp()
         }
         XCTAssertTrue(isVerticallyVisible(), app.debugDescription)
+    }
+
+    private func scrollProposalReviewUntilHittable(_ element: XCUIElement) {
+        let scrollView = app.sheets.firstMatch.scrollViews.firstMatch
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 3), app.debugDescription)
+        for _ in 0..<6 where !element.isHittable {
+            scrollView.swipeUp()
+        }
+        XCTAssertTrue(element.isHittable, app.debugDescription)
     }
 
     private func launchApp(
