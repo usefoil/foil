@@ -150,6 +150,19 @@ final class VocabularyProposalService: @unchecked Sendable {
         try snapshotToken(for: readModelStore.snapshot())
     }
 
+    func validateForApply(_ proposal: VocabularyProposal) throws -> String {
+        let model = readModelStore.snapshot()
+        _ = try validate(
+            VocabularyProposalRequest(
+                requestID: proposal.requestID,
+                scope: proposal.scope,
+                corrections: proposal.corrections
+            ),
+            against: model
+        )
+        return try snapshotToken(for: model)
+    }
+
     private func validate(
         _ rawRequest: VocabularyProposalRequest,
         against model: AgentAccessVocabularyReadModel

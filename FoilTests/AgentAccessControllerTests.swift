@@ -542,6 +542,84 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertEqual(state.localCorrectionSnapshot, rulesBefore)
     }
 
+    func testReviewedScopedProposalAppliesThroughCatalogAndReconcilesInbox() throws {
+        let marker = UUID().uuidString
+        let state = makeState(storageMarker: marker, activateCatalog: true)
+        state.setCleanupGroups([
+            CleanupGroup.defaultGroup(),
+            CleanupGroup(id: "agents", name: "Agent editors", sortOrder: 1)
+        ])
+        let proposalStore = VocabularyProposalStore(
+            fileURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("foil-agent-controller-\(marker)", isDirectory: true)
+                .appendingPathComponent("proposals.json")
+        )
+        let controller = AgentAccessController(
+            appState: state,
+            paths: paths(),
+            openAPIDocument: Data("{}".utf8),
+            proposalStore: proposalStore
+        ) { _, _, _ in ServerStub() }
+        controller.seedVocabularyProposalForUITesting()
+        let proposalID = try XCTUnwrap(state.agentAccessProposals.first?.id)
+        state.reviseAgentAccessProposal(
+            id: proposalID,
+            scope: .init(kind: "cleanup_group", id: "agents"),
+            corrections: [
+                .init(spokenForms: ["Superbase", "super base"], replacement: "Supabase"),
+                .init(spokenForms: ["codecs"], replacement: "Codex")
+            ]
+        )
+
+        state.applyAgentAccessProposal(id: proposalID)
+
+        XCTAssertEqual(state.vocabularyCorrections.map(\.writtenAs), [
+            "Superbase", "super base", "codecs"
+        ])
+        XCTAssertEqual(state.localCorrectionSnapshot.rules.count, 3)
+        XCTAssertTrue(state.localCorrectionSnapshot.rules.allSatisfy { $0.group == "agents" })
+        XCTAssertFalse(state.localCorrectionSnapshot.isEnabled)
+        XCTAssertEqual(try proposalStore.proposal(id: proposalID)?.state, .applied)
+        XCTAssertEqual(state.agentAccessPendingProposalCount, 0)
+        _ = try state.setLocalCorrectionsEnabled(true)
+        XCTAssertEqual(
+            state.previewLocalCorrections("Superbase and codecs", activeGroupID: "agents").text,
+            "Supabase and Codex"
+        )
+        XCTAssertEqual(
+            state.previewLocalCorrections("Superbase and codecs", activeGroupID: "messages").text,
+            "Superbase and codecs"
+        )
+        withExtendedLifetime(controller) {}
+    }
+
+    func testConcurrentVocabularyEditRejectsStaleReviewedApply() throws {
+        let marker = UUID().uuidString
+        let state = makeState(storageMarker: marker, activateCatalog: true)
+        let proposalStore = VocabularyProposalStore(
+            fileURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("foil-agent-controller-\(marker)", isDirectory: true)
+                .appendingPathComponent("proposals.json")
+        )
+        let controller = AgentAccessController(
+            appState: state,
+            paths: paths(),
+            openAPIDocument: Data("{}".utf8),
+            proposalStore: proposalStore
+        ) { _, _, _ in ServerStub() }
+        controller.seedVocabularyProposalForUITesting()
+        let proposalID = try XCTUnwrap(state.agentAccessProposals.first?.id)
+        XCTAssertNotNil(state.addVocabularyCorrection(writtenAs: "cloud code", correctVersion: "Claude Code"))
+
+        state.applyAgentAccessProposal(id: proposalID)
+
+        XCTAssertEqual(state.vocabularyCorrections.map(\.writtenAs), ["cloud code"])
+        XCTAssertEqual(try proposalStore.proposal(id: proposalID)?.state, .pending)
+        XCTAssertTrue(state.agentAccessStaleProposalIDs.contains(proposalID))
+        XCTAssertTrue(state.agentAccessProposalInboxErrorMessage?.contains("changed") == true)
+        withExtendedLifetime(controller) {}
+    }
+
     func testAgentAccessPreferencePersistsInInjectedDefaultsSuite() throws {
         let suiteName = "com.neonwatty.Foil.AgentAccessTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -571,7 +649,8 @@ final class AgentAccessControllerTests: XCTestCase {
     private func makeState(
         agentAccessDefaults: UserDefaults? = nil,
         storageMarker: String = UUID().uuidString,
-        initialDefaultsOverride: UserDefaults? = nil
+        initialDefaultsOverride: UserDefaults? = nil,
+        activateCatalog: Bool = false
     ) -> AppState {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("foil-agent-controller-\(storageMarker)", isDirectory: true)
@@ -580,6 +659,9 @@ final class AgentAccessControllerTests: XCTestCase {
         )!
         return AppState(
             localCorrectionStore: LocalCorrectionStore(fileURL: root.appendingPathComponent("rules.json")),
+            vocabularyCatalogStore: activateCatalog
+                ? VocabularyCatalogStore(fileURL: root.appendingPathComponent(VocabularyCatalogStore.fileName))
+                : nil,
             agentAccessDefaults: defaults,
             initialDefaultsOverride: initialDefaultsOverride
         )

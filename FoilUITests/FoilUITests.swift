@@ -586,20 +586,51 @@ final class FoilUITests: XCTestCase {
             app.buttons["agentProposals.done"].waitForExistence(timeout: 5),
             app.debugDescription
         )
-        let spokenForm = app.textFields["Spoken form"]
-        let replacement = app.textFields["Replacement"]
+        let spokenForm = app.textFields["Spoken form"].firstMatch
+        let replacement = app.textFields["Replacement"].firstMatch
         XCTAssertEqual(spokenForm.value as? String, "super base", app.debugDescription)
         XCTAssertEqual(replacement.value as? String, "Supabase", app.debugDescription)
         XCTAssertTrue(app.buttons["Omit spoken form"].exists, app.debugDescription)
 
-        clickElement(app.buttons["Reject"])
-        XCTAssertTrue(app.staticTexts["No pending proposals"].waitForExistence(timeout: 3), app.debugDescription)
+        let reject = app.buttons["Reject"]
+        scrollProposalReviewUntilHittable(reject)
+        clickElement(reject)
+        XCTAssertTrue(reject.waitForNonExistence(timeout: 3), app.debugDescription)
         clickElement(app.buttons["agentProposals.done"])
         let reviewAfterRejection = button(
             id: "settings.agentAccess.reviewProposals",
             fallbackLabel: "Review vocabulary proposals"
         )
         XCTAssertEqual(reviewAfterRejection.value as? String, "0 pending")
+    }
+
+    func testAgentVocabularyProposalReviewedApplyCreatesCatalogEntriesWithoutEnablingSwitch() {
+        relaunchWithArguments([
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-history",
+            "--seed-agent-vocabulary-proposal"
+        ])
+        openAppShellSettings(navID: "appShell.nav.settings.general")
+        let review = button(
+            id: "settings.agentAccess.reviewProposals",
+            fallbackLabel: "Review vocabulary proposals"
+        )
+        XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
+        clickElement(review)
+        let applyByLabel = app.buttons["Apply reviewed corrections"]
+        XCTAssertTrue(applyByLabel.waitForExistence(timeout: 4), app.debugDescription)
+        scrollProposalReviewUntilHittable(applyByLabel)
+        XCTAssertTrue(applyByLabel.isEnabled, app.debugDescription)
+        clickElement(applyByLabel)
+        XCTAssertTrue(applyByLabel.waitForNonExistence(timeout: 4), app.debugDescription)
+        clickElement(app.buttons["agentProposals.done"])
+
+        clickElement(app.descendants(matching: .any)["appShell.nav.settings.cleanup"])
+        XCTAssertTrue(app.staticTexts["super base -> Supabase"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Superbase -> Supabase"].exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["codecs -> Codex"].exists, app.debugDescription)
+        XCTAssertEqual(controlValueString(app.checkBoxes["settings.localCorrectionsEnabled"]), "0")
     }
 
     func testAppShellShowsAllSettingsSidebarPanes() {
@@ -2255,6 +2286,20 @@ final class FoilUITests: XCTestCase {
             scrollView.swipeUp()
         }
         XCTAssertTrue(isVerticallyVisible(), app.debugDescription)
+    }
+
+    private func scrollProposalReviewUntilHittable(_ element: XCUIElement) {
+        let scrollView = app.sheets.firstMatch.scrollViews.firstMatch
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 3), app.debugDescription)
+        func isVerticallyVisible() -> Bool {
+            let viewport = scrollView.frame.insetBy(dx: 0, dy: 12)
+            let target = element.frame
+            return target.minY >= viewport.minY && target.maxY <= viewport.maxY
+        }
+        for _ in 0..<6 where !isVerticallyVisible() {
+            scrollView.swipeUp()
+        }
+        XCTAssertTrue(isVerticallyVisible() && element.isHittable, app.debugDescription)
     }
 
     private func launchApp(

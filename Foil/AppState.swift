@@ -385,6 +385,7 @@ final class AppState {
 
     let localPairingBridgeService: LocalPairingBridgeService
     private let localCorrectionStore: LocalCorrectionStore
+    @ObservationIgnored private var vocabularyCorrectionCoordinator: VocabularyCorrectionCoordinator?
     private let preferenceDefaults: UserDefaults
     private let agentAccessDefaults: UserDefaults
     var localCorrectionStorageFile: URL { localCorrectionStore.fileURL }
@@ -402,10 +403,14 @@ final class AppState {
     var agentAccessPendingProposalCount: Int {
         agentAccessProposals.lazy.filter { $0.state == .pending }.count
     }
+    var appliedVocabularyProposalReceipts: [VocabularyAppliedProposalReceipt] {
+        vocabularyCorrectionCoordinator?.loadedCatalog?.snapshot.appliedProposalReceipts ?? []
+    }
     @ObservationIgnored var agentAccessPreferenceDidChange: ((Bool) -> Void)?
     @ObservationIgnored var agentAccessReadModelDidChange: (() -> Void)?
     @ObservationIgnored var agentAccessProposalRevisionDidRequest: ((String, VocabularyProposalScope, [VocabularyProposalCorrection]) -> Void)?
     @ObservationIgnored var agentAccessProposalTransitionDidRequest: ((String, AgentAccessProposalState) -> Void)?
+    @ObservationIgnored var agentAccessProposalApplyDidRequest: ((String) -> Void)?
 
     func setAgentAccessEnabled(_ enabled: Bool, notifyController: Bool = true) {
         agentAccessEnabled = enabled
@@ -422,6 +427,10 @@ final class AppState {
 
     func transitionAgentAccessProposal(id: String, to state: AgentAccessProposalState) {
         agentAccessProposalTransitionDidRequest?(id, state)
+    }
+
+    func applyAgentAccessProposal(id: String) {
+        agentAccessProposalApplyDidRequest?(id)
     }
 
     var soundEffectsEnabled: Bool = true {
@@ -594,7 +603,9 @@ final class AppState {
 
     var vocabularyCorrections: [VocabularyCorrection] = [] {
         didSet {
-            Self.saveVocabularyCorrections(vocabularyCorrections)
+            if vocabularyCorrectionCoordinator == nil {
+                Self.saveVocabularyCorrections(vocabularyCorrections)
+            }
             agentAccessReadModelDidChange?()
         }
     }
@@ -945,12 +956,65 @@ final class AppState {
         )
     }
 
+    private func publishVocabularyCatalog(_ loaded: LoadedVocabularyCatalog) {
+        vocabularyCorrections = loaded.snapshot.vocabularyCorrections
+        localCorrectionSnapshot = LocalCorrectionSnapshot(
+            revision: loaded.snapshot.revision,
+            isEnabled: loaded.snapshot.localCorrectionsEnabled,
+            rules: loaded.snapshot.rules
+        )
+        compiledLocalCorrections = loaded.compiledLocalCorrections
+        localCorrectionPersistenceError = nil
+        agentAccessReadModelDidChange?()
+    }
+
+    @discardableResult
+    private func saveVocabularyCatalogIfActive(
+        corrections: [VocabularyCorrection],
+        rules: [LocalCorrectionRule]
+    ) throws -> Bool {
+        guard let vocabularyCorrectionCoordinator else { return false }
+        let loaded = try vocabularyCorrectionCoordinator.save(
+            vocabularyCorrections: corrections,
+            localCorrectionsEnabled: localCorrectionSnapshot.isEnabled,
+            rules: rules
+        )
+        publishVocabularyCatalog(loaded)
+        return true
+    }
+
+    @discardableResult
+    func applyReviewedVocabularyProposal(
+        _ proposal: VocabularyProposal,
+        currentSnapshotToken: String
+    ) throws -> (receipt: VocabularyAppliedProposalReceipt, wasReplay: Bool) {
+        guard let vocabularyCorrectionCoordinator else {
+            throw VocabularyCorrectionCoordinatorError.notActivated
+        }
+        let result = try vocabularyCorrectionCoordinator.apply(
+            proposal: proposal,
+            currentSnapshotToken: currentSnapshotToken,
+            enabledScopeIDs: Set(cleanupGroups.filter(\.isEnabled).map(\.id))
+        )
+        publishVocabularyCatalog(result.loaded)
+        return (result.receipt, result.wasReplay)
+    }
+
     @discardableResult
     func saveLocalCorrections(
         _ rules: [LocalCorrectionRule],
         isEnabled: Bool? = nil
     ) throws -> LocalCorrectionSnapshot {
         do {
+            if let vocabularyCorrectionCoordinator {
+                let loaded = try vocabularyCorrectionCoordinator.save(
+                    vocabularyCorrections: vocabularyCorrections,
+                    localCorrectionsEnabled: isEnabled ?? localCorrectionSnapshot.isEnabled,
+                    rules: rules
+                )
+                publishVocabularyCatalog(loaded)
+                return localCorrectionSnapshot
+            }
             let saved = try localCorrectionStore.save(
                 rules: rules,
                 isEnabled: isEnabled,
@@ -1185,7 +1249,17 @@ final class AppState {
             sourceRecordID: sourceRecordID,
             sourceAppName: normalizedSourceAppName
         )
-        vocabularyCorrections.append(correction)
+        do {
+            if try !saveVocabularyCatalogIfActive(
+                corrections: vocabularyCorrections + [correction],
+                rules: localCorrectionSnapshot.rules
+            ) {
+                vocabularyCorrections.append(correction)
+            }
+        } catch {
+            localCorrectionPersistenceError = "Could not save the Vocabulary correction. The previous catalog is still active."
+            return nil
+        }
         return correction
     }
 
@@ -1212,12 +1286,12 @@ final class AppState {
             return nil
         }
 
-        if let localIndex = localCorrectionSnapshot.rules.firstIndex(where: {
+        var updatedRules = localCorrectionSnapshot.rules
+        if let localIndex = updatedRules.firstIndex(where: {
             $0.id == Self.localRuleID(for: id)
         }) {
-            var rules = localCorrectionSnapshot.rules
-            let current = rules[localIndex]
-            rules[localIndex] = LocalCorrectionRule(
+            let current = updatedRules[localIndex]
+            updatedRules[localIndex] = LocalCorrectionRule(
                 id: current.id,
                 source: normalizedWrittenAs,
                 replacement: normalizedCorrectVersion,
@@ -1225,18 +1299,28 @@ final class AppState {
                 enabled: current.enabled,
                 caseSensitive: current.caseSensitive
             )
-            do {
-                try saveLocalCorrections(rules)
-            } catch {
-                return nil
-            }
         }
-
-        vocabularyCorrections[index].writtenAs = normalizedWrittenAs
-        vocabularyCorrections[index].correctVersion = normalizedCorrectVersion
-        vocabularyCorrections[index].note = Self.normalizedOptionalText(note)
-        vocabularyCorrections[index].updatedAt = Date()
-        return vocabularyCorrections[index]
+        var updatedCorrections = vocabularyCorrections
+        updatedCorrections[index].writtenAs = normalizedWrittenAs
+        updatedCorrections[index].correctVersion = normalizedCorrectVersion
+        updatedCorrections[index].note = Self.normalizedOptionalText(note)
+        updatedCorrections[index].updatedAt = Date()
+        do {
+            if try saveVocabularyCatalogIfActive(
+                corrections: updatedCorrections,
+                rules: updatedRules
+            ) {
+                return updatedCorrections[index]
+            }
+            if updatedRules != localCorrectionSnapshot.rules {
+                try saveLocalCorrections(updatedRules)
+            }
+            vocabularyCorrections = updatedCorrections
+            return updatedCorrections[index]
+        } catch {
+            localCorrectionPersistenceError = "Could not update the Vocabulary correction. The previous catalog is still active."
+            return nil
+        }
     }
 
     @discardableResult
@@ -1244,22 +1328,26 @@ final class AppState {
         guard let correction = vocabularyCorrections.first(where: { $0.id == id }) else { return false }
         let ruleID = Self.localRuleID(for: id)
         let rule = localCorrectionSnapshot.rules.first(where: { $0.id == ruleID })
-        let previousUndo = deletedVocabularyCorrectionUndo
-        deletedVocabularyCorrectionUndo = DeletedVocabularyCorrectionUndo(
+        let nextUndo = DeletedVocabularyCorrectionUndo(
             correction: correction,
             rule: rule
         )
-        Self.saveDeletedVocabularyCorrectionUndo(deletedVocabularyCorrectionUndo)
-        if rule != nil {
-            do {
-                try saveLocalCorrections(localCorrectionSnapshot.rules.filter { $0.id != ruleID })
-            } catch {
-                deletedVocabularyCorrectionUndo = previousUndo
-                Self.saveDeletedVocabularyCorrectionUndo(previousUndo)
-                return false
+        let updatedCorrections = vocabularyCorrections.filter { $0.id != id }
+        let updatedRules = localCorrectionSnapshot.rules.filter { $0.id != ruleID }
+        do {
+            if try !saveVocabularyCatalogIfActive(
+                corrections: updatedCorrections,
+                rules: updatedRules
+            ) {
+                if rule != nil { try saveLocalCorrections(updatedRules) }
+                vocabularyCorrections = updatedCorrections
             }
+        } catch {
+            localCorrectionPersistenceError = "Could not delete the Vocabulary correction. The previous catalog is still active."
+            return false
         }
-        vocabularyCorrections.removeAll { $0.id == id }
+        deletedVocabularyCorrectionUndo = nextUndo
+        Self.saveDeletedVocabularyCorrectionUndo(nextUndo)
         return true
     }
 
@@ -1275,6 +1363,7 @@ final class AppState {
             Self.saveDeletedVocabularyCorrectionUndo(nil)
             return false
         }
+        var updatedRules = localCorrectionSnapshot.rules
         if let savedRule = undo.rule {
             let rule = Self.reconciledLocalCorrectionRules(
                 [savedRule],
@@ -1285,21 +1374,28 @@ final class AppState {
                 localCorrectionSnapshot.rules.filter { $0.id == rule.id },
                 [rule]
             ) {
-                var rules = localCorrectionSnapshot.rules
-                if let index = rules.firstIndex(where: { $0.id == rule.id }) {
-                    rules[index] = rule
+                if let index = updatedRules.firstIndex(where: { $0.id == rule.id }) {
+                    updatedRules[index] = rule
                 } else {
-                    rules.append(rule)
-                }
-                do {
-                    try saveLocalCorrections(rules)
-                } catch {
-                    return false
+                    updatedRules.append(rule)
                 }
             }
         }
-        if !correctionAlreadyPresent {
-            vocabularyCorrections.append(undo.correction)
+        var updatedCorrections = vocabularyCorrections
+        if !correctionAlreadyPresent { updatedCorrections.append(undo.correction) }
+        do {
+            if try !saveVocabularyCatalogIfActive(
+                corrections: updatedCorrections,
+                rules: updatedRules
+            ) {
+                if updatedRules != localCorrectionSnapshot.rules {
+                    try saveLocalCorrections(updatedRules)
+                }
+                vocabularyCorrections = updatedCorrections
+            }
+        } catch {
+            localCorrectionPersistenceError = "Could not restore the Vocabulary correction. The previous catalog is still active."
+            return false
         }
         deletedVocabularyCorrectionUndo = nil
         Self.saveDeletedVocabularyCorrectionUndo(nil)
@@ -1831,12 +1927,14 @@ final class AppState {
         managedModelRoot: URL? = nil,
         managedModelStore: ManagedLocalModelStore? = nil,
         localCorrectionStore: LocalCorrectionStore? = nil,
+        vocabularyCatalogStore: VocabularyCatalogStore? = nil,
         agentAccessDefaults: UserDefaults? = nil,
         initialDefaultsOverride: UserDefaults? = nil
     ) {
         let resolvedDefaults = initialDefaultsOverride ?? Self.defaults
         self.localPairingBridgeService = localPairingBridgeService ?? LocalPairingBridgeService()
         self.localCorrectionStore = localCorrectionStore ?? LocalCorrectionStore()
+        self.vocabularyCorrectionCoordinator = nil
         self.preferenceDefaults = resolvedDefaults
         self.agentAccessDefaults = agentAccessDefaults ?? resolvedDefaults
 
@@ -2004,6 +2102,23 @@ final class AppState {
         isSynchronizingVocabularyText = false
         let loadedVocabularyCorrections = Self.loadVocabularyCorrections()
         vocabularyCorrections = loadedVocabularyCorrections.corrections
+        let isUnitTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || ProcessInfo.processInfo.processName == "xctest"
+        let shouldActivateVocabularyCatalog = vocabularyCatalogStore != nil
+            || !isUnitTestHost
+            || ProcessInfo.processInfo.arguments.contains("--ui-testing")
+        if shouldActivateVocabularyCatalog {
+            let catalogStore = vocabularyCatalogStore ?? VocabularyCatalogStore(
+                fileURL: self.localCorrectionStore.fileURL
+                    .deletingLastPathComponent()
+                    .appendingPathComponent(VocabularyCatalogStore.fileName)
+            )
+            vocabularyCorrectionCoordinator = VocabularyCorrectionCoordinator(
+                store: catalogStore,
+                legacyVocabularyData: defaults.data(forKey: Self.vocabularyCorrectionsKey),
+                legacyLocalCorrectionsData: try? Data(contentsOf: self.localCorrectionStore.fileURL)
+            )
+        }
         deletedVocabularyCorrectionUndo = Self.loadDeletedVocabularyCorrectionUndo()
         let storedVocabularyTerms = Self.loadVocabularyTerms()
         vocabularyTerms = storedVocabularyTerms.isEmpty
@@ -2067,31 +2182,42 @@ final class AppState {
                 store: try managedModelStore ?? ManagedLocalModelStore(root: root))
         } catch { managedLocalRestoreError = error.localizedDescription }
         do {
-            let loaded = try self.localCorrectionStore.loadCompiled()
-            let reconciledRules = Self.reconciledLocalCorrectionRules(
-                loaded.snapshot.rules,
-                vocabularyCorrections: loadedVocabularyCorrections.canReconcile
-                    ? vocabularyCorrections
-                    : nil,
-                availableGroupIDs: Set(cleanupGroups.filter(\.isEnabled).map(\.id))
-            )
-            if Self.localCorrectionRulesAreByteEquivalent(reconciledRules, loaded.snapshot.rules) {
-                localCorrectionSnapshot = loaded.snapshot
-                compiledLocalCorrections = loaded.compiled
+            if let vocabularyCorrectionCoordinator {
+                let loaded = try vocabularyCorrectionCoordinator.activate()
+                publishVocabularyCatalog(loaded)
+                localCorrectionPersistenceError = nil
             } else {
-                let saved = try self.localCorrectionStore.save(
-                    rules: reconciledRules,
-                    isEnabled: loaded.snapshot.isEnabled,
-                    expectedSnapshot: loaded.snapshot
+                let loaded = try self.localCorrectionStore.loadCompiled()
+                let reconciledRules = Self.reconciledLocalCorrectionRules(
+                    loaded.snapshot.rules,
+                    vocabularyCorrections: loadedVocabularyCorrections.canReconcile
+                        ? vocabularyCorrections
+                        : nil,
+                    availableGroupIDs: Set(cleanupGroups.filter(\.isEnabled).map(\.id))
                 )
-                localCorrectionSnapshot = saved.snapshot
-                compiledLocalCorrections = saved.compiled
+                if Self.localCorrectionRulesAreByteEquivalent(reconciledRules, loaded.snapshot.rules) {
+                    localCorrectionSnapshot = loaded.snapshot
+                    compiledLocalCorrections = loaded.compiled
+                } else {
+                    let saved = try self.localCorrectionStore.save(
+                        rules: reconciledRules,
+                        isEnabled: loaded.snapshot.isEnabled,
+                        expectedSnapshot: loaded.snapshot
+                    )
+                    localCorrectionSnapshot = saved.snapshot
+                    compiledLocalCorrections = saved.compiled
+                }
+                localCorrectionPersistenceError = nil
             }
-            localCorrectionPersistenceError = nil
         } catch {
             localCorrectionSnapshot = LocalCorrectionSnapshot()
             compiledLocalCorrections = try! LocalCorrectionEngine.compile([])
-            localCorrectionPersistenceError = "Local corrections could not be read, so they are off. The existing file was left unchanged."
+            if error as? VocabularyCatalogStoreError == .legacySourcesChanged {
+                vocabularyCorrections = []
+                localCorrectionPersistenceError = "Vocabulary changed in an older Foil version. Both copies were left unchanged; reconcile them before using local corrections."
+            } else {
+                localCorrectionPersistenceError = "Local corrections could not be read, so they are off. The existing file was left unchanged."
+            }
         }
     }
 

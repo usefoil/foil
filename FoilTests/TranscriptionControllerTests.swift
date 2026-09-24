@@ -445,6 +445,52 @@ final class TranscriptionControllerTests: XCTestCase {
         XCTAssertEqual(transport.requests.count, 0)
     }
 
+    func testReviewedAgentAliasesCorrectExactDictationAndHistoryKeepsOriginal() async throws {
+        appState.setCleanupGroups([
+            CleanupGroup.defaultGroup(processingMode: .raw),
+            CleanupGroup(
+                id: "agents",
+                name: "Agent apps",
+                sortOrder: 1,
+                appMatchers: [
+                    CleanupAppMatcher(displayName: "Codex", bundleIdentifier: "com.openai.codex")
+                ],
+                processingMode: .raw
+            )
+        ])
+        _ = try appState.saveLocalCorrections(
+            [
+                localRule(id: "superbase", source: "Superbase", replacement: "Supabase", group: "agents"),
+                localRule(id: "super-base", source: "super base", replacement: "Supabase", group: "agents"),
+                localRule(id: "codecs", source: "codecs", replacement: "Codex", group: "agents")
+            ],
+            isEnabled: true
+        )
+        let transport = ControllerStubTransport { request in
+            XCTFail("Raw scoped correction must not make a cleanup request: \(String(describing: request.url))")
+            throw URLError(.badURL)
+        }
+
+        let result = await controller.processTranscriptOrRaw(
+            rawText: "Superbase and codecs",
+            apiKey: nil,
+            service: TranscriptionService(transport: transport),
+            context: "reviewedAgentAliases",
+            appContext: CleanupAppContext(displayName: "Codex", bundleIdentifier: "com.openai.codex")
+        )
+        let historyDirectory = keychainStorageDirectory.appendingPathComponent("history", isDirectory: true)
+        let history = TranscriptionHistory(storageDirectory: historyDirectory)
+        history.addSuccess(text: result.text, originalText: result.originalText, sourceAppName: "Codex")
+
+        XCTAssertEqual(result.text, "Supabase and Codex")
+        XCTAssertEqual(result.originalText, "Superbase and codecs")
+        XCTAssertEqual(result.localReplacementCount, 2)
+        XCTAssertEqual(result.cleanupGroupID, "agents")
+        XCTAssertEqual(history.records.first?.text, "Supabase and Codex")
+        XCTAssertEqual(history.lastRecoverableOriginalText, "Superbase and codecs")
+        XCTAssertEqual(transport.requests.count, 0)
+    }
+
     func testOversizeLocalCorrectionInputFallsBackIntactWithoutRequest() async throws {
         appState.transcriptProcessingMode = .cleanUp
         appState.transcriptCleanupProviderID = .customOpenAICompatibleChat

@@ -222,6 +222,51 @@ final class VocabularyProposalStore: @unchecked Sendable {
         return updated.receipt()
     }
 
+    @discardableResult
+    func markApplied(from receipt: VocabularyAppliedProposalReceipt) throws -> VocabularyProposalReceipt {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let current = try decodeSnapshot()
+        guard let index = current.proposals.firstIndex(where: { $0.id == receipt.proposalID }) else {
+            throw VocabularyProposalStoreError.proposalNotFound(receipt.proposalID)
+        }
+        let existing = current.proposals[index]
+        guard existing.requestID == receipt.requestID else {
+            throw VocabularyProposalStoreError.requestIDConflict(receipt.requestID)
+        }
+        if existing.state == .applied { return existing.receipt() }
+        guard existing.state == .pending else {
+            throw VocabularyProposalStoreError.invalidStateTransition(from: existing.state, to: .applied)
+        }
+        let updated = VocabularyProposal(
+            id: existing.id,
+            requestID: existing.requestID,
+            requestHash: existing.requestHash,
+            reviewHash: existing.reviewHash,
+            state: .applied,
+            scope: existing.scope,
+            corrections: existing.corrections,
+            snapshotToken: existing.snapshotToken,
+            createdAt: existing.createdAt,
+            updatedAt: normalizedTimestamp()
+        )
+        var proposals = current.proposals
+        proposals[index] = updated
+        try persist(VocabularyProposalSnapshot(revision: current.revision + 1, proposals: proposals))
+        return updated.receipt()
+    }
+
+    func reconcileAppliedReceipts(_ receipts: [VocabularyAppliedProposalReceipt]) throws {
+        for receipt in receipts {
+            do {
+                _ = try markApplied(from: receipt)
+            } catch VocabularyProposalStoreError.proposalNotFound {
+                continue
+            }
+        }
+    }
+
     private func decodeSnapshot() throws -> VocabularyProposalSnapshot {
         guard fileManager.fileExists(atPath: fileURL.path) else {
             return VocabularyProposalSnapshot()

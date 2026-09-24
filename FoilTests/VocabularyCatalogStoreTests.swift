@@ -464,6 +464,214 @@ final class VocabularyCatalogStoreTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testCoordinatorAppliesReviewedAliasesAtomicallyWithoutEnablingGlobalSwitch() throws {
+        let fixture = try makeFixture()
+        let coordinator = VocabularyCorrectionCoordinator(
+            store: fixture.store,
+            legacyVocabularyData: nil,
+            legacyLocalCorrectionsData: nil,
+            now: { Date(timeIntervalSince1970: 1_800_000_000) }
+        )
+        _ = try coordinator.activate()
+        let token = String(repeating: "a", count: 64)
+        let proposal = VocabularyProposal(
+            id: "20000000-0000-0000-0000-000000000001",
+            requestID: "reviewed-supabase-codex",
+            requestHash: String(repeating: "b", count: 64),
+            state: .pending,
+            scope: .init(kind: "cleanup_group", id: "agents"),
+            corrections: [
+                .init(spokenForms: ["Superbase", "super base"], replacement: "Supabase"),
+                .init(spokenForms: ["codecs"], replacement: "Codex", note: "Only in agent work")
+            ],
+            snapshotToken: token,
+            createdAt: Date(timeIntervalSince1970: 10),
+            updatedAt: Date(timeIntervalSince1970: 10)
+        )
+
+        let applied = try coordinator.apply(
+            proposal: proposal,
+            currentSnapshotToken: token,
+            enabledScopeIDs: ["agents"]
+        )
+
+        XCTAssertFalse(applied.wasReplay)
+        XCTAssertEqual(applied.loaded.snapshot.vocabularyCorrections.map(\.writtenAs), [
+            "Superbase", "super base", "codecs"
+        ])
+        XCTAssertEqual(applied.loaded.snapshot.rules.count, 3)
+        XCTAssertTrue(applied.loaded.snapshot.rules.allSatisfy { $0.group == "agents" })
+        XCTAssertFalse(applied.loaded.snapshot.localCorrectionsEnabled)
+        XCTAssertEqual(applied.receipt.items.count, 3)
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct(
+                "Superbase and codecs",
+                activeGroup: "agents",
+                enabled: true,
+                compiled: applied.loaded.compiledLocalCorrections
+            ).text,
+            "Supabase and Codex"
+        )
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct(
+                "Superbase and codecs",
+                activeGroup: "messages",
+                enabled: true,
+                compiled: applied.loaded.compiledLocalCorrections
+            ).text,
+            "Superbase and codecs"
+        )
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct(
+                "Superbase and codecs",
+                activeGroup: "agents",
+                enabled: applied.loaded.snapshot.localCorrectionsEnabled,
+                compiled: applied.loaded.compiledLocalCorrections
+            ).text,
+            "Superbase and codecs"
+        )
+
+        let replay = try coordinator.apply(
+            proposal: proposal,
+            currentSnapshotToken: token,
+            enabledScopeIDs: ["agents"]
+        )
+        XCTAssertTrue(replay.wasReplay)
+        XCTAssertEqual(replay.loaded.snapshot.revision, applied.loaded.snapshot.revision)
+        XCTAssertEqual(replay.receipt, applied.receipt)
+    }
+
+    @MainActor
+    func testCoordinatorRejectsStaleProposalWithoutChangingCatalog() throws {
+        let fixture = try makeFixture()
+        let coordinator = VocabularyCorrectionCoordinator(
+            store: fixture.store,
+            legacyVocabularyData: nil,
+            legacyLocalCorrectionsData: nil
+        )
+        _ = try coordinator.activate()
+        let before = try Data(contentsOf: fixture.catalogURL)
+        let proposal = VocabularyProposal(
+            id: UUID().uuidString.lowercased(),
+            requestID: "stale-review",
+            requestHash: String(repeating: "b", count: 64),
+            state: .pending,
+            scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["codecs"], replacement: "Codex")],
+            snapshotToken: String(repeating: "a", count: 64),
+            createdAt: Date(timeIntervalSince1970: 10),
+            updatedAt: Date(timeIntervalSince1970: 10)
+        )
+
+        XCTAssertThrowsError(
+            try coordinator.apply(
+                proposal: proposal,
+                currentSnapshotToken: String(repeating: "c", count: 64),
+                enabledScopeIDs: []
+            )
+        ) { error in
+            XCTAssertEqual(error as? VocabularyCorrectionCoordinatorError, .staleProposal)
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.catalogURL), before)
+    }
+
+    @MainActor
+    func testCoordinatorApplyCommitFailureLeavesCatalogByteIdenticalAndNoReceipt() throws {
+        let fixture = try makeFixture()
+        let initialCoordinator = VocabularyCorrectionCoordinator(
+            store: fixture.store,
+            legacyVocabularyData: nil,
+            legacyLocalCorrectionsData: nil
+        )
+        _ = try initialCoordinator.activate()
+        let before = try Data(contentsOf: fixture.catalogURL)
+        let failingCoordinator = VocabularyCorrectionCoordinator(
+            store: VocabularyCatalogStore(
+                fileURL: fixture.catalogURL,
+                committer: { _, _ in throw SimulatedCatalogFailure() },
+                makeTemporaryName: { "proposal-commit-failure" }
+            ),
+            legacyVocabularyData: nil,
+            legacyLocalCorrectionsData: nil
+        )
+        _ = try failingCoordinator.activate()
+        let token = String(repeating: "a", count: 64)
+        let proposal = VocabularyProposal(
+            id: "20000000-0000-0000-0000-000000000099",
+            requestID: "failed-supabase-codex-commit",
+            requestHash: String(repeating: "b", count: 64),
+            state: .pending,
+            scope: .init(kind: "cleanup_group", id: "agents"),
+            corrections: [
+                .init(spokenForms: ["Superbase", "super base"], replacement: "Supabase"),
+                .init(spokenForms: ["codecs"], replacement: "Codex")
+            ],
+            snapshotToken: token,
+            createdAt: Date(timeIntervalSince1970: 10),
+            updatedAt: Date(timeIntervalSince1970: 10)
+        )
+
+        XCTAssertThrowsError(
+            try failingCoordinator.apply(
+                proposal: proposal,
+                currentSnapshotToken: token,
+                enabledScopeIDs: ["agents"]
+            )
+        ) { error in
+            XCTAssertEqual(error as? VocabularyCatalogStoreError, .writeFailed)
+        }
+
+        XCTAssertEqual(try Data(contentsOf: fixture.catalogURL), before)
+        let reloaded = try fixture.store.load(
+            legacyVocabularyData: nil,
+            legacyLocalCorrectionsData: nil
+        )
+        XCTAssertTrue(reloaded.snapshot.vocabularyCorrections.isEmpty)
+        XCTAssertTrue(reloaded.snapshot.rules.isEmpty)
+        XCTAssertTrue(reloaded.snapshot.appliedProposalReceipts.isEmpty)
+    }
+
+    @MainActor
+    func testAppStateCatalogMutationLeavesLegacySourcesUntouched() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FoilVocabularyCoordinatorAppState-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let defaultsName = "com.neonwatty.Foil.VocabularyCoordinator.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+        addTeardownBlock { defaults.removePersistentDomain(forName: defaultsName) }
+        let legacyCorrection = correction()
+        let legacyVocabulary = try JSONEncoder().encode([legacyCorrection])
+        defaults.set(legacyVocabulary, forKey: "transcriptCleanupVocabularyCorrections")
+        let legacyLocal = try JSONEncoder().encode(
+            LocalCorrectionSnapshot(revision: 7, isEnabled: false, rules: [rule()])
+        )
+        let localURL = directory.appendingPathComponent(LocalCorrectionStore.fileName)
+        try legacyLocal.write(to: localURL)
+        let catalogURL = directory.appendingPathComponent(VocabularyCatalogStore.fileName)
+        let state = AppState(
+            localCorrectionStore: LocalCorrectionStore(fileURL: localURL),
+            vocabularyCatalogStore: VocabularyCatalogStore(fileURL: catalogURL),
+            initialDefaultsOverride: defaults
+        )
+
+        let added = try XCTUnwrap(
+            state.addVocabularyCorrection(writtenAs: "codecs", correctVersion: "Codex")
+        )
+        _ = try state.setVocabularyCorrectionLocalScope(id: added.id, groupID: nil)
+
+        XCTAssertEqual(try Data(contentsOf: localURL), legacyLocal)
+        XCTAssertEqual(defaults.data(forKey: "transcriptCleanupVocabularyCorrections"), legacyVocabulary)
+        let loaded = try VocabularyCatalogStore(fileURL: catalogURL).load(
+            legacyVocabularyData: legacyVocabulary,
+            legacyLocalCorrectionsData: legacyLocal
+        )
+        XCTAssertEqual(loaded.snapshot.vocabularyCorrections.count, 2)
+        XCTAssertEqual(loaded.snapshot.rules.count, 2)
+        XCTAssertEqual(loaded.snapshot.rules.last?.source, "codecs")
+    }
+
     private func makeFixture(
         stagedWriter: @escaping @Sendable (Data, URL) throws -> Void = { data, url in
             try data.write(to: url, options: .withoutOverwriting)

@@ -308,6 +308,7 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testFloatingWarningShowsExpandedClipboardContext
               -only-testing:FoilUITests/FoilUITests/testControlCenterShowsSeededReadyState
               -only-testing:FoilUITests/FoilUITests/testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled
+              -only-testing:FoilUITests/FoilUITests/testAgentVocabularyProposalReviewedApplyCreatesCatalogEntriesWithoutEnablingSwitch
 
     steps:
       - name: Checkout code
