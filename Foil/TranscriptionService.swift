@@ -146,6 +146,11 @@ struct TranscriptionProviderPreset: Equatable, Identifiable {
     }
 }
 
+enum TranscriptLineBreakPolicy: Equatable {
+    case preserve
+    case joinWhisperSegments
+}
+
 struct TranscriptionProvider: Equatable {
     let id: TranscriptionProviderID
     let displayName: String
@@ -156,10 +161,12 @@ struct TranscriptionProvider: Equatable {
     let supportsTranscriptProcessing: Bool
     var isManagedLocal = false
     var managedLocalSession: ManagedLocalSession? = nil
+    var lineBreakPolicy: TranscriptLineBreakPolicy = .preserve
 
     static func managedLocal(session: ManagedLocalSession?) -> TranscriptionProvider {
         var provider = openAICompatible(baseURL: URL(string: "http://transcribe.foil.localhost/v1")!,
-            model: "whisper-1", displayName: "Managed local transcription", requiresAPIKey: false)
+            model: "whisper-1", displayName: "Managed local transcription", requiresAPIKey: false,
+            lineBreakPolicy: .joinWhisperSegments)
         provider.isManagedLocal = true
         provider.managedLocalSession = session
         return provider
@@ -189,9 +196,10 @@ struct TranscriptionProvider: Equatable {
         baseURL: URL,
         model: String,
         displayName: String = "OpenAI-compatible",
-        requiresAPIKey: Bool = false
+        requiresAPIKey: Bool = false,
+        lineBreakPolicy: TranscriptLineBreakPolicy = .preserve
     ) -> TranscriptionProvider {
-        TranscriptionProvider(
+        var provider = TranscriptionProvider(
             id: .openAICompatible,
             displayName: displayName,
             baseURL: baseURL,
@@ -200,6 +208,8 @@ struct TranscriptionProvider: Equatable {
             supportsModelValidation: false,
             supportsTranscriptProcessing: false
         )
+        provider.lineBreakPolicy = lineBreakPolicy
+        return provider
     }
 
     var audioTranscriptionsEndpoint: URL {

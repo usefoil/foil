@@ -165,6 +165,14 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertFalse(preset.requiresAPIKey)
         XCTAssertFalse(preset.supportsTranscriptProcessing)
         XCTAssertFalse(preset.isEditable)
+        XCTAssertEqual(TranscriptionProvider.managedLocal(session: nil).lineBreakPolicy, .joinWhisperSegments)
+        XCTAssertEqual(TranscriptionProvider.groq.lineBreakPolicy, .preserve)
+        XCTAssertEqual(TranscriptionProvider.openAIWhisper.lineBreakPolicy, .preserve)
+        XCTAssertEqual(
+            TranscriptionProvider.openAICompatible(baseURL: URL(string: "http://127.0.0.1:8080/v1")!,
+                model: "whisper-1").lineBreakPolicy,
+            .preserve
+        )
     }
 
     func testOpenAIWhisperProviderIDsExistForDedicatedCloudPreset() {
