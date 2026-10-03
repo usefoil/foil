@@ -119,6 +119,6 @@ xcrun stapler staple "$DMG_PATH"
 spctl -a -vv -t open --context context:primary-signature "$DMG_PATH"
 xcrun stapler validate "$DMG_PATH"
 
-shasum -a 256 "$DMG_PATH" > "$CHECKSUM_PATH"
+"$REPO_ROOT/.github/scripts/write-portable-checksum.sh" "$DMG_PATH"
 
 gh release upload "v${VERSION}" "$DMG_PATH" "$CHECKSUM_PATH" --repo "$REPO" --clobber

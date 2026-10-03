@@ -28,6 +28,19 @@ publishing.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
 
+## Post-v1.14.3 Agent-Managed Vocabulary Notarized QA
+
+Date: 2026-10-03
+
+Scope: exact-commit Notarized QA Build for the agent-managed vocabulary apply
+work and portable checksum-sidecar repair for both QA and public release DMGs.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| The accepted vocabulary commit produces a trusted QA artifact without publishing a release. | Apple could still reject notarization after the account agreement was renewed, or the workflow could build a different commit, omit the artifact, or mutate the public release/Homebrew state. | [QA run 37140430099](https://github.com/usefoil/foil/actions/runs/37140430099) completed for exact SHA `50374df886a04ce9907289ef31cbcaf4f4a981e4`; checkout, signing, notarization, stapling, artifact upload, and cleanup passed. No Release workflow or Homebrew update was invoked. | PASS |
+| The uploaded DMG is intact, notarized, correctly identified, and universal. | The workflow could upload corrupt or untrusted bytes, a stale app, or a single-architecture build despite reporting success. | Downloaded `Foil-1.14.3-37140430099-50374df886a04ce9907289ef31cbcaf4f4a981e4-32-macos.dmg`; local SHA-256 matched `74d4b606f099964e13bdd5f36e431b6d4829cd3ccca7e1c23891901990a998ee`. `stapler` and DMG/app `spctl` checks passed as `Notarized Developer ID`; deep strict `codesign` passed. The mounted app reported bundle ID `com.neonwatty.Foil`, version `1.14.3`, build `37140430099`, architectures `x86_64 arm64`, and a present Sparkle public key. | PASS |
+| Downloaded checksum sidecars verify without rewriting GitHub runner paths. | `shasum -c` could fail after download because the sidecar embeds the runner's absolute temporary path, as the QA artifact above originally did. | Both QA and release builders now call `.github/scripts/write-portable-checksum.sh`. `scripts/test-build-notarized-qa-dmg.sh` creates an artifact under a path containing spaces, relocates it and its sidecar, and passes plain `shasum -c`. The same helper rewrote a copy of the actual QA DMG sidecar to contain only the DMG filename; after relocation, plain `shasum -c` passed. | PASS: LOCAL; HOSTED ARTIFACT PENDING POST-MERGE RUN |
+
 ## v1.14.3 Public Release Verification
 
 | Gate | Command / steps | Result | Artifact / notes |
