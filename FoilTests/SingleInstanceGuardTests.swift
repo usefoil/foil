@@ -309,6 +309,8 @@ final class SingleInstanceGuardTests: XCTestCase {
     }
 
     func testSettingsTabStripUsesCompactVisibleLabels() {
+        XCTAssertEqual(SettingsView.Tab.agentAccess.title, "Agent Access")
+        XCTAssertEqual(SettingsView.Tab.agentAccess.accessibilityIdentifier, "settings.tab.agentAccess")
         XCTAssertEqual(SettingsView.Tab.paste.title, "Paste")
         XCTAssertEqual(SettingsView.Tab.privacy.title, "Storage")
     }

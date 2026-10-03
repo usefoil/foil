@@ -137,7 +137,7 @@ struct FoilAppShellView: View {
             .background(FoilTheme.windowBackground)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("appShell.history")
-        case .general, .recording, .transcription, .cleanup, .paste, .storage, .whatsNew, .experimental:
+        case .agentAccess, .general, .recording, .transcription, .cleanup, .paste, .storage, .whatsNew, .experimental:
             SettingsView(
                 appState: appState,
                 history: history,
@@ -164,6 +164,8 @@ struct FoilAppShellView: View {
         switch section {
         case .home, .insights, .history:
             .general
+        case .agentAccess:
+            .agentAccess
         case .general:
             .general
         case .recording:
