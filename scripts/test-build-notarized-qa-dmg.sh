@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BUILD_SCRIPT="$REPO_ROOT/.github/scripts/build-notarized-qa-dmg.sh"
+RELEASE_BUILD_SCRIPT="$REPO_ROOT/.github/scripts/build-release-dmg.sh"
+CHECKSUM_SCRIPT="$REPO_ROOT/.github/scripts/write-portable-checksum.sh"
 PROJECT_FILE="$REPO_ROOT/Foil.xcodeproj/project.pbxproj"
 
 fail() {
@@ -32,6 +34,24 @@ rm -f /tmp/foil-invalid-build.out
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
+
+checksum_source="$tmpdir/checksum source"
+checksum_download="$tmpdir/checksum download"
+mkdir -p "$checksum_source" "$checksum_download"
+printf 'portable checksum fixture\n' > "$checksum_source/Foil-test-macos.dmg"
+"$CHECKSUM_SCRIPT" "$checksum_source/Foil-test-macos.dmg"
+
+checksum_filename="$(awk '{print $2}' "$checksum_source/Foil-test-macos.dmg.sha256")"
+[ "$checksum_filename" = "Foil-test-macos.dmg" ] || fail "checksum should record only the artifact filename"
+
+cp "$checksum_source/Foil-test-macos.dmg" "$checksum_source/Foil-test-macos.dmg.sha256" "$checksum_download/"
+(
+  cd "$checksum_download"
+  shasum -a 256 -c Foil-test-macos.dmg.sha256
+) || fail "downloaded artifact should verify without normalizing its checksum path"
+
+grep -Fq "write-portable-checksum.sh\" \"\$DMG_PATH\"" "$BUILD_SCRIPT" || fail "QA build should use the portable checksum writer"
+grep -Fq "write-portable-checksum.sh\" \"\$DMG_PATH\"" "$RELEASE_BUILD_SCRIPT" || fail "release build should use the portable checksum writer"
 
 cat >"$tmpdir/sign_update" <<'SH'
 #!/bin/bash
