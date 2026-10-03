@@ -411,6 +411,7 @@ final class AppState {
     @ObservationIgnored var agentAccessProposalRevisionDidRequest: ((String, VocabularyProposalScope, [VocabularyProposalCorrection]) -> Void)?
     @ObservationIgnored var agentAccessProposalTransitionDidRequest: ((String, AgentAccessProposalState) -> Void)?
     @ObservationIgnored var agentAccessProposalApplyDidRequest: ((String) -> Void)?
+    var canStartAgentAccess: Bool { agentAccessPreferenceDidChange != nil }
 
     func setAgentAccessEnabled(_ enabled: Bool, notifyController: Bool = true) {
         agentAccessEnabled = enabled

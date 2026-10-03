@@ -489,6 +489,7 @@ final class FoilUITests: XCTestCase {
             fallbackLabel: "Allow local agents to access Vocabulary"
         )
         let status = app.descendants(matching: .any)["settings.agentAccess.status"]
+        let navItem = app.descendants(matching: .any)["appShell.nav.settings.agentAccess"]
         let copy = button(
             id: "settings.agentAccess.copyCommand",
             fallbackLabel: "Copy agent instructions command"
@@ -498,6 +499,8 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertEqual(controlValueString(toggle), "0")
         XCTAssertTrue(status.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertEqual(navItem.value as? String, "Selected, Service off")
+        XCTAssertTrue(app.staticTexts["Local agents cannot access Vocabulary. Turn on access when you want to connect."].exists)
         XCTAssertTrue(elementExists(id: "settings.agentAccess.disclosure", timeout: 2), app.debugDescription)
         XCTAssertTrue(copy.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
@@ -505,6 +508,8 @@ final class FoilUITests: XCTestCase {
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "starting", timeout: 0.75), app.debugDescription)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "running", timeout: 4), app.debugDescription)
+        XCTAssertEqual(navItem.value as? String, "Selected, Service running")
+        XCTAssertTrue(app.staticTexts["The local service is ready for agents on this Mac."].exists)
         XCTAssertTrue(FileManager.default.fileExists(atPath: socketURL.path))
 
         NSPasteboard.general.clearContents()
@@ -527,12 +532,16 @@ final class FoilUITests: XCTestCase {
 
         clickElement(relaunchedToggle)
         XCTAssertTrue(waitForElementLabelOrValue(relaunchedStatus, containing: "off", timeout: 4), app.debugDescription)
+        XCTAssertEqual(
+            app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
+            "Selected, Service off"
+        )
         XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
     }
 
     func testAgentAccessStartupErrorFailsClosedInSettings() throws {
         launchApp(
-            arguments: ["--ui-testing", "--reset-defaults", "--seed-history", "--seed-agent-access-unsafe-socket"],
+            arguments: ["--ui-testing", "--reset-defaults", "--seed-history", "--seed-agent-access-unsafe-socket", "--agent-access-startup-delay"],
             extraEnvironment: ["FOIL_UITEST_SESSION_ID": "\(uiTestSessionIdentifier)-unsafe-socket"]
         )
         openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
@@ -549,7 +558,41 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "error", timeout: 4), app.debugDescription)
         XCTAssertEqual(controlValueString(toggle), "0")
         XCTAssertTrue(elementExists(id: "settings.agentAccess.error", timeout: 2), app.debugDescription)
+        XCTAssertEqual(
+            app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
+            "Selected, Service error"
+        )
+        let retry = button(id: "settings.agentAccess.retry", fallbackLabel: "Try again")
+        XCTAssertTrue(retry.exists, app.debugDescription)
+        clickElement(retry)
+        XCTAssertTrue(waitForElementLabelOrValue(status, containing: "starting", timeout: 0.75), app.debugDescription)
+        XCTAssertTrue(waitForElementLabelOrValue(status, containing: "error", timeout: 4), app.debugDescription)
+        XCTAssertEqual(controlValueString(toggle), "0")
         XCTAssertTrue(FileManager.default.fileExists(atPath: socketURL.path))
+    }
+
+    func testAgentAccessConfigurationErrorCannotEnableAccessOrRetry() {
+        launchApp(arguments: [
+            "--ui-testing",
+            "--reset-defaults",
+            "--seed-agent-access-configuration-error"
+        ])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+
+        let toggle = checkBox(
+            id: "settings.agentAccess.toggle",
+            fallbackLabel: "Allow local agents to access Vocabulary"
+        )
+        let status = app.descendants(matching: .any)["settings.agentAccess.status"]
+        XCTAssertTrue(waitForElementLabelOrValue(status, containing: "error", timeout: 4), app.debugDescription)
+        XCTAssertEqual(controlValueString(toggle), "0")
+        XCTAssertFalse(toggle.isEnabled, app.debugDescription)
+        XCTAssertFalse(elementExists(id: "settings.agentAccess.retry", timeout: 1), app.debugDescription)
+        XCTAssertTrue(elementExists(id: "settings.agentAccess.unavailableHelp", timeout: 2), app.debugDescription)
+        XCTAssertTrue(
+            app.staticTexts["Access was turned off because Foil could not load the service. Restart after updating or repairing the app."].exists,
+            app.debugDescription
+        )
     }
 
     func testAgentVocabularyProposalRemainsReviewableAfterAccessIsDisabled() throws {
@@ -575,6 +618,10 @@ final class FoilUITests: XCTestCase {
         )
         XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
         XCTAssertEqual(review.value as? String, "1 pending")
+        XCTAssertEqual(
+            app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
+            "Selected, Service running, 1 pending proposal"
+        )
 
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "off", timeout: 4), app.debugDescription)
@@ -584,6 +631,10 @@ final class FoilUITests: XCTestCase {
             fallbackLabel: "Review vocabulary proposals"
         )
         XCTAssertEqual(reviewAfterDisable.value as? String, "1 pending")
+        XCTAssertEqual(
+            app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
+            "Selected, Service off, 1 pending proposal"
+        )
         clickElement(reviewAfterDisable)
 
         XCTAssertTrue(

@@ -92,6 +92,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
 
 struct FoilSidebarView: View {
     @Binding var selection: FoilAppSection
+    var appState: AppState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -136,21 +137,70 @@ struct FoilSidebarView: View {
         Button {
             selection = section
         } label: {
-            Label(section.title, systemImage: section.systemImage)
-                .font(.system(size: 13, weight: selection == section ? .semibold : .regular))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 7)
-                .foregroundStyle(selection == section ? FoilTheme.deepTeal : .primary)
-                .background {
-                    if selection == section {
-                        RoundedRectangle(cornerRadius: 7)
-                            .fill(FoilTheme.deepTeal.opacity(0.11))
-                    }
+            HStack(spacing: 6) {
+                Label(section.title, systemImage: section.systemImage)
+                    .font(.system(size: 13, weight: selection == section ? .semibold : .regular))
+                Spacer(minLength: 0)
+                if section == .agentAccess {
+                    agentAccessSidebarIndicators
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
+            .foregroundStyle(selection == section ? FoilTheme.deepTeal : .primary)
+            .background {
+                if selection == section {
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(FoilTheme.deepTeal.opacity(0.11))
+                }
+            }
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(section.accessibilityIdentifier)
-        .accessibilityValue(selection == section ? "Selected" : "")
+        .accessibilityValue(sidebarAccessibilityValue(for: section))
+    }
+
+    @ViewBuilder
+    private var agentAccessSidebarIndicators: some View {
+        if appState.agentAccessPendingProposalCount > 0 {
+            Text("\(appState.agentAccessPendingProposalCount)")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(FoilTheme.deepTeal)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(FoilTheme.deepTeal.opacity(0.11), in: Capsule())
+                .accessibilityHidden(true)
+        }
+
+        switch appState.agentAccessPresentationState {
+        case .off:
+            EmptyView()
+        case .starting:
+            ProgressView()
+                .controlSize(.mini)
+                .accessibilityHidden(true)
+        case .running:
+            Image(systemName: "circle.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(.green)
+                .accessibilityHidden(true)
+        case .error:
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.red)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func sidebarAccessibilityValue(for section: FoilAppSection) -> String {
+        var parts: [String] = []
+        if selection == section { parts.append("Selected") }
+        if section == .agentAccess {
+            parts.append("Service \(appState.agentAccessPresentationState.rawValue)")
+            let count = appState.agentAccessPendingProposalCount
+            if count > 0 { parts.append("\(count) pending \(count == 1 ? "proposal" : "proposals")") }
+        }
+        return parts.joined(separator: ", ")
     }
 }

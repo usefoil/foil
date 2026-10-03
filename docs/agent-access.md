@@ -13,6 +13,15 @@ proposal.
 4. Paste that command into a fresh local Codex task and ask it to follow the
    returned instructions.
 
+The Agent Access page labels the local service as Off, Starting, Running, or
+unable to start. The sidebar shows an indicator while it is starting, running,
+or in error. **Running** means Foil is ready to accept local connections; it
+does not mean an agent has connected. If the service fails to start, Foil turns
+access off, shows the error, and offers **Try again** after you resolve it. If
+Foil cannot load the service itself, restart after updating or repairing the
+app. The sidebar also shows a count when proposals are waiting for review, even
+while access is off.
+
 The production command has this stable shape:
 
 ```sh

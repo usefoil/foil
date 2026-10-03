@@ -232,21 +232,24 @@ struct SettingsView: View {
 
     private var agentAccessSettings: some View {
         Form {
-            Section("Agent Access") {
+            Section("Local agent service") {
                 Toggle("Allow local agents to access Vocabulary", isOn: Binding(
                     get: { appState.agentAccessEnabled },
                     set: { appState.setAgentAccessEnabled($0) }
                 ))
+                .disabled(!appState.canStartAgentAccess)
                 .accessibilityIdentifier("settings.agentAccess.toggle")
 
-                HStack {
-                    Text("Status")
-                    Spacer()
-                    Text(appState.agentAccessPresentationState.label)
-                        .foregroundStyle(appState.agentAccessPresentationState == .error ? .red : .secondary)
-                        .accessibilityIdentifier("settings.agentAccess.status")
-                        .accessibilityValue(appState.agentAccessPresentationState.rawValue)
+                VStack(alignment: .leading, spacing: 8) {
+                    agentAccessStatus
+                        .font(.headline)
+                    Text(agentAccessStatusExplanation)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.agentAccess.statusExplanation")
                 }
+                .padding(.vertical, 4)
 
                 if let message = appState.agentAccessErrorMessage {
                     Text(message)
@@ -254,8 +257,23 @@ struct SettingsView: View {
                         .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("settings.agentAccess.error")
-                }
 
+                    if appState.canStartAgentAccess {
+                        Button("Try again") {
+                            appState.setAgentAccessEnabled(true)
+                        }
+                        .accessibilityIdentifier("settings.agentAccess.retry")
+                    } else {
+                        Text("The service is unavailable. Restart Foil after updating or repairing the app.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("settings.agentAccess.unavailableHelp")
+                    }
+                }
+            }
+
+            Section("Connect an agent") {
                 Button("Copy agent instructions command") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(appState.agentAccessBootstrapCommand, forType: .string)
@@ -263,6 +281,13 @@ struct SettingsView: View {
                 .disabled(appState.agentAccessBootstrapCommand.isEmpty)
                 .accessibilityIdentifier("settings.agentAccess.copyCommand")
 
+                Text("Once the service is running, copy this command into a local agent task. Running means Foil is ready to accept a connection; it does not mean an agent is connected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("Vocabulary proposals") {
                 Button {
                     isShowingAgentProposals = true
                 } label: {
@@ -283,7 +308,9 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("settings.agentAccess.proposalError")
                 }
+            }
 
+            Section("Privacy") {
                 Text("While enabled, local processes running as your macOS user can read Vocabulary names, terms, corrections, and local-rule settings, and submit inert changes for review. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -295,6 +322,51 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var agentAccessStatus: some View {
+        switch appState.agentAccessPresentationState {
+        case .off:
+            Label("Off", systemImage: "circle.slash")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("settings.agentAccess.status")
+                .accessibilityValue("off")
+        case .starting:
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityHidden(true)
+                Text("Starting local service…")
+                    .accessibilityIdentifier("settings.agentAccess.status")
+                    .accessibilityValue("starting")
+            }
+        case .running:
+            Label("Running", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .accessibilityIdentifier("settings.agentAccess.status")
+                .accessibilityValue("running")
+        case .error:
+            Label("Could not start", systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("settings.agentAccess.status")
+                .accessibilityValue("error")
+        }
+    }
+
+    private var agentAccessStatusExplanation: String {
+        switch appState.agentAccessPresentationState {
+        case .off:
+            "Local agents cannot access Vocabulary. Turn on access when you want to connect."
+        case .starting:
+            "Opening a local service for agents running as your macOS user."
+        case .running:
+            "The local service is ready for agents on this Mac."
+        case .error:
+            appState.canStartAgentAccess
+                ? "Access was turned off because the service could not start. Resolve the error, then try again."
+                : "Access was turned off because Foil could not load the service. Restart after updating or repairing the app."
+        }
     }
 
     private var generalSettings: some View {
