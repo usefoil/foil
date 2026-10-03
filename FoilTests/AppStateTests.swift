@@ -2342,6 +2342,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(provider.audioTranscriptionsEndpoint.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
         XCTAssertFalse(provider.requiresAPIKey)
         XCTAssertFalse(provider.supportsTranscriptProcessing)
+        XCTAssertEqual(provider.lineBreakPolicy, .joinWhisperSegments)
         XCTAssertEqual(state.effectiveTranscriptProcessingMode, .raw)
     }
 
@@ -2355,6 +2356,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(reloaded.selectedTranscriptionProviderID, .openAICompatible)
         XCTAssertEqual(reloaded.selectedTranscriptionProvider.displayName, "Local whisper.cpp")
         XCTAssertEqual(reloaded.selectedTranscriptionProvider.transcriptionModel, "whisper-1")
+        XCTAssertEqual(reloaded.selectedTranscriptionProvider.lineBreakPolicy, .joinWhisperSegments)
     }
 
     func testGroqPresetPersistsAfterSwitchingAwayFromLocalWhisper() {
@@ -2367,6 +2369,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(reloaded.selectedTranscriptionProviderPresetID, .groq)
         XCTAssertEqual(reloaded.selectedTranscriptionProviderID, .groq)
         XCTAssertEqual(reloaded.selectedTranscriptionProvider.displayName, "Groq")
+        XCTAssertEqual(reloaded.selectedTranscriptionProvider.lineBreakPolicy, .preserve)
     }
 
     func testLegacyOpenAICompatibleProviderMigratesToCustomPreset() {

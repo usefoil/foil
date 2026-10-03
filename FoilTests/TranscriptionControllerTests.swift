@@ -221,6 +221,26 @@ final class TranscriptionControllerTests: XCTestCase {
 
     // MARK: - processTranscriptOrRaw
 
+    func testWhisperSegmentFormatterJoinsSingleBreaksAndPreservesParagraphs() {
+        let cases: [(String, String, Int)] = [
+            ("Here is a sentence.\n It's still the same paragraph.",
+             "Here is a sentence. It's still the same paragraph.", 1),
+            ("A thought\r\n continues here.", "A thought continues here.", 1),
+            ("First. \n \t\n Second.", "First.\n\nSecond.", 0),
+            ("Keep\tthis 🚀 café as-is.", "Keep\tthis 🚀 café as-is.", 0),
+            ("One\rTwo\nThree", "One Two Three", 2)
+        ]
+        for (input, expected, count) in cases {
+            let result = WhisperSegmentLineBreakFormatter.format(input, policy: .joinWhisperSegments)
+            XCTAssertEqual(Array(result.text.utf8), Array(expected.utf8))
+            XCTAssertEqual(result.joinedBreakCount, count)
+        }
+        let original = "A\r\n B\n\nC"
+        let preserved = WhisperSegmentLineBreakFormatter.format(original, policy: .preserve)
+        XCTAssertEqual(Array(preserved.text.utf8), Array(original.utf8))
+        XCTAssertEqual(preserved.joinedBreakCount, 0)
+    }
+
     func testAgentFirstRawBaselinePreservesVocabularyAliasesAndOriginalBytes() async {
         appState.transcriptProcessingMode = .raw
         appState.vocabularyCorrections = [
@@ -1288,7 +1308,7 @@ final class TranscriptionControllerTests: XCTestCase {
             XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (Data("local transcript".utf8), response)
+            return (Data("local\n transcript".utf8), response)
         }
         controller = TranscriptionController(
             transcriptionService: TranscriptionService(transport: transport),
@@ -1299,8 +1319,37 @@ final class TranscriptionControllerTests: XCTestCase {
         await controller.transcribe(audioURL: tempURL, format: .wav)
 
         XCTAssertEqual(spy.didTranscribeCalls.first?.text, "local transcript")
+        XCTAssertEqual(spy.didTranscribeCalls.first?.originalText, "local\n transcript")
         XCTAssertEqual(spy.didFailCalls.count, 0)
         XCTAssertEqual(transport.requests.count, 1)
+    }
+
+    func testCloudAndCustomTranscriptionPreserveInternalLineBreaks() async throws {
+        try KeychainHelper.save(apiKey: "groq-test-key", for: .groq)
+        try KeychainHelper.save(apiKey: "openai-test-key", for: .openAI)
+        let audioURL = try temporaryAudioFile()
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+
+        for preset in [TranscriptionProviderPresetID.groq, .openAIWhisper, .customOpenAICompatible] {
+            appState.selectedTranscriptionProviderPresetID = preset
+            let transport = ControllerStubTransport { request in
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (Data("First item\n second item".utf8), response)
+            }
+            spy = TranscriptionDelegateSpy()
+            controller = TranscriptionController(
+                transcriptionService: TranscriptionService(transport: transport),
+                appState: appState
+            )
+            controller.delegate = spy
+
+            await controller.transcribe(audioURL: audioURL, format: .wav)
+
+            XCTAssertEqual(spy.didTranscribeCalls.first?.text, "First item\n second item", "preset=\(preset)")
+            XCTAssertEqual(spy.didTranscribeCalls.first?.originalText, "First item\n second item")
+            XCTAssertEqual(transport.requests.count, 1)
+            XCTAssertTrue(spy.didFailCalls.isEmpty)
+        }
     }
 
     func testPracticeUsesTranscriptionEvenWhenMockEnabledAndSkipsCleanupAndMetrics() async throws {
@@ -1315,7 +1364,7 @@ final class TranscriptionControllerTests: XCTestCase {
             XCTAssertEqual(request.url?.host, "127.0.0.1")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (Data("My practice phrase.".utf8), response)
+            return (Data("My practice\n phrase.".utf8), response)
         }
         controller = TranscriptionController(transcriptionService: TranscriptionService(transport: transport), appState: appState, usageEventStore: usageStore)
         controller.delegate = spy
@@ -1324,6 +1373,7 @@ final class TranscriptionControllerTests: XCTestCase {
         await controller.transcribe(audioURL: audio, format: .wav)
         XCTAssertEqual(transport.requests.count, 1)
         XCTAssertEqual(spy.didTranscribeCalls.first?.text, "My practice phrase.")
+        XCTAssertEqual(spy.didTranscribeCalls.first?.originalText, "My practice\n phrase.")
         XCTAssertTrue(usageStore.events.isEmpty)
     }
 
@@ -1524,7 +1574,7 @@ final class TranscriptionControllerTests: XCTestCase {
         let transport = ControllerStubTransport { request in
             if request.url?.absoluteString == "http://127.0.0.1:8080/v1/audio/transcriptions" {
                 let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-                return (Data("super base fallback transcript".utf8), response)
+                return (Data("super base\n fallback transcript".utf8), response)
             }
             let body = String(decoding: request.httpBody ?? Data(), as: UTF8.self)
             XCTAssertTrue(body.contains("Supabase fallback transcript"), body)
@@ -1543,7 +1593,7 @@ final class TranscriptionControllerTests: XCTestCase {
         await controller.transcribe(audioURL: tempURL, format: .wav)
 
         XCTAssertEqual(spy.didTranscribeCalls.first?.text, "Supabase fallback transcript")
-        XCTAssertEqual(spy.didTranscribeCalls.first?.originalText, "super base fallback transcript")
+        XCTAssertEqual(spy.didTranscribeCalls.first?.originalText, "super base\n fallback transcript")
         XCTAssertEqual(spy.didTranscribeCalls.first?.cleanupFailed, true)
         let event = try XCTUnwrap(usageStore.events.first)
         XCTAssertTrue(event.cleanupFailed)
@@ -1733,7 +1783,7 @@ final class TranscriptionControllerTests: XCTestCase {
             XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8080/v1/audio/transcriptions")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"))
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (Data("retried local transcript".utf8), response)
+            return (Data("retried local\n transcript".utf8), response)
         }
         controller = TranscriptionController(
             transcriptionService: TranscriptionService(transport: transport),
@@ -1744,6 +1794,7 @@ final class TranscriptionControllerTests: XCTestCase {
         await controller.retryTranscription(record: record)
 
         XCTAssertEqual(spy.didTranscribeCalls.first?.text, "retried local transcript")
+        XCTAssertEqual(spy.didTranscribeCalls.first?.originalText, "retried local\n transcript")
         XCTAssertEqual(spy.didFailCalls.count, 0)
         XCTAssertEqual(transport.requests.count, 1)
     }

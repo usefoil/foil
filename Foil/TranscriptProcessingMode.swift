@@ -30,7 +30,7 @@ enum TranscriptProcessingMode: String, CaseIterable, Codable, Identifiable {
     var activeModeDescription: String {
         switch self {
         case .raw:
-            "Paste the transcript exactly as returned by transcription."
+            "Paste without AI Cleanup. Local whisper.cpp segment breaks are joined for readability."
         case .cleanUp, .rewriteClearly, .bulletize, .numbered, .summarize:
             "Fix punctuation, capitalization, filler, stutters, false starts, paragraph breaks, and obvious list structure while preserving meaning."
         }

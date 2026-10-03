@@ -836,7 +836,8 @@ final class AppState {
                 baseURL: preset.baseURL!,
                 model: preset.model,
                 displayName: preset.displayName,
-                requiresAPIKey: preset.requiresAPIKey
+                requiresAPIKey: preset.requiresAPIKey,
+                lineBreakPolicy: .joinWhisperSegments
             )
         case .customOpenAICompatible:
             let fallback = URL(string: "http://127.0.0.1:8080/v1")!

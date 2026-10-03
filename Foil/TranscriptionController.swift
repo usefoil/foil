@@ -48,6 +48,56 @@ struct TranscriptProcessingSnapshot {
     let preferredTerms: [String]
 }
 
+enum WhisperSegmentLineBreakFormatter {
+    static func format(_ text: String, policy: TranscriptLineBreakPolicy) -> (text: String, joinedBreakCount: Int) {
+        guard policy == .joinWhisperSegments else { return (text, 0) }
+
+        let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let characters = Array(normalized)
+        var result = String()
+        result.reserveCapacity(normalized.utf8.count)
+        var index = 0
+        var joinedBreakCount = 0
+
+        while index < characters.count {
+            if characters[index] == " " || characters[index] == "\t" {
+                let start = index
+                while index < characters.count && (characters[index] == " " || characters[index] == "\t") {
+                    index += 1
+                }
+                if index == characters.count || characters[index] != "\n" {
+                    result.append(contentsOf: characters[start..<index])
+                    continue
+                }
+            }
+
+            if characters[index] == "\n" {
+                var breakCount = 0
+                repeat {
+                    breakCount += 1
+                    index += 1
+                    while index < characters.count && (characters[index] == " " || characters[index] == "\t") {
+                        index += 1
+                    }
+                } while index < characters.count && characters[index] == "\n"
+
+                if breakCount > 1 {
+                    result.append("\n\n")
+                } else if !result.isEmpty && index < characters.count {
+                    result.append(" ")
+                    joinedBreakCount += 1
+                }
+            } else {
+                result.append(characters[index])
+                index += 1
+            }
+        }
+
+        return (result, joinedBreakCount)
+    }
+}
+
 // MARK: - Delegate protocol
 
 @MainActor
@@ -186,12 +236,16 @@ final class TranscriptionController {
                     )
                     return
                 }
+                let formatted = WhisperSegmentLineBreakFormatter.format(rawText, policy: provider.lineBreakPolicy)
+                if formatted.joinedBreakCount > 0 {
+                    DiagnosticLog.write("TranscriptionController: joinedSegmentBreaks=\(formatted.joinedBreakCount)")
+                }
                 if isPractice {
                     // Practice tests the selected transcription path, without a second provider or usage record.
                     try Task.checkCancellation()
                     delegate?.transcriptionController(
                         self,
-                        didTranscribe: rawText,
+                        didTranscribe: formatted.text,
                         originalText: rawText,
                         audioURL: audioURL,
                         cleanupFailed: false,
@@ -200,7 +254,8 @@ final class TranscriptionController {
                     return
                 }
                 let processed = await processCapturedTranscript(
-                    rawText: rawText,
+                    rawText: formatted.text,
+                    originalText: rawText,
                     apiKey: apiKey,
                     service: service,
                     context: "transcription",
@@ -296,8 +351,13 @@ final class TranscriptionController {
                 )
                 return
             }
+            let formatted = WhisperSegmentLineBreakFormatter.format(rawText, policy: provider.lineBreakPolicy)
+            if formatted.joinedBreakCount > 0 {
+                DiagnosticLog.write("TranscriptionController.retryTranscription: joinedSegmentBreaks=\(formatted.joinedBreakCount)")
+            }
             let processed = await processCapturedTranscript(
-                rawText: rawText,
+                rawText: formatted.text,
+                originalText: rawText,
                 apiKey: apiKey,
                 service: service,
                 context: "retry",
@@ -388,11 +448,13 @@ final class TranscriptionController {
 
     private func processCapturedTranscript(
         rawText: String,
+        originalText: String? = nil,
         apiKey: String?,
         service: TranscriptionService? = nil,
         context: String,
         snapshot: TranscriptProcessingSnapshot
     ) async -> TranscriptProcessingResult {
+        let originalText = originalText ?? rawText
         let resolution = snapshot.resolution
         let processingMode = resolution.processingMode
         let localResult = LocalCorrectionEngine.correct(
@@ -411,7 +473,7 @@ final class TranscriptionController {
         if localResult.fallbackReason == .inputTooLarge {
             return TranscriptProcessingResult(
                 text: rawText,
-                originalText: rawText,
+                originalText: originalText,
                 cleanupFailed: false,
                 cleanupGroupID: resolution.group.id,
                 cleanupGroupName: resolution.group.name,
@@ -427,7 +489,7 @@ final class TranscriptionController {
             DiagnosticLog.write("\(context): transcript processing skipped cleanupGroup=\(resolution.group.id) mode=\(processingMode.rawValue)")
             return TranscriptProcessingResult(
                 text: localResult.text,
-                originalText: rawText,
+                originalText: originalText,
                 cleanupFailed: false,
                 cleanupGroupID: resolution.group.id,
                 cleanupGroupName: resolution.group.name,
@@ -445,7 +507,7 @@ final class TranscriptionController {
             DiagnosticLog.write("\(context): transcript processing skipped because cleanup provider is none")
             return TranscriptProcessingResult(
                 text: localResult.text,
-                originalText: rawText,
+                originalText: originalText,
                 cleanupFailed: false,
                 cleanupGroupID: resolution.group.id,
                 cleanupGroupName: resolution.group.name,
@@ -494,7 +556,7 @@ final class TranscriptionController {
             )
             return TranscriptProcessingResult(
                 text: text,
-                originalText: rawText,
+                originalText: originalText,
                 cleanupFailed: false,
                 cleanupGroupID: resolution.group.id,
                 cleanupGroupName: resolution.group.name,
@@ -517,7 +579,7 @@ final class TranscriptionController {
             )
             return TranscriptProcessingResult(
                 text: localResult.text,
-                originalText: rawText,
+                originalText: originalText,
                 cleanupFailed: true,
                 cleanupGroupID: resolution.group.id,
                 cleanupGroupName: resolution.group.name,
