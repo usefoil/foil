@@ -9,9 +9,9 @@ proposal.
 
 1. Choose **Open Foil** from the menu bar, then **Agent Access** in the sidebar.
 2. Turn on **Allow local agents to access Vocabulary** and wait for **Running**.
-3. Click **Copy agent instructions command**.
-4. Paste that command into a fresh local Codex task and ask it to follow the
-   returned instructions.
+3. Click **Copy prompt for local agent**.
+4. Paste the prompt into a fresh local Codex task, add your Vocabulary request,
+   and let the agent read and follow the returned instructions.
 
 The Agent Access page labels the local service as Off, Starting, Running, or
 unable to start. The sidebar shows an indicator while it is starting, running,
@@ -31,9 +31,9 @@ The production command has this stable shape:
   http://foil/v1/instructions
 ```
 
-Copy the command from Foil instead of typing it when possible. Foil Dev uses its
-own `Foil Dev` Application Support directory, so its copied command points to a
-different socket.
+The copied prompt includes brief Foil context and the command above. Copy it
+from Foil instead of typing it when possible. Foil Dev uses its own `Foil Dev`
+Application Support directory, so its copied command points to a different socket.
 
 The instructions response tells the agent how to list available scopes, inspect
 Vocabulary, preview a correction set in memory, submit an inert proposal, and read

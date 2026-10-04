@@ -40,6 +40,7 @@ struct VocabularyProposalReviewView: View {
             }
         }
         .frame(minWidth: 680, minHeight: 520)
+        .background(FoilTheme.windowBackground)
         .accessibilityIdentifier("agentProposals.reviewView")
     }
 }

@@ -492,7 +492,7 @@ final class FoilUITests: XCTestCase {
         let navItem = app.descendants(matching: .any)["appShell.nav.settings.agentAccess"]
         let copy = button(
             id: "settings.agentAccess.copyCommand",
-            fallbackLabel: "Copy agent instructions command"
+            fallbackLabel: "Copy prompt for local agent"
         )
         let socketURL = try agentAccessSocketURLFromSettings()
 
@@ -515,6 +515,9 @@ final class FoilUITests: XCTestCase {
         NSPasteboard.general.clearContents()
         clickElement(copy)
         let command = try XCTUnwrap(NSPasteboard.general.string(forType: .string))
+        XCTAssertTrue(command.contains("I use Foil for dictation."), command)
+        XCTAssertTrue(command.contains("Proposals do not apply automatically."), command)
+        XCTAssertTrue(command.contains("Please run the command below on this Mac"), command)
         XCTAssertTrue(command.contains("--unix-socket"), command)
         XCTAssertTrue(command.contains("--max-time 12"), command)
         XCTAssertTrue(command.contains(socketURL.path), command)
@@ -641,6 +644,10 @@ final class FoilUITests: XCTestCase {
             app.buttons["agentProposals.done"].waitForExistence(timeout: 5),
             app.debugDescription
         )
+        let reviewScreenshot = XCTAttachment(screenshot: app.screenshot())
+        reviewScreenshot.name = "Agent Access proposal review light appearance"
+        reviewScreenshot.lifetime = .keepAlways
+        add(reviewScreenshot)
         let spokenForm = app.textFields["Spoken form"].firstMatch
         let replacement = app.textFields["Replacement"].firstMatch
         XCTAssertEqual(spokenForm.value as? String, "super base", app.debugDescription)
@@ -2322,7 +2329,7 @@ final class FoilUITests: XCTestCase {
     private func agentAccessSocketURLFromSettings() throws -> URL {
         let copy = button(
             id: "settings.agentAccess.copyCommand",
-            fallbackLabel: "Copy agent instructions command"
+            fallbackLabel: "Copy prompt for local agent"
         )
         XCTAssertTrue(copy.waitForExistence(timeout: 4), app.debugDescription)
         NSPasteboard.general.clearContents()

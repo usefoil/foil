@@ -5,8 +5,8 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     enum Tab: Hashable, CaseIterable {
-        case agentAccess
         case general
+        case agentAccess
         case recording
         case transcription
         case cleanup
@@ -40,6 +40,15 @@ struct SettingsView: View {
             case .privacy: "lock"
             case .whatsNew: "sparkles"
             case .experimental: "testtube.2"
+            }
+        }
+
+        @ViewBuilder
+        var icon: some View {
+            if self == .agentAccess {
+                Text("🤖")
+            } else {
+                Image(systemName: systemImage)
             }
         }
 
@@ -87,6 +96,18 @@ struct SettingsView: View {
 
         static func bluetoothInputWarning(deviceName: String) -> String {
             "Using \(deviceName) as the microphone can reduce other audio quality or volume while recording. Choose System Default, the Mac microphone, or another known non-Bluetooth input to keep playback unchanged."
+        }
+    }
+
+    enum AgentAccessCopy {
+        static func prompt(bootstrapCommand: String) -> String {
+            """
+            I use Foil for dictation. Its local Agent Access service lets you inspect my allowed Vocabulary and submit proposed corrections for me to review in Foil. Proposals do not apply automatically.
+
+            Please run the command below on this Mac to read Foil's current agent instructions, then follow them to help with my Vocabulary request:
+
+            \(bootstrapCommand)
+            """
         }
     }
 
@@ -180,7 +201,7 @@ struct SettingsView: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    Label(tab.title, systemImage: tab.systemImage)
+                    Label { Text(tab.title) } icon: { tab.icon }
                         .labelStyle(.titleAndIcon)
                         .font(.caption)
                         .lineLimit(1)
@@ -274,14 +295,17 @@ struct SettingsView: View {
             }
 
             Section("Connect an agent") {
-                Button("Copy agent instructions command") {
+                Button("Copy prompt for local agent") {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(appState.agentAccessBootstrapCommand, forType: .string)
+                    NSPasteboard.general.setString(
+                        AgentAccessCopy.prompt(bootstrapCommand: appState.agentAccessBootstrapCommand),
+                        forType: .string
+                    )
                 }
                 .disabled(appState.agentAccessBootstrapCommand.isEmpty)
                 .accessibilityIdentifier("settings.agentAccess.copyCommand")
 
-                Text("Once the service is running, copy this command into a local agent task. Running means Foil is ready to accept a connection; it does not mean an agent is connected.")
+                Text("Once the service is running, paste this prompt into a local agent task and add your Vocabulary request. Running means Foil is ready to accept a connection; it does not mean an agent is connected.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -291,13 +315,18 @@ struct SettingsView: View {
                 Button {
                     isShowingAgentProposals = true
                 } label: {
-                    HStack {
+                    HStack(spacing: 10) {
+                        Image(systemName: "tray.full")
                         Text("Review vocabulary proposals")
                         Spacer()
-                        Text("\(appState.agentAccessPendingProposalCount)")
-                            .foregroundStyle(.secondary)
+                        Text("\(appState.agentAccessPendingProposalCount) pending")
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
                 .accessibilityIdentifier("settings.agentAccess.reviewProposals")
                 .accessibilityValue("\(appState.agentAccessPendingProposalCount) pending")
 
@@ -319,6 +348,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $isShowingAgentProposals) {
                 VocabularyProposalReviewView(appState: appState)
+                    .preferredColorScheme(.light)
             }
         }
         .formStyle(.grouped)

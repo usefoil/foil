@@ -4,8 +4,8 @@ enum FoilAppSection: String, Hashable, CaseIterable {
     case home
     case insights
     case history
-    case agentAccess
     case general
+    case agentAccess
     case recording
     case transcription
     case cleanup
@@ -48,6 +48,15 @@ enum FoilAppSection: String, Hashable, CaseIterable {
         }
     }
 
+    @ViewBuilder
+    var icon: some View {
+        if self == .agentAccess {
+            Text("🤖")
+        } else {
+            Image(systemName: systemImage)
+        }
+    }
+
     var accessibilityIdentifier: String {
         switch self {
         case .home: "appShell.nav.home"
@@ -66,7 +75,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
     }
 
     static let workspace: [FoilAppSection] = [.home, .insights, .history]
-    static let preferences: [FoilAppSection] = [.agentAccess, .general, .recording, .transcription, .cleanup, .paste, .storage, .whatsNew, .experimental]
+    static let preferences: [FoilAppSection] = [.general, .agentAccess, .recording, .transcription, .cleanup, .paste, .storage, .whatsNew, .experimental]
 
     private static let pendingSelectionKey = "FoilAppShell.pendingSelection"
     static let selectionRequestedNotification = Notification.Name("FoilAppShell.selectionRequested")
@@ -138,7 +147,7 @@ struct FoilSidebarView: View {
             selection = section
         } label: {
             HStack(spacing: 6) {
-                Label(section.title, systemImage: section.systemImage)
+                Label { Text(section.title) } icon: { section.icon }
                     .font(.system(size: 13, weight: selection == section ? .semibold : .regular))
                 Spacer(minLength: 0)
                 if section == .agentAccess {
