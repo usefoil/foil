@@ -31,12 +31,12 @@ enum FoilAppSection: String, Hashable, CaseIterable {
         }
     }
 
-    var systemImage: String {
+    var systemImage: String? {
         switch self {
         case .home: "house"
         case .insights: "chart.bar.xaxis"
         case .history: "clock"
-        case .agentAccess: "network"
+        case .agentAccess: nil
         case .general: "gearshape"
         case .recording: "mic"
         case .transcription: "waveform"
@@ -51,8 +51,8 @@ enum FoilAppSection: String, Hashable, CaseIterable {
     @ViewBuilder
     var icon: some View {
         if self == .agentAccess {
-            Text("🤖")
-        } else {
+            AgentAccessRobotIcon()
+        } else if let systemImage {
             Image(systemName: systemImage)
         }
     }
@@ -96,6 +96,46 @@ enum FoilAppSection: String, Hashable, CaseIterable {
         }
         defaults.removeObject(forKey: pendingSelectionKey)
         return FoilAppSection(rawValue: rawValue)
+    }
+}
+
+struct AgentAccessRobotIcon: View {
+    var body: some View {
+        RobotOutline()
+            .stroke(style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
+            .frame(width: 15, height: 15)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct RobotOutline: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addRoundedRect(
+            in: CGRect(x: 5, y: 6, width: 22, height: 20),
+            cornerSize: CGSize(width: 2.5, height: 2.5)
+        )
+        path.move(to: CGPoint(x: 16, y: 6))
+        path.addLine(to: CGPoint(x: 16, y: 2.5))
+        path.addEllipse(in: CGRect(x: 15, y: 1, width: 2, height: 2))
+        path.move(to: CGPoint(x: 5, y: 14))
+        path.addLines([CGPoint(x: 2, y: 14), CGPoint(x: 2, y: 19), CGPoint(x: 5, y: 19)])
+        path.move(to: CGPoint(x: 27, y: 14))
+        path.addLines([CGPoint(x: 30, y: 14), CGPoint(x: 30, y: 19), CGPoint(x: 27, y: 19)])
+        path.move(to: CGPoint(x: 11, y: 15))
+        path.addLine(to: CGPoint(x: 13, y: 15))
+        path.move(to: CGPoint(x: 19, y: 15))
+        path.addLine(to: CGPoint(x: 21, y: 15))
+        path.move(to: CGPoint(x: 12, y: 21))
+        path.addLine(to: CGPoint(x: 20, y: 21))
+        return path.applying(CGAffineTransform(
+            a: rect.width / 32,
+            b: 0,
+            c: 0,
+            d: rect.height / 32,
+            tx: rect.minX,
+            ty: rect.minY
+        ))
     }
 }
 

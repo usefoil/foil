@@ -29,9 +29,9 @@ struct SettingsView: View {
             }
         }
 
-        var systemImage: String {
+        var systemImage: String? {
             switch self {
-            case .agentAccess: "network"
+            case .agentAccess: nil
             case .general: "gearshape"
             case .recording: "mic"
             case .transcription: "waveform"
@@ -46,8 +46,8 @@ struct SettingsView: View {
         @ViewBuilder
         var icon: some View {
             if self == .agentAccess {
-                Text("🤖")
-            } else {
+                AgentAccessRobotIcon()
+            } else if let systemImage {
                 Image(systemName: systemImage)
             }
         }
