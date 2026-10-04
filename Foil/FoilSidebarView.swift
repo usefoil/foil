@@ -4,6 +4,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
     case home
     case insights
     case history
+    case agentAccess
     case general
     case recording
     case transcription
@@ -18,6 +19,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
         case .home: "Home"
         case .insights: "Insights"
         case .history: "History"
+        case .agentAccess: "Agent Access"
         case .general: "General"
         case .recording: "Recording"
         case .transcription: "Transcription"
@@ -34,6 +36,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
         case .home: "house"
         case .insights: "chart.bar.xaxis"
         case .history: "clock"
+        case .agentAccess: "network"
         case .general: "gearshape"
         case .recording: "mic"
         case .transcription: "waveform"
@@ -50,6 +53,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
         case .home: "appShell.nav.home"
         case .insights: "appShell.nav.insights"
         case .history: "appShell.nav.history"
+        case .agentAccess: "appShell.nav.settings.agentAccess"
         case .general: "appShell.nav.settings.general"
         case .recording: "appShell.nav.settings.recording"
         case .transcription: "appShell.nav.settings.transcription"
@@ -62,7 +66,7 @@ enum FoilAppSection: String, Hashable, CaseIterable {
     }
 
     static let workspace: [FoilAppSection] = [.home, .insights, .history]
-    static let preferences: [FoilAppSection] = [.general, .recording, .transcription, .cleanup, .paste, .storage, .whatsNew, .experimental]
+    static let preferences: [FoilAppSection] = [.agentAccess, .general, .recording, .transcription, .cleanup, .paste, .storage, .whatsNew, .experimental]
 
     private static let pendingSelectionKey = "FoilAppShell.pendingSelection"
     static let selectionRequestedNotification = Notification.Name("FoilAppShell.selectionRequested")

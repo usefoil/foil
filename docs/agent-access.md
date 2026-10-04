@@ -7,7 +7,7 @@ proposal.
 
 ## Connect a local agent
 
-1. Open **Foil -> Settings -> General**.
+1. Choose **Open Foil** from the menu bar, then **Agent Access** in the sidebar.
 2. Turn on **Allow local agents to access Vocabulary** and wait for **Running**.
 3. Click **Copy agent instructions command**.
 4. Paste that command into a fresh local Codex task and ask it to follow the
@@ -34,7 +34,7 @@ to access your user-owned Unix socket.
 
 ## Review a proposal
 
-Open **Settings -> General -> Review vocabulary proposals**. You can edit or omit
+Open **Agent Access -> Review vocabulary proposals**. You can edit or omit
 individual suggestions, reject the proposal, or apply the reviewed corrections.
 Applying a proposal creates ordinary Foil Vocabulary entries and exact local rules;
 it does not turn on the global **Apply local corrections** switch. That switch and
@@ -60,4 +60,3 @@ cannot read their status while access is off. Closing Foil also stops the servic
 
 If the copied command cannot connect, confirm that Foil is open, Agent Access shows
 **Running**, and the command came from the same Foil or Foil Dev build you are using.
-

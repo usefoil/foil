@@ -477,12 +477,13 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(checkBox(id: "settings.launchAtLoginToggle", fallbackLabel: "Launch at Login").exists, app.debugDescription)
         XCTAssertTrue(checkBox(id: "settings.soundEffectsToggle", fallbackLabel: "Sound effects").exists, app.debugDescription)
         XCTAssertTrue(checkBox(id: "settings.floatingStatusToggle", fallbackLabel: "Show floating status").exists, app.debugDescription)
+        XCTAssertFalse(elementExists(id: "settings.agentAccess.toggle", timeout: 1), app.debugDescription)
         XCTAssertFalse(elementExists(id: "settings.tab.general", timeout: 1), app.debugDescription)
     }
 
     func testAgentAccessDefaultsOffCopiesCommandAndPersistsUntilDisabled() throws {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--agent-access-startup-delay"])
-        openAppShellSettings(navID: "appShell.nav.settings.general")
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         let toggle = checkBox(
             id: "settings.agentAccess.toggle",
             fallbackLabel: "Allow local agents to access Vocabulary"
@@ -514,7 +515,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(command.contains(socketURL.path), command)
 
         relaunchWithArguments(["--ui-testing", "--seed-history"])
-        openAppShellSettings(navID: "appShell.nav.settings.general")
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         let relaunchedToggle = checkBox(
             id: "settings.agentAccess.toggle",
             fallbackLabel: "Allow local agents to access Vocabulary"
@@ -530,8 +531,11 @@ final class FoilUITests: XCTestCase {
     }
 
     func testAgentAccessStartupErrorFailsClosedInSettings() throws {
-        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--seed-agent-access-unsafe-socket"])
-        openAppShellSettings(navID: "appShell.nav.settings.general")
+        launchApp(
+            arguments: ["--ui-testing", "--reset-defaults", "--seed-history", "--seed-agent-access-unsafe-socket"],
+            extraEnvironment: ["FOIL_UITEST_SESSION_ID": "\(uiTestSessionIdentifier)-unsafe-socket"]
+        )
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         let socketURL = try agentAccessSocketURLFromSettings()
         XCTAssertTrue(FileManager.default.fileExists(atPath: socketURL.path))
 
@@ -555,7 +559,7 @@ final class FoilUITests: XCTestCase {
             "--seed-history",
             "--seed-agent-vocabulary-proposal"
         ])
-        openAppShellSettings(navID: "appShell.nav.settings.general")
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         let socketURL = try agentAccessSocketURLFromSettings()
         let toggle = checkBox(
             id: "settings.agentAccess.toggle",
@@ -611,7 +615,7 @@ final class FoilUITests: XCTestCase {
             "--seed-history",
             "--seed-agent-vocabulary-proposal"
         ])
-        openAppShellSettings(navID: "appShell.nav.settings.general")
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         let review = button(
             id: "settings.agentAccess.reviewProposals",
             fallbackLabel: "Review vocabulary proposals"
@@ -639,6 +643,10 @@ final class FoilUITests: XCTestCase {
         openFoilButton.click()
         XCTAssertTrue(elementExists(id: "appShell.root", timeout: 4), app.debugDescription)
 
+        assertAppShellSettingsPane(
+            navID: "appShell.nav.settings.agentAccess",
+            requiredID: "settings.agentAccess.toggle"
+        )
         assertAppShellSettingsPane(
             navID: "appShell.nav.settings.recording",
             requiredID: "settings.hotkeyPicker"

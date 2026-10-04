@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     enum Tab: Hashable, CaseIterable {
+        case agentAccess
         case general
         case recording
         case transcription
@@ -16,6 +17,7 @@ struct SettingsView: View {
 
         var title: String {
             switch self {
+            case .agentAccess: "Agent Access"
             case .general: "General"
             case .recording: "Recording"
             case .transcription: "Transcription"
@@ -29,6 +31,7 @@ struct SettingsView: View {
 
         var systemImage: String {
             switch self {
+            case .agentAccess: "network"
             case .general: "gearshape"
             case .recording: "mic"
             case .transcription: "waveform"
@@ -42,6 +45,7 @@ struct SettingsView: View {
 
         var accessibilityIdentifier: String {
             switch self {
+            case .agentAccess: "settings.tab.agentAccess"
             case .general: "settings.tab.general"
             case .recording: "settings.tab.recording"
             case .transcription: "settings.tab.transcription"
@@ -205,6 +209,8 @@ struct SettingsView: View {
     @ViewBuilder
     private var selectedSettingsPane: some View {
         switch selectedTab {
+        case .agentAccess:
+            agentAccessSettings
         case .general:
             generalSettings
         case .recording:
@@ -224,19 +230,8 @@ struct SettingsView: View {
         }
     }
 
-    private var generalSettings: some View {
+    private var agentAccessSettings: some View {
         Form {
-            Section("About") {
-                HStack {
-                    Text("Version")
-                    Spacer()
-                    Text(AppBrand.succinctVersionDisplay)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-                .accessibilityIdentifier("settings.general.versionRow")
-            }
-
             Section("Agent Access") {
                 Toggle("Allow local agents to access Vocabulary", isOn: Binding(
                     get: { appState.agentAccessEnabled },
@@ -297,6 +292,22 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $isShowingAgentProposals) {
                 VocabularyProposalReviewView(appState: appState)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var generalSettings: some View {
+        Form {
+            Section("About") {
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(AppBrand.succinctVersionDisplay)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                .accessibilityIdentifier("settings.general.versionRow")
             }
 
             Toggle("Launch at Login", isOn: Binding(
