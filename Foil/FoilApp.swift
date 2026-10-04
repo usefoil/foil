@@ -1306,9 +1306,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         do {
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing"),
+               ProcessInfo.processInfo.arguments.contains("--seed-agent-access-configuration-error") {
+                throw AgentAccessControllerError.contractMissing
+            }
             let startupDelay: UInt64 = ProcessInfo.processInfo.arguments.contains("--agent-access-startup-delay")
                 && ProcessInfo.processInfo.arguments.contains("--ui-testing")
-                ? 1_000_000_000
+                ? 3_000_000_000
                 : 0
             let controller = try AgentAccessController(
                 appState: appState,

@@ -66,7 +66,7 @@ struct FoilAppShellView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            FoilSidebarView(selection: $selection)
+            FoilSidebarView(selection: $selection, appState: appState)
 
             Divider()
                 .background(FoilTheme.separator)

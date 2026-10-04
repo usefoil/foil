@@ -5,8 +5,8 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     enum Tab: Hashable, CaseIterable {
-        case agentAccess
         case general
+        case agentAccess
         case recording
         case transcription
         case cleanup
@@ -29,9 +29,9 @@ struct SettingsView: View {
             }
         }
 
-        var systemImage: String {
+        var systemImage: String? {
             switch self {
-            case .agentAccess: "network"
+            case .agentAccess: nil
             case .general: "gearshape"
             case .recording: "mic"
             case .transcription: "waveform"
@@ -40,6 +40,15 @@ struct SettingsView: View {
             case .privacy: "lock"
             case .whatsNew: "sparkles"
             case .experimental: "testtube.2"
+            }
+        }
+
+        @ViewBuilder
+        var icon: some View {
+            if self == .agentAccess {
+                AgentAccessRobotIcon()
+            } else if let systemImage {
+                Image(systemName: systemImage)
             }
         }
 
@@ -87,6 +96,18 @@ struct SettingsView: View {
 
         static func bluetoothInputWarning(deviceName: String) -> String {
             "Using \(deviceName) as the microphone can reduce other audio quality or volume while recording. Choose System Default, the Mac microphone, or another known non-Bluetooth input to keep playback unchanged."
+        }
+    }
+
+    enum AgentAccessCopy {
+        static func prompt(bootstrapCommand: String) -> String {
+            """
+            I use Foil for dictation. Its local Agent Access service lets you inspect my allowed Vocabulary and submit proposed corrections for me to review in Foil. Proposals do not apply automatically.
+
+            Please run the command below on this Mac to read Foil's current agent instructions, then follow them to help with my Vocabulary request:
+
+            \(bootstrapCommand)
+            """
         }
     }
 
@@ -180,7 +201,7 @@ struct SettingsView: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    Label(tab.title, systemImage: tab.systemImage)
+                    Label { Text(tab.title) } icon: { tab.icon }
                         .labelStyle(.titleAndIcon)
                         .font(.caption)
                         .lineLimit(1)
@@ -232,21 +253,24 @@ struct SettingsView: View {
 
     private var agentAccessSettings: some View {
         Form {
-            Section("Agent Access") {
+            Section("Local agent service") {
                 Toggle("Allow local agents to access Vocabulary", isOn: Binding(
                     get: { appState.agentAccessEnabled },
                     set: { appState.setAgentAccessEnabled($0) }
                 ))
+                .disabled(!appState.canStartAgentAccess)
                 .accessibilityIdentifier("settings.agentAccess.toggle")
 
-                HStack {
-                    Text("Status")
-                    Spacer()
-                    Text(appState.agentAccessPresentationState.label)
-                        .foregroundStyle(appState.agentAccessPresentationState == .error ? .red : .secondary)
-                        .accessibilityIdentifier("settings.agentAccess.status")
-                        .accessibilityValue(appState.agentAccessPresentationState.rawValue)
+                VStack(alignment: .leading, spacing: 8) {
+                    agentAccessStatus
+                        .font(.headline)
+                    Text(agentAccessStatusExplanation)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.agentAccess.statusExplanation")
                 }
+                .padding(.vertical, 4)
 
                 if let message = appState.agentAccessErrorMessage {
                     Text(message)
@@ -254,25 +278,55 @@ struct SettingsView: View {
                         .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("settings.agentAccess.error")
-                }
 
-                Button("Copy agent instructions command") {
+                    if appState.canStartAgentAccess {
+                        Button("Try again") {
+                            appState.setAgentAccessEnabled(true)
+                        }
+                        .accessibilityIdentifier("settings.agentAccess.retry")
+                    } else {
+                        Text("The service is unavailable. Restart Foil after updating or repairing the app.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("settings.agentAccess.unavailableHelp")
+                    }
+                }
+            }
+
+            Section("Connect an agent") {
+                Button("Copy prompt for local agent") {
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(appState.agentAccessBootstrapCommand, forType: .string)
+                    NSPasteboard.general.setString(
+                        AgentAccessCopy.prompt(bootstrapCommand: appState.agentAccessBootstrapCommand),
+                        forType: .string
+                    )
                 }
                 .disabled(appState.agentAccessBootstrapCommand.isEmpty)
                 .accessibilityIdentifier("settings.agentAccess.copyCommand")
 
+                Text("Once the service is running, paste this prompt into a local agent task and add your Vocabulary request. Running means Foil is ready to accept a connection; it does not mean an agent is connected.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("Vocabulary proposals") {
                 Button {
                     isShowingAgentProposals = true
                 } label: {
-                    HStack {
+                    HStack(spacing: 10) {
+                        Image(systemName: "tray.full")
                         Text("Review vocabulary proposals")
                         Spacer()
-                        Text("\(appState.agentAccessPendingProposalCount)")
-                            .foregroundStyle(.secondary)
+                        Text("\(appState.agentAccessPendingProposalCount) pending")
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
                 .accessibilityIdentifier("settings.agentAccess.reviewProposals")
                 .accessibilityValue("\(appState.agentAccessPendingProposalCount) pending")
 
@@ -283,7 +337,9 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("settings.agentAccess.proposalError")
                 }
+            }
 
+            Section("Privacy") {
                 Text("While enabled, local processes running as your macOS user can read Vocabulary names, terms, corrections, and local-rule settings, and submit inert changes for review. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -292,9 +348,55 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $isShowingAgentProposals) {
                 VocabularyProposalReviewView(appState: appState)
+                    .preferredColorScheme(.light)
             }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var agentAccessStatus: some View {
+        switch appState.agentAccessPresentationState {
+        case .off:
+            Label("Off", systemImage: "circle.slash")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("settings.agentAccess.status")
+                .accessibilityValue("off")
+        case .starting:
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityHidden(true)
+                Text("Starting local service…")
+                    .accessibilityIdentifier("settings.agentAccess.status")
+                    .accessibilityValue("starting")
+            }
+        case .running:
+            Label("Running", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .accessibilityIdentifier("settings.agentAccess.status")
+                .accessibilityValue("running")
+        case .error:
+            Label("Could not start", systemImage: "xmark.circle.fill")
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("settings.agentAccess.status")
+                .accessibilityValue("error")
+        }
+    }
+
+    private var agentAccessStatusExplanation: String {
+        switch appState.agentAccessPresentationState {
+        case .off:
+            "Local agents cannot access Vocabulary. Turn on access when you want to connect."
+        case .starting:
+            "Opening a local service for agents running as your macOS user."
+        case .running:
+            "The local service is ready for agents on this Mac."
+        case .error:
+            appState.canStartAgentAccess
+                ? "Access was turned off because the service could not start. Resolve the error, then try again."
+                : "Access was turned off because Foil could not load the service. Restart after updating or repairing the app."
+        }
     }
 
     private var generalSettings: some View {

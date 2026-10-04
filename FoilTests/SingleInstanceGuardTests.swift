@@ -309,10 +309,22 @@ final class SingleInstanceGuardTests: XCTestCase {
     }
 
     func testSettingsTabStripUsesCompactVisibleLabels() {
+        XCTAssertEqual(Array(SettingsView.Tab.allCases.prefix(2)), [.general, .agentAccess])
+        XCTAssertEqual(Array(FoilAppSection.preferences.prefix(2)), [.general, .agentAccess])
         XCTAssertEqual(SettingsView.Tab.agentAccess.title, "Agent Access")
         XCTAssertEqual(SettingsView.Tab.agentAccess.accessibilityIdentifier, "settings.tab.agentAccess")
         XCTAssertEqual(SettingsView.Tab.paste.title, "Paste")
         XCTAssertEqual(SettingsView.Tab.privacy.title, "Storage")
+    }
+
+    func testAgentAccessClipboardPromptExplainsReviewAndIncludesCommand() {
+        let command = AgentAccessInstructionsResponse.bootstrapCommand(socketPath: "/tmp/Foil Dev/agent-v1.sock")
+        let prompt = SettingsView.AgentAccessCopy.prompt(bootstrapCommand: command)
+        XCTAssertTrue(prompt.contains("I use Foil for dictation."))
+        XCTAssertTrue(prompt.contains("submit proposed corrections for me to review in Foil"))
+        XCTAssertTrue(prompt.contains("Proposals do not apply automatically."))
+        XCTAssertTrue(prompt.contains("Please run the command below on this Mac"))
+        XCTAssertTrue(prompt.hasSuffix(command))
     }
 
     func testSettingsTabStripLabelsExperimentalSettingsAsExperimental() {
