@@ -311,6 +311,7 @@ struct AgentAccessActionResponse: Codable, Equatable {
     let requestID: String
     let clientRequestID: String
     let actionID: String
+    let groupID: String?
     let state: AgentAccessActionState
     let replayed: Bool
     let createdAt: Date
@@ -321,6 +322,7 @@ struct AgentAccessActionResponse: Codable, Equatable {
         self.requestID = requestID
         clientRequestID = record.request.requestID
         actionID = record.id
+        groupID = record.request.action == .createCleanupGroup ? record.id : record.request.groupID
         state = record.state
         self.replayed = replayed
         createdAt = record.createdAt
@@ -333,6 +335,7 @@ struct AgentAccessActionResponse: Codable, Equatable {
         case requestID = "request_id"
         case clientRequestID = "client_request_id"
         case actionID = "action_id"
+        case groupID = "group_id"
         case state, replayed
         case createdAt = "created_at"
         case updatedAt = "updated_at"

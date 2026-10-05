@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Foil Agent Access",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Vocabulary discovery, in-memory preview, and inert proposals or action requests. Every change requires approval inside Foil; agents cannot approve changes."
   },
   "servers": [{"url": "http://foil", "description": "HTTP over Foil's owner-only Unix domain socket"}],
@@ -298,17 +298,19 @@
       "ActionRequest": {
         "type": "object",
         "required": ["schema_version", "request_id", "action"],
-        "description": "Specify only the fields for one action. apply_proposal: proposal_id; set_local_corrections_enabled: enabled; set_correction_scope: correction_id and scope_id (global or enabled group ID); assign_app_to_group: app_bundle_id and group_id (enabled group ID). App assignment also changes that app's Cleanup Group routing. No approval claim is accepted in this request.",
+        "description": "Specify only the fields for one action. apply_proposal: proposal_id; create_cleanup_group: group_name and 1-8 exact installed app_paths; rescope_proposal: proposal_id, non-default enabled group_id, and the exact app_paths expected in that group; set_local_corrections_enabled: enabled; set_correction_scope: correction_id and scope_id (global or enabled group ID); assign_app_to_group: app_bundle_id and group_id (enabled group ID). Creation and rescoping stay pending until separate approvals inside Foil. The created group's ID is returned as group_id. Path targets distinguish installed apps that share a bundle identifier. No approval claim is accepted in this request.",
         "properties": {
           "schema_version": {"type": "integer", "const": 1},
           "request_id": {"type": "string", "minLength": 1, "maxLength": 128},
-          "action": {"type": "string", "enum": ["apply_proposal", "set_local_corrections_enabled", "set_correction_scope", "assign_app_to_group"]},
+          "action": {"type": "string", "enum": ["apply_proposal", "create_cleanup_group", "rescope_proposal", "set_local_corrections_enabled", "set_correction_scope", "assign_app_to_group"]},
           "proposal_id": {"type": "string", "format": "uuid"},
           "enabled": {"type": "boolean"},
           "correction_id": {"type": "string", "format": "uuid"},
           "scope_id": {"type": "string"},
           "app_bundle_id": {"type": "string"},
-          "group_id": {"type": "string"}
+          "group_id": {"type": "string"},
+          "group_name": {"type": "string", "minLength": 1, "maxLength": 80},
+          "app_paths": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": {"type": "string"}}
         }
       },
       "ActionResponse": {
@@ -319,6 +321,7 @@
           "request_id": {"type": "string"},
           "client_request_id": {"type": "string"},
           "action_id": {"type": "string", "format": "uuid"},
+          "group_id": {"type": ["string", "null"], "description": "For create_cleanup_group, the reserved group ID, which becomes available after approval."},
           "state": {"type": "string", "enum": ["pending", "approved_pending_apply", "approved", "rejected", "cancelled_after_approval"]},
           "replayed": {"type": "boolean"},
           "created_at": {"type": "string", "format": "date-time"},

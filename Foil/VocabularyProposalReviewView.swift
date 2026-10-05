@@ -98,10 +98,18 @@ private struct VocabularyProposalEditorCard: View {
         reviewedScope != proposal.scope || reviewedCorrections != proposal.corrections
     }
 
+    private var hasPendingRescopeRequest: Bool {
+        appState.agentAccessActions.contains {
+            $0.request.action == .rescopeProposal && $0.request.proposalID == proposal.id &&
+                ($0.state == .pending || $0.state == .approvedPendingApply)
+        }
+    }
+
     private var canApply: Bool {
         canSave
             && !hasUnsavedEdits
             && preview?.valid == true
+            && !hasPendingRescopeRequest
     }
 
     var body: some View {
@@ -126,6 +134,14 @@ private struct VocabularyProposalEditorCard: View {
                 if appState.agentAccessStaleProposalIDs.contains(proposal.id) {
                     Label(
                         "Vocabulary changed after this proposal arrived. Foil revalidates it against the current state before applying.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                }
+                if hasPendingRescopeRequest {
+                    Label(
+                        "An agent requested a scope change for this proposal. Review or reject that action before applying these corrections in the current scope.",
                         systemImage: "exclamationmark.triangle"
                     )
                     .font(.caption)
@@ -390,6 +406,49 @@ struct AgentAccessActionReviewView: View {
             } else {
                 Label("The proposal is unavailable.", systemImage: "exclamationmark.triangle")
             }
+        case .createCleanupGroup:
+            Text("Create an enabled Cleanup Group: \(request.groupName ?? "")")
+                .font(.subheadline.weight(.semibold))
+            Text("Assign only these installed app paths:")
+            ForEach(request.appPaths ?? [], id: \.self) { path in
+                Text(path).font(.body.monospaced()).textSelection(.enabled)
+                if let existingGroup = AgentAccessAppTargeting.pathAssignmentConflict(
+                    path: path, destinationGroupID: record.id, groups: appState.cleanupGroups
+                ) {
+                    Label("Already assigned to \(existingGroup.name). Remove that assignment in Settings before approving this request.",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+            }
+            Text("This group starts with Foil's standard raw cleanup settings. Assigning an app changes its Cleanup Group routing and where scoped local corrections run.")
+                .font(.caption).foregroundStyle(.secondary)
+            if (try? AgentAccessAppTargeting.resolve(paths: request.appPaths ?? [])) == nil {
+                Label("An app path is unavailable or cannot be assigned on this Mac.", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
+        case .rescopeProposal:
+            if let proposal = appState.agentAccessProposals.first(where: { $0.id == request.proposalID }) {
+                Text("Replace this proposal's scope: \(scopeName(proposal.scope.id)) → \(scopeName(request.groupID ?? ""))")
+                    .font(.subheadline.weight(.semibold))
+                ForEach(Array(proposal.corrections.enumerated()), id: \.offset) { _, correction in
+                    Text("\(correction.spokenForms.joined(separator: ", ")) → \(correction.replacement)")
+                        .font(.body.monospaced()).textSelection(.enabled)
+                }
+                Text("Requested app paths:").font(.caption.weight(.semibold))
+                ForEach(request.appPaths ?? [], id: \.self) { path in
+                    Text(path).font(.caption.monospaced()).textSelection(.enabled)
+                }
+                Text("This changes the pending proposal in place. It does not apply the corrections; review and apply the proposal separately.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if (proposal.reviewHash ?? proposal.requestHash) != record.targetDigest &&
+                   (proposal.reviewHash ?? proposal.requestHash) != record.resultDigest {
+                    Label("The proposal changed after this request. Ask the agent for a new scope request.",
+                          systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+            } else {
+                Label("The proposal is unavailable.", systemImage: "exclamationmark.triangle")
+            }
         case .setLocalCorrectionsEnabled:
             Text(request.enabled == true ? "Turn on local corrections on this Mac" : "Turn off local corrections on this Mac")
                 .font(.subheadline.weight(.semibold))
@@ -447,6 +506,40 @@ struct AgentAccessActionReviewView: View {
                 return true
             }
             return proposal.state == .pending && appState.agentAccessProposalPreviews[proposal.id]?.valid == true
+        case .createCleanupGroup:
+            guard let name = request.groupName,
+                  let paths = request.appPaths,
+                  let targets = try? AgentAccessAppTargeting.resolve(paths: paths),
+                  !appState.cleanupGroups.contains(where: {
+                      $0.id != record.id && $0.name.caseInsensitiveCompare(name) == .orderedSame
+                  }) else { return false }
+            if let existing = appState.cleanupGroups.first(where: { $0.id == record.id }),
+               !AgentAccessAppTargeting.canResumeCreation(existing, name: name, paths: paths) {
+                return false
+            }
+            return targets.allSatisfy { target in
+                AgentAccessAppTargeting.pathAssignmentConflict(
+                    path: target.path, destinationGroupID: record.id, groups: appState.cleanupGroups
+                ) == nil && !appState.cleanupGroups.contains { group in
+                    group.id != record.id && group.appMatchers.contains { matcher in
+                        matcher.bundleIdentifier?.caseInsensitiveCompare(target.bundleID) == .orderedSame
+                    }
+                }
+            }
+        case .rescopeProposal:
+            guard let proposal = appState.agentAccessProposals.first(where: { $0.id == request.proposalID }),
+                  let groupID = request.groupID,
+                  let paths = request.appPaths,
+                  let group = appState.cleanupGroups.first(where: { $0.id == groupID }),
+                  AgentAccessAppTargeting.hasExactlyThesePaths(group, paths: paths),
+                  let targets = try? AgentAccessAppTargeting.resolve(paths: paths),
+                  targets.allSatisfy({ appState.resolveCleanupGroup(for: $0.context).group.id == groupID }) else {
+                return false
+            }
+            let digest = proposal.reviewHash ?? proposal.requestHash
+            return (proposal.state == .pending && digest == record.targetDigest)
+                || (record.state == .approvedPendingApply && proposal.scope.id == groupID
+                    && digest == record.resultDigest)
         case .setLocalCorrectionsEnabled:
             return request.enabled != nil
         case .setCorrectionScope:
