@@ -67,6 +67,59 @@ final class AgentAccessProposalGate: @unchecked Sendable {
     }
 }
 
+struct AgentAccessAppTarget {
+    let path: String
+    let displayName: String
+    let bundleID: String
+
+    var context: CleanupAppContext {
+        CleanupAppContext(displayName: displayName, bundleIdentifier: bundleID, appPath: path)
+    }
+
+    var matcher: CleanupAppMatcher {
+        // A path matcher distinguishes apps that share a bundle identifier.
+        CleanupAppMatcher(displayName: displayName, appPath: path)
+    }
+}
+
+enum AgentAccessAppTargeting {
+    static func resolve(paths: [String]) throws -> [AgentAccessAppTarget] {
+        try paths.map { path in
+            let url = URL(fileURLWithPath: path)
+            guard url.standardizedFileURL.path == path,
+                  url.pathExtension.caseInsensitiveCompare("app") == .orderedSame,
+                  let bundle = Bundle(url: url),
+                  let bundleID = bundle.bundleIdentifier else {
+                throw AgentAccessActionError.validation("The app at \(path) is unavailable. Ask the agent for a new request using the installed app path.")
+            }
+            let displayName = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+                ?? url.deletingPathExtension().lastPathComponent
+            guard RunningAppCandidatePolicy.allows(
+                displayName: displayName, bundleIdentifier: bundleID, appPath: path
+            ) else {
+                throw AgentAccessActionError.validation("Foil cannot assign \(path) to a Cleanup Group.")
+            }
+            return AgentAccessAppTarget(path: path, displayName: displayName, bundleID: bundleID)
+        }
+    }
+
+    static func hasExactlyThesePaths(_ group: CleanupGroup, paths: [String]) -> Bool {
+        group.isEnabled && !group.isDefault && group.appMatchers.count == paths.count &&
+            Set(group.appMatchers.compactMap { matcher in
+                matcher.bundleIdentifier == nil ? matcher.appPath?.lowercased() : nil
+            }) == Set(paths.map { $0.lowercased() })
+    }
+
+    static func canResumeCreation(_ group: CleanupGroup, name: String, paths: [String]) -> Bool {
+        let expected = Set(paths.map { $0.lowercased() })
+        return group.isEnabled && !group.isDefault && group.name == name &&
+            group.appMatchers.allSatisfy { matcher in
+                matcher.bundleIdentifier == nil &&
+                    matcher.appPath.map { expected.contains($0.lowercased()) } == true
+            }
+    }
+}
+
 @MainActor
 final class AgentAccessController {
     typealias ServerFactory = (
@@ -230,16 +283,35 @@ final class AgentAccessController {
                 }
                 return receipt
             },
-            actionSubmitter: { [actionStore, proposalStore, proposalGate] request in
+            actionSubmitter: { [actionStore, proposalStore, proposalGate, readModelStore] request in
                 guard let result = try proposalGate.withPermit(expectedGeneration, operation: {
                     let validatedRequest = try request.validated()
-                    let proposal = validatedRequest.action == .applyProposal
+                    let proposal = (validatedRequest.action == .applyProposal
+                        || validatedRequest.action == .rescopeProposal)
                         ? try proposalStore.proposal(id: validatedRequest.proposalID ?? "")
                         : nil
+                    let resultDigest: String?
+                    if validatedRequest.action == .rescopeProposal,
+                       let proposal, let groupID = validatedRequest.groupID {
+                        let groupIsAvailable = readModelStore.snapshot().scopes.contains {
+                            $0.id == groupID && $0.isEnabled && !$0.isDefault
+                        }
+                        guard groupIsAvailable else { throw AgentAccessActionError.invalidRequest }
+                        resultDigest = try VocabularyProposalRequest(
+                            requestID: proposal.requestID,
+                            scope: .init(kind: "cleanup_group", id: groupID),
+                            corrections: proposal.corrections
+                        ).canonicalPayloadDigest()
+                    } else {
+                        resultDigest = nil
+                    }
                     return try actionStore.submit(
                         validatedRequest,
                         targetDigest: proposal?.reviewHash ?? proposal?.requestHash,
-                        targetAvailable: validatedRequest.action != .applyProposal || proposal?.state == .pending
+                        resultDigest: resultDigest,
+                        targetAvailable: proposal == nil
+                            ? validatedRequest.action != .applyProposal && validatedRequest.action != .rescopeProposal
+                            : proposal?.state == .pending
                     )
                 }) else { throw AgentAccessActionError.unavailable }
                 if !result.1 {
@@ -408,6 +480,21 @@ final class AgentAccessController {
     @discardableResult
     private func applyProposal(id: String) -> Bool {
         do {
+            let pendingScopeChange = try actionStore.load().records.contains {
+                $0.request.action == .rescopeProposal && $0.request.proposalID == id &&
+                    ($0.state == .pending || $0.state == .approvedPendingApply)
+            }
+            guard !pendingScopeChange else {
+                appState.agentAccessProposalInboxErrorMessage =
+                    "A scope change is awaiting review. Approve or reject it before applying this proposal."
+                return false
+            }
+        } catch {
+            appState.agentAccessProposalInboxErrorMessage =
+                "Foil could not read pending action requests. Resolve that error before applying this proposal."
+            return false
+        }
+        do {
             guard let proposal = try proposalStore.proposal(id: id) else {
                 throw VocabularyProposalServiceError.notFound
             }
@@ -492,6 +579,10 @@ final class AgentAccessController {
                 throw AgentAccessActionError.targetChanged
             }
             guard applyProposal(id: id) else { throw AgentAccessActionError.invalidState }
+        case .createCleanupGroup:
+            try createApprovedCleanupGroup(record)
+        case .rescopeProposal:
+            try rescopeApprovedProposal(record)
         case .setLocalCorrectionsEnabled:
             guard let enabled = request.enabled else { throw AgentAccessActionError.invalidRequest }
             if appState.localCorrectionSnapshot.isEnabled != enabled {
@@ -529,6 +620,92 @@ final class AgentAccessController {
             guard appState.resolveCleanupGroup(for: context).group.id == groupID else {
                 throw AgentAccessActionError.invalidRequest
             }
+        }
+    }
+
+    private func createApprovedCleanupGroup(_ record: AgentAccessActionRecord) throws {
+        guard let name = record.request.groupName,
+              let paths = record.request.appPaths else { throw AgentAccessActionError.invalidRequest }
+        let targets = try AgentAccessAppTargeting.resolve(paths: paths)
+        guard !appState.cleanupGroups.contains(where: {
+            $0.id != record.id && $0.name.caseInsensitiveCompare(name) == .orderedSame
+        }) else {
+            throw AgentAccessActionError.validation("A Cleanup Group named \(name) already exists. Ask the agent for a different name.")
+        }
+        guard targets.allSatisfy({ target in
+            !appState.cleanupGroups.contains { group in
+                group.id != record.id && group.appMatchers.contains { matcher in
+                    matcher.bundleIdentifier?.caseInsensitiveCompare(target.bundleID) == .orderedSame
+                }
+            }
+        }) else {
+            throw AgentAccessActionError.validation(
+                "A stronger existing app match prevents exact routing to \(name). Review app assignments in Cleanup Groups, then retry."
+            )
+        }
+        if let existing = appState.cleanupGroups.first(where: { $0.id == record.id }) {
+            guard AgentAccessAppTargeting.canResumeCreation(existing, name: name, paths: paths) else {
+                throw AgentAccessActionError.validation("The requested Cleanup Group changed. Review it in Settings before retrying.")
+            }
+        } else {
+            _ = appState.createCleanupGroup(named: name, id: record.id)
+        }
+        for target in targets {
+            let alreadyMatched = appState.cleanupGroups.first(where: { $0.id == record.id })?.appMatchers.contains {
+                $0.bundleIdentifier == nil && $0.appPath?.caseInsensitiveCompare(target.path) == .orderedSame
+            } == true
+            if !alreadyMatched {
+                appState.addAppMatcher(target.matcher, toCleanupGroupID: record.id)
+            }
+        }
+        guard let group = appState.cleanupGroups.first(where: { $0.id == record.id }),
+              AgentAccessAppTargeting.hasExactlyThesePaths(group, paths: paths),
+              targets.allSatisfy({ appState.resolveCleanupGroup(for: $0.context).group.id == record.id }) else {
+            throw AgentAccessActionError.validation(
+                "A stronger existing app match prevents exact routing to \(name). Review app assignments in Cleanup Groups, then retry."
+            )
+        }
+    }
+
+    private func rescopeApprovedProposal(_ record: AgentAccessActionRecord) throws {
+        guard let proposalID = record.request.proposalID,
+              let groupID = record.request.groupID,
+              let paths = record.request.appPaths,
+              let proposal = try proposalStore.proposal(id: proposalID) else {
+            throw AgentAccessActionError.invalidRequest
+        }
+        let currentDigest = proposal.reviewHash ?? proposal.requestHash
+        let requestedScope = VocabularyProposalScope(kind: "cleanup_group", id: groupID)
+        let isCompletedRevision = proposal.scope == requestedScope && currentDigest == record.resultDigest
+        guard proposal.state == .pending,
+              isCompletedRevision || currentDigest == record.targetDigest else {
+            throw AgentAccessActionError.targetChanged
+        }
+        guard let group = appState.cleanupGroups.first(where: { $0.id == groupID }),
+              AgentAccessAppTargeting.hasExactlyThesePaths(group, paths: paths) else {
+            throw AgentAccessActionError.validation(
+                "The target Cleanup Group no longer contains exactly the requested apps. Review its app assignments before retrying."
+            )
+        }
+        let targets = try AgentAccessAppTargeting.resolve(paths: paths)
+        guard targets.allSatisfy({ appState.resolveCleanupGroup(for: $0.context).group.id == groupID }) else {
+            throw AgentAccessActionError.validation(
+                "One of the requested apps currently routes to another Cleanup Group. Review app assignments before retrying."
+            )
+        }
+        if isCompletedRevision {
+            return // A prior approval saved the revision before the audit finalized.
+        }
+        do {
+            let revised = try proposalService.revise(
+                id: proposalID, scope: requestedScope, corrections: proposal.corrections
+            )
+            guard revised.reviewHash == record.resultDigest else {
+                throw AgentAccessActionError.targetChanged
+            }
+            refreshProposals()
+        } catch let VocabularyProposalServiceError.validation(_, message) {
+            throw AgentAccessActionError.validation(message)
         }
     }
 

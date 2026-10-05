@@ -1135,10 +1135,12 @@ final class AppState {
     }
 
     @discardableResult
-    func createCleanupGroup(named name: String) -> CleanupGroup {
+    func createCleanupGroup(named name: String, id: String = UUID().uuidString) -> CleanupGroup {
+        if let existing = cleanupGroups.first(where: { $0.id == id }) { return existing }
         let normalizedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let nextSortOrder = (cleanupGroups.map(\.sortOrder).max() ?? 0) + 1
         let group = CleanupGroup(
+            id: id,
             name: normalizedName.isEmpty ? "Cleanup Group" : normalizedName,
             sortOrder: max(1, nextSortOrder)
         )

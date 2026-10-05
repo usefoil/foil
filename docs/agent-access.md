@@ -53,7 +53,15 @@ any Cleanup Group scope remain under your control.
 
 An agent can POST a request to `/v1/vocabulary/actions` to ask Foil to apply a
 pending proposal, turn local corrections on or off, set an individual
-correction's scope, or assign an installed app to an enabled Cleanup Group. A
+correction's scope, or assign an installed app to an enabled Cleanup Group. An
+agent can also request a new group for 1–8 exact installed app paths and request
+that an existing pending proposal be rescoped to it. Each request needs its own
+approval. The group request's `group_id` appears in the action response and can
+be used for the rescope request after the group is approved. Foil verifies that
+the group contains exactly the requested app paths before changing the proposal.
+Rescoping changes the original pending proposal in place; it leaves no second
+global proposal waiting to be applied. It does not apply the corrections.
+Use exact paths when two installed apps share a bundle identifier. A
 new request remains pending until you open **Agent Access -> Review agent action
 requests** and choose **Approve change** or **Reject**. Foil shows the exact
 correction or setting, current state, requested scope, and for app assignments

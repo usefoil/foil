@@ -3,6 +3,8 @@ import Foundation
 
 enum AgentAccessActionKind: String, Codable, Sendable {
     case applyProposal = "apply_proposal"
+    case createCleanupGroup = "create_cleanup_group"
+    case rescopeProposal = "rescope_proposal"
     case setLocalCorrectionsEnabled = "set_local_corrections_enabled"
     case setCorrectionScope = "set_correction_scope"
     case assignAppToGroup = "assign_app_to_group"
@@ -26,6 +28,8 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
     let scopeID: String?
     let appBundleID: String?
     let groupID: String?
+    let groupName: String?
+    let appPaths: [String]?
 
     init(
         schemaVersion: Int = 1,
@@ -36,7 +40,9 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
         correctionID: String? = nil,
         scopeID: String? = nil,
         appBundleID: String? = nil,
-        groupID: String? = nil
+        groupID: String? = nil,
+        groupName: String? = nil,
+        appPaths: [String]? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.requestID = requestID
@@ -47,6 +53,8 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
         self.scopeID = scopeID
         self.appBundleID = appBundleID
         self.groupID = groupID
+        self.groupName = groupName
+        self.appPaths = appPaths
     }
 
     enum CodingKeys: String, CodingKey {
@@ -59,6 +67,8 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
         case scopeID = "scope_id"
         case appBundleID = "app_bundle_id"
         case groupID = "group_id"
+        case groupName = "group_name"
+        case appPaths = "app_paths"
     }
 
     func validated() throws -> AgentAccessActionRequest {
@@ -67,38 +77,73 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
               requestID.utf8.allSatisfy({ $0 >= 0x21 && $0 <= 0x7e }) else {
             throw AgentAccessActionError.invalidRequest
         }
-        let fields: [String?] = [proposalID, correctionID, scopeID, appBundleID, groupID]
+        let fields: [String?] = [proposalID, correctionID, scopeID, appBundleID, groupID, groupName]
         guard fields.compactMap({ $0 }).allSatisfy({
             !$0.isEmpty && $0.count <= 256 && $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines)
         }) else { throw AgentAccessActionError.invalidRequest }
         var canonicalProposalID = proposalID
         var canonicalCorrectionID = correctionID
+        let canonicalAppPaths: [String]?
+        if let appPaths {
+            guard (1...8).contains(appPaths.count),
+                  appPaths.allSatisfy({ path in
+                      path.hasPrefix("/") && path.hasSuffix(".app") &&
+                      path.utf8.count <= 1024 &&
+                      path == URL(fileURLWithPath: path).standardizedFileURL.path &&
+                      !path.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+                  }),
+                  Set(appPaths.map { $0.lowercased() }).count == appPaths.count else {
+                throw AgentAccessActionError.invalidRequest
+            }
+            canonicalAppPaths = appPaths.sorted()
+        } else {
+            canonicalAppPaths = nil
+        }
         switch action {
         case .applyProposal:
             guard let proposalID, let parsedID = UUID(uuidString: proposalID),
                   enabled == nil, correctionID == nil, scopeID == nil,
-                  appBundleID == nil, groupID == nil else { throw AgentAccessActionError.invalidRequest }
+                  appBundleID == nil, groupID == nil, groupName == nil,
+                  appPaths == nil else { throw AgentAccessActionError.invalidRequest }
+            canonicalProposalID = parsedID.uuidString.lowercased()
+        case .createCleanupGroup:
+            guard let groupName, !groupName.isEmpty, groupName.unicodeScalars.count <= 80,
+                  !groupName.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+                  canonicalAppPaths != nil, proposalID == nil, enabled == nil,
+                  correctionID == nil, scopeID == nil, appBundleID == nil,
+                  groupID == nil else { throw AgentAccessActionError.invalidRequest }
+        case .rescopeProposal:
+            guard let proposalID, let parsedID = UUID(uuidString: proposalID),
+                  let groupID, UUID(uuidString: groupID) != nil,
+                  canonicalAppPaths != nil, enabled == nil, correctionID == nil,
+                  scopeID == nil, appBundleID == nil, groupName == nil else {
+                throw AgentAccessActionError.invalidRequest
+            }
             canonicalProposalID = parsedID.uuidString.lowercased()
         case .setLocalCorrectionsEnabled:
             guard enabled != nil, proposalID == nil, correctionID == nil,
-                  scopeID == nil, appBundleID == nil, groupID == nil else {
+                  scopeID == nil, appBundleID == nil, groupID == nil,
+                  groupName == nil, appPaths == nil else {
                 throw AgentAccessActionError.invalidRequest
             }
         case .setCorrectionScope:
             guard let correctionID, let parsedID = UUID(uuidString: correctionID),
                   scopeID != nil, proposalID == nil, enabled == nil,
-                  appBundleID == nil, groupID == nil else { throw AgentAccessActionError.invalidRequest }
+                  appBundleID == nil, groupID == nil, groupName == nil,
+                  appPaths == nil else { throw AgentAccessActionError.invalidRequest }
             canonicalCorrectionID = parsedID.uuidString.lowercased()
         case .assignAppToGroup:
             guard let appBundleID, appBundleID.contains("."), !appBundleID.contains("/"),
                   groupID != nil, proposalID == nil, enabled == nil,
-                  correctionID == nil, scopeID == nil else { throw AgentAccessActionError.invalidRequest }
+                  correctionID == nil, scopeID == nil, groupName == nil,
+                  appPaths == nil else { throw AgentAccessActionError.invalidRequest }
         }
         return AgentAccessActionRequest(
             schemaVersion: schemaVersion, requestID: requestID, action: action,
             proposalID: canonicalProposalID, enabled: enabled,
             correctionID: canonicalCorrectionID, scopeID: scopeID,
-            appBundleID: appBundleID, groupID: groupID
+            appBundleID: appBundleID, groupID: groupID,
+            groupName: groupName, appPaths: canonicalAppPaths
         )
     }
 
@@ -114,6 +159,7 @@ struct AgentAccessActionRecord: Codable, Equatable, Sendable, Identifiable {
     let request: AgentAccessActionRequest
     let digest: String
     let targetDigest: String?
+    let resultDigest: String?
     let state: AgentAccessActionState
     let createdAt: Date
     let updatedAt: Date
@@ -122,6 +168,7 @@ struct AgentAccessActionRecord: Codable, Equatable, Sendable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, request, digest, state
         case targetDigest = "target_digest"
+        case resultDigest = "result_digest"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case approvedAt = "approved_at"
@@ -152,6 +199,7 @@ enum AgentAccessActionError: Error, Equatable, LocalizedError {
     case notFound
     case invalidState
     case targetChanged
+    case validation(String)
     case unavailable
 
     var errorDescription: String? {
@@ -162,6 +210,7 @@ enum AgentAccessActionError: Error, Equatable, LocalizedError {
         case .notFound: "The action request was not found."
         case .invalidState: "The proposal or action is no longer pending, or its validation failed. Review it before trying again."
         case .targetChanged: "This proposal changed after the action request. Apply it in proposal review or ask the agent for a new request."
+        case let .validation(message): message
         case .unavailable: "Foil could not save the action decision. Try again."
         }
     }
@@ -200,6 +249,7 @@ final class AgentAccessActionStore: @unchecked Sendable {
     func submit(
         _ raw: AgentAccessActionRequest,
         targetDigest: String? = nil,
+        resultDigest: String? = nil,
         targetAvailable: Bool = true
     ) throws -> (AgentAccessActionRecord, Bool) {
         let request = try raw.validated()
@@ -212,11 +262,18 @@ final class AgentAccessActionStore: @unchecked Sendable {
             return (existing, true)
         }
         guard targetAvailable else { throw AgentAccessActionError.invalidRequest }
-        if request.action == .applyProposal {
+        if request.action == .applyProposal || request.action == .rescopeProposal {
             guard let targetDigest, Self.isDigest(targetDigest) else {
                 throw AgentAccessActionError.invalidRequest
             }
         } else if targetDigest != nil {
+            throw AgentAccessActionError.invalidRequest
+        }
+        if request.action == .rescopeProposal {
+            guard let resultDigest, Self.isDigest(resultDigest) else {
+                throw AgentAccessActionError.invalidRequest
+            }
+        } else if resultDigest != nil {
             throw AgentAccessActionError.invalidRequest
         }
         guard current.records.filter({ $0.state == .pending || $0.state == .approvedPendingApply }).count < 100 else {
@@ -225,7 +282,7 @@ final class AgentAccessActionStore: @unchecked Sendable {
         let timestamp = normalizedTimestamp()
         let record = AgentAccessActionRecord(
             id: makeID().uuidString.lowercased(), request: request, digest: digest,
-            targetDigest: targetDigest,
+            targetDigest: targetDigest, resultDigest: resultDigest,
             state: .pending, createdAt: timestamp, updatedAt: timestamp,
             approvedAt: nil
         )
@@ -248,7 +305,7 @@ final class AgentAccessActionStore: @unchecked Sendable {
         let timestamp = max(normalizedTimestamp(), existing.updatedAt)
         let updated = AgentAccessActionRecord(
             id: existing.id, request: existing.request, digest: existing.digest,
-            targetDigest: existing.targetDigest,
+            targetDigest: existing.targetDigest, resultDigest: existing.resultDigest,
             state: state, createdAt: existing.createdAt, updatedAt: timestamp,
             approvedAt: existing.approvedAt ?? (state == .approvedPendingApply ? timestamp : nil)
         )
@@ -271,7 +328,9 @@ final class AgentAccessActionStore: @unchecked Sendable {
                 guard UUID(uuidString: record.id) != nil,
                       try record.request.validated() == record.request,
                       try record.request.digest() == record.digest,
-                      (record.request.action == .applyProposal) == (record.targetDigest.map(Self.isDigest) == true),
+                      (record.request.action == .applyProposal || record.request.action == .rescopeProposal)
+                          == (record.targetDigest.map(Self.isDigest) == true),
+                      (record.request.action == .rescopeProposal) == (record.resultDigest.map(Self.isDigest) == true),
                       record.createdAt <= record.updatedAt,
                       record.approvedAt.map({ record.createdAt <= $0 && $0 <= record.updatedAt }) ?? true,
                       (record.state == .pending || record.state == .rejected) == (record.approvedAt == nil) else {

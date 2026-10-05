@@ -430,6 +430,9 @@ struct AgentAccessContractRouter {
         case .targetChanged:
             return errorResponse(status: 409, reason: "Conflict", requestID: requestID,
                                  code: "action_target_changed", message: "The proposal changed after this action request.")
+        case let .validation(message):
+            return errorResponse(status: 422, reason: "Unprocessable Content", requestID: requestID,
+                                 code: "action_validation_failed", message: message)
         case .unavailable:
             return unavailableResponse(requestID: requestID)
         }

@@ -765,6 +765,264 @@ final class AgentAccessControllerTests: XCTestCase {
         withExtendedLifetime(controller) {}
     }
 
+    func testAgentCreatesExactAppGroupThenRescopesExistingGlobalProposalInPlace() async throws {
+        let marker = UUID().uuidString
+        let state = makeState(storageMarker: marker, activateCatalog: true)
+        let originalGroups = state.cleanupGroups
+        state.setCleanupGroups([.defaultGroup()])
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let livePaths = paths()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-agent-exact-apps-\(marker)", isDirectory: true)
+        let chatGPT = try makeAppFixture(root: root, name: "ChatGPT", bundleID: "com.openai.codex")
+        let codex = try makeAppFixture(root: root, name: "Codex", bundleID: "com.openai.codex")
+        let paths = [chatGPT.path, codex.path]
+        let groupName = "ChatGPT and Codex \(marker)"
+        var handler: AgentAccessServer.Handler?
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8)
+        ) { _, _, captured in
+            handler = captured
+            return ServerStub()
+        }
+        defer {
+            state.setCleanupGroups(originalGroups)
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+        state.setAgentAccessEnabled(true)
+        let started = await waitUntil { handler != nil && state.agentAccessPresentationState == .running }
+        XCTAssertTrue(started)
+        let sendAction: (AgentAccessActionRequest) throws -> AgentAccessHTTPResponse = { request in
+            try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+                method: .post, path: "/v1/vocabulary/actions", headers: [:],
+                body: try JSONEncoder().encode(request)
+            ))
+        }
+        let proposalRequest = VocabularyProposalRequest(
+            requestID: "vercel-supabase-global",
+            scope: .init(kind: "global", id: "global"),
+            corrections: [
+                .init(spokenForms: ["verse cell"], replacement: "Vercel"),
+                .init(spokenForms: ["super base"], replacement: "Supabase")
+            ]
+        )
+        let proposalResponse = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/proposals", headers: [:],
+            body: try JSONEncoder().encode(proposalRequest)
+        ))
+        XCTAssertEqual(proposalResponse.status, 201)
+        let proposalPublished = await waitUntil { state.agentAccessPendingProposalCount == 1 }
+        XCTAssertTrue(proposalPublished)
+        let proposalID = try XCTUnwrap(state.agentAccessProposals.first?.id)
+
+        let groupRequest = AgentAccessActionRequest(
+            requestID: "create-chatgpt-codex-group", action: .createCleanupGroup,
+            groupName: groupName, appPaths: paths
+        )
+        let groupResponse = try sendAction(groupRequest)
+        XCTAssertEqual(groupResponse.status, 201)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let pendingGroup = try decoder.decode(AgentAccessActionResponse.self, from: groupResponse.body)
+        XCTAssertEqual(pendingGroup.state, .pending)
+        XCTAssertEqual(pendingGroup.groupID, pendingGroup.actionID)
+        let initialGroupCount = state.cleanupGroups.count
+        XCTAssertEqual(state.agentAccessProposals.first?.scope.kind, "global")
+        XCTAssertTrue(state.vocabularyCorrections.isEmpty)
+        let groupReplay = try sendAction(.init(
+            requestID: groupRequest.requestID, action: .createCleanupGroup,
+            groupName: groupName, appPaths: Array(paths.reversed())
+        ))
+        XCTAssertEqual(groupReplay.status, 200)
+        let groupPublished = await waitUntil { state.agentAccessPendingActionCount == 1 }
+        XCTAssertTrue(groupPublished)
+        state.decideAgentAccessAction(id: pendingGroup.actionID, approve: true)
+        let groupID = pendingGroup.actionID
+        let group = try XCTUnwrap(state.cleanupGroups.first(where: { $0.id == groupID }))
+        XCTAssertTrue(AgentAccessAppTargeting.hasExactlyThesePaths(group, paths: paths))
+        XCTAssertEqual(state.cleanupGroups.count, initialGroupCount + 1)
+        XCTAssertEqual(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.first?.state, .approved)
+
+        let chatContext = CleanupAppContext(displayName: "ChatGPT", bundleIdentifier: "com.openai.codex", appPath: chatGPT.path)
+        let codexContext = CleanupAppContext(displayName: "Codex", bundleIdentifier: "com.openai.codex", appPath: codex.path)
+        let otherContext = CleanupAppContext(displayName: "Other", bundleIdentifier: "com.openai.codex", appPath: "/Applications/Other.app")
+        XCTAssertEqual(state.resolveCleanupGroup(for: chatContext).group.id, groupID)
+        XCTAssertEqual(state.resolveCleanupGroup(for: codexContext).group.id, groupID)
+        XCTAssertEqual(state.resolveCleanupGroup(for: otherContext).group.id, CleanupGroup.defaultGroupID)
+
+        let rescope = AgentAccessActionRequest(
+            requestID: "rescope-vercel-supabase", action: .rescopeProposal,
+            proposalID: proposalID, groupID: groupID, appPaths: paths
+        )
+        let rescopeResponse = try sendAction(rescope)
+        XCTAssertEqual(rescopeResponse.status, 201)
+        let pendingRescope = try decoder.decode(AgentAccessActionResponse.self, from: rescopeResponse.body)
+        XCTAssertEqual(pendingRescope.groupID, groupID)
+        XCTAssertEqual(state.agentAccessProposals.first?.scope.kind, "global")
+        XCTAssertTrue(state.vocabularyCorrections.isEmpty)
+        let rescopePublished = await waitUntil { state.agentAccessPendingActionCount == 1 }
+        XCTAssertTrue(rescopePublished)
+        state.applyAgentAccessProposal(id: proposalID)
+        XCTAssertTrue(state.vocabularyCorrections.isEmpty)
+        XCTAssertEqual(state.agentAccessProposals.first?.scope.kind, "global")
+        XCTAssertTrue(state.agentAccessProposalInboxErrorMessage?.contains("scope change is awaiting review") == true)
+        state.decideAgentAccessAction(id: pendingRescope.actionID, approve: true)
+        let scoped = try XCTUnwrap(state.agentAccessProposals.first(where: { $0.id == proposalID }))
+        XCTAssertEqual(scoped.scope, .init(kind: "cleanup_group", id: groupID))
+        XCTAssertEqual(scoped.state, .pending)
+        XCTAssertEqual(state.agentAccessProposals.filter { $0.state == .pending }.count, 1)
+        XCTAssertTrue(state.vocabularyCorrections.isEmpty)
+        XCTAssertEqual(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.first(where: {
+            $0.id == pendingRescope.actionID
+        })?.state, .approved)
+
+        state.applyAgentAccessProposal(id: proposalID)
+        XCTAssertEqual(state.agentAccessProposals.first?.state, .applied)
+        XCTAssertEqual(state.vocabularyCorrections.count, 2)
+        let compiled = try LocalCorrectionEngine.compile(state.localCorrectionSnapshot.rules)
+        let phrase = "verse cell and super base"
+        XCTAssertEqual(LocalCorrectionEngine.correct(phrase, activeGroup: groupID, enabled: true, compiled: compiled).text,
+                       "Vercel and Supabase")
+        XCTAssertEqual(LocalCorrectionEngine.correct(phrase, activeGroup: nil, enabled: true, compiled: compiled).text,
+                       phrase)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testRescopeRequestFailsClosedIfGroupOrProposalChangedBeforeApproval() async throws {
+        let marker = UUID().uuidString
+        let state = makeState(storageMarker: marker, activateCatalog: true)
+        let originalGroups = state.cleanupGroups
+        state.setCleanupGroups([.defaultGroup()])
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let livePaths = paths()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-agent-rescope-conflict-\(marker)", isDirectory: true)
+        let app = try makeAppFixture(root: root, name: "ChatGPT", bundleID: "com.openai.codex")
+        let group = state.createCleanupGroup(named: "Agent apps")
+        state.addAppMatcher(CleanupAppMatcher(displayName: "ChatGPT", appPath: app.path), toCleanupGroupID: group.id)
+        var handler: AgentAccessServer.Handler?
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8)
+        ) { _, _, captured in
+            handler = captured
+            return ServerStub()
+        }
+        defer {
+            state.setCleanupGroups(originalGroups)
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+        state.setAgentAccessEnabled(true)
+        let started = await waitUntil { handler != nil && state.agentAccessPresentationState == .running }
+        XCTAssertTrue(started)
+        let proposal = VocabularyProposalRequest(
+            requestID: "conflict-global", scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["verse cell"], replacement: "Vercel")]
+        )
+        XCTAssertEqual(try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/proposals", headers: [:],
+            body: try JSONEncoder().encode(proposal)
+        )).status, 201)
+        let proposalPublished = await waitUntil { state.agentAccessPendingProposalCount == 1 }
+        XCTAssertTrue(proposalPublished)
+        let proposalID = try XCTUnwrap(state.agentAccessProposals.first?.id)
+        let request = AgentAccessActionRequest(
+            requestID: "rescope-conflict", action: .rescopeProposal,
+            proposalID: proposalID, groupID: group.id, appPaths: [app.path]
+        )
+        let response = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:],
+            body: try JSONEncoder().encode(request)
+        ))
+        XCTAssertEqual(response.status, 201)
+        let actionPublished = await waitUntil { state.agentAccessPendingActionCount == 1 }
+        XCTAssertTrue(actionPublished)
+        let actionID = try XCTUnwrap(state.agentAccessActions.first?.id)
+        state.addAppMatcher(CleanupAppMatcher(displayName: "Another", appPath: "/Applications/Another.app"),
+                            toCleanupGroupID: group.id)
+        state.decideAgentAccessAction(id: actionID, approve: true)
+        XCTAssertEqual(state.agentAccessProposals.first?.scope.kind, "global")
+        XCTAssertEqual(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.first?.state,
+                       .approvedPendingApply)
+        XCTAssertTrue(state.agentAccessActionErrorMessage?.contains("exactly the requested apps") == true)
+        state.removeAppMatcher(membershipKey: "path:/applications/another.app", fromCleanupGroupID: group.id)
+        state.reviseAgentAccessProposal(
+            id: proposalID, scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["verse cell"], replacement: "Different")]
+        )
+        state.decideAgentAccessAction(id: actionID, approve: true)
+        XCTAssertEqual(state.agentAccessProposals.first?.scope.kind, "global")
+        XCTAssertTrue(state.agentAccessActionErrorMessage?.contains("changed after") == true)
+        XCTAssertEqual(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.first?.state,
+                       .approvedPendingApply)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testInterruptedGroupCreationAndProposalRescopeReplayWithoutDuplicates() throws {
+        let marker = UUID().uuidString
+        let state = makeState(storageMarker: marker, activateCatalog: true)
+        let originalGroups = state.cleanupGroups
+        state.setCleanupGroups([.defaultGroup()])
+        let livePaths = paths()
+        let actionStore = AgentAccessActionStore(fileURL: livePaths.actionStoreURL)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-agent-scope-replay-\(marker)", isDirectory: true)
+        let chatGPT = try makeAppFixture(root: root, name: "ChatGPT", bundleID: "com.openai.codex")
+        let codex = try makeAppFixture(root: root, name: "Codex", bundleID: "com.openai.codex")
+        let appPaths = [chatGPT.path, codex.path]
+        let groupName = "ChatGPT and Codex \(marker)"
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8),
+            actionStore: actionStore
+        ) { _, _, _ in ServerStub() }
+        defer {
+            state.setCleanupGroups(originalGroups)
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+        let create = try actionStore.submit(.init(
+            requestID: "create-before-interruption", action: .createCleanupGroup,
+            groupName: groupName, appPaths: appPaths
+        )).0
+        _ = try actionStore.transition(id: create.id, to: .approvedPendingApply)
+        _ = state.createCleanupGroup(named: groupName, id: create.id)
+        state.addAppMatcher(CleanupAppMatcher(displayName: "ChatGPT", appPath: chatGPT.path),
+                            toCleanupGroupID: create.id)
+        controller.refreshActions()
+        state.decideAgentAccessAction(id: create.id, approve: true)
+        XCTAssertNil(state.agentAccessActionErrorMessage, state.agentAccessActionErrorMessage ?? "")
+        XCTAssertEqual(state.cleanupGroups.filter { $0.id == create.id }.count, 1)
+        XCTAssertTrue(AgentAccessAppTargeting.hasExactlyThesePaths(
+            try XCTUnwrap(state.cleanupGroups.first(where: { $0.id == create.id })), paths: appPaths
+        ))
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approved)
+
+        controller.seedVocabularyProposalForUITesting()
+        let proposal = try XCTUnwrap(state.agentAccessProposals.first)
+        let desiredScope = VocabularyProposalScope(kind: "cleanup_group", id: create.id)
+        let desiredDigest = try VocabularyProposalRequest(
+            requestID: proposal.requestID, scope: desiredScope,
+            corrections: proposal.corrections
+        ).canonicalPayloadDigest()
+        let rescope = try actionStore.submit(.init(
+            requestID: "rescope-before-interruption", action: .rescopeProposal,
+            proposalID: proposal.id, groupID: create.id, appPaths: appPaths
+        ), targetDigest: proposal.requestHash, resultDigest: desiredDigest).0
+        _ = try actionStore.transition(id: rescope.id, to: .approvedPendingApply)
+        state.reviseAgentAccessProposal(
+            id: proposal.id, scope: desiredScope, corrections: proposal.corrections
+        )
+        XCTAssertEqual(state.agentAccessProposals.first?.reviewHash, desiredDigest)
+        controller.refreshActions()
+        state.decideAgentAccessAction(id: rescope.id, approve: true)
+        XCTAssertEqual(try actionStore.load().records.first(where: { $0.id == rescope.id })?.state,
+                       .approved)
+        XCTAssertEqual(state.agentAccessProposals.count, 1)
+        XCTAssertEqual(state.agentAccessProposals.first?.scope, desiredScope)
+        withExtendedLifetime(controller) {}
+    }
+
     func testAgentCannotClaimApprovalOrChangeSettingsThroughStatusRoute() async throws {
         let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
         state.setAgentAccessEnabled(false, notifyController: false)
@@ -1118,6 +1376,22 @@ final class AgentAccessControllerTests: XCTestCase {
             applicationSupportRoot: FileManager.default.temporaryDirectory,
             directoryName: "foil-agent-controller-\(UUID().uuidString.prefix(8))"
         )
+    }
+
+    private func makeAppFixture(root: URL, name: String, bundleID: String) throws -> URL {
+        let appURL = root.appendingPathComponent("\(name).app", isDirectory: true)
+        let contents = appURL.appendingPathComponent("Contents", isDirectory: true)
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: [
+                "CFBundleIdentifier": bundleID,
+                "CFBundleName": name,
+                "CFBundleDisplayName": name
+            ],
+            format: .xml, options: 0
+        )
+        try plist.write(to: contents.appendingPathComponent("Info.plist"))
+        return appURL
     }
 
     private func connect(to url: URL) throws -> Int32 {
