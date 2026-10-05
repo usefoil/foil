@@ -1061,6 +1061,9 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("settings.cleanupGroups.defaultAppsHelp")
+                if !group.appMatchers.isEmpty {
+                    cleanupGroupAssignedApps(group)
+                }
             } else {
                 cleanupGroupAssignedApps(group)
                 recentAppsPicker(group)

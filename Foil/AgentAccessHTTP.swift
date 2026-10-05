@@ -360,12 +360,12 @@ struct AgentAccessContractRouter {
                 guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
                 guard let actionStatusProvider else { return unavailableResponse(requestID: requestID) }
                 let actionID = String(request.path.dropFirst("/v1/vocabulary/actions/".count))
-                guard UUID(uuidString: actionID) != nil else {
+                guard let parsedID = UUID(uuidString: actionID) else {
                     return errorResponse(status: 404, reason: "Not Found", requestID: requestID,
                                          code: "action_not_found", message: "No action matches that ID.")
                 }
                 do {
-                    let record = try actionStatusProvider(actionID)
+                    let record = try actionStatusProvider(parsedID.uuidString.lowercased())
                     return (try? .json(requestID: requestID, value: AgentAccessActionResponse(
                         requestID: requestID, record: record, replayed: false
                     ))) ?? internalError(requestID: requestID)

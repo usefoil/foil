@@ -61,8 +61,10 @@ the resolved application path. Assigning an app changes its whole Cleanup Group
 routing, including that group's cleanup settings. The API has no approval route
 and ignores any agent claim that you approved a request elsewhere.
 
-An exact app bundle match takes precedence over a path or display-name match;
-Cleanup Group order breaks ties between matches of the same kind.
+An exact app bundle match takes precedence over a path or display-name match,
+including when the bundle is explicitly assigned to the default group.
+Cleanup Group order breaks ties between non-default groups; the default group
+remains the fallback for equally specific matches.
 
 Requests use a unique `request_id`. Retrying identical content returns the
 existing status; reusing an ID with different content fails. Foil stores the

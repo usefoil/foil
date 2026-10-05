@@ -334,9 +334,11 @@ enum CleanupGroupResolver {
         var matchedGroup: CleanupGroup? = nil
         if let appContext {
             var strongestMatch = 0
-            // A specific app assignment wins over shared path or name rules;
-            // normalized group order breaks ties at the same strength.
-            for group in normalizedGroups where !group.isDefault && group.isEnabled {
+            // A specific app assignment wins over shared path or name rules.
+            // The default group's explicit assignments win only when stronger
+            // than a match in another group; otherwise it remains the fallback.
+            let matchOrder = normalizedGroups.filter { !$0.isDefault } + [defaultGroup]
+            for group in matchOrder where group.isEnabled {
                 let strength = group.appMatchers.map { $0.matchStrength(appContext) }.max() ?? 0
                 if strength > strongestMatch {
                     matchedGroup = group

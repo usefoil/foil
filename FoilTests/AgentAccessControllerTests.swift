@@ -715,6 +715,11 @@ final class AgentAccessControllerTests: XCTestCase {
         let replayBody = try decoder.decode(AgentAccessActionResponse.self, from: replay.body)
         XCTAssertTrue(replayBody.replayed)
         XCTAssertEqual(replayBody.state, .approved)
+        let uppercaseStatus = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .get, path: "/v1/vocabulary/actions/\(actionID.uppercased())", headers: [:], body: Data()
+        ))
+        XCTAssertEqual(uppercaseStatus.status, 200)
+        XCTAssertEqual(try decoder.decode(AgentAccessActionResponse.self, from: uppercaseStatus.body).actionID, actionID)
         state.decideAgentAccessAction(id: actionID, approve: true)
         XCTAssertEqual(try actionStore.load().revision, 3)
 
@@ -731,13 +736,20 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertTrue(didPublishProposal)
         let proposalID = try XCTUnwrap(state.agentAccessProposals.first?.id)
         let applyRequest = AgentAccessActionRequest(
-            requestID: "apply-proposal-1", action: .applyProposal, proposalID: proposalID
+            requestID: "apply-proposal-1", action: .applyProposal, proposalID: proposalID.uppercased()
         )
         let actionResponse = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
             method: .post, path: "/v1/vocabulary/actions", headers: [:],
             body: try JSONEncoder().encode(applyRequest)
         ))
         XCTAssertEqual(actionResponse.status, 201)
+        let canonicalReplay = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:],
+            body: try JSONEncoder().encode(AgentAccessActionRequest(
+                requestID: "apply-proposal-1", action: .applyProposal, proposalID: proposalID
+            ))
+        ))
+        XCTAssertEqual(canonicalReplay.status, 200)
         XCTAssertTrue(state.vocabularyCorrections.isEmpty)
         let didPublishApply = await waitUntil { state.agentAccessPendingActionCount == 1 }
         XCTAssertTrue(didPublishApply)
@@ -869,7 +881,7 @@ final class AgentAccessControllerTests: XCTestCase {
         for request in [
             AgentAccessActionRequest(
                 requestID: "scope-1", action: .setCorrectionScope,
-                correctionID: correction.id.uuidString.lowercased(), scopeID: group.id
+                correctionID: correction.id.uuidString.uppercased(), scopeID: group.id
             ),
             AgentAccessActionRequest(
                 requestID: "app-1", action: .assignAppToGroup,
@@ -900,6 +912,29 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertTrue(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.allSatisfy {
             $0.state == .approved
         })
+        let defaultRequest = AgentAccessActionRequest(
+            requestID: "app-default-1", action: .assignAppToGroup,
+            appBundleID: bundleID, groupID: CleanupGroup.defaultGroupID
+        )
+        let defaultResponse = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:],
+            body: try JSONEncoder().encode(defaultRequest)
+        ))
+        XCTAssertEqual(defaultResponse.status, 201)
+        let didPublishDefault = await waitUntil { state.agentAccessPendingActionCount == 1 }
+        XCTAssertTrue(didPublishDefault)
+        let defaultActionID = try XCTUnwrap(state.agentAccessActions.first(where: {
+            $0.request.requestID == "app-default-1"
+        })?.id)
+        state.decideAgentAccessAction(id: defaultActionID, approve: true)
+        XCTAssertEqual(state.resolveCleanupGroup(for: appContext).group.id, CleanupGroup.defaultGroupID)
+        XCTAssertEqual(state.resolveCleanupGroup(for: otherAppContext).group.id, earlierGroup.id)
+        XCTAssertTrue(state.cleanupGroups.first(where: { $0.id == CleanupGroup.defaultGroupID })?.appMatchers.contains {
+            $0.bundleIdentifier == bundleID
+        } == true)
+        XCTAssertEqual(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.first(where: {
+            $0.id == defaultActionID
+        })?.state, .approved)
         withExtendedLifetime(controller) {}
     }
 

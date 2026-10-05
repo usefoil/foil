@@ -71,26 +71,35 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
         guard fields.compactMap({ $0 }).allSatisfy({
             !$0.isEmpty && $0.count <= 256 && $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines)
         }) else { throw AgentAccessActionError.invalidRequest }
+        var canonicalProposalID = proposalID
+        var canonicalCorrectionID = correctionID
         switch action {
         case .applyProposal:
-            guard let proposalID, UUID(uuidString: proposalID) != nil,
+            guard let proposalID, let parsedID = UUID(uuidString: proposalID),
                   enabled == nil, correctionID == nil, scopeID == nil,
                   appBundleID == nil, groupID == nil else { throw AgentAccessActionError.invalidRequest }
+            canonicalProposalID = parsedID.uuidString.lowercased()
         case .setLocalCorrectionsEnabled:
             guard enabled != nil, proposalID == nil, correctionID == nil,
                   scopeID == nil, appBundleID == nil, groupID == nil else {
                 throw AgentAccessActionError.invalidRequest
             }
         case .setCorrectionScope:
-            guard let correctionID, UUID(uuidString: correctionID) != nil,
+            guard let correctionID, let parsedID = UUID(uuidString: correctionID),
                   scopeID != nil, proposalID == nil, enabled == nil,
                   appBundleID == nil, groupID == nil else { throw AgentAccessActionError.invalidRequest }
+            canonicalCorrectionID = parsedID.uuidString.lowercased()
         case .assignAppToGroup:
             guard let appBundleID, appBundleID.contains("."), !appBundleID.contains("/"),
                   groupID != nil, proposalID == nil, enabled == nil,
                   correctionID == nil, scopeID == nil else { throw AgentAccessActionError.invalidRequest }
         }
-        return self
+        return AgentAccessActionRequest(
+            schemaVersion: schemaVersion, requestID: requestID, action: action,
+            proposalID: canonicalProposalID, enabled: enabled,
+            correctionID: canonicalCorrectionID, scopeID: scopeID,
+            appBundleID: appBundleID, groupID: groupID
+        )
     }
 
     func digest() throws -> String {

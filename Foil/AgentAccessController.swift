@@ -232,13 +232,14 @@ final class AgentAccessController {
             },
             actionSubmitter: { [actionStore, proposalStore, proposalGate] request in
                 guard let result = try proposalGate.withPermit(expectedGeneration, operation: {
-                    let proposal = request.action == .applyProposal
-                        ? try proposalStore.proposal(id: request.proposalID ?? "")
+                    let validatedRequest = try request.validated()
+                    let proposal = validatedRequest.action == .applyProposal
+                        ? try proposalStore.proposal(id: validatedRequest.proposalID ?? "")
                         : nil
                     return try actionStore.submit(
-                        request,
+                        validatedRequest,
                         targetDigest: proposal?.reviewHash ?? proposal?.requestHash,
-                        targetAvailable: request.action != .applyProposal || proposal?.state == .pending
+                        targetAvailable: validatedRequest.action != .applyProposal || proposal?.state == .pending
                     )
                 }) else { throw AgentAccessActionError.unavailable }
                 if !result.1 {
