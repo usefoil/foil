@@ -709,7 +709,13 @@ final class FoilUITests: XCTestCase {
             app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
             "Selected, Service off, 1 pending action"
         )
-        scrollSettingsUntilHittable(review)
+        let settingsRoot = app.descendants(matching: .any)["settings.root"]
+        XCTAssertTrue(settingsRoot.exists, app.debugDescription)
+        for _ in 0..<6 {
+            if review.isHittable { break }
+            settingsRoot.swipeUp()
+        }
+        XCTAssertTrue(review.isHittable, app.debugDescription)
         clickElement(review)
         XCTAssertTrue(app.staticTexts["Turn on local corrections on this Mac"].waitForExistence(timeout: 4), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Current: Off · Requested: On"].exists, app.debugDescription)
