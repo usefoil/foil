@@ -20,8 +20,9 @@
 
 ## Verification
 
-- `AGENT_ACCESS_RESULT_BUNDLE=/tmp/foil-agent-action-gate-20261005.xcresult make test-agent-access`: 111 focused tests passed, 0 failed.
-- `make test`: 957 passed, 4 skipped, 0 failed in `Test-Foil-2026.10.05_06-59-22--0700.xcresult`.
-- `make build-warnings-as-errors`: passed.
+- Final focused XCTest bundle run: 112 passed, 0 failed, including a real Unix-socket action request and Foil decision, recorded in `/tmp/foil-agent-action-direct-focused-tests.log`.
+- Final Cleanup Group tests: 6 passed, 0 failed. Direct AppState run: 193 passed and one test-harness-only failure; `testTestProcessKeepsManagedModelsOutOfProductionApplicationSupport` expects Xcode's hosted test configuration, which the direct `xctest` invocation does not provide. The app matcher and Cleanup Group AppState cases passed.
+- `make test` before the review fixes: 957 passed, 4 skipped, 0 failed in `Test-Foil-2026.10.05_06-59-22--0700.xcresult`. The post-fix Xcode test launcher stalled before starting tests, including with a fresh DerivedData location; the final focused bundle was run directly instead.
+- `make build-warnings-as-errors` and final `xcodebuild build-for-testing`: passed.
 - `git diff --check` and `python3 -m json.tool Foil/Resources/AgentAccessOpenAPI.json`: passed.
 - `FoilUITests.testAgentActionRequiresVisibleFoilApproval`: compiled but did not execute on this host. The Xcode UI runner timed out while enabling automation mode before Foil launched. Run this test on an interactive Mac UI runner and manually confirm the approval sheet before release.

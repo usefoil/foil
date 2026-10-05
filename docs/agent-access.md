@@ -53,13 +53,16 @@ any Cleanup Group scope remain under your control.
 
 An agent can POST a request to `/v1/vocabulary/actions` to ask Foil to apply a
 pending proposal, turn local corrections on or off, set an individual
-correction's scope, or assign an installed app to an enabled Cleanup Group. The
-response is always pending until you open **Agent Access -> Review agent action
+correction's scope, or assign an installed app to an enabled Cleanup Group. A
+new request remains pending until you open **Agent Access -> Review agent action
 requests** and choose **Approve change** or **Reject**. Foil shows the exact
 correction or setting, current state, requested scope, and for app assignments
 the resolved application path. Assigning an app changes its whole Cleanup Group
 routing, including that group's cleanup settings. The API has no approval route
 and ignores any agent claim that you approved a request elsewhere.
+
+An exact app bundle match takes precedence over a path or display-name match;
+Cleanup Group order breaks ties between matches of the same kind.
 
 Requests use a unique `request_id`. Retrying identical content returns the
 existing status; reusing an ID with different content fails. Foil stores the

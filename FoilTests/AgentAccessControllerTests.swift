@@ -842,7 +842,12 @@ final class AgentAccessControllerTests: XCTestCase {
         let appContext = CleanupAppContext(
             displayName: "Test Editor", bundleIdentifier: bundleID, appPath: appURL.path
         )
+        let otherAppContext = CleanupAppContext(
+            displayName: "Test Editor", bundleIdentifier: "com.example.OtherEditor",
+            appPath: "/Applications/Other Editor.app"
+        )
         XCTAssertEqual(state.resolveCleanupGroup(for: appContext).group.id, earlierGroup.id)
+        XCTAssertEqual(state.resolveCleanupGroup(for: otherAppContext).group.id, earlierGroup.id)
         let livePaths = paths()
         var handler: AgentAccessServer.Handler?
         let controller = AgentAccessController(
@@ -889,7 +894,8 @@ final class AgentAccessControllerTests: XCTestCase {
             $0.bundleIdentifier == bundleID
         }) == true)
         XCTAssertEqual(state.resolveCleanupGroup(for: appContext).group.id, group.id)
-        XCTAssertTrue(state.cleanupGroups.first(where: { $0.id == earlierGroup.id })?.appMatchers.isEmpty == true)
+        XCTAssertEqual(state.resolveCleanupGroup(for: otherAppContext).group.id, earlierGroup.id)
+        XCTAssertEqual(state.cleanupGroups.first(where: { $0.id == earlierGroup.id })?.appMatchers.count, 2)
         XCTAssertEqual(state.agentAccessPendingActionCount, 0)
         XCTAssertTrue(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.allSatisfy {
             $0.state == .approved
