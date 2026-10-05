@@ -245,7 +245,7 @@ final class AgentAccessActionStore: @unchecked Sendable {
         let allowed = (existing.state == .pending && (state == .approvedPendingApply || state == .rejected))
             || (existing.state == .approvedPendingApply && (state == .approved || state == .cancelledAfterApproval))
         guard allowed else { throw AgentAccessActionError.invalidState }
-        let timestamp = normalizedTimestamp()
+        let timestamp = max(normalizedTimestamp(), existing.updatedAt)
         let updated = AgentAccessActionRecord(
             id: existing.id, request: existing.request, digest: existing.digest,
             targetDigest: existing.targetDigest,

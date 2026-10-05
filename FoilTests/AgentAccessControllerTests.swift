@@ -823,6 +823,34 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
     }
 
+    func testActionStoreRemainsReadableWhenClockMovesBackward() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-action-clock-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("actions.json")
+        let first = AgentAccessActionStore(fileURL: url, now: { Date(timeIntervalSince1970: 2_000) })
+        let approvedAction = try first.submit(.init(
+            requestID: "clock-approval", action: .setLocalCorrectionsEnabled, enabled: true
+        )).0
+        let rejectedAction = try first.submit(.init(
+            requestID: "clock-rejection", action: .setLocalCorrectionsEnabled, enabled: false
+        )).0
+        let backward = AgentAccessActionStore(fileURL: url, now: { Date(timeIntervalSince1970: 1_999) })
+        _ = try backward.transition(id: approvedAction.id, to: .approvedPendingApply)
+        _ = try backward.transition(id: approvedAction.id, to: .approved)
+        _ = try backward.transition(id: rejectedAction.id, to: .rejected)
+
+        let records = try AgentAccessActionStore(fileURL: url).load().records
+        XCTAssertEqual(records.first(where: { $0.id == approvedAction.id })?.state, .approved)
+        XCTAssertEqual(records.first(where: { $0.id == approvedAction.id })?.approvedAt, approvedAction.createdAt)
+        XCTAssertEqual(records.first(where: { $0.id == rejectedAction.id })?.state, .rejected)
+        XCTAssertTrue(records.allSatisfy { $0.createdAt <= $0.updatedAt })
+        _ = try backward.submit(.init(
+            requestID: "after-clock-change", action: .setLocalCorrectionsEnabled, enabled: true
+        ))
+        XCTAssertEqual(try first.load().records.count, 3)
+    }
+
     func testApprovedScopeAndAppRoutingUseExistingFoilSetters() async throws {
         let marker = UUID().uuidString
         let state = makeState(storageMarker: marker, activateCatalog: true)
