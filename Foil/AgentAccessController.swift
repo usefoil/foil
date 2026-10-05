@@ -118,6 +118,15 @@ enum AgentAccessAppTargeting {
                     matcher.appPath.map { expected.contains($0.lowercased()) } == true
             }
     }
+
+    static func pathAssignmentConflict(
+        path: String, destinationGroupID: String, groups: [CleanupGroup]
+    ) -> CleanupGroup? {
+        let key = "path:\(path.lowercased())"
+        return groups.first { group in
+            group.id != destinationGroupID && group.appMatchers.contains { $0.membershipKey == key }
+        }
+    }
 }
 
 @MainActor
@@ -286,6 +295,13 @@ final class AgentAccessController {
             actionSubmitter: { [actionStore, proposalStore, proposalGate, readModelStore] request in
                 guard let result = try proposalGate.withPermit(expectedGeneration, operation: {
                     let validatedRequest = try request.validated()
+                    // The original receipt is durable even if its proposal or
+                    // target group has since changed. Replay before live checks.
+                    if try actionStore.load().records.contains(where: {
+                        $0.request.requestID == validatedRequest.requestID
+                    }) {
+                        return try actionStore.submit(validatedRequest)
+                    }
                     let proposal = (validatedRequest.action == .applyProposal
                         || validatedRequest.action == .rescopeProposal)
                         ? try proposalStore.proposal(id: validatedRequest.proposalID ?? "")
@@ -641,6 +657,15 @@ final class AgentAccessController {
         }) else {
             throw AgentAccessActionError.validation(
                 "A stronger existing app match prevents exact routing to \(name). Review app assignments in Cleanup Groups, then retry."
+            )
+        }
+        guard targets.allSatisfy({
+            AgentAccessAppTargeting.pathAssignmentConflict(
+                path: $0.path, destinationGroupID: record.id, groups: appState.cleanupGroups
+            ) == nil
+        }) else {
+            throw AgentAccessActionError.validation(
+                "An app path is already assigned to another Cleanup Group. Remove that assignment in Settings, then retry."
             )
         }
         if let existing = appState.cleanupGroups.first(where: { $0.id == record.id }) {

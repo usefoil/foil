@@ -847,9 +847,11 @@ final class AgentAccessControllerTests: XCTestCase {
         let chatContext = CleanupAppContext(displayName: "ChatGPT", bundleIdentifier: "com.openai.codex", appPath: chatGPT.path)
         let codexContext = CleanupAppContext(displayName: "Codex", bundleIdentifier: "com.openai.codex", appPath: codex.path)
         let otherContext = CleanupAppContext(displayName: "Other", bundleIdentifier: "com.openai.codex", appPath: "/Applications/Other.app")
+        let pathlessImpostor = CleanupAppContext(displayName: "ChatGPT", bundleIdentifier: "example.impostor", appPath: nil)
         XCTAssertEqual(state.resolveCleanupGroup(for: chatContext).group.id, groupID)
         XCTAssertEqual(state.resolveCleanupGroup(for: codexContext).group.id, groupID)
         XCTAssertEqual(state.resolveCleanupGroup(for: otherContext).group.id, CleanupGroup.defaultGroupID)
+        XCTAssertEqual(state.resolveCleanupGroup(for: pathlessImpostor).group.id, CleanupGroup.defaultGroupID)
 
         let rescope = AgentAccessActionRequest(
             requestID: "rescope-vercel-supabase", action: .rescopeProposal,
@@ -939,6 +941,18 @@ final class AgentAccessControllerTests: XCTestCase {
         let actionPublished = await waitUntil { state.agentAccessPendingActionCount == 1 }
         XCTAssertTrue(actionPublished)
         let actionID = try XCTUnwrap(state.agentAccessActions.first?.id)
+        XCTAssertTrue(state.updateCleanupGroup(id: group.id) { $0.isEnabled = false })
+        let replayResponse = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:],
+            body: try JSONEncoder().encode(request)
+        ))
+        XCTAssertEqual(replayResponse.status, 200)
+        let replayDecoder = JSONDecoder()
+        replayDecoder.dateDecodingStrategy = .iso8601
+        let replayReceipt = try replayDecoder.decode(AgentAccessActionResponse.self, from: replayResponse.body)
+        XCTAssertEqual(replayReceipt.actionID, actionID)
+        XCTAssertTrue(replayReceipt.replayed)
+        XCTAssertTrue(state.updateCleanupGroup(id: group.id) { $0.isEnabled = true })
         state.addAppMatcher(CleanupAppMatcher(displayName: "Another", appPath: "/Applications/Another.app"),
                             toCleanupGroupID: group.id)
         state.decideAgentAccessAction(id: actionID, approve: true)
@@ -956,6 +970,49 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertTrue(state.agentAccessActionErrorMessage?.contains("changed after") == true)
         XCTAssertEqual(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.first?.state,
                        .approvedPendingApply)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testGroupApprovalDoesNotMoveAnExistingPathAssignmentWithoutReview() throws {
+        let marker = UUID().uuidString
+        let state = makeState(storageMarker: marker, activateCatalog: true)
+        let originalGroups = state.cleanupGroups
+        state.setCleanupGroups([.defaultGroup()])
+        let livePaths = paths()
+        let actionStore = AgentAccessActionStore(fileURL: livePaths.actionStoreURL)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-agent-group-conflict-\(marker)", isDirectory: true)
+        let chatGPT = try makeAppFixture(root: root, name: "ChatGPT", bundleID: "com.openai.codex")
+        let existing = state.createCleanupGroup(named: "Existing app group \(marker)")
+        state.addAppMatcher(CleanupAppMatcher(displayName: "ChatGPT", appPath: chatGPT.path),
+                            toCleanupGroupID: existing.id)
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8),
+            actionStore: actionStore
+        ) { _, _, _ in ServerStub() }
+        defer {
+            state.setCleanupGroups(originalGroups)
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+        let action = try actionStore.submit(.init(
+            requestID: "group-path-conflict", action: .createCleanupGroup,
+            groupName: "New app group \(marker)", appPaths: [chatGPT.path]
+        )).0
+        controller.refreshActions()
+        state.decideAgentAccessAction(id: action.id, approve: true)
+        XCTAssertFalse(state.cleanupGroups.contains(where: { $0.id == action.id }))
+        XCTAssertEqual(state.resolveCleanupGroup(for: .init(
+            displayName: "ChatGPT", bundleIdentifier: "com.openai.codex", appPath: chatGPT.path
+        )).group.id, existing.id)
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approvedPendingApply)
+        XCTAssertTrue(state.agentAccessActionErrorMessage?.contains("already assigned") == true)
+        state.removeAppMatcher(membershipKey: "path:\(chatGPT.path.lowercased())", fromCleanupGroupID: existing.id)
+        state.decideAgentAccessAction(id: action.id, approve: true)
+        XCTAssertEqual(state.resolveCleanupGroup(for: .init(
+            displayName: "ChatGPT", bundleIdentifier: "com.openai.codex", appPath: chatGPT.path
+        )).group.id, action.id)
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approved)
         withExtendedLifetime(controller) {}
     }
 

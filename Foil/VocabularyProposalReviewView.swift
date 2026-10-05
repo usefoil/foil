@@ -412,6 +412,13 @@ struct AgentAccessActionReviewView: View {
             Text("Assign only these installed app paths:")
             ForEach(request.appPaths ?? [], id: \.self) { path in
                 Text(path).font(.body.monospaced()).textSelection(.enabled)
+                if let existingGroup = AgentAccessAppTargeting.pathAssignmentConflict(
+                    path: path, destinationGroupID: record.id, groups: appState.cleanupGroups
+                ) {
+                    Label("Already assigned to \(existingGroup.name). Remove that assignment in Settings before approving this request.",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                }
             }
             Text("This group starts with Foil's standard raw cleanup settings. Assigning an app changes its Cleanup Group routing and where scoped local corrections run.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -511,7 +518,9 @@ struct AgentAccessActionReviewView: View {
                 return false
             }
             return targets.allSatisfy { target in
-                !appState.cleanupGroups.contains { group in
+                AgentAccessAppTargeting.pathAssignmentConflict(
+                    path: target.path, destinationGroupID: record.id, groups: appState.cleanupGroups
+                ) == nil && !appState.cleanupGroups.contains { group in
                     group.id != record.id && group.appMatchers.contains { matcher in
                         matcher.bundleIdentifier?.caseInsensitiveCompare(target.bundleID) == .orderedSame
                     }

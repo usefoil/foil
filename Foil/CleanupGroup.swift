@@ -56,7 +56,8 @@ struct CleanupAppMatcher: Codable, Equatable, Identifiable {
         if let bundleIdentifier, let contextBundleIdentifier = context.bundleIdentifier {
             return bundleIdentifier.caseInsensitiveCompare(contextBundleIdentifier) == .orderedSame ? 3 : 0
         }
-        if let appPath, let contextAppPath = context.appPath {
+        if let appPath {
+            guard let contextAppPath = context.appPath else { return 0 }
             return appPath.caseInsensitiveCompare(contextAppPath) == .orderedSame ? 2 : 0
         }
         guard let contextDisplayName = context.displayName else { return 0 }
