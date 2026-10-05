@@ -715,7 +715,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Current: Off · Requested: On"].exists, app.debugDescription)
         let approve = app.buttons["Approve change"]
         XCTAssertTrue(approve.exists && approve.isEnabled, app.debugDescription)
-        scrollProposalReviewUntilHittable(approve)
+        XCTAssertTrue(approve.isHittable, app.debugDescription)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Agent action approval showing exact local correction state"
         screenshot.lifetime = .keepAlways

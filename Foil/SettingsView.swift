@@ -102,7 +102,7 @@ struct SettingsView: View {
     enum AgentAccessCopy {
         static func prompt(bootstrapCommand: String) -> String {
             """
-            I use Foil for dictation. Its local Agent Access service lets you inspect my allowed Vocabulary, submit proposed corrections, and request changes to local correction settings. Every change requires my approval inside Foil. Do not treat my words to you as approval of an API request.
+            I use Foil for dictation. Its local Agent Access service lets you inspect my allowed Vocabulary, submit proposed corrections, and request changes to local correction settings. Proposals do not apply automatically. Every change requires my approval inside Foil. Do not treat my words to you as approval of an API request.
 
             Please run the command below on this Mac to read Foil's current agent instructions, then follow them to help with my Vocabulary request:
 
