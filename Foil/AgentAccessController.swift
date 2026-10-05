@@ -410,7 +410,14 @@ final class AgentAccessController {
             guard let proposal = try proposalStore.proposal(id: id) else {
                 throw VocabularyProposalServiceError.notFound
             }
-            let currentToken = try proposalService.validateForApply(proposal)
+            let priorReceipt = appState.appliedVocabularyProposalReceipts.first {
+                $0.proposalID == proposal.id || $0.requestID == proposal.requestID
+            }
+            // The catalog receipt is durable before the inbox and action audit
+            // finish updating. Replay it before validating the now-active alias.
+            let currentToken = priorReceipt == nil
+                ? try proposalService.validateForApply(proposal)
+                : proposal.snapshotToken
             let result = try appState.applyReviewedVocabularyProposal(
                 proposal.revalidated(at: currentToken),
                 currentSnapshotToken: currentToken
@@ -509,14 +516,18 @@ final class AgentAccessController {
             let displayName = (Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
                 ?? appURL.deletingPathExtension().lastPathComponent
             let matcher = CleanupAppMatcher(displayName: displayName, bundleIdentifier: bundleID, appPath: appURL.path)
-            if appState.cleanupGroups.first(where: { $0.id == groupID })?.appMatchers.contains(where: {
+            let context = CleanupAppContext(
+                displayName: displayName, bundleIdentifier: bundleID, appPath: appURL.path
+            )
+            let targetHasMatcher = appState.cleanupGroups.first(where: { $0.id == groupID })?.appMatchers.contains {
                 $0.bundleIdentifier == bundleID
-            }) != true {
+            } == true
+            if !targetHasMatcher || appState.resolveCleanupGroup(for: context).group.id != groupID {
                 appState.addAppMatcher(matcher, toCleanupGroupID: groupID)
             }
-            guard appState.cleanupGroups.first(where: { $0.id == groupID })?.appMatchers.contains(where: {
-                $0.bundleIdentifier == bundleID
-            }) == true else { throw AgentAccessActionError.invalidRequest }
+            guard appState.resolveCleanupGroup(for: context).group.id == groupID else {
+                throw AgentAccessActionError.invalidRequest
+            }
         }
     }
 

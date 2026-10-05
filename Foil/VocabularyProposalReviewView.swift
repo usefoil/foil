@@ -378,6 +378,13 @@ struct AgentAccessActionReviewView: View {
                           systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 }
+                if record.state == .approvedPendingApply,
+                   appState.appliedVocabularyProposalReceipts.contains(where: {
+                       $0.proposalID == proposal.id && $0.requestID == proposal.requestID
+                   }) {
+                    Text("This proposal is already in Vocabulary. Retry records the completed change in the action audit.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Text("Applying saves exact local corrections. It does not turn on local corrections.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
@@ -409,6 +416,15 @@ struct AgentAccessActionReviewView: View {
                 .font(.subheadline.weight(.semibold))
             Text("App: \(appURL?.path ?? "Not installed on this Mac")")
                 .font(.caption.monospaced()).textSelection(.enabled)
+            if let appURL {
+                let displayName = (Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+                    ?? appURL.deletingPathExtension().lastPathComponent
+                let context = CleanupAppContext(
+                    displayName: displayName, bundleIdentifier: bundleID, appPath: appURL.path
+                )
+                Text("Current Cleanup Group: \(appState.resolveCleanupGroup(for: context).group.name)")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Text("This changes the app's Cleanup Group routing, including that group's cleanup settings and scoped local corrections.")
                 .font(.caption).foregroundStyle(.secondary)
         }
@@ -421,9 +437,16 @@ struct AgentAccessActionReviewView: View {
             guard let proposal = appState.agentAccessProposals.first(where: { $0.id == request.proposalID }) else {
                 return false
             }
-            return proposal.state == .pending
-                && (proposal.reviewHash ?? proposal.requestHash) == record.targetDigest
-                && appState.agentAccessProposalPreviews[proposal.id]?.valid == true
+            guard (proposal.reviewHash ?? proposal.requestHash) == record.targetDigest else {
+                return false
+            }
+            if record.state == .approvedPendingApply,
+               appState.appliedVocabularyProposalReceipts.contains(where: {
+                   $0.proposalID == proposal.id && $0.requestID == proposal.requestID
+               }) {
+                return true
+            }
+            return proposal.state == .pending && appState.agentAccessProposalPreviews[proposal.id]?.valid == true
         case .setLocalCorrectionsEnabled:
             return request.enabled != nil
         case .setCorrectionScope:

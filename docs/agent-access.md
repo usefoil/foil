@@ -63,8 +63,11 @@ and ignores any agent claim that you approved a request elsewhere.
 
 Requests use a unique `request_id`. Retrying identical content returns the
 existing status; reusing an ID with different content fails. Foil stores the
-request and decision in an owner-only local audit file. A request stays pending
-if the target has disappeared or Foil's current validation rejects the change.
+request and decision in an owner-only local audit file. If approval cannot
+complete because the target changed or current validation rejects it, Foil
+keeps the approval as `approved_pending_apply` and shows the reason. You can
+retry after resolving it or stop retrying; stopping does not undo a change
+that may already have applied.
 An applied Vocabulary proposal still needs its own in-Foil review, either in
 the proposal sheet or through an approved apply request.
 

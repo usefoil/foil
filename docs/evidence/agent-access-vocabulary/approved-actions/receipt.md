@@ -14,8 +14,8 @@
 
 ## Claim: approved changes use Foil validation and leave an audit trail
 
-- Strongest realistic failure modes: retries apply a change twice; a proposal is edited after an apply request; app or group changes bypass Foil's normal setters; a crash after approval loses evidence of the user's decision.
-- Evidence: `testAgentActionRequiresFoilApprovalAndReplayIsAudited` covers proposal application, idempotent replay, and durable status. `testApprovedScopeAndAppRoutingUseExistingFoilSetters` verifies correction scope and app assignment remain inert until approved. `testChangedProposalCannotBeAppliedThroughEarlierAgentAction` verifies an edited proposal cannot use the earlier request and that `approved_at` survives cancellation. The store writes an owner-only 0600 audit file.
+- Strongest realistic failure modes: retries apply a change twice; a proposal is edited after an apply request; a catalog commit succeeds but action finalization is interrupted; an older path or name matcher keeps routing an app to the wrong group; a crash after approval loses evidence of the user's decision.
+- Evidence: `testAgentActionRequiresFoilApprovalAndReplayIsAudited` covers proposal application, idempotent request replay, and durable status. `testApprovedProposalActionReplaysCatalogReceiptAfterInterruptedFinalization` simulates a saved catalog with an unfinished action record, retries the approval, and checks that no correction is added twice. `testApprovedScopeAndAppRoutingUseExistingFoilSetters` verifies scope and app assignment remain inert until approved, then checks effective routing against older path and name matchers. `testChangedProposalCannotBeAppliedThroughEarlierAgentAction` verifies an edited proposal cannot use the earlier request and that `approved_at` survives cancellation. The store writes an owner-only 0600 audit file.
 - Residual risk: if the app stops after changing a setting but before recording final success, the audit state remains `approved_pending_apply`; retry is idempotent, and **Stop retrying** is recorded as `cancelled_after_approval` without claiming the change was undone.
 
 ## Verification

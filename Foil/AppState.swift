@@ -1212,8 +1212,20 @@ final class AppState {
         guard let normalizedMatcher = matcher.normalized(),
               let matcherKey = normalizedMatcher.membershipKey else { return }
         guard let index = updatedGroups.firstIndex(where: { $0.id == groupID }) else { return }
+        let appContext: CleanupAppContext? = {
+            guard normalizedMatcher.bundleIdentifier != nil,
+                  normalizedMatcher.appPath != nil else { return nil }
+            return CleanupAppContext(
+                displayName: normalizedMatcher.displayName,
+                bundleIdentifier: normalizedMatcher.bundleIdentifier,
+                appPath: normalizedMatcher.appPath
+            )
+        }()
         for groupIndex in updatedGroups.indices {
-            updatedGroups[groupIndex].appMatchers.removeAll { $0.membershipKey == matcherKey }
+            updatedGroups[groupIndex].appMatchers.removeAll { existing in
+                existing.membershipKey == matcherKey
+                    || (groupIndex != index && appContext.map(existing.matches) == true)
+            }
         }
         updatedGroups[index].appMatchers.append(normalizedMatcher)
         updatedGroups[index].updatedAt = Date()

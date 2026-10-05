@@ -815,6 +815,7 @@ final class AgentAccessControllerTests: XCTestCase {
         let marker = UUID().uuidString
         let state = makeState(storageMarker: marker, activateCatalog: true)
         state.setAgentAccessEnabled(false, notifyController: false)
+        let earlierGroup = state.createCleanupGroup(named: "Earlier app match")
         let group = state.createCleanupGroup(named: "Agent tests")
         let correction = try XCTUnwrap(state.addVocabularyCorrection(
             writtenAs: "super base", correctVersion: "Supabase"
@@ -830,6 +831,18 @@ final class AgentAccessControllerTests: XCTestCase {
             format: .xml, options: 0
         )
         try plist.write(to: contents.appendingPathComponent("Info.plist"))
+        state.addAppMatcher(
+            CleanupAppMatcher(displayName: "Test Editor", appPath: appURL.path),
+            toCleanupGroupID: earlierGroup.id
+        )
+        state.addAppMatcher(
+            CleanupAppMatcher(displayName: "Test Editor"),
+            toCleanupGroupID: earlierGroup.id
+        )
+        let appContext = CleanupAppContext(
+            displayName: "Test Editor", bundleIdentifier: bundleID, appPath: appURL.path
+        )
+        XCTAssertEqual(state.resolveCleanupGroup(for: appContext).group.id, earlierGroup.id)
         let livePaths = paths()
         var handler: AgentAccessServer.Handler?
         let controller = AgentAccessController(
@@ -875,6 +888,8 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertTrue(state.cleanupGroups.first(where: { $0.id == group.id })?.appMatchers.contains(where: {
             $0.bundleIdentifier == bundleID
         }) == true)
+        XCTAssertEqual(state.resolveCleanupGroup(for: appContext).group.id, group.id)
+        XCTAssertTrue(state.cleanupGroups.first(where: { $0.id == earlierGroup.id })?.appMatchers.isEmpty == true)
         XCTAssertEqual(state.agentAccessPendingActionCount, 0)
         XCTAssertTrue(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.allSatisfy {
             $0.state == .approved
@@ -948,6 +963,37 @@ final class AgentAccessControllerTests: XCTestCase {
         state.decideAgentAccessAction(id: action.id, approve: false)
         XCTAssertEqual(try actionStore.load().records.first?.state, .cancelledAfterApproval)
         XCTAssertEqual(try actionStore.load().records.first?.approvedAt, approvalTime)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testApprovedProposalActionReplaysCatalogReceiptAfterInterruptedFinalization() throws {
+        let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
+        let livePaths = paths()
+        let actionStore = AgentAccessActionStore(fileURL: livePaths.actionStoreURL)
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8),
+            actionStore: actionStore
+        ) { _, _, _ in ServerStub() }
+        defer { try? FileManager.default.removeItem(at: livePaths.supportDirectory) }
+        controller.seedVocabularyProposalForUITesting()
+        let proposal = try XCTUnwrap(state.agentAccessProposals.first)
+        let action = try actionStore.submit(.init(
+            requestID: "apply-before-interruption", action: .applyProposal, proposalID: proposal.id
+        ), targetDigest: proposal.reviewHash ?? proposal.requestHash).0
+        _ = try actionStore.transition(id: action.id, to: .approvedPendingApply)
+        // This is the durable state after a catalog save but before finalizing
+        // the action audit (for example, if Foil exits between the two writes).
+        state.applyAgentAccessProposal(id: proposal.id)
+        XCTAssertEqual(state.agentAccessProposals.first?.state, .applied)
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approvedPendingApply)
+        XCTAssertEqual(state.vocabularyCorrections.map(\.writtenAs), ["super base", "Superbase", "codecs"])
+
+        controller.refreshActions()
+        state.decideAgentAccessAction(id: action.id, approve: true)
+
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approved)
+        XCTAssertEqual(state.vocabularyCorrections.map(\.writtenAs), ["super base", "Superbase", "codecs"])
+        XCTAssertNil(state.agentAccessActionErrorMessage)
         withExtendedLifetime(controller) {}
     }
 
