@@ -350,6 +350,7 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusIsDisabledByDefault
               -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction
               -only-testing:FoilUITests/FoilUITests/testAgentAccessStartupErrorFailsClosedInSettings
+              -only-testing:FoilUITests/FoilUITests/testAgentActionRequiresVisibleFoilApproval
           - shard: balanced-c
             tests: >-
               -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands

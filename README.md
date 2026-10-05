@@ -92,8 +92,9 @@ See the
 [local whisper.cpp guide](docs/local-openai-compatible-transcription-e2e.md)
 for setup details.
 
-To let a local coding agent inspect Vocabulary and submit an inert proposal, enable
-Agent Access in Settings and paste Foil's copied bootstrap command into the task.
+To let a local coding agent inspect Vocabulary and submit proposals or action
+requests for your approval in Foil, enable Agent Access in Settings and paste
+Foil's copied bootstrap command into the task.
 See the [Agent Access guide](docs/agent-access.md) for the complete review, scope,
 privacy, and shutdown workflow.
 

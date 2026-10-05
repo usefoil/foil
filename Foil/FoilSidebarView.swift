@@ -212,8 +212,8 @@ struct FoilSidebarView: View {
 
     @ViewBuilder
     private var agentAccessSidebarIndicators: some View {
-        if appState.agentAccessPendingProposalCount > 0 {
-            Text("\(appState.agentAccessPendingProposalCount)")
+        if appState.agentAccessPendingProposalCount + appState.agentAccessPendingActionCount > 0 {
+            Text("\(appState.agentAccessPendingProposalCount + appState.agentAccessPendingActionCount)")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(FoilTheme.deepTeal)
                 .padding(.horizontal, 5)
@@ -249,6 +249,10 @@ struct FoilSidebarView: View {
             parts.append("Service \(appState.agentAccessPresentationState.rawValue)")
             let count = appState.agentAccessPendingProposalCount
             if count > 0 { parts.append("\(count) pending \(count == 1 ? "proposal" : "proposals")") }
+            let actionCount = appState.agentAccessPendingActionCount
+            if actionCount > 0 {
+                parts.append("\(actionCount) pending \(actionCount == 1 ? "action" : "actions")")
+            }
         }
         return parts.joined(separator: ", ")
     }

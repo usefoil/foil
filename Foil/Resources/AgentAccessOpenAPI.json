@@ -3,7 +3,7 @@
   "info": {
     "title": "Foil Agent Access",
     "version": "1.2.0",
-    "description": "Vocabulary discovery, in-memory preview, and inert proposals that require review in Foil. Agents cannot apply changes."
+    "description": "Vocabulary discovery, in-memory preview, and inert proposals or action requests. Every change requires approval inside Foil; agents cannot approve changes."
   },
   "servers": [{"url": "http://foil", "description": "HTTP over Foil's owner-only Unix domain socket"}],
   "paths": {
@@ -81,6 +81,32 @@
           "200": {"description": "Proposal status", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalResponse"}}}},
           "404": {"$ref": "#/components/responses/ErrorResponse"},
           "405": {"$ref": "#/components/responses/ErrorResponse"},
+          "503": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/vocabulary/actions": {
+      "post": {
+        "operationId": "requestVocabularyAction",
+        "description": "Save an inert request. Foil shows the exact change and scope for user approval. This endpoint never applies a change.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActionRequest"}}}},
+        "responses": {
+          "201": {"description": "Action request queued for Foil review", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActionResponse"}}}},
+          "200": {"description": "Idempotent replay of the same request", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActionResponse"}}}},
+          "409": {"$ref": "#/components/responses/ErrorResponse"},
+          "422": {"$ref": "#/components/responses/ErrorResponse"},
+          "429": {"$ref": "#/components/responses/ErrorResponse"},
+          "503": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/vocabulary/actions/{action_id}": {
+      "get": {
+        "operationId": "getVocabularyActionStatus",
+        "parameters": [{"name": "action_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}],
+        "responses": {
+          "200": {"description": "Durable user decision", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActionResponse"}}}},
+          "404": {"$ref": "#/components/responses/ErrorResponse"},
           "503": {"$ref": "#/components/responses/ErrorResponse"}
         }
       }
@@ -269,6 +295,37 @@
           "updated_at": {"type": "string", "format": "date-time"}
         }
       },
+      "ActionRequest": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "action"],
+        "description": "Specify only the fields for one action. apply_proposal: proposal_id; set_local_corrections_enabled: enabled; set_correction_scope: correction_id and scope_id (global or enabled group ID); assign_app_to_group: app_bundle_id and group_id (enabled group ID). App assignment also changes that app's Cleanup Group routing. No approval claim is accepted in this request.",
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "action": {"type": "string", "enum": ["apply_proposal", "set_local_corrections_enabled", "set_correction_scope", "assign_app_to_group"]},
+          "proposal_id": {"type": "string", "format": "uuid"},
+          "enabled": {"type": "boolean"},
+          "correction_id": {"type": "string", "format": "uuid"},
+          "scope_id": {"type": "string"},
+          "app_bundle_id": {"type": "string"},
+          "group_id": {"type": "string"}
+        }
+      },
+      "ActionResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "client_request_id", "action_id", "state", "replayed", "created_at", "updated_at"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "client_request_id": {"type": "string"},
+          "action_id": {"type": "string", "format": "uuid"},
+          "state": {"type": "string", "enum": ["pending", "approved_pending_apply", "approved", "rejected", "cancelled_after_approval"]},
+          "replayed": {"type": "boolean"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"},
+          "approved_at": {"type": ["string", "null"], "format": "date-time"}
+        }
+      },
       "ErrorDetail": {
         "type": "object",
         "required": ["code", "message"],
@@ -295,6 +352,7 @@
     "bootstrap_max_time_seconds": 12
   },
   "x-foil-proposal-states": ["pending", "applied", "rejected", "discarded"],
+  "x-foil-action-states": ["pending", "approved_pending_apply", "approved", "rejected", "cancelled_after_approval"],
   "x-foil-privacy": {
     "same_user_readable": ["scope_id", "scope_name", "scope_enabled", "term", "correction", "note", "local_rule_enabled", "case_sensitive"],
     "excludes": ["history", "transcript", "audio", "credentials", "provider_configuration", "source_record", "source_app", "timestamps", "project_files", "repository", "clipboard", "active_application"]

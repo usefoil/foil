@@ -695,6 +695,44 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(controlValueString(app.checkBoxes["settings.localCorrectionsEnabled"]), "0")
     }
 
+    func testAgentActionRequiresVisibleFoilApproval() {
+        relaunchWithArguments([
+            "--ui-testing", "--reset-defaults", "--seed-agent-action"
+        ])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        let review = button(
+            id: "settings.agentAccess.reviewActions",
+            fallbackLabel: "Review agent action requests"
+        )
+        XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertEqual(
+            app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
+            "Selected, Service off, 1 pending action"
+        )
+        let settingsPane = app.descendants(matching: .any)["appShell.preferences"]
+        XCTAssertTrue(settingsPane.exists, app.debugDescription)
+        for _ in 0..<6 {
+            if review.isHittable { break }
+            settingsPane.swipeUp()
+        }
+        XCTAssertTrue(review.isHittable, app.debugDescription)
+        clickElement(review)
+        XCTAssertTrue(app.staticTexts["Turn on local corrections on this Mac"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Current: Off · Requested: On"].exists, app.debugDescription)
+        let approve = app.buttons["Approve change"]
+        XCTAssertTrue(approve.exists && approve.isEnabled, app.debugDescription)
+        XCTAssertTrue(approve.isHittable, app.debugDescription)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Agent action approval showing exact local correction state"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        clickElement(approve)
+        XCTAssertTrue(app.staticTexts["No pending agent actions"].waitForExistence(timeout: 4), app.debugDescription)
+        clickElement(app.buttons["agentActions.done"])
+        clickElement(app.descendants(matching: .any)["appShell.nav.settings.cleanup"])
+        XCTAssertEqual(controlValueString(app.checkBoxes["settings.localCorrectionsEnabled"]), "1")
+    }
+
     func testAppShellShowsAllSettingsSidebarPanes() {
         let openFoilButton = button(id: "menu.openFoilButton", fallbackLabel: "Open Foil")
         XCTAssertTrue(openFoilButton.waitForExistence(timeout: 2), app.debugDescription)

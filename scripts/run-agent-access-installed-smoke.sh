@@ -165,6 +165,7 @@ production_socket="$production_state/AgentAccess/agent-v1.sock"
 development_socket="$development_state/AgentAccess/agent-v1.sock"
 production_store="$production_state/AgentAccess/agent-vocabulary-proposals-v1.json"
 development_store="$development_state/AgentAccess/agent-vocabulary-proposals-v1.json"
+production_action_store="$production_state/AgentAccess/agent-action-requests-v1.json"
 production_catalog="$production_state/LocalCorrections/vocabulary-catalog-v2.json"
 development_catalog="$development_state/LocalCorrections/vocabulary-catalog-v2.json"
 production_diagnostics="$production_tmp/Foil/TestDiagnostics/foil.log"
@@ -282,7 +283,18 @@ development_status="$smoke_root/development-status.json"
 curl_get "$production_socket" "/v1/vocabulary/proposals/$production_proposal_id" "$production_status"
 curl_get "$development_socket" "/v1/vocabulary/proposals/$development_proposal_id" "$development_status"
 
-python3 - "$production_instructions" "$production_openapi" "$production_scopes" "$production_vocabulary" "$production_preview" "$production_proposal" "$production_status" "$production_socket" "$production_proposal_id" <<'PY'
+production_action_request="$smoke_root/production-action-request.json"
+production_action_response="$smoke_root/production-action-response.json"
+production_action_status="$smoke_root/production-action-status.json"
+printf '{"schema_version":1,"request_id":"installed-action-%s","action":"apply_proposal","proposal_id":"%s"}\n' \
+  "$run_id" "$production_proposal_id" >"$production_action_request"
+catalog_before_action=$(shasum -a 256 "$production_catalog" | awk '{print $1}')
+curl_post "$production_socket" /v1/vocabulary/actions "$production_action_request" "$production_action_response"
+production_action_id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["action_id"])' "$production_action_response")
+curl_get "$production_socket" "/v1/vocabulary/actions/$production_action_id" "$production_action_status"
+[[ "$catalog_before_action" == "$(shasum -a 256 "$production_catalog" | awk '{print $1}')" ]]
+
+python3 - "$production_instructions" "$production_openapi" "$production_scopes" "$production_vocabulary" "$production_preview" "$production_proposal" "$production_status" "$production_socket" "$production_proposal_id" "$production_action_response" "$production_action_status" "$production_action_id" <<'PY'
 import json
 import pathlib
 import sys
@@ -291,10 +303,13 @@ instructions, openapi, scopes, vocabulary, preview, proposal, status = [
     json.load(open(path)) for path in sys.argv[1:8]
 ]
 socket, proposal_id = sys.argv[8:10]
+action, action_status = [json.load(open(path)) for path in sys.argv[10:12]]
+action_id = sys.argv[12]
 required = {
     "get_instructions", "get_openapi", "list_vocabulary_scopes", "list_vocabulary",
     "preview_vocabulary_corrections", "propose_vocabulary_corrections",
     "get_vocabulary_proposal_status",
+    "request_vocabulary_action", "get_vocabulary_action_status",
 }
 assert set(instructions["available_operations"]) == required
 assert socket in instructions["bootstrap_command"]
@@ -303,6 +318,7 @@ assert set(openapi["paths"]) == {
     "/v1/instructions", "/v1/openapi.json", "/v1/vocabulary/scopes",
     "/v1/vocabulary", "/v1/vocabulary/preview", "/v1/vocabulary/proposals",
     "/v1/vocabulary/proposals/{proposal_id}",
+    "/v1/vocabulary/actions", "/v1/vocabulary/actions/{action_id}",
 }
 assert isinstance(scopes["scopes"], list)
 assert isinstance(vocabulary["local_corrections_enabled"], bool)
@@ -315,12 +331,15 @@ assert proposal["state"] == "pending"
 assert proposal["replayed"] is False
 assert status["proposal_id"] == proposal_id
 assert status["state"] == "pending"
+assert action["action_id"] == action_id and action["state"] == "pending"
+assert action["replayed"] is False and action.get("approved_at") is None
+assert action_status["action_id"] == action_id and action_status["state"] == "pending"
 status_text = pathlib.Path(sys.argv[7]).read_text()
 for forbidden in ("super base", "Superbase", "Supabase", "codecs", "Codex", "agent-diagnostic-canary"):
     assert forbidden not in status_text, forbidden
 PY
 
-for required_file in "$production_store" "$development_store" "$production_catalog" "$development_catalog"; do
+for required_file in "$production_store" "$development_store" "$production_action_store" "$production_catalog" "$development_catalog"; do
   if [[ ! -f "$required_file" ]]; then
     echo "error: expected isolated state file: $required_file" >&2
     exit 1
@@ -348,6 +367,17 @@ PY
 [[ "$denied_apply_store_hash" == "$(shasum -a 256 "$production_store" | awk '{print $1}')" ]]
 [[ "$denied_apply_catalog_hash" == "$(shasum -a 256 "$production_catalog" | awk '{print $1}')" ]]
 
+denied_action_store_hash=$(shasum -a 256 "$production_action_store" | awk '{print $1}')
+denied_action_status=$(curl_post_status \
+  "$production_socket" "/v1/vocabulary/actions/$production_action_id" \
+  "$denied_apply_request" "$smoke_root/denied-action-approval-response.json")
+if [[ "$denied_action_status" != "405" ]]; then
+  echo "error: agent action status accepted remote approval with HTTP $denied_action_status" >&2
+  exit 1
+fi
+[[ "$denied_action_store_hash" == "$(shasum -a 256 "$production_action_store" | awk '{print $1}')" ]]
+[[ "$denied_apply_catalog_hash" == "$(shasum -a 256 "$production_catalog" | awk '{print $1}')" ]]
+
 python3 - "$production_store" "$development_store" "$production_proposal_id" "$development_proposal_id" "$run_id" <<'PY'
 import json
 import pathlib
@@ -362,13 +392,14 @@ assert "super base" in production_text and f"foil dev spoken {run_id}" not in pr
 assert f"foil dev spoken {run_id}" in development_text and "super base" not in development_text
 PY
 
-if [[ "$(stat -f '%Lp' "$production_store")" != "600" || "$(stat -f '%Lp' "$development_store")" != "600" ]]; then
-  echo "error: proposal stores are not owner-only 0600 files" >&2
+if [[ "$(stat -f '%Lp' "$production_store")" != "600" || "$(stat -f '%Lp' "$development_store")" != "600" || "$(stat -f '%Lp' "$production_action_store")" != "600" ]]; then
+  echo "error: proposal or action stores are not owner-only 0600 files" >&2
   exit 1
 fi
 
 production_store_hash=$(shasum -a 256 "$production_store" | awk '{print $1}')
 development_store_hash=$(shasum -a 256 "$development_store" | awk '{print $1}')
+production_action_store_hash=$(shasum -a 256 "$production_action_store" | awk '{print $1}')
 production_catalog_hash=$(shasum -a 256 "$production_catalog" | awk '{print $1}')
 development_catalog_hash=$(shasum -a 256 "$development_catalog" | awk '{print $1}')
 
@@ -411,6 +442,7 @@ fi
 
 [[ "$production_store_hash" == "$(shasum -a 256 "$production_store" | awk '{print $1}')" ]]
 [[ "$development_store_hash" == "$(shasum -a 256 "$development_store" | awk '{print $1}')" ]]
+[[ "$production_action_store_hash" == "$(shasum -a 256 "$production_action_store" | awk '{print $1}')" ]]
 [[ "$production_catalog_hash" == "$(shasum -a 256 "$production_catalog" | awk '{print $1}')" ]]
 [[ "$development_catalog_hash" == "$(shasum -a 256 "$development_catalog" | awk '{print $1}')" ]]
 
@@ -428,7 +460,8 @@ receipt="$smoke_root/receipt.txt"
   echo "signatures=verified"
   echo "socket_isolation=verified"
   echo "proposal_store_isolation=verified"
-  echo "copied_command_flow=instructions,openapi,scopes,vocabulary,preview,submit,status"
+  echo "copied_command_flow=instructions,openapi,scopes,vocabulary,preview,submit,status,action-request,action-status"
+  echo "agent_action=inert-until-foil-approval,remote-approval-rejected-405,audit-owner-only"
   echo "remote_apply=absent,request-rejected-404,catalog-and-proposals-byte-identical"
   echo "disable_cleanup=socket-removed,lock-released,catalog-and-proposals-byte-identical"
   echo "diagnostic_content_leak=absent"

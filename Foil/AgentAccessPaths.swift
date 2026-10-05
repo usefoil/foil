@@ -5,12 +5,14 @@ struct AgentAccessPaths: Equatable {
     static let socketFileName = "agent-v1.sock"
     static let lockFileName = ".agent-v1.lock"
     static let proposalStoreFileName = "agent-vocabulary-proposals-v1.json"
+    static let actionStoreFileName = "agent-action-requests-v1.json"
 
     let applicationSupportRoot: URL
     let supportDirectory: URL
     let socketURL: URL
     let lockURL: URL
     let proposalStoreURL: URL
+    let actionStoreURL: URL
 
     init(applicationSupportRoot: URL, directoryName: String) {
         self.applicationSupportRoot = applicationSupportRoot.standardizedFileURL
@@ -18,6 +20,7 @@ struct AgentAccessPaths: Equatable {
         socketURL = supportDirectory.appendingPathComponent(Self.socketFileName)
         lockURL = supportDirectory.appendingPathComponent(Self.lockFileName)
         proposalStoreURL = supportDirectory.appendingPathComponent(Self.proposalStoreFileName)
+        actionStoreURL = supportDirectory.appendingPathComponent(Self.actionStoreFileName)
     }
 
     static func current(fileManager: FileManager = .default) -> AgentAccessPaths {
@@ -41,7 +44,8 @@ struct AgentAccessPaths: Equatable {
         guard standardizedSupportDirectory.deletingLastPathComponent() == applicationSupportRoot,
               socketURL.standardizedFileURL.deletingLastPathComponent() == standardizedSupportDirectory,
               lockURL.standardizedFileURL.deletingLastPathComponent() == standardizedSupportDirectory,
-              proposalStoreURL.standardizedFileURL.deletingLastPathComponent() == standardizedSupportDirectory else {
+              proposalStoreURL.standardizedFileURL.deletingLastPathComponent() == standardizedSupportDirectory,
+              actionStoreURL.standardizedFileURL.deletingLastPathComponent() == standardizedSupportDirectory else {
             throw AgentAccessPathError.unsafeLayout
         }
         let bytes = Array(socketURL.path.utf8)

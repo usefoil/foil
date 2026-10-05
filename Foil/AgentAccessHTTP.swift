@@ -213,6 +213,8 @@ struct AgentAccessContractRouter {
     typealias VocabularyProvider = () -> AgentAccessVocabularyReadModel
     typealias ProposalSubmitter = (VocabularyProposalRequest) throws -> VocabularyProposalSubmission
     typealias ProposalStatusProvider = (String) throws -> VocabularyProposalReceipt
+    typealias ActionSubmitter = (AgentAccessActionRequest) throws -> (AgentAccessActionRecord, Bool)
+    typealias ActionStatusProvider = (String) throws -> AgentAccessActionRecord
 
     let socketPath: String
     let openAPIDocument: Data
@@ -220,6 +222,8 @@ struct AgentAccessContractRouter {
     let vocabularyProvider: VocabularyProvider
     let proposalSubmitter: ProposalSubmitter?
     let proposalStatusProvider: ProposalStatusProvider?
+    let actionSubmitter: ActionSubmitter?
+    let actionStatusProvider: ActionStatusProvider?
 
     init(
         socketPath: String,
@@ -231,7 +235,9 @@ struct AgentAccessContractRouter {
             )
         },
         proposalSubmitter: ProposalSubmitter? = nil,
-        proposalStatusProvider: ProposalStatusProvider? = nil
+        proposalStatusProvider: ProposalStatusProvider? = nil,
+        actionSubmitter: ActionSubmitter? = nil,
+        actionStatusProvider: ActionStatusProvider? = nil
     ) {
         self.socketPath = socketPath
         self.openAPIDocument = openAPIDocument
@@ -239,6 +245,8 @@ struct AgentAccessContractRouter {
         self.vocabularyProvider = vocabularyProvider
         self.proposalSubmitter = proposalSubmitter
         self.proposalStatusProvider = proposalStatusProvider
+        self.actionSubmitter = actionSubmitter
+        self.actionStatusProvider = actionStatusProvider
     }
 
     func response(to request: AgentAccessHTTPRequest) -> AgentAccessHTTPResponse {
@@ -330,7 +338,41 @@ struct AgentAccessContractRouter {
             } catch {
                 return proposalErrorResponse(error, requestID: requestID)
             }
+        case "/v1/vocabulary/actions":
+            guard request.method == .post else { return methodNotAllowed(requestID: requestID) }
+            guard let actionSubmitter else { return unavailableResponse(requestID: requestID) }
+            guard let action = try? JSONDecoder().decode(AgentAccessActionRequest.self, from: request.body) else {
+                return errorResponse(status: 400, reason: "Bad Request", requestID: requestID,
+                                     code: "invalid_json", message: "Action requires a versioned request ID and supported action fields.")
+            }
+            do {
+                let (record, replayed) = try actionSubmitter(action)
+                return (try? .json(
+                    status: replayed ? 200 : 201, reason: replayed ? "OK" : "Created",
+                    requestID: requestID,
+                    value: AgentAccessActionResponse(requestID: requestID, record: record, replayed: replayed)
+                )) ?? internalError(requestID: requestID)
+            } catch {
+                return actionErrorResponse(error, requestID: requestID)
+            }
         default:
+            if request.path.hasPrefix("/v1/vocabulary/actions/") {
+                guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
+                guard let actionStatusProvider else { return unavailableResponse(requestID: requestID) }
+                let actionID = String(request.path.dropFirst("/v1/vocabulary/actions/".count))
+                guard let parsedID = UUID(uuidString: actionID) else {
+                    return errorResponse(status: 404, reason: "Not Found", requestID: requestID,
+                                         code: "action_not_found", message: "No action matches that ID.")
+                }
+                do {
+                    let record = try actionStatusProvider(parsedID.uuidString.lowercased())
+                    return (try? .json(requestID: requestID, value: AgentAccessActionResponse(
+                        requestID: requestID, record: record, replayed: false
+                    ))) ?? internalError(requestID: requestID)
+                } catch {
+                    return actionErrorResponse(error, requestID: requestID)
+                }
+            }
             if request.path.hasPrefix("/v1/vocabulary/proposals/") {
                 guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
                 guard let proposalStatusProvider else { return unavailableResponse(requestID: requestID) }
@@ -364,6 +406,32 @@ struct AgentAccessContractRouter {
                 code: "route_not_found",
                 message: "No Agent Access route matches this path."
             )
+        }
+    }
+
+    private func actionErrorResponse(_ error: Error, requestID: String) -> AgentAccessHTTPResponse {
+        guard let error = error as? AgentAccessActionError else { return unavailableResponse(requestID: requestID) }
+        switch error {
+        case .invalidRequest:
+            return errorResponse(status: 422, reason: "Unprocessable Content", requestID: requestID,
+                                 code: "invalid_action", message: "Action fields are invalid for the requested change.")
+        case .requestConflict:
+            return errorResponse(status: 409, reason: "Conflict", requestID: requestID,
+                                 code: "request_id_conflict", message: "That request_id was used for different action content.")
+        case .queueFull:
+            return errorResponse(status: 429, reason: "Too Many Requests", requestID: requestID,
+                                 code: "action_queue_full", message: "Review pending actions before submitting another.")
+        case .notFound:
+            return errorResponse(status: 404, reason: "Not Found", requestID: requestID,
+                                 code: "action_not_found", message: "No action matches that ID.")
+        case .invalidState:
+            return errorResponse(status: 409, reason: "Conflict", requestID: requestID,
+                                 code: "invalid_action_state", message: "The action is no longer pending.")
+        case .targetChanged:
+            return errorResponse(status: 409, reason: "Conflict", requestID: requestID,
+                                 code: "action_target_changed", message: "The proposal changed after this action request.")
+        case .unavailable:
+            return unavailableResponse(requestID: requestID)
         }
     }
 

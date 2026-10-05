@@ -49,14 +49,18 @@ struct CleanupAppMatcher: Codable, Equatable, Identifiable {
     }
 
     func matches(_ context: CleanupAppContext) -> Bool {
+        matchStrength(context) > 0
+    }
+
+    func matchStrength(_ context: CleanupAppContext) -> Int {
         if let bundleIdentifier, let contextBundleIdentifier = context.bundleIdentifier {
-            return bundleIdentifier.caseInsensitiveCompare(contextBundleIdentifier) == .orderedSame
+            return bundleIdentifier.caseInsensitiveCompare(contextBundleIdentifier) == .orderedSame ? 3 : 0
         }
         if let appPath, let contextAppPath = context.appPath {
-            return appPath.caseInsensitiveCompare(contextAppPath) == .orderedSame
+            return appPath.caseInsensitiveCompare(contextAppPath) == .orderedSame ? 2 : 0
         }
-        guard let contextDisplayName = context.displayName else { return false }
-        return displayName.caseInsensitiveCompare(contextDisplayName) == .orderedSame
+        guard let contextDisplayName = context.displayName else { return 0 }
+        return displayName.caseInsensitiveCompare(contextDisplayName) == .orderedSame ? 1 : 0
     }
 
     func normalized() -> CleanupAppMatcher? {
@@ -327,13 +331,20 @@ enum CleanupGroupResolver {
         let normalizedGroups = normalizedGroups(groups)
         let defaultGroup = normalizedGroups.first(where: \.isDefault)
             ?? CleanupGroup.defaultGroup()
-        let matchedGroup: CleanupGroup?
+        var matchedGroup: CleanupGroup? = nil
         if let appContext {
-            matchedGroup = normalizedGroups.first { group in
-                !group.isDefault && group.isEnabled && group.appMatchers.contains { $0.matches(appContext) }
+            var strongestMatch = 0
+            // A specific app assignment wins over shared path or name rules.
+            // The default group's explicit assignments win only when stronger
+            // than a match in another group; otherwise it remains the fallback.
+            let matchOrder = normalizedGroups.filter { !$0.isDefault } + [defaultGroup]
+            for group in matchOrder where group.isEnabled {
+                let strength = group.appMatchers.map { $0.matchStrength(appContext) }.max() ?? 0
+                if strength > strongestMatch {
+                    matchedGroup = group
+                    strongestMatch = strength
+                }
             }
-        } else {
-            matchedGroup = nil
         }
         let resolvedGroup = matchedGroup ?? defaultGroup
         let provider = resolvedGroup.processingMode == .raw ? .none : providerFactory(resolvedGroup)

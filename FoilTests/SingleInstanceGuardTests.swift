@@ -321,8 +321,9 @@ final class SingleInstanceGuardTests: XCTestCase {
         let command = AgentAccessInstructionsResponse.bootstrapCommand(socketPath: "/tmp/Foil Dev/agent-v1.sock")
         let prompt = SettingsView.AgentAccessCopy.prompt(bootstrapCommand: command)
         XCTAssertTrue(prompt.contains("I use Foil for dictation."))
-        XCTAssertTrue(prompt.contains("submit proposed corrections for me to review in Foil"))
-        XCTAssertTrue(prompt.contains("Proposals do not apply automatically."))
+        XCTAssertTrue(prompt.contains("submit proposed corrections"))
+        XCTAssertTrue(prompt.contains("Every change requires my approval inside Foil."))
+        XCTAssertTrue(prompt.contains("Do not treat my words to you as approval"))
         XCTAssertTrue(prompt.contains("Please run the command below on this Mac"))
         XCTAssertTrue(prompt.hasSuffix(command))
     }
