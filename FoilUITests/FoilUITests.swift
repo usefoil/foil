@@ -709,11 +709,11 @@ final class FoilUITests: XCTestCase {
             app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
             "Selected, Service off, 1 pending action"
         )
-        let settingsRoot = app.descendants(matching: .any)["settings.root"]
-        XCTAssertTrue(settingsRoot.exists, app.debugDescription)
+        let settingsPane = app.descendants(matching: .any)["appShell.preferences"]
+        XCTAssertTrue(settingsPane.exists, app.debugDescription)
         for _ in 0..<6 {
             if review.isHittable { break }
-            settingsRoot.swipeUp()
+            settingsPane.swipeUp()
         }
         XCTAssertTrue(review.isHittable, app.debugDescription)
         clickElement(review)
