@@ -1,9 +1,9 @@
 # Agent Access
 
 Agent Access lets a local coding agent inspect Foil's allowed Vocabulary fields,
-preview exact local corrections, and submit a proposal for review. It is off by
-default, works only while Foil is running, and has no operation that can apply a
-proposal.
+preview exact local corrections, and submit proposals or action requests for
+review. It is off by default and works only while Foil is running. An agent
+cannot approve or directly apply a change.
 
 ## Connect a local agent
 
@@ -36,10 +36,10 @@ from Foil instead of typing it when possible. Foil Dev uses its own `Foil Dev`
 Application Support directory, so its copied command points to a different socket.
 
 The instructions response tells the agent how to list available scopes, inspect
-Vocabulary, preview a correction set in memory, submit an inert proposal, and read
-the proposal's status. No plugin, skill, MCP registration, helper installation, or
-PATH change is required. The agent must be running locally on the same Mac and able
-to access your user-owned Unix socket.
+Vocabulary, preview a correction set in memory, submit an inert proposal or
+action request, and read its status. No plugin, skill, MCP registration, helper
+installation, or PATH change is required. The agent must be running locally on
+the same Mac and able to access your user-owned Unix socket.
 
 ## Review a proposal
 
@@ -48,6 +48,25 @@ individual suggestions, reject the proposal, or apply the reviewed corrections.
 Applying a proposal creates ordinary Foil Vocabulary entries and exact local rules;
 it does not turn on the global **Apply local corrections** switch. That switch and
 any Cleanup Group scope remain under your control.
+
+## Review agent action requests
+
+An agent can POST a request to `/v1/vocabulary/actions` to ask Foil to apply a
+pending proposal, turn local corrections on or off, set an individual
+correction's scope, or assign an installed app to an enabled Cleanup Group. The
+response is always pending until you open **Agent Access -> Review agent action
+requests** and choose **Approve change** or **Reject**. Foil shows the exact
+correction or setting, current state, requested scope, and for app assignments
+the resolved application path. Assigning an app changes its whole Cleanup Group
+routing, including that group's cleanup settings. The API has no approval route
+and ignores any agent claim that you approved a request elsewhere.
+
+Requests use a unique `request_id`. Retrying identical content returns the
+existing status; reusing an ID with different content fails. Foil stores the
+request and decision in an owner-only local audit file. A request stays pending
+if the target has disappeared or Foil's current validation rejects the change.
+An applied Vocabulary proposal still needs its own in-Foil review, either in
+the proposal sheet or through an approved apply request.
 
 For example, a proposal may group `super base` and `Superbase` as spoken forms for
 `Supabase`. After review, Foil stores them as separate explicit correction rules.
@@ -64,7 +83,7 @@ clipboard, or the active application. Request bodies and correction text are not
 written to diagnostics.
 
 Turning Agent Access off closes active connections and removes the socket. Already
-received proposals remain in Foil so you can review or discard them, but agents
+received proposals and action requests remain in Foil for review, but agents
 cannot read their status while access is off. Closing Foil also stops the service.
 
 If the copied command cannot connect, confirm that Foil is open, Agent Access shows

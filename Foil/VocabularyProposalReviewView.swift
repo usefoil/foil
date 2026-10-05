@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct VocabularyProposalReviewView: View {
@@ -101,7 +102,6 @@ private struct VocabularyProposalEditorCard: View {
         canSave
             && !hasUnsavedEdits
             && preview?.valid == true
-            && !appState.agentAccessStaleProposalIDs.contains(proposal.id)
     }
 
     var body: some View {
@@ -125,7 +125,7 @@ private struct VocabularyProposalEditorCard: View {
 
                 if appState.agentAccessStaleProposalIDs.contains(proposal.id) {
                     Label(
-                        "Vocabulary changed after this proposal arrived. Validation below uses the current state.",
+                        "Vocabulary changed after this proposal arrived. Foil revalidates it against the current state before applying.",
                         systemImage: "exclamationmark.triangle"
                     )
                     .font(.caption)
@@ -273,4 +273,181 @@ private struct CorrectionDraft: Identifiable {
 private struct SpokenFormDraft: Identifiable {
     let id = UUID()
     var value: String
+}
+
+struct AgentAccessActionReviewView: View {
+    @Bindable var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    private var pending: [AgentAccessActionRecord] {
+        appState.agentAccessActions.filter { $0.state == .pending || $0.state == .approvedPendingApply }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if pending.isEmpty {
+                    ContentUnavailableView(
+                        "No pending agent actions", systemImage: "checkmark.shield",
+                        description: Text("Requests to change Vocabulary settings will appear here.")
+                    )
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 16) {
+                            ForEach(pending) { record in
+                                actionCard(record)
+                            }
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .navigationTitle("Agent action requests")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("agentActions.done")
+                }
+            }
+        }
+        .frame(minWidth: 680, minHeight: 480)
+        .background(FoilTheme.windowBackground)
+        .accessibilityIdentifier("agentActions.reviewView")
+    }
+
+    private func actionCard(_ record: AgentAccessActionRecord) -> some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Agent requests a change", systemImage: "checkmark.shield")
+                        .font(.headline)
+                    Spacer()
+                    Text(record.createdAt, style: .relative).foregroundStyle(.secondary)
+                }
+                actionDetail(record)
+                Text("Request ID: \(record.request.requestID)")
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                if let message = appState.agentAccessActionErrorMessage {
+                    Text(message).font(.caption).foregroundStyle(.red)
+                }
+                HStack {
+                    Button(record.state == .approvedPendingApply ? "Retry approved change" : "Approve change") {
+                        appState.decideAgentAccessAction(id: record.id, approve: true)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canApprove(record))
+                    .accessibilityIdentifier("agentActions.approve.\(record.id)")
+                    Button(record.state == .approvedPendingApply ? "Stop retrying" : "Reject", role: .destructive) {
+                        appState.decideAgentAccessAction(id: record.id, approve: false)
+                    }
+                    .accessibilityIdentifier("agentActions.reject.\(record.id)")
+                }
+                if record.state == .approvedPendingApply {
+                    Text("Your approval was saved, but Foil has not confirmed the change. Retry after resolving the error. Stopping retries does not undo a change that may already have applied.")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+            }
+            .padding(4)
+        }
+        .accessibilityIdentifier("agentActions.card.\(record.id)")
+    }
+
+    @ViewBuilder
+    private func actionDetail(_ record: AgentAccessActionRecord) -> some View {
+        let request = record.request
+        switch request.action {
+        case .applyProposal:
+            if let proposal = appState.agentAccessProposals.first(where: { $0.id == request.proposalID }) {
+                Text("Apply this Vocabulary proposal in \(scopeName(proposal.scope.id)):")
+                    .font(.subheadline.weight(.semibold))
+                ForEach(Array(proposal.corrections.enumerated()), id: \.offset) { _, correction in
+                    Text("\(correction.spokenForms.joined(separator: ", ")) → \(correction.replacement)\(correction.caseSensitive ? " (case sensitive)" : "")")
+                        .font(.body.monospaced())
+                        .textSelection(.enabled)
+                }
+                if let preview = appState.agentAccessProposalPreviews[proposal.id], !preview.valid {
+                    ForEach(Array(preview.issues.enumerated()), id: \.offset) { _, issue in
+                        Label(issue.message, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                    }
+                }
+                if (proposal.reviewHash ?? proposal.requestHash) != record.targetDigest {
+                    Label("This proposal changed after the action request. Apply it in the proposal review, or ask the agent for a new request.",
+                          systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+                Text("Applying saves exact local corrections. It does not turn on local corrections.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Label("The proposal is unavailable.", systemImage: "exclamationmark.triangle")
+            }
+        case .setLocalCorrectionsEnabled:
+            Text(request.enabled == true ? "Turn on local corrections on this Mac" : "Turn off local corrections on this Mac")
+                .font(.subheadline.weight(.semibold))
+            Text("Current: \(appState.localCorrectionSnapshot.isEnabled ? "On" : "Off") · Requested: \(request.enabled == true ? "On" : "Off")")
+            Text("Scope: all enabled exact local correction rules; each rule still keeps its own app or Cleanup Group scope.")
+                .font(.caption).foregroundStyle(.secondary)
+        case .setCorrectionScope:
+            if let correction = appState.vocabularyCorrections.first(where: {
+                $0.id.uuidString.lowercased() == request.correctionID?.lowercased()
+            }) {
+                Text("Set and enable exact correction: \(correction.writtenAs) → \(correction.correctVersion)")
+                    .font(.subheadline.weight(.semibold))
+                Text("Requested scope: \(scopeName(request.scopeID ?? ""))")
+                let current = appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)
+                Text("Current scope: \(current.map { scopeName($0.group ?? "global") } ?? "No local rule")")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Label("The correction is unavailable.", systemImage: "exclamationmark.triangle")
+            }
+        case .assignAppToGroup:
+            let bundleID = request.appBundleID ?? ""
+            let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+            Text("Assign \(bundleID) to \(scopeName(request.groupID ?? ""))")
+                .font(.subheadline.weight(.semibold))
+            Text("App: \(appURL?.path ?? "Not installed on this Mac")")
+                .font(.caption.monospaced()).textSelection(.enabled)
+            Text("This changes the app's Cleanup Group routing, including that group's cleanup settings and scoped local corrections.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func canApprove(_ record: AgentAccessActionRecord) -> Bool {
+        let request = record.request
+        switch request.action {
+        case .applyProposal:
+            guard let proposal = appState.agentAccessProposals.first(where: { $0.id == request.proposalID }) else {
+                return false
+            }
+            return proposal.state == .pending
+                && (proposal.reviewHash ?? proposal.requestHash) == record.targetDigest
+                && appState.agentAccessProposalPreviews[proposal.id]?.valid == true
+        case .setLocalCorrectionsEnabled:
+            return request.enabled != nil
+        case .setCorrectionScope:
+            return appState.vocabularyCorrections.contains {
+                $0.id.uuidString.lowercased() == request.correctionID?.lowercased()
+            } && (request.scopeID == "global" || appState.cleanupGroups.contains {
+                $0.id == request.scopeID && $0.isEnabled
+            })
+        case .assignAppToGroup:
+            guard let bundleID = request.appBundleID,
+                  let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+                return false
+            }
+            return Bundle(url: appURL)?.bundleIdentifier == bundleID && appState.cleanupGroups.contains {
+                $0.id == request.groupID && $0.isEnabled
+            }
+        }
+    }
+
+    private func scopeName(_ id: String) -> String {
+        if id == "global" { return "Every app" }
+        guard let group = appState.cleanupGroups.first(where: { $0.id == id }) else {
+            return "Unavailable Cleanup Group (\(id))"
+        }
+        return group.isDefault ? "Unassigned apps" : group.name
+    }
 }

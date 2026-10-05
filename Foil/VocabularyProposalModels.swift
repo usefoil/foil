@@ -175,6 +175,21 @@ struct VocabularyProposal: Codable, Equatable, Sendable, Identifiable {
             updatedAt: updatedAt
         )
     }
+
+    func revalidated(at snapshotToken: String) -> VocabularyProposal {
+        VocabularyProposal(
+            id: id,
+            requestID: requestID,
+            requestHash: requestHash,
+            reviewHash: reviewHash,
+            state: state,
+            scope: scope,
+            corrections: corrections,
+            snapshotToken: snapshotToken,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
 }
 
 struct VocabularyProposalReceipt: Codable, Equatable, Sendable {

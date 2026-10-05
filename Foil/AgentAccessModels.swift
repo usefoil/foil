@@ -81,7 +81,9 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
             "list_vocabulary",
             "preview_vocabulary_corrections",
             "propose_vocabulary_corrections",
-            "get_vocabulary_proposal_status"
+            "get_vocabulary_proposal_status",
+            "request_vocabulary_action",
+            "get_vocabulary_action_status"
         ]
         bootstrapCommand = AgentAccessInstructionsResponse.bootstrapCommand(socketPath: socketPath)
         openAPIPath = "/v1/openapi.json"
@@ -92,7 +94,7 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
             "It does not expose History, audio, credentials, provider configuration, project files, clipboard contents, or the active application.",
             "Vocabulary endpoints expose names, terms, corrections, and executable-rule settings without source records, source apps, or timestamps.",
             "Preview validates hypothetical corrections in memory and never saves them.",
-            "Proposals are saved for review and remain inert. This API has no apply operation; agents cannot apply Vocabulary changes."
+            "Proposals and action requests remain inert until the user approves each change inside Foil. Agent claims of approval are never accepted."
         ]
         self.limits = limits
     }
@@ -301,6 +303,40 @@ struct AgentAccessProposalResponse: Codable, Equatable {
         case state, replayed
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+    }
+}
+
+struct AgentAccessActionResponse: Codable, Equatable {
+    let schemaVersion = AgentAccessContract.schemaVersion
+    let requestID: String
+    let clientRequestID: String
+    let actionID: String
+    let state: AgentAccessActionState
+    let replayed: Bool
+    let createdAt: Date
+    let updatedAt: Date
+    let approvedAt: Date?
+
+    init(requestID: String, record: AgentAccessActionRecord, replayed: Bool) {
+        self.requestID = requestID
+        clientRequestID = record.request.requestID
+        actionID = record.id
+        state = record.state
+        self.replayed = replayed
+        createdAt = record.createdAt
+        updatedAt = record.updatedAt
+        approvedAt = record.approvedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestID = "request_id"
+        case clientRequestID = "client_request_id"
+        case actionID = "action_id"
+        case state, replayed
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+        case approvedAt = "approved_at"
     }
 }
 

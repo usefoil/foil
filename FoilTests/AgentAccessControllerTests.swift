@@ -593,7 +593,7 @@ final class AgentAccessControllerTests: XCTestCase {
         withExtendedLifetime(controller) {}
     }
 
-    func testConcurrentVocabularyEditRejectsStaleReviewedApply() throws {
+    func testUnrelatedSecondProposalAllowsRevalidatedReviewedApply() throws {
         let marker = UUID().uuidString
         let state = makeState(storageMarker: marker, activateCatalog: true)
         let proposalStore = VocabularyProposalStore(
@@ -609,14 +609,345 @@ final class AgentAccessControllerTests: XCTestCase {
         ) { _, _, _ in ServerStub() }
         controller.seedVocabularyProposalForUITesting()
         let proposalID = try XCTUnwrap(state.agentAccessProposals.first?.id)
-        XCTAssertNotNil(state.addVocabularyCorrection(writtenAs: "cloud code", correctVersion: "Claude Code"))
+        let token = try XCTUnwrap(state.agentAccessProposals.first?.snapshotToken)
+        let secondID = try proposalStore.submit(VocabularyProposalRequest(
+            requestID: "second-unrelated-\(marker)",
+            scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["cloud code"], replacement: "Claude Code")]
+        ), snapshotToken: token).receipt.proposalID
+        controller.refreshProposals()
+        state.applyAgentAccessProposal(id: secondID)
+
+        XCTAssertTrue(state.agentAccessStaleProposalIDs.contains(proposalID))
+        XCTAssertEqual(state.agentAccessProposalPreviews[proposalID]?.valid, true)
 
         state.applyAgentAccessProposal(id: proposalID)
 
-        XCTAssertEqual(state.vocabularyCorrections.map(\.writtenAs), ["cloud code"])
+        XCTAssertEqual(Set(state.vocabularyCorrections.map(\.writtenAs)),
+                       Set(["cloud code", "super base", "Superbase", "codecs"]))
+        XCTAssertEqual(try proposalStore.proposal(id: proposalID)?.state, .applied)
+        XCTAssertNil(state.agentAccessProposalInboxErrorMessage)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testConflictingSecondProposalBlocksRevalidatedReviewedApply() throws {
+        let marker = UUID().uuidString
+        let state = makeState(storageMarker: marker, activateCatalog: true)
+        let proposalStore = VocabularyProposalStore(
+            fileURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("foil-agent-controller-\(marker)", isDirectory: true)
+                .appendingPathComponent("proposals.json")
+        )
+        let controller = AgentAccessController(
+            appState: state,
+            paths: paths(),
+            openAPIDocument: Data("{}".utf8),
+            proposalStore: proposalStore
+        ) { _, _, _ in ServerStub() }
+        controller.seedVocabularyProposalForUITesting()
+        let proposalID = try XCTUnwrap(state.agentAccessProposals.first?.id)
+        let token = try XCTUnwrap(state.agentAccessProposals.first?.snapshotToken)
+        let secondID = try proposalStore.submit(VocabularyProposalRequest(
+            requestID: "second-conflicting-\(marker)",
+            scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["super base"], replacement: "Another product")]
+        ), snapshotToken: token).receipt.proposalID
+        controller.refreshProposals()
+        state.applyAgentAccessProposal(id: secondID)
+
+        XCTAssertEqual(state.agentAccessProposalPreviews[proposalID]?.valid, false)
+        XCTAssertTrue(state.agentAccessProposalPreviews[proposalID]?.issues.contains(where: {
+            $0.code == "correction_conflict"
+        }) == true)
+        XCTAssertTrue(state.agentAccessProposalPreviews[proposalID]?.issues.contains(where: {
+            $0.message.contains("super base") && $0.message.contains("Every app")
+        }) == true)
+        state.applyAgentAccessProposal(id: proposalID)
+
+        XCTAssertEqual(state.vocabularyCorrections.map(\.writtenAs), ["super base"])
         XCTAssertEqual(try proposalStore.proposal(id: proposalID)?.state, .pending)
-        XCTAssertTrue(state.agentAccessStaleProposalIDs.contains(proposalID))
-        XCTAssertTrue(state.agentAccessProposalInboxErrorMessage?.contains("changed") == true)
+        XCTAssertNotNil(state.agentAccessProposalInboxErrorMessage)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testAgentActionRequiresFoilApprovalAndReplayIsAudited() async throws {
+        let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let livePaths = paths()
+        let actionStore = AgentAccessActionStore(fileURL: livePaths.actionStoreURL)
+        var handler: AgentAccessServer.Handler?
+        let controller = AgentAccessController(
+            appState: state,
+            paths: livePaths,
+            openAPIDocument: Data("{}".utf8),
+            actionStore: actionStore
+        ) { _, _, captured in
+            handler = captured
+            return ServerStub()
+        }
+        defer { try? FileManager.default.removeItem(at: livePaths.supportDirectory) }
+        state.setAgentAccessEnabled(true)
+        let didStart = await waitUntil { handler != nil && state.agentAccessPresentationState == .running }
+        XCTAssertTrue(didStart)
+        let request = AgentAccessActionRequest(
+            requestID: "turn-on-1", action: .setLocalCorrectionsEnabled, enabled: true
+        )
+        let body = try JSONEncoder().encode(request)
+        let created = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:], body: body
+        ))
+        XCTAssertEqual(created.status, 201)
+        XCTAssertFalse(state.localCorrectionSnapshot.isEnabled)
+        let didPublish = await waitUntil { state.agentAccessPendingActionCount == 1 }
+        XCTAssertTrue(didPublish)
+        let actionID = try XCTUnwrap(state.agentAccessActions.first?.id)
+        XCTAssertEqual(try actionStore.load().records.first?.state, .pending)
+
+        state.decideAgentAccessAction(id: actionID, approve: true)
+        XCTAssertTrue(state.localCorrectionSnapshot.isEnabled)
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approved)
+        let replay = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:], body: body
+        ))
+        XCTAssertEqual(replay.status, 200)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let replayBody = try decoder.decode(AgentAccessActionResponse.self, from: replay.body)
+        XCTAssertTrue(replayBody.replayed)
+        XCTAssertEqual(replayBody.state, .approved)
+        state.decideAgentAccessAction(id: actionID, approve: true)
+        XCTAssertEqual(try actionStore.load().revision, 3)
+
+        let proposalBody = try JSONEncoder().encode(VocabularyProposalRequest(
+            requestID: "proposal-for-action",
+            scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["super base"], replacement: "Supabase")]
+        ))
+        let proposalResponse = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/proposals", headers: [:], body: proposalBody
+        ))
+        XCTAssertEqual(proposalResponse.status, 201)
+        let didPublishProposal = await waitUntil { state.agentAccessPendingProposalCount == 1 }
+        XCTAssertTrue(didPublishProposal)
+        let proposalID = try XCTUnwrap(state.agentAccessProposals.first?.id)
+        let applyRequest = AgentAccessActionRequest(
+            requestID: "apply-proposal-1", action: .applyProposal, proposalID: proposalID
+        )
+        let actionResponse = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:],
+            body: try JSONEncoder().encode(applyRequest)
+        ))
+        XCTAssertEqual(actionResponse.status, 201)
+        XCTAssertTrue(state.vocabularyCorrections.isEmpty)
+        let didPublishApply = await waitUntil { state.agentAccessPendingActionCount == 1 }
+        XCTAssertTrue(didPublishApply)
+        let applyActionID = try XCTUnwrap(state.agentAccessActions.first(where: {
+            $0.request.requestID == "apply-proposal-1"
+        })?.id)
+        state.decideAgentAccessAction(id: applyActionID, approve: true)
+        XCTAssertEqual(state.vocabularyCorrections.map(\.writtenAs), ["super base"])
+        XCTAssertEqual(state.agentAccessProposals.first?.state, .applied)
+        XCTAssertEqual(try actionStore.load().records.first(where: {
+            $0.id == applyActionID
+        })?.state, .approved)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testAgentCannotClaimApprovalOrChangeSettingsThroughStatusRoute() async throws {
+        let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let livePaths = paths()
+        var handler: AgentAccessServer.Handler?
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8)
+        ) { _, _, captured in
+            handler = captured
+            return ServerStub()
+        }
+        defer { try? FileManager.default.removeItem(at: livePaths.supportDirectory) }
+        state.setAgentAccessEnabled(true)
+        let didStart = await waitUntil { handler != nil && state.agentAccessPresentationState == .running }
+        XCTAssertTrue(didStart)
+        let body = Data(#"{"schema_version":1,"request_id":"claim-1","action":"set_local_corrections_enabled","enabled":true,"approved":true}"#.utf8)
+        let created = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:], body: body
+        ))
+        XCTAssertEqual(created.status, 201)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let response = try decoder.decode(AgentAccessActionResponse.self, from: created.body)
+        XCTAssertEqual(response.state, .pending)
+        XCTAssertFalse(state.localCorrectionSnapshot.isEnabled)
+        let direct = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions/\(response.actionID)", headers: [:], body: Data("{}".utf8)
+        ))
+        XCTAssertEqual(direct.status, 405)
+        XCTAssertFalse(state.localCorrectionSnapshot.isEnabled)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testActionStoreRejectsChangedReplayAndPersistsRejectedAudit() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-action-store-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("actions.json")
+        let store = AgentAccessActionStore(fileURL: url)
+        let original = AgentAccessActionRequest(
+            requestID: "same-id", action: .setLocalCorrectionsEnabled, enabled: true
+        )
+        let first = try store.submit(original)
+        XCTAssertFalse(first.1)
+        XCTAssertTrue(try store.submit(original).1)
+        XCTAssertThrowsError(try store.submit(.init(
+            requestID: "same-id", action: .setLocalCorrectionsEnabled, enabled: false
+        ))) { error in
+            XCTAssertEqual(error as? AgentAccessActionError, .requestConflict)
+        }
+        _ = try store.transition(id: first.0.id, to: .rejected)
+        let reloaded = try AgentAccessActionStore(fileURL: url).load()
+        XCTAssertEqual(reloaded.records.first?.state, .rejected)
+        XCTAssertEqual(reloaded.revision, 2)
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    }
+
+    func testApprovedScopeAndAppRoutingUseExistingFoilSetters() async throws {
+        let marker = UUID().uuidString
+        let state = makeState(storageMarker: marker, activateCatalog: true)
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let group = state.createCleanupGroup(named: "Agent tests")
+        let correction = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Supabase"
+        ))
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-agent-app-fixture-\(marker)", isDirectory: true)
+        let appURL = root.appendingPathComponent("Test Editor.app", isDirectory: true)
+        let contents = appURL.appendingPathComponent("Contents", isDirectory: true)
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let bundleID = "com.example.FoilActionTest"
+        let plist = try PropertyListSerialization.data(
+            fromPropertyList: ["CFBundleIdentifier": bundleID, "CFBundleName": "Test Editor"],
+            format: .xml, options: 0
+        )
+        try plist.write(to: contents.appendingPathComponent("Info.plist"))
+        let livePaths = paths()
+        var handler: AgentAccessServer.Handler?
+        let controller = AgentAccessController(
+            appState: state,
+            paths: livePaths,
+            openAPIDocument: Data("{}".utf8),
+            appURLForBundleID: { $0 == bundleID ? appURL : nil }
+        ) { _, _, captured in
+            handler = captured
+            return ServerStub()
+        }
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+        state.setAgentAccessEnabled(true)
+        let didStart = await waitUntil { handler != nil && state.agentAccessPresentationState == .running }
+        XCTAssertTrue(didStart)
+        for request in [
+            AgentAccessActionRequest(
+                requestID: "scope-1", action: .setCorrectionScope,
+                correctionID: correction.id.uuidString.lowercased(), scopeID: group.id
+            ),
+            AgentAccessActionRequest(
+                requestID: "app-1", action: .assignAppToGroup,
+                appBundleID: bundleID, groupID: group.id
+            )
+        ] {
+            let response = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+                method: .post, path: "/v1/vocabulary/actions", headers: [:],
+                body: try JSONEncoder().encode(request)
+            ))
+            XCTAssertEqual(response.status, 201)
+        }
+        let didPublish = await waitUntil { state.agentAccessPendingActionCount == 2 }
+        XCTAssertTrue(didPublish)
+        XCTAssertNil(state.localCorrectionRule(forVocabularyCorrectionID: correction.id))
+        XCTAssertTrue(state.cleanupGroups.first(where: { $0.id == group.id })?.appMatchers.isEmpty == true)
+
+        let actions = state.agentAccessActions
+        for action in actions { state.decideAgentAccessAction(id: action.id, approve: true) }
+        XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.group, group.id)
+        XCTAssertTrue(state.cleanupGroups.first(where: { $0.id == group.id })?.appMatchers.contains(where: {
+            $0.bundleIdentifier == bundleID
+        }) == true)
+        XCTAssertEqual(state.agentAccessPendingActionCount, 0)
+        XCTAssertTrue(try AgentAccessActionStore(fileURL: livePaths.actionStoreURL).load().records.allSatisfy {
+            $0.state == .approved
+        })
+        withExtendedLifetime(controller) {}
+    }
+
+    func testLiveSocketActionRemainsInertUntilFoilDecision() async throws {
+        let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let livePaths = paths()
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8)
+        )
+        defer {
+            controller.stop()
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+        state.setAgentAccessEnabled(true)
+        let didStart = await waitUntil {
+            state.agentAccessPresentationState == .running
+                && FileManager.default.fileExists(atPath: livePaths.socketURL.path)
+        }
+        XCTAssertTrue(didStart)
+        let actionBody = Data(#"{"schema_version":1,"request_id":"live-toggle-1","action":"set_local_corrections_enabled","enabled":true}"#.utf8)
+        let created = try sendHTTPRequest(
+            to: livePaths.socketURL, method: "POST", path: "/v1/vocabulary/actions", body: actionBody
+        )
+        XCTAssertTrue(String(decoding: created, as: UTF8.self).contains("201 Created"))
+        XCTAssertTrue(String(decoding: created, as: UTF8.self).contains("\"state\":\"pending\""))
+        XCTAssertFalse(state.localCorrectionSnapshot.isEnabled)
+        let didPublish = await waitUntil { state.agentAccessPendingActionCount == 1 }
+        XCTAssertTrue(didPublish)
+        let id = try XCTUnwrap(state.agentAccessActions.first?.id)
+        state.decideAgentAccessAction(id: id, approve: true)
+        XCTAssertTrue(state.localCorrectionSnapshot.isEnabled)
+        let status = try sendHTTPRequest(
+            to: livePaths.socketURL, method: "GET", path: "/v1/vocabulary/actions/\(id)"
+        )
+        XCTAssertTrue(String(decoding: status, as: UTF8.self).contains("\"state\":\"approved\""))
+        state.setAgentAccessEnabled(false)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: livePaths.socketURL.path))
+        XCTAssertTrue(state.localCorrectionSnapshot.isEnabled)
+    }
+
+    func testChangedProposalCannotBeAppliedThroughEarlierAgentAction() throws {
+        let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
+        let livePaths = paths()
+        let actionStore = AgentAccessActionStore(fileURL: livePaths.actionStoreURL)
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8),
+            actionStore: actionStore
+        ) { _, _, _ in ServerStub() }
+        defer { try? FileManager.default.removeItem(at: livePaths.supportDirectory) }
+        controller.seedVocabularyProposalForUITesting()
+        let original = try XCTUnwrap(state.agentAccessProposals.first)
+        let action = try actionStore.submit(.init(
+            requestID: "apply-original", action: .applyProposal, proposalID: original.id
+        ), targetDigest: original.reviewHash ?? original.requestHash).0
+        state.reviseAgentAccessProposal(
+            id: original.id,
+            scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["super base"], replacement: "Different value")]
+        )
+        XCTAssertNotEqual(state.agentAccessProposals.first?.reviewHash, action.targetDigest)
+        state.decideAgentAccessAction(id: action.id, approve: true)
+        XCTAssertTrue(state.vocabularyCorrections.isEmpty)
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approvedPendingApply)
+        let approvalTime = try XCTUnwrap(actionStore.load().records.first?.approvedAt)
+        XCTAssertTrue(state.agentAccessActionErrorMessage?.contains("changed after") == true)
+        state.decideAgentAccessAction(id: action.id, approve: false)
+        XCTAssertEqual(try actionStore.load().records.first?.state, .cancelledAfterApproval)
+        XCTAssertEqual(try actionStore.load().records.first?.approvedAt, approvalTime)
         withExtendedLifetime(controller) {}
     }
 

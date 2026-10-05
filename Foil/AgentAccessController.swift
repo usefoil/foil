@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 protocol AgentAccessServing: AnyObject {
@@ -80,9 +81,11 @@ final class AgentAccessController {
     private let openAPIDocument: Data
     private let serverFactory: ServerFactory
     private let startupDelayNanoseconds: UInt64
+    private let appURLForBundleID: (String) -> URL?
     private let readModelStore = AgentAccessReadModelStore()
     private let proposalGate = AgentAccessProposalGate()
     private let proposalStore: VocabularyProposalStore
+    private let actionStore: AgentAccessActionStore
     private var proposalService: VocabularyProposalService!
     private var server: AgentAccessServing?
     private var startupTask: Task<Void, Never>?
@@ -94,7 +97,9 @@ final class AgentAccessController {
         limits: AgentAccessLimits = .standard,
         openAPIDocument: Data,
         proposalStore: VocabularyProposalStore? = nil,
+        actionStore: AgentAccessActionStore? = nil,
         startupDelayNanoseconds: UInt64 = 0,
+        appURLForBundleID: @escaping (String) -> URL? = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) },
         serverFactory: @escaping ServerFactory = { paths, limits, handler in
             AgentAccessServer(paths: paths, limits: limits, handler: handler)
         }
@@ -104,7 +109,9 @@ final class AgentAccessController {
         self.limits = limits
         self.openAPIDocument = openAPIDocument
         self.proposalStore = proposalStore ?? VocabularyProposalStore(fileURL: paths.proposalStoreURL)
+        self.actionStore = actionStore ?? AgentAccessActionStore(fileURL: paths.actionStoreURL)
         self.startupDelayNanoseconds = startupDelayNanoseconds
+        self.appURLForBundleID = appURLForBundleID
         self.serverFactory = serverFactory
         proposalService = VocabularyProposalService(
             store: self.proposalStore,
@@ -132,7 +139,11 @@ final class AgentAccessController {
         appState.agentAccessProposalApplyDidRequest = { [weak self] id in
             self?.applyProposal(id: id)
         }
+        appState.agentAccessActionDecisionDidRequest = { [weak self] id, approve in
+            self?.decideAction(id: id, approve: approve)
+        }
         refreshReadModel()
+        refreshActions()
     }
 
     convenience init(
@@ -148,6 +159,7 @@ final class AgentAccessController {
             paths: paths,
             openAPIDocument: Data(contentsOf: url),
             proposalStore: VocabularyProposalStore(fileURL: paths.proposalStoreURL),
+            actionStore: AgentAccessActionStore(fileURL: paths.actionStoreURL),
             startupDelayNanoseconds: startupDelayNanoseconds
         )
     }
@@ -217,6 +229,31 @@ final class AgentAccessController {
                     throw VocabularyProposalServiceError.unavailable
                 }
                 return receipt
+            },
+            actionSubmitter: { [actionStore, proposalStore, proposalGate] request in
+                guard let result = try proposalGate.withPermit(expectedGeneration, operation: {
+                    let proposal = request.action == .applyProposal
+                        ? try proposalStore.proposal(id: request.proposalID ?? "")
+                        : nil
+                    return try actionStore.submit(
+                        request,
+                        targetDigest: proposal?.reviewHash ?? proposal?.requestHash,
+                        targetAvailable: request.action != .applyProposal || proposal?.state == .pending
+                    )
+                }) else { throw AgentAccessActionError.unavailable }
+                if !result.1 {
+                    Task { @MainActor [weak self] in self?.refreshActions() }
+                }
+                return result
+            },
+            actionStatusProvider: { [actionStore, proposalGate] id in
+                guard let record = try proposalGate.withPermit(expectedGeneration, operation: {
+                    guard let record = try actionStore.load().records.first(where: { $0.id == id }) else {
+                        throw AgentAccessActionError.notFound
+                    }
+                    return record
+                }) else { throw AgentAccessActionError.unavailable }
+                return record
             }
         )
         let candidate = serverFactory(paths, limits) { request in
@@ -261,6 +298,17 @@ final class AgentAccessController {
     func refreshReadModel() {
         readModelStore.update(Self.makeReadModel(from: appState))
         refreshProposals()
+        refreshActions()
+    }
+
+    func refreshActions() {
+        do {
+            appState.agentAccessActions = try actionStore.load().records.sorted { $0.createdAt > $1.createdAt }
+            appState.agentAccessActionErrorMessage = nil
+        } catch {
+            appState.agentAccessActionErrorMessage = "Foil could not read the action inbox. No action was approved."
+            DiagnosticLog.write("AgentAccess.actions: load_failed")
+        }
     }
 
     func refreshProposals() {
@@ -287,6 +335,19 @@ final class AgentAccessController {
     }
 
     #if DEBUG
+    func seedAgentActionForUITesting() {
+        do {
+            _ = try actionStore.submit(.init(
+                requestID: "ui-action-\(UUID().uuidString)",
+                action: .setLocalCorrectionsEnabled,
+                enabled: true
+            ))
+            refreshActions()
+        } catch {
+            appState.agentAccessActionErrorMessage = "Foil could not seed the action inbox for UI testing."
+        }
+    }
+
     func seedVocabularyProposalForUITesting() {
         let request = VocabularyProposalRequest(
             requestID: "ui-proposal-\(UUID().uuidString)",
@@ -343,14 +404,15 @@ final class AgentAccessController {
         }
     }
 
-    private func applyProposal(id: String) {
+    @discardableResult
+    private func applyProposal(id: String) -> Bool {
         do {
             guard let proposal = try proposalStore.proposal(id: id) else {
                 throw VocabularyProposalServiceError.notFound
             }
             let currentToken = try proposalService.validateForApply(proposal)
             let result = try appState.applyReviewedVocabularyProposal(
-                proposal,
+                proposal.revalidated(at: currentToken),
                 currentSnapshotToken: currentToken
             )
             _ = try proposalStore.markApplied(from: result.receipt)
@@ -358,12 +420,15 @@ final class AgentAccessController {
             DiagnosticLog.write(
                 "AgentAccess.proposals: applied proposal_id=\(id) replay=\(result.wasReplay) items=\(result.receipt.items.count)"
             )
+            return true
         } catch VocabularyCorrectionCoordinatorError.staleProposal {
             refreshProposals()
             appState.agentAccessProposalInboxErrorMessage =
-                "Vocabulary changed after this proposal arrived. Review a fresh proposal before applying."
+                "Vocabulary changed while this proposal was being applied. Review it again."
+            return false
         } catch let VocabularyProposalServiceError.validation(_, message) {
             appState.agentAccessProposalInboxErrorMessage = message
+            return false
         } catch {
             // A catalog receipt is durable before inbox reconciliation. A later
             // refresh or relaunch retries the inert proposal-state update.
@@ -376,6 +441,82 @@ final class AgentAccessController {
                     "Foil could not apply this proposal. The previous catalog is still active."
             }
             DiagnosticLog.write("AgentAccess.proposals: apply_failed proposal_id=\(id)")
+            return false
+        }
+    }
+
+    private func decideAction(id: String, approve: Bool) {
+        do {
+            guard let record = try actionStore.load().records.first(where: { $0.id == id }) else {
+                throw AgentAccessActionError.notFound
+            }
+            guard record.state == .pending || record.state == .approvedPendingApply else {
+                throw AgentAccessActionError.invalidState
+            }
+            if approve {
+                if record.state == .pending {
+                    _ = try actionStore.transition(id: id, to: .approvedPendingApply)
+                }
+                try performApprovedAction(record)
+            }
+            let finalState: AgentAccessActionState = approve
+                ? .approved
+                : (record.state == .approvedPendingApply ? .cancelledAfterApproval : .rejected)
+            _ = try actionStore.transition(id: id, to: finalState)
+            refreshReadModel()
+            DiagnosticLog.write("AgentAccess.actions: decided action_id=\(id) state=\(finalState.rawValue)")
+        } catch {
+            refreshActions()
+            appState.agentAccessActionErrorMessage = error.localizedDescription
+            DiagnosticLog.write("AgentAccess.actions: decision_failed action_id=\(id)")
+        }
+    }
+
+    private func performApprovedAction(_ record: AgentAccessActionRecord) throws {
+        let request = record.request
+        switch request.action {
+        case .applyProposal:
+            guard let id = request.proposalID,
+                  let proposal = try proposalStore.proposal(id: id) else {
+                throw AgentAccessActionError.invalidState
+            }
+            guard (proposal.reviewHash ?? proposal.requestHash) == record.targetDigest else {
+                throw AgentAccessActionError.targetChanged
+            }
+            guard applyProposal(id: id) else { throw AgentAccessActionError.invalidState }
+        case .setLocalCorrectionsEnabled:
+            guard let enabled = request.enabled else { throw AgentAccessActionError.invalidRequest }
+            if appState.localCorrectionSnapshot.isEnabled != enabled {
+                _ = try appState.setLocalCorrectionsEnabled(enabled)
+            }
+        case .setCorrectionScope:
+            guard let rawID = request.correctionID, let id = UUID(uuidString: rawID),
+                  let rawScope = request.scopeID else { throw AgentAccessActionError.invalidRequest }
+            let groupID: String? = rawScope == "global" ? nil : rawScope
+            if let existing = appState.localCorrectionRule(forVocabularyCorrectionID: id),
+               existing.enabled, existing.group == groupID { return }
+            guard let result = try appState.setVocabularyCorrectionLocalScope(id: id, groupID: groupID) else {
+                throw AgentAccessActionError.invalidRequest
+            }
+            _ = result
+        case .assignAppToGroup:
+            guard let bundleID = request.appBundleID, let groupID = request.groupID,
+                  appState.cleanupGroups.contains(where: { $0.id == groupID && $0.isEnabled }),
+                  let appURL = appURLForBundleID(bundleID),
+                  Bundle(url: appURL)?.bundleIdentifier == bundleID else {
+                throw AgentAccessActionError.invalidRequest
+            }
+            let displayName = (Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+                ?? appURL.deletingPathExtension().lastPathComponent
+            let matcher = CleanupAppMatcher(displayName: displayName, bundleIdentifier: bundleID, appPath: appURL.path)
+            if appState.cleanupGroups.first(where: { $0.id == groupID })?.appMatchers.contains(where: {
+                $0.bundleIdentifier == bundleID
+            }) != true {
+                appState.addAppMatcher(matcher, toCleanupGroupID: groupID)
+            }
+            guard appState.cleanupGroups.first(where: { $0.id == groupID })?.appMatchers.contains(where: {
+                $0.bundleIdentifier == bundleID
+            }) == true else { throw AgentAccessActionError.invalidRequest }
         }
     }
 

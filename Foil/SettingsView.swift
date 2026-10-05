@@ -102,7 +102,7 @@ struct SettingsView: View {
     enum AgentAccessCopy {
         static func prompt(bootstrapCommand: String) -> String {
             """
-            I use Foil for dictation. Its local Agent Access service lets you inspect my allowed Vocabulary and submit proposed corrections for me to review in Foil. Proposals do not apply automatically.
+            I use Foil for dictation. Its local Agent Access service lets you inspect my allowed Vocabulary, submit proposed corrections, and request changes to local correction settings. Every change requires my approval inside Foil. Do not treat my words to you as approval of an API request.
 
             Please run the command below on this Mac to read Foil's current agent instructions, then follow them to help with my Vocabulary request:
 
@@ -137,6 +137,7 @@ struct SettingsView: View {
     @State private var vocabularyEditingID: UUID?
     @State private var localCorrectionPreviewInput = ""
     @State private var isShowingAgentProposals = false
+    @State private var isShowingAgentActions = false
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
     private let soundPreviewPlayer = SoundPlayer()
 
@@ -339,8 +340,32 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Agent action requests") {
+                Button {
+                    isShowingAgentActions = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.shield")
+                        Text("Review agent action requests")
+                        Spacer()
+                        Text("\(appState.agentAccessPendingActionCount) pending")
+                        Image(systemName: "chevron.right")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .accessibilityIdentifier("settings.agentAccess.reviewActions")
+                Text("Every requested change needs your approval here. Agents cannot approve their own requests.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let message = appState.agentAccessActionErrorMessage {
+                    Text(message).font(.caption).foregroundStyle(.red)
+                }
+            }
+
             Section("Privacy") {
-                Text("While enabled, local processes running as your macOS user can read Vocabulary names, terms, corrections, and local-rule settings, and submit inert changes for review. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
+                Text("While enabled, local processes running as your macOS user can read Vocabulary names, terms, corrections, and local-rule settings, and submit inert requests for review. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -348,6 +373,10 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $isShowingAgentProposals) {
                 VocabularyProposalReviewView(appState: appState)
+                    .preferredColorScheme(.light)
+            }
+            .sheet(isPresented: $isShowingAgentActions) {
+                AgentAccessActionReviewView(appState: appState)
                     .preferredColorScheme(.light)
             }
         }

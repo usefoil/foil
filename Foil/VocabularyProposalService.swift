@@ -219,9 +219,19 @@ final class VocabularyProposalService: @unchecked Sendable {
         do {
             _ = try LocalCorrectionEngine.compile(existingRules + candidateRules)
         } catch let error as LocalCorrectionValidationError {
+            let message: String
+            if case let .ambiguousAlias(firstID, secondID) = error,
+               let first = (existingRules + candidateRules).first(where: { $0.id == firstID }),
+               let second = (existingRules + candidateRules).first(where: { $0.id == secondID }) {
+                let scope = scopeID.flatMap { id in model.scopes.first(where: { $0.id == id })?.name }
+                    ?? "Every app"
+                message = "“\(second.source)” conflicts with the active correction “\(first.source)” in \(scope). Change the spoken form or scope before applying."
+            } else {
+                message = error.description
+            }
             throw VocabularyProposalServiceError.validation(
                 code: "correction_conflict",
-                message: error.description
+                message: message
             )
         } catch {
             throw VocabularyProposalServiceError.validation(

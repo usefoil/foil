@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		AACD10000000000000000001 /* AgentAccessActionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACD10000000000000000003 /* AgentAccessActionStore.swift */; };
+		AACD10000000000000000002 /* AgentAccessActionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACD10000000000000000003 /* AgentAccessActionStore.swift */; };
 		A3C000000000000000000002 /* VocabularyCatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000000000000000000001 /* VocabularyCatalogStore.swift */; };
 		A3C000000000000000000003 /* VocabularyCatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C000000000000000000001 /* VocabularyCatalogStore.swift */; };
 		A3D000000000000000000002 /* VocabularyCorrectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D000000000000000000001 /* VocabularyCorrectionCoordinator.swift */; };
@@ -239,6 +241,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		AACD10000000000000000003 /* AgentAccessActionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessActionStore.swift; sourceTree = "<group>"; };
 		A3C000000000000000000001 /* VocabularyCatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyCatalogStore.swift; sourceTree = "<group>"; };
 		A3D000000000000000000001 /* VocabularyCorrectionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyCorrectionCoordinator.swift; sourceTree = "<group>"; };
 		A3C000000000000000000004 /* VocabularyCatalogStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyCatalogStoreTests.swift; sourceTree = "<group>"; };
@@ -500,6 +503,7 @@
 		D89C27DAE9C3B12C208E3F37 /* Foil */ = {
 			isa = PBXGroup;
 			children = (
+				AACD10000000000000000003 /* AgentAccessActionStore.swift */,
 				A3C000000000000000000001 /* VocabularyCatalogStore.swift */,
 				A3D000000000000000000001 /* VocabularyCorrectionCoordinator.swift */,
 				AACC10000000000000000003 /* AgentAccessController.swift */,
@@ -818,6 +822,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AACD10000000000000000002 /* AgentAccessActionStore.swift in Sources */,
 				A3C000000000000000000003 /* VocabularyCatalogStore.swift in Sources */,
 				A3D000000000000000000003 /* VocabularyCorrectionCoordinator.swift in Sources */,
 				AACC10000000000000000002 /* AgentAccessController.swift in Sources */,
@@ -978,6 +983,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AACD10000000000000000001 /* AgentAccessActionStore.swift in Sources */,
 				A3C000000000000000000002 /* VocabularyCatalogStore.swift in Sources */,
 				A3D000000000000000000002 /* VocabularyCorrectionCoordinator.swift in Sources */,
 				AACC10000000000000000001 /* AgentAccessController.swift in Sources */,
