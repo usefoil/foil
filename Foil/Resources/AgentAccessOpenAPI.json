@@ -316,7 +316,7 @@
           "replacement": {"type": "string", "maxLength": 256},
           "scope_id": {"type": ["string", "null"]},
           "case_sensitive": {"type": "boolean", "default": false},
-          "match_punctuation_variants": {"type": "boolean", "default": false, "description": "For a spoken form with two or more words, match runs of whitespace or punctuation such as hyphens, commas, or periods between words. Path separators and underscores are excluded. Surrounding punctuation is preserved; single-word forms cannot enable this."}
+          "match_punctuation_variants": {"type": "boolean", "default": false, "description": "For a spoken form with two or more words, match runs of whitespace or punctuation such as hyphens, commas, or periods between words. Path separators, underscores, and email @ signs are excluded. Surrounding punctuation is preserved; single-word forms cannot enable this."}
         }
       },
       "PreviewIssue": {

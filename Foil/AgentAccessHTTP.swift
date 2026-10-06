@@ -796,7 +796,7 @@ struct AgentAccessPreviewEvaluator {
                     : correction.spokenForms.first else { return [] }
                 var forms = [form]
                 if correction.matchPunctuationVariants,
-                   let variant = punctuationExample(of: form), variant != form {
+                   let variant = LocalCorrectionEngine.punctuationVariantExample(of: form), variant != form {
                     forms.append(variant)
                 }
                 return forms.map { exampleForm in
@@ -821,18 +821,5 @@ struct AgentAccessPreviewEvaluator {
             normalizedCorrections: normalized,
             examples: examples
         )
-    }
-
-    private func punctuationExample(of form: String) -> String? {
-        let separators = CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)
-        guard let start = form.rangeOfCharacter(from: separators)?.lowerBound else { return nil }
-        var end = start
-        while end < form.endIndex,
-              form[end].unicodeScalars.allSatisfy({ separators.contains($0) }) {
-            end = form.index(after: end)
-        }
-        var variant = form
-        variant.replaceSubrange(start..<end, with: "—")
-        return variant
     }
 }

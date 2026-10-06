@@ -56,6 +56,17 @@ final class AgentAccessContractTests: XCTestCase {
         XCTAssertEqual(preview.normalizedCorrections.first?.matchPunctuationVariants, true)
         XCTAssertTrue(preview.examples.contains { $0.input.contains("super—base") && $0.output.contains("Supabase") })
 
+        let identifierBody = Data(#"{"corrections":[{"spoken_forms":["super_base test"],"replacement":"Supabase","match_punctuation_variants":true}]}"#.utf8)
+        let identifierResponse = makeRouter(model: model).response(
+            to: request(.post, path: "/v1/vocabulary/preview", body: identifierBody)
+        )
+        let identifierPreview = try JSONDecoder().decode(AgentAccessPreviewResponse.self, from: identifierResponse.body)
+        XCTAssertTrue(identifierPreview.valid, "\(identifierPreview.issues)")
+        XCTAssertTrue(identifierPreview.examples.contains {
+            $0.input.contains("super_base—test") && $0.output.contains("Supabase") && $0.replacementCount == 1
+        })
+        XCTAssertFalse(identifierPreview.examples.contains { $0.input.contains("super—base") })
+
         let invalidBody = Data(#"{"corrections":[{"spoken_forms":["Supabase"],"replacement":"Supabase Inc.","match_punctuation_variants":true}]}"#.utf8)
         let invalidResponse = makeRouter(model: model).response(to: request(.post, path: "/v1/vocabulary/preview", body: invalidBody))
         let invalid = try JSONDecoder().decode(AgentAccessPreviewResponse.self, from: invalidResponse.body)

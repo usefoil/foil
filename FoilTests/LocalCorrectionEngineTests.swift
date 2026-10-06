@@ -34,10 +34,10 @@ final class LocalCorrectionEngineTests: XCTestCase {
         let compiled = try LocalCorrectionEngine.compile([
             rule(id: "variants", source: "super base", replacement: "Supabase", matchPunctuationVariants: true)
         ])
-        let input = "super-base /super-base super-base/ path/super-base/config super_base super/base super\\base"
+        let input = "super-base /super-base super-base/ path/super-base/config super_base super/base super\\base super@base super.base@example.com foo@super-base"
         XCTAssertEqual(
             LocalCorrectionEngine.correct(input, activeGroup: "agents", enabled: true, compiled: compiled).text,
-            "Supabase /super-base super-base/ path/super-base/config super_base super/base super\\base"
+            "Supabase /super-base super-base/ path/super-base/config super_base super/base super\\base super@base super.base@example.com foo@super-base"
         )
     }
 

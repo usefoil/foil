@@ -608,7 +608,7 @@ enum LocalCorrectionEngine {
             )
         }
         if compiled.punctuationSensitiveTrie.count > 1 &&
-            !isPathDelimiter(normalized.scalars[safe: start - 1]) {
+            !isIdentifierDelimiter(normalized.scalars[safe: start - 1]) {
             scanTrie(
                 compiled.punctuationSensitiveTrie,
                 folded: false,
@@ -622,7 +622,7 @@ enum LocalCorrectionEngine {
             )
         }
         if compiled.punctuationInsensitiveTrie.count > 1 &&
-            !isPathDelimiter(normalized.scalars[safe: start - 1]) {
+            !isIdentifierDelimiter(normalized.scalars[safe: start - 1]) {
             scanTrie(
                 compiled.punctuationInsensitiveTrie,
                 folded: true,
@@ -670,7 +670,7 @@ enum LocalCorrectionEngine {
             guard !trie[nodeIndex].terminalRuleIndexes.isEmpty,
                   normalized.isCharacterEnd(at: position),
                   !isBoundaryBlocking(normalized.scalars[safe: position]),
-                  !(punctuationVariants && isPathDelimiter(normalized.scalars[safe: position])) else {
+                  !(punctuationVariants && isIdentifierDelimiter(normalized.scalars[safe: position])) else {
                 continue
             }
 
@@ -785,6 +785,21 @@ enum LocalCorrectionEngine {
         punctuationVariantScalars(normalizedScalars(source)) != nil
     }
 
+    static func punctuationVariantExample(of source: String) -> String? {
+        guard supportsPunctuationVariants(source) else { return nil }
+        let scalars = source.unicodeScalars
+        guard let start = scalars.indices.first(where: { isPunctuationSeparator(scalars[$0].value) }) else {
+            return nil
+        }
+        var end = start
+        while end < scalars.endIndex, isPunctuationSeparator(scalars[end].value) {
+            end = scalars.index(after: end)
+        }
+        var result = source
+        result.replaceSubrange(start..<end, with: "—")
+        return result
+    }
+
     private static func punctuationVariantScalars(_ scalars: [UInt32]) -> [UInt32]? {
         guard let first = scalars.first, let last = scalars.last,
               isBoundaryBlocking(first), isBoundaryBlocking(last) else { return nil }
@@ -807,7 +822,7 @@ enum LocalCorrectionEngine {
     }
 
     private static func isPunctuationSeparator(_ value: UInt32) -> Bool {
-        guard value != 47, value != 92, value != 95 else { return false }
+        guard value != 47, value != 64, value != 92, value != 95 else { return false }
         guard let scalar = Unicode.Scalar(value) else { return false }
         if CharacterSet.whitespacesAndNewlines.contains(scalar) { return true }
         switch scalar.properties.generalCategory {
@@ -819,8 +834,8 @@ enum LocalCorrectionEngine {
         }
     }
 
-    private static func isPathDelimiter(_ value: UInt32?) -> Bool {
-        value == 47 || value == 92
+    private static func isIdentifierDelimiter(_ value: UInt32?) -> Bool {
+        value == 47 || value == 64 || value == 92
     }
 
     private static func insert(
