@@ -2068,6 +2068,32 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(state.previewLocalCorrections("super base", activeGroupID: "other").text, "super base")
     }
 
+    func testDisablingGroupClearsExceptionsBeforeItCanBeReenabled() throws {
+        let store = LocalCorrectionStore(fileURL: testDirectory.appendingPathComponent("disabled-group-exception.json"))
+        let state = AppState(localCorrectionStore: store)
+        state.setCleanupGroups([
+            CleanupGroup.defaultGroup(),
+            CleanupGroup(id: "agents", name: "Agents", sortOrder: 1)
+        ])
+        let original = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Supabase"
+        ))
+        _ = try state.setVocabularyCorrectionLocalScope(id: original.id, groupID: nil)
+        _ = try state.setVocabularyCorrectionSuppressed(id: original.id, in: "agents", suppressed: true)
+
+        XCTAssertTrue(state.updateCleanupGroup(id: "agents") { $0.isEnabled = false })
+        XCTAssertFalse(state.localCorrectionSnapshot.rules.contains(where: \.suppressesGlobal))
+        XCTAssertTrue(state.updateCleanupGroup(id: "agents") { $0.isEnabled = true })
+
+        let replacement = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Superbase"
+        ))
+        _ = try XCTUnwrap(state.setVocabularyCorrectionLocalScope(id: replacement.id, groupID: "agents"))
+        _ = try state.setLocalCorrectionsEnabled(true)
+        XCTAssertEqual(state.previewLocalCorrections("super base", activeGroupID: "agents").text, "Superbase")
+        XCTAssertEqual(state.previewLocalCorrections("super base", activeGroupID: "other").text, "Supabase")
+    }
+
     func testReloadReconcilesVocabularyRulesChangedByPreviousVersion() throws {
         let fileURL = testDirectory.appendingPathComponent("local-corrections-downgrade-reconcile.json")
         let store = LocalCorrectionStore(fileURL: fileURL)

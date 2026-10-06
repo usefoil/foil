@@ -2447,7 +2447,8 @@ final class AppState {
         _ rules: [LocalCorrectionRule],
         scopedTo groupID: String
     ) -> [LocalCorrectionRule] {
-        rules.map { rule in
+        rules.compactMap { rule in
+            if rule.group == groupID && rule.suppressesGlobal { return nil }
             guard rule.group == groupID, rule.enabled else { return rule }
             return LocalCorrectionRule(
                 id: rule.id,

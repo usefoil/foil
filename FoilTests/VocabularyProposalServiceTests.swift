@@ -62,6 +62,56 @@ final class VocabularyProposalServiceTests: XCTestCase {
             }
             XCTAssertEqual(code, "correction_conflict")
         }
+
+        // Catalog validation reserves aliases even when a stored exception is disabled.
+        fixture.readModelStore.update(AgentAccessVocabularyReadModel(
+            scopes: scopes,
+            terms: [],
+            corrections: [global],
+            localCorrectionsEnabled: true,
+            suppressionRules: [LocalCorrectionRule(
+                id: "suppression:\(global.id):agents",
+                source: "super base",
+                replacement: "super base",
+                group: "agents",
+                enabled: false,
+                caseSensitive: false,
+                suppressesGlobal: true
+            )]
+        ))
+        XCTAssertThrowsError(try fixture.service.submit(VocabularyProposalRequest(
+            requestID: "disabled-group-exception",
+            scope: request.scope,
+            corrections: request.corrections
+        ))) { error in
+            guard let serviceError = error as? VocabularyProposalServiceError,
+                  case .validation(let code, _) = serviceError else {
+                return XCTFail("Expected a correction conflict")
+            }
+            XCTAssertEqual(code, "correction_conflict")
+        }
+
+        let disabledGlobal = AgentAccessVocabularyCorrection(
+            id: global.id,
+            writtenAs: global.writtenAs,
+            correctVersion: global.correctVersion,
+            note: nil,
+            localRule: .init(enabled: false, caseSensitive: false, scopeID: nil)
+        )
+        fixture.readModelStore.update(AgentAccessVocabularyReadModel(
+            scopes: scopes, terms: [], corrections: [disabledGlobal], localCorrectionsEnabled: true
+        ))
+        XCTAssertThrowsError(try fixture.service.submit(VocabularyProposalRequest(
+            requestID: "disabled-global-correction",
+            scope: .init(kind: "global", id: "global"),
+            corrections: request.corrections
+        ))) { error in
+            guard let serviceError = error as? VocabularyProposalServiceError,
+                  case .validation(let code, _) = serviceError else {
+                return XCTFail("Expected a correction conflict")
+            }
+            XCTAssertEqual(code, "correction_conflict")
+        }
     }
 
     func testValidSubmissionPersistsAndStatusReturnsSameReceipt() throws {

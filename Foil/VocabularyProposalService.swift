@@ -194,13 +194,13 @@ final class VocabularyProposalService: @unchecked Sendable {
         }
 
         let existingRules = model.corrections.compactMap { correction -> LocalCorrectionRule? in
-            guard let rule = correction.localRule, rule.enabled else { return nil }
+            guard let rule = correction.localRule else { return nil }
             return LocalCorrectionRule(
                 id: "existing-\(correction.id)",
                 source: correction.writtenAs,
                 replacement: correction.correctVersion,
                 group: rule.scopeID,
-                enabled: true,
+                enabled: rule.enabled,
                 caseSensitive: rule.caseSensitive
             )
         } + model.suppressionRules
