@@ -105,6 +105,9 @@ final class VocabularyProposalContractTests: XCTestCase {
         XCTAssertEqual(production.proposalStoreURL.deletingLastPathComponent(), production.supportDirectory)
         XCTAssertEqual(development.proposalStoreURL.deletingLastPathComponent(), development.supportDirectory)
         XCTAssertNotEqual(production.proposalStoreURL, development.proposalStoreURL)
+        XCTAssertEqual(production.grantStoreURL.lastPathComponent, "agent-access-grants-v1.json")
+        XCTAssertEqual(production.grantStoreURL.deletingLastPathComponent(), production.supportDirectory)
+        XCTAssertNotEqual(production.grantStoreURL, development.grantStoreURL)
         XCTAssertNoThrow(try production.validateSocketPath())
         XCTAssertNoThrow(try development.validateSocketPath())
     }

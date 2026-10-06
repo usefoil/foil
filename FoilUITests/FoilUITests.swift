@@ -503,6 +503,9 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Local agents cannot access Vocabulary. Turn on access when you want to connect."].exists)
         XCTAssertTrue(elementExists(id: "settings.agentAccess.disclosure", timeout: 2), app.debugDescription)
         XCTAssertTrue(copy.waitForExistence(timeout: 2), app.debugDescription)
+        let pair = button(id: "settings.agentAccess.pairAgent", fallbackLabel: "Pair agent and copy editing prompt")
+        XCTAssertTrue(pair.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(pair.isEnabled)
         XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
 
         clickElement(toggle)

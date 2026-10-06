@@ -12,6 +12,12 @@ struct AgentAccessHTTPRequest: Equatable {
     let body: Data
 
     var requestID: String? { headers["x-foil-request-id"] }
+    var bearerToken: String? {
+        guard let authorization = headers["authorization"],
+              authorization.lowercased().hasPrefix("bearer ") else { return nil }
+        let token = String(authorization.dropFirst(7))
+        return token.contains(" ") || token.isEmpty ? nil : token
+    }
 }
 
 struct AgentAccessHTTPResponse: Equatable {
@@ -217,6 +223,9 @@ struct AgentAccessContractRouter {
     typealias ActionStatusProvider = (String) throws -> AgentAccessActionRecord
     typealias TargetVerifier = (AgentAccessTargetVerificationRequest, String) throws -> AgentAccessTargetVerificationResponse
     typealias EffectivePreviewer = (AgentAccessEffectivePreviewRequest, String) throws -> AgentAccessEffectivePreviewResponse
+    typealias GrantProvider = (String) throws -> AgentAccessGrantSummary
+    typealias DelegatedProposalSubmitter = (VocabularyProposalRequest, String) throws -> VocabularyProposalSubmission
+    typealias DelegatedActionSubmitter = (AgentAccessActionRequest, String) throws -> (AgentAccessActionRecord, Bool)
 
     let socketPath: String
     let openAPIDocument: Data
@@ -228,6 +237,9 @@ struct AgentAccessContractRouter {
     let actionStatusProvider: ActionStatusProvider?
     let targetVerifier: TargetVerifier?
     let effectivePreviewer: EffectivePreviewer?
+    let grantProvider: GrantProvider?
+    let delegatedProposalSubmitter: DelegatedProposalSubmitter?
+    let delegatedActionSubmitter: DelegatedActionSubmitter?
 
     init(
         socketPath: String,
@@ -243,7 +255,10 @@ struct AgentAccessContractRouter {
         actionSubmitter: ActionSubmitter? = nil,
         actionStatusProvider: ActionStatusProvider? = nil,
         targetVerifier: TargetVerifier? = nil,
-        effectivePreviewer: EffectivePreviewer? = nil
+        effectivePreviewer: EffectivePreviewer? = nil,
+        grantProvider: GrantProvider? = nil,
+        delegatedProposalSubmitter: DelegatedProposalSubmitter? = nil,
+        delegatedActionSubmitter: DelegatedActionSubmitter? = nil
     ) {
         self.socketPath = socketPath
         self.openAPIDocument = openAPIDocument
@@ -255,6 +270,9 @@ struct AgentAccessContractRouter {
         self.actionStatusProvider = actionStatusProvider
         self.targetVerifier = targetVerifier
         self.effectivePreviewer = effectivePreviewer
+        self.grantProvider = grantProvider
+        self.delegatedProposalSubmitter = delegatedProposalSubmitter
+        self.delegatedActionSubmitter = delegatedActionSubmitter
     }
 
     func response(to request: AgentAccessHTTPRequest) -> AgentAccessHTTPResponse {
@@ -281,6 +299,14 @@ struct AgentAccessContractRouter {
         case "/v1/openapi.json":
             guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
             return openAPIResponse(requestID: requestID)
+        case "/v1/access":
+            guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
+            guard let grantProvider else { return unavailableResponse(requestID: requestID) }
+            guard let token = request.bearerToken else { return grantErrorResponse(AgentAccessGrantError.unauthorized, requestID: requestID) }
+            do {
+                let grant = try grantProvider(token)
+                return try .json(requestID: requestID, value: AgentAccessGrantStatusResponse(requestID: requestID, grant: grant))
+            } catch { return grantErrorResponse(error, requestID: requestID) }
         case "/v1/vocabulary/scopes":
             guard request.method == .get else { return methodNotAllowed(requestID: requestID) }
             let value = AgentAccessScopesResponse(
@@ -366,6 +392,28 @@ struct AgentAccessContractRouter {
             } catch {
                 return proposalErrorResponse(error, requestID: requestID)
             }
+        case "/v1/vocabulary/delegated-proposals":
+            guard request.method == .post else { return methodNotAllowed(requestID: requestID) }
+            guard let delegatedProposalSubmitter else { return unavailableResponse(requestID: requestID) }
+            guard let token = request.bearerToken else { return grantErrorResponse(AgentAccessGrantError.unauthorized, requestID: requestID) }
+            guard let proposal = try? JSONDecoder().decode(VocabularyProposalRequest.self, from: request.body) else {
+                return errorResponse(status: 400, reason: "Bad Request", requestID: requestID,
+                                     code: "invalid_json", message: "A versioned scoped correction proposal is required.")
+            }
+            do {
+                let submission = try delegatedProposalSubmitter(proposal, token)
+                return try .json(
+                    status: submission.wasReplay ? 200 : 202,
+                    reason: submission.wasReplay ? "OK" : "Accepted",
+                    requestID: requestID,
+                    value: AgentAccessProposalResponse(
+                        requestID: requestID, receipt: submission.receipt, replayed: submission.wasReplay
+                    )
+                )
+            } catch {
+                if error is AgentAccessGrantError { return grantErrorResponse(error, requestID: requestID) }
+                return proposalErrorResponse(error, requestID: requestID)
+            }
         case "/v1/vocabulary/actions":
             guard request.method == .post else { return methodNotAllowed(requestID: requestID) }
             guard let actionSubmitter else { return unavailableResponse(requestID: requestID) }
@@ -381,6 +429,25 @@ struct AgentAccessContractRouter {
                     value: AgentAccessActionResponse(requestID: requestID, record: record, replayed: replayed)
                 )) ?? internalError(requestID: requestID)
             } catch {
+                return actionErrorResponse(error, requestID: requestID)
+            }
+        case "/v1/vocabulary/delegated-actions":
+            guard request.method == .post else { return methodNotAllowed(requestID: requestID) }
+            guard let delegatedActionSubmitter else { return unavailableResponse(requestID: requestID) }
+            guard let token = request.bearerToken else { return grantErrorResponse(AgentAccessGrantError.unauthorized, requestID: requestID) }
+            guard let action = try? JSONDecoder().decode(AgentAccessActionRequest.self, from: request.body) else {
+                return errorResponse(status: 400, reason: "Bad Request", requestID: requestID,
+                                     code: "invalid_json", message: "A versioned correction policy action is required.")
+            }
+            do {
+                let (record, replayed) = try delegatedActionSubmitter(action, token)
+                return try .json(
+                    status: replayed ? 200 : 202, reason: replayed ? "OK" : "Accepted",
+                    requestID: requestID,
+                    value: AgentAccessActionResponse(requestID: requestID, record: record, replayed: replayed)
+                )
+            } catch {
+                if error is AgentAccessGrantError { return grantErrorResponse(error, requestID: requestID) }
                 return actionErrorResponse(error, requestID: requestID)
             }
         default:
@@ -461,6 +528,20 @@ struct AgentAccessContractRouter {
         case let .validation(message):
             return errorResponse(status: 422, reason: "Unprocessable Content", requestID: requestID,
                                  code: "action_validation_failed", message: message)
+        case .unavailable:
+            return unavailableResponse(requestID: requestID)
+        }
+    }
+
+    private func grantErrorResponse(_ error: Error, requestID: String) -> AgentAccessHTTPResponse {
+        guard let error = error as? AgentAccessGrantError else { return unavailableResponse(requestID: requestID) }
+        switch error {
+        case .unauthorized:
+            return errorResponse(status: 401, reason: "Unauthorized", requestID: requestID,
+                                 code: "grant_required", message: error.localizedDescription)
+        case .invalidScope, .invalidName:
+            return errorResponse(status: 403, reason: "Forbidden", requestID: requestID,
+                                 code: "outside_grant", message: error.localizedDescription)
         case .unavailable:
             return unavailableResponse(requestID: requestID)
         }

@@ -402,6 +402,9 @@ final class AppState {
     var agentAccessProposalInboxErrorMessage: String?
     var agentAccessActions: [AgentAccessActionRecord] = []
     var agentAccessActionErrorMessage: String?
+    var agentAccessGrants: [AgentAccessGrantSummary] = []
+    var agentAccessGrantUses: [AgentAccessGrantUse] = []
+    var agentAccessGrantErrorMessage: String?
     var agentAccessPendingActionCount: Int {
         agentAccessActions.lazy.filter { $0.state == .pending || $0.state == .approvedPendingApply }.count
     }
@@ -417,6 +420,8 @@ final class AppState {
     @ObservationIgnored var agentAccessProposalTransitionDidRequest: ((String, AgentAccessProposalState) -> Void)?
     @ObservationIgnored var agentAccessProposalApplyDidRequest: ((String) -> Void)?
     @ObservationIgnored var agentAccessActionDecisionDidRequest: ((String, Bool) -> Void)?
+    @ObservationIgnored var agentAccessPairingDidRequest: ((String, String) -> String?)?
+    @ObservationIgnored var agentAccessGrantRevokeDidRequest: ((String) -> Void)?
     var canStartAgentAccess: Bool { agentAccessPreferenceDidChange != nil }
 
     func setAgentAccessEnabled(_ enabled: Bool, notifyController: Bool = true) {
@@ -442,6 +447,14 @@ final class AppState {
 
     func decideAgentAccessAction(id: String, approve: Bool) {
         agentAccessActionDecisionDidRequest?(id, approve)
+    }
+
+    func pairAgentForVocabularyEdits(name: String, groupID: String) -> String? {
+        agentAccessPairingDidRequest?(name, groupID)
+    }
+
+    func revokeAgentAccessGrant(id: String) {
+        agentAccessGrantRevokeDidRequest?(id)
     }
 
     var soundEffectsEnabled: Bool = true {

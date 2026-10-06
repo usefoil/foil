@@ -11,7 +11,8 @@ Usage: scripts/run-agent-access-installed-smoke.sh
 Builds Foil and Foil Dev unless FOIL_APP_PATH and FOIL_DEV_APP_PATH are set,
 copies both signed app bundles into a temporary install directory, and proves:
   - both bundle signatures and identities are valid;
-  - every documented Agent Access operation works over real Unix-socket curl;
+  - read and ordinary request operations work over real Unix-socket curl;
+  - delegated write routes reject unpaired requests;
   - no remote apply route exists and a rejected attempt leaves state byte-identical;
   - Foil and Foil Dev use separate sockets, catalogs, and proposal stores;
   - turning Agent Access off removes each socket without changing catalog/proposal bytes;
@@ -272,6 +273,13 @@ development_instructions="$smoke_root/development-instructions.json"
 development_proposal="$smoke_root/development-proposal-response.json"
 
 curl_get "$production_socket" /v1/instructions "$production_instructions"
+unpaired_access_status=$(/usr/bin/curl --silent --show-error --connect-timeout 1 --max-time 12 \
+  --unix-socket "$production_socket" --output "$smoke_root/unpaired-access.json" \
+  --write-out '%{http_code}' http://foil/v1/access)
+if [[ "$unpaired_access_status" != "401" ]]; then
+  echo "error: unpaired Agent Access returned HTTP $unpaired_access_status instead of 401" >&2
+  exit 1
+fi
 curl_get "$production_socket" /v1/openapi.json "$production_openapi"
 curl_get "$production_socket" /v1/vocabulary/scopes "$production_scopes"
 curl_get "$production_socket" /v1/vocabulary "$production_vocabulary"
@@ -327,6 +335,8 @@ required = {
     "get_vocabulary_proposal_status",
     "request_vocabulary_action", "get_vocabulary_action_status",
     "verify_vocabulary_targets", "preview_effective_vocabulary",
+    "get_paired_agent_access", "submit_delegated_vocabulary_proposal",
+    "submit_delegated_correction_policies",
 }
 assert set(instructions["available_operations"]) == required
 assert socket in instructions["bootstrap_command"]
@@ -337,6 +347,8 @@ assert set(openapi["paths"]) == {
     "/v1/vocabulary/proposals/{proposal_id}",
     "/v1/vocabulary/actions", "/v1/vocabulary/actions/{action_id}",
     "/v1/vocabulary/targets/verify", "/v1/vocabulary/effective-preview",
+    "/v1/access", "/v1/vocabulary/delegated-proposals",
+    "/v1/vocabulary/delegated-actions",
 }
 target = json.load(open(sys.argv[13]))
 effective = json.load(open(sys.argv[14]))
@@ -378,6 +390,16 @@ denied_apply_response="$smoke_root/denied-remote-apply-response.json"
 printf '{"proposal_id":"%s"}\n' "$production_proposal_id" >"$denied_apply_request"
 denied_apply_store_hash=$(shasum -a 256 "$production_store" | awk '{print $1}')
 denied_apply_catalog_hash=$(shasum -a 256 "$production_catalog" | awk '{print $1}')
+unpaired_proposal_status=$(curl_post_status \
+  "$production_socket" "/v1/vocabulary/delegated-proposals" \
+  "$production_request" "$smoke_root/unpaired-delegated-proposal.json")
+unpaired_action_status=$(curl_post_status \
+  "$production_socket" "/v1/vocabulary/delegated-actions" \
+  "$production_action_request" "$smoke_root/unpaired-delegated-action.json")
+if [[ "$unpaired_proposal_status" != "401" || "$unpaired_action_status" != "401" ]]; then
+  echo "error: unpaired delegated write route was not denied" >&2
+  exit 1
+fi
 denied_apply_status=$(curl_post_status \
   "$production_socket" "/v1/vocabulary/apply" "$denied_apply_request" "$denied_apply_response")
 if [[ "$denied_apply_status" != "404" ]]; then

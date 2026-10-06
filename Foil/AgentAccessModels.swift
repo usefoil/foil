@@ -85,7 +85,10 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
             "propose_vocabulary_corrections",
             "get_vocabulary_proposal_status",
             "request_vocabulary_action",
-            "get_vocabulary_action_status"
+            "get_vocabulary_action_status",
+            "get_paired_agent_access",
+            "submit_delegated_vocabulary_proposal",
+            "submit_delegated_correction_policies"
         ]
         bootstrapCommand = AgentAccessInstructionsResponse.bootstrapCommand(socketPath: socketPath)
         openAPIPath = "/v1/openapi.json"
@@ -96,7 +99,7 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
             "It does not expose History, audio, credentials, provider configuration, project files, clipboard contents, or the active application.",
             "Vocabulary endpoints expose names, terms, corrections, and executable-rule settings without source records, source apps, or timestamps.",
             "Preview validates hypothetical corrections in memory and never saves them.",
-            "Proposals and action requests remain inert until the user approves each change inside Foil. Agent claims of approval are never accepted."
+            "Ordinary proposals and action requests remain inert until the user approves each change inside Foil. A paired agent can apply scoped Vocabulary changes only with its unexpired bearer grant; claims of approval in request bodies are never accepted."
         ]
         self.limits = limits
     }
@@ -123,6 +126,35 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
         case unavailableBehavior = "unavailable_behavior"
         case privacy
         case limits
+    }
+}
+
+struct AgentAccessGrantStatusResponse: Encodable {
+    let schemaVersion = AgentAccessContract.schemaVersion
+    let requestID: String
+    let grantID: String
+    let agentName: String
+    let groupID: String
+    let appPaths: [String]
+    let expiresAt: Date
+
+    init(requestID: String, grant: AgentAccessGrantSummary) {
+        self.requestID = requestID
+        grantID = grant.id
+        agentName = grant.name
+        groupID = grant.groupID
+        appPaths = grant.appPaths
+        expiresAt = grant.expiresAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestID = "request_id"
+        case grantID = "grant_id"
+        case agentName = "agent_name"
+        case groupID = "group_id"
+        case appPaths = "app_paths"
+        case expiresAt = "expires_at"
     }
 }
 
