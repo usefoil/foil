@@ -624,6 +624,7 @@ final class AppState {
     private struct DeletedVocabularyCorrectionUndo: Codable, Equatable {
         let correction: VocabularyCorrection
         let rule: LocalCorrectionRule?
+        let suppressions: [LocalCorrectionRule]?
     }
 
     private var deletedVocabularyCorrectionUndo: DeletedVocabularyCorrectionUndo?
@@ -1056,6 +1057,41 @@ final class AppState {
         localCorrectionSnapshot.rules.first { $0.id == Self.localRuleID(for: id) }
     }
 
+    func isVocabularyCorrectionSuppressed(id: UUID, in groupID: String) -> Bool {
+        localCorrectionSnapshot.rules.contains {
+            $0.id == Self.suppressionRuleID(for: id, groupID: groupID) && $0.enabled && $0.suppressesGlobal
+        }
+    }
+
+    @discardableResult
+    func setVocabularyCorrectionSuppressed(
+        id: UUID,
+        in groupID: String,
+        suppressed: Bool
+    ) throws -> LocalCorrectionSnapshot? {
+        guard let correction = vocabularyCorrections.first(where: { $0.id == id }),
+              cleanupGroups.contains(where: { $0.id == groupID && $0.isEnabled }),
+              let globalRule = localCorrectionRule(forVocabularyCorrectionID: id),
+              globalRule.enabled, globalRule.group == nil else { return nil }
+        if suppressed == isVocabularyCorrectionSuppressed(id: id, in: groupID) {
+            return localCorrectionSnapshot
+        }
+        let suppressionID = Self.suppressionRuleID(for: id, groupID: groupID)
+        var rules = localCorrectionSnapshot.rules.filter { $0.id != suppressionID }
+        if suppressed {
+            rules.append(LocalCorrectionRule(
+                id: suppressionID,
+                source: correction.writtenAs,
+                replacement: correction.writtenAs,
+                group: groupID,
+                enabled: true,
+                caseSensitive: globalRule.caseSensitive,
+                suppressesGlobal: true
+            ))
+        }
+        return try saveLocalCorrections(rules)
+    }
+
     @discardableResult
     func setVocabularyCorrectionLocalScope(
         id: UUID,
@@ -1067,6 +1103,9 @@ final class AppState {
         }
         let ruleID = Self.localRuleID(for: id)
         var rules = localCorrectionSnapshot.rules
+        if groupID != nil {
+            rules.removeAll { $0.id.hasPrefix(Self.suppressionRulePrefix(for: id)) }
+        }
         let existingIndex = rules.firstIndex { $0.id == ruleID }
         let rule = LocalCorrectionRule(
             id: ruleID,
@@ -1096,7 +1135,8 @@ final class AppState {
             replacement: current.replacement,
             group: current.group,
             enabled: false,
-            caseSensitive: current.caseSensitive
+            caseSensitive: current.caseSensitive,
+            suppressesGlobal: current.suppressesGlobal
         )
         return try saveLocalCorrections(rules)
     }
@@ -1116,8 +1156,21 @@ final class AppState {
             replacement: current.replacement,
             group: current.group,
             enabled: current.enabled,
-            caseSensitive: caseSensitive
+            caseSensitive: caseSensitive,
+            suppressesGlobal: current.suppressesGlobal
         )
+        for suppressionIndex in rules.indices where rules[suppressionIndex].id.hasPrefix(Self.suppressionRulePrefix(for: id)) {
+            let suppression = rules[suppressionIndex]
+            rules[suppressionIndex] = LocalCorrectionRule(
+                id: suppression.id,
+                source: suppression.source,
+                replacement: suppression.replacement,
+                group: suppression.group,
+                enabled: suppression.enabled,
+                caseSensitive: caseSensitive,
+                suppressesGlobal: true
+            )
+        }
         return try saveLocalCorrections(rules)
     }
 
@@ -1314,6 +1367,19 @@ final class AppState {
                 caseSensitive: current.caseSensitive
             )
         }
+        for suppressionIndex in updatedRules.indices where
+            updatedRules[suppressionIndex].id.hasPrefix(Self.suppressionRulePrefix(for: id)) {
+            let suppression = updatedRules[suppressionIndex]
+            updatedRules[suppressionIndex] = LocalCorrectionRule(
+                id: suppression.id,
+                source: normalizedWrittenAs,
+                replacement: normalizedWrittenAs,
+                group: suppression.group,
+                enabled: suppression.enabled,
+                caseSensitive: suppression.caseSensitive,
+                suppressesGlobal: true
+            )
+        }
         var updatedCorrections = vocabularyCorrections
         updatedCorrections[index].writtenAs = normalizedWrittenAs
         updatedCorrections[index].correctVersion = normalizedCorrectVersion
@@ -1344,16 +1410,21 @@ final class AppState {
         let rule = localCorrectionSnapshot.rules.first(where: { $0.id == ruleID })
         let nextUndo = DeletedVocabularyCorrectionUndo(
             correction: correction,
-            rule: rule
+            rule: rule,
+            suppressions: localCorrectionSnapshot.rules.filter {
+                $0.id.hasPrefix(Self.suppressionRulePrefix(for: id))
+            }
         )
         let updatedCorrections = vocabularyCorrections.filter { $0.id != id }
-        let updatedRules = localCorrectionSnapshot.rules.filter { $0.id != ruleID }
+        let updatedRules = localCorrectionSnapshot.rules.filter {
+            $0.id != ruleID && !$0.id.hasPrefix(Self.suppressionRulePrefix(for: id))
+        }
         do {
             if try !saveVocabularyCatalogIfActive(
                 corrections: updatedCorrections,
                 rules: updatedRules
             ) {
-                if rule != nil { try saveLocalCorrections(updatedRules) }
+                if updatedRules != localCorrectionSnapshot.rules { try saveLocalCorrections(updatedRules) }
                 vocabularyCorrections = updatedCorrections
             }
         } catch {
@@ -1378,12 +1449,12 @@ final class AppState {
             return false
         }
         var updatedRules = localCorrectionSnapshot.rules
-        if let savedRule = undo.rule {
-            let rule = Self.reconciledLocalCorrectionRules(
-                [savedRule],
-                vocabularyCorrections: nil,
-                availableGroupIDs: Set(cleanupGroups.filter(\.isEnabled).map(\.id))
-            )[0]
+        let restoredRules = Self.reconciledLocalCorrectionRules(
+            [undo.rule].compactMap { $0 } + (undo.suppressions ?? []),
+            vocabularyCorrections: nil,
+            availableGroupIDs: Set(cleanupGroups.filter(\.isEnabled).map(\.id))
+        )
+        for rule in restoredRules {
             if !Self.localCorrectionRulesAreByteEquivalent(
                 localCorrectionSnapshot.rules.filter { $0.id == rule.id },
                 [rule]
@@ -2269,6 +2340,14 @@ final class AppState {
         "vocabulary:\(vocabularyCorrectionID.uuidString.lowercased())"
     }
 
+    private static func suppressionRulePrefix(for vocabularyCorrectionID: UUID) -> String {
+        "suppression:\(vocabularyCorrectionID.uuidString.lowercased()):"
+    }
+
+    private static func suppressionRuleID(for vocabularyCorrectionID: UUID, groupID: String) -> String {
+        suppressionRulePrefix(for: vocabularyCorrectionID) + groupID
+    }
+
     private static func reconciledLocalCorrectionRules(
         _ rules: [LocalCorrectionRule],
         vocabularyCorrections: [VocabularyCorrection]?,
@@ -2289,7 +2368,28 @@ final class AppState {
                         replacement: correction.correctVersion,
                         group: rule.group,
                         enabled: rule.enabled,
-                        caseSensitive: rule.caseSensitive
+                        caseSensitive: rule.caseSensitive,
+                        suppressesGlobal: rule.suppressesGlobal
+                    )
+                }
+            }
+            if rule.id.hasPrefix("suppression:"), let vocabularyCorrections {
+                let suffix = String(rule.id.dropFirst("suppression:".count))
+                guard let separator = suffix.firstIndex(of: ":"),
+                      let correctionID = UUID(uuidString: String(suffix[..<separator])),
+                      let correction = vocabularyCorrections.first(where: { $0.id == correctionID }),
+                      let groupID = rule.group,
+                      String(suffix[suffix.index(after: separator)...]) == groupID else { return nil }
+                if rule.source != correction.writtenAs || rule.replacement != correction.writtenAs ||
+                   !rule.suppressesGlobal {
+                    reconciledRule = LocalCorrectionRule(
+                        id: rule.id,
+                        source: correction.writtenAs,
+                        replacement: correction.writtenAs,
+                        group: groupID,
+                        enabled: rule.enabled,
+                        caseSensitive: rule.caseSensitive,
+                        suppressesGlobal: true
                     )
                 }
             }
@@ -2304,7 +2404,8 @@ final class AppState {
                 replacement: reconciledRule.replacement,
                 group: reconciledRule.group,
                 enabled: false,
-                caseSensitive: reconciledRule.caseSensitive
+                caseSensitive: reconciledRule.caseSensitive,
+                suppressesGlobal: reconciledRule.suppressesGlobal
             )
         }
     }
@@ -2324,6 +2425,7 @@ final class AppState {
                 stringsAreByteEquivalent(left.replacement, right.replacement) &&
                 left.enabled == right.enabled &&
                 left.caseSensitive == right.caseSensitive &&
+                left.suppressesGlobal == right.suppressesGlobal &&
                 optionalStringsAreByteEquivalent(left.group, right.group)
         }
     }
@@ -2351,7 +2453,8 @@ final class AppState {
                 replacement: rule.replacement,
                 group: rule.group,
                 enabled: false,
-                caseSensitive: rule.caseSensitive
+                caseSensitive: rule.caseSensitive,
+                suppressesGlobal: rule.suppressesGlobal
             )
         }
     }

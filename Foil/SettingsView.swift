@@ -1454,7 +1454,7 @@ struct SettingsView: View {
 
             Toggle("Apply local corrections on this Mac", isOn: localCorrectionsEnabledBinding)
                 .accessibilityIdentifier("settings.localCorrectionsEnabled")
-            Text("Runs exact phrase replacements before Cleanup. Backtick code and http://, https://, or www. links are left alone. Other links, file paths, and email addresses can be corrected.")
+            Text("Runs exact phrase replacements before Cleanup. Group rules override a global rule for the same phrase; a longer distinct phrase still wins. Use Exceptions to leave a global phrase unchanged in selected groups. Backtick code and http://, https://, or www. links are left alone.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1541,6 +1541,12 @@ struct SettingsView: View {
                                         .foregroundStyle(.secondary)
                                         .lineLimit(2)
                                 }
+                                let excludedGroups = suppressedGroupNames(for: correction)
+                                if !excludedGroups.isEmpty {
+                                    Text("Off in: \(excludedGroups.joined(separator: ", "))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
 
                             Spacer()
@@ -1562,6 +1568,17 @@ struct SettingsView: View {
                                     .toggleStyle(.checkbox)
                                     .font(.caption)
                                     .accessibilityIdentifier("settings.localCorrectionCaseSensitive")
+                            }
+
+                            if let rule = appState.localCorrectionRule(forVocabularyCorrectionID: correction.id),
+                               rule.enabled, rule.group == nil {
+                                Menu("Exceptions") {
+                                    ForEach(appState.cleanupGroups.filter(\.isEnabled)) { group in
+                                        Toggle(group.isDefault ? "Unassigned apps" : group.name,
+                                               isOn: localCorrectionSuppressionBinding(correction, groupID: group.id))
+                                    }
+                                }
+                                .accessibilityIdentifier("settings.localCorrectionExceptions")
                             }
 
                             Button {
@@ -1698,6 +1715,26 @@ struct SettingsView: View {
                 )
             }
         )
+    }
+
+    private func localCorrectionSuppressionBinding(
+        _ correction: VocabularyCorrection,
+        groupID: String
+    ) -> Binding<Bool> {
+        Binding(
+            get: { appState.isVocabularyCorrectionSuppressed(id: correction.id, in: groupID) },
+            set: { suppressed in
+                _ = try? appState.setVocabularyCorrectionSuppressed(
+                    id: correction.id, in: groupID, suppressed: suppressed
+                )
+            }
+        )
+    }
+
+    private func suppressedGroupNames(for correction: VocabularyCorrection) -> [String] {
+        appState.cleanupGroups.filter {
+            $0.isEnabled && appState.isVocabularyCorrectionSuppressed(id: correction.id, in: $0.id)
+        }.map { $0.isDefault ? "Unassigned apps" : $0.name }
     }
 
     private var selectedLocalWhisperSetupModel: LocalWhisperSetupModel {

@@ -20,7 +20,7 @@ final class LocalCorrectionEngineTests: XCTestCase {
         XCTAssertNil(result.fallbackReason)
     }
 
-    func testScopedRuleWinsOverLongerGlobalRule() throws {
+    func testLongerGlobalPhraseWinsOverShorterScopedPhrase() throws {
         let compiled = try LocalCorrectionEngine.compile([
             rule(id: "global", source: "super base auth", replacement: "GLOBAL", group: nil),
             rule(id: "scoped", source: "super base", replacement: "Supabase", group: "agents")
@@ -33,7 +33,66 @@ final class LocalCorrectionEngineTests: XCTestCase {
             compiled: compiled
         )
 
-        XCTAssertEqual(result.text, "Supabase auth")
+        XCTAssertEqual(result.text, "GLOBAL")
+    }
+
+    func testScopedRuleOverridesSameGlobalPhraseOnlyInItsGroup() throws {
+        let compiled = try LocalCorrectionEngine.compile([
+            rule(id: "global", source: "super base", replacement: "Global", group: nil),
+            rule(id: "scoped", source: "super base", replacement: "Supabase", group: "agents")
+        ])
+
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct("super base", activeGroup: "agents", enabled: true, compiled: compiled).text,
+            "Supabase"
+        )
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct("super base", activeGroup: "other", enabled: true, compiled: compiled).text,
+            "Global"
+        )
+    }
+
+    func testGroupSuppressionLeavesExactGlobalPhraseUntouched() throws {
+        let compiled = try LocalCorrectionEngine.compile([
+            rule(id: "global", source: "super base", replacement: "Supabase", group: nil),
+            rule(id: "exception", source: "super base", replacement: "super base",
+                 group: "agents", suppressesGlobal: true)
+        ])
+
+        let protected = LocalCorrectionEngine.correct(
+            "super base and café", activeGroup: "agents", enabled: true, compiled: compiled
+        )
+        XCTAssertEqual(protected.text, "super base and café")
+        XCTAssertEqual(protected.replacementCount, 0)
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct("super base", activeGroup: "other", enabled: true, compiled: compiled).text,
+            "Supabase"
+        )
+    }
+
+    func testSuppressionDoesNotMaskLongerDistinctGlobalPhrase() throws {
+        let compiled = try LocalCorrectionEngine.compile([
+            rule(id: "global", source: "super base auth", replacement: "AUTH", group: nil),
+            rule(id: "exception", source: "super base", replacement: "super base",
+                 group: "agents", suppressesGlobal: true)
+        ])
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct("super base auth", activeGroup: "agents", enabled: true, compiled: compiled).text,
+            "AUTH"
+        )
+    }
+
+    func testSuppressionSurvivesOlderRuleEncodingWithoutNewFlag() throws {
+        let payload = #"{"id":"suppression:11111111-1111-1111-1111-111111111111:agents","source":"super base","replacement":"super base","group":"agents","enabled":true,"case_sensitive":false}"#
+        let rule = try JSONDecoder().decode(LocalCorrectionRule.self, from: Data(payload.utf8))
+        XCTAssertTrue(rule.suppressesGlobal)
+        let compiled = try LocalCorrectionEngine.compile([
+            self.rule(id: "global", source: "super base", replacement: "Supabase", group: nil), rule
+        ])
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct("super base", activeGroup: "agents", enabled: true, compiled: compiled).text,
+            "super base"
+        )
     }
 
     func testProtectedCodeAndURLRemainUntouched() throws {
@@ -261,7 +320,8 @@ final class LocalCorrectionEngineTests: XCTestCase {
         replacement: String,
         group: String? = "agents",
         enabled: Bool = true,
-        caseSensitive: Bool = false
+        caseSensitive: Bool = false,
+        suppressesGlobal: Bool = false
     ) -> LocalCorrectionRule {
         LocalCorrectionRule(
             id: id,
@@ -269,7 +329,8 @@ final class LocalCorrectionEngineTests: XCTestCase {
             replacement: replacement,
             group: group,
             enabled: enabled,
-            caseSensitive: caseSensitive
+            caseSensitive: caseSensitive,
+            suppressesGlobal: suppressesGlobal
         )
     }
 }

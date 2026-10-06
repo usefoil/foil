@@ -2009,6 +2009,39 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(restoredReload.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.group, "agents")
     }
 
+    func testGlobalCorrectionCanBeSuppressedForOneGroupAndPersists() throws {
+        let store = LocalCorrectionStore(fileURL: testDirectory.appendingPathComponent("suppressed-corrections.json"))
+        let state = AppState(localCorrectionStore: store)
+        state.setCleanupGroups([
+            CleanupGroup.defaultGroup(),
+            CleanupGroup(id: "agents", name: "Agents", sortOrder: 1)
+        ])
+        let correction = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Supabase"
+        ))
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: nil)
+        _ = try state.setLocalCorrectionsEnabled(true)
+        _ = try state.setVocabularyCorrectionSuppressed(id: correction.id, in: "agents", suppressed: true)
+
+        XCTAssertTrue(state.isVocabularyCorrectionSuppressed(id: correction.id, in: "agents"))
+        XCTAssertEqual(state.previewLocalCorrections("super base", activeGroupID: "agents").text, "super base")
+        XCTAssertEqual(state.previewLocalCorrections("super base", activeGroupID: "other").text, "Supabase")
+
+        let reloaded = AppState(localCorrectionStore: store)
+        XCTAssertTrue(reloaded.isVocabularyCorrectionSuppressed(id: correction.id, in: "agents"))
+        XCTAssertEqual(reloaded.previewLocalCorrections("super base", activeGroupID: "agents").text, "super base")
+        XCTAssertNotNil(reloaded.updateVocabularyCorrection(
+            id: correction.id, writtenAs: "supa base", correctVersion: "Supabase"
+        ))
+        XCTAssertEqual(reloaded.previewLocalCorrections("supa base", activeGroupID: "agents").text, "supa base")
+        XCTAssertEqual(reloaded.previewLocalCorrections("supa base", activeGroupID: "other").text, "Supabase")
+        XCTAssertTrue(reloaded.deleteVocabularyCorrection(id: correction.id))
+        XCTAssertFalse(reloaded.localCorrectionSnapshot.rules.contains { $0.suppressesGlobal })
+        XCTAssertTrue(reloaded.undoVocabularyCorrectionDeletion())
+        XCTAssertTrue(reloaded.isVocabularyCorrectionSuppressed(id: correction.id, in: "agents"))
+        XCTAssertEqual(reloaded.previewLocalCorrections("supa base", activeGroupID: "agents").text, "supa base")
+    }
+
     func testReloadReconcilesVocabularyRulesChangedByPreviousVersion() throws {
         let fileURL = testDirectory.appendingPathComponent("local-corrections-downgrade-reconcile.json")
         let store = LocalCorrectionStore(fileURL: fileURL)
