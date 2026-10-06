@@ -7,10 +7,58 @@ struct LocalCorrectionRule: Codable, Equatable, Sendable {
     let group: String?
     let enabled: Bool
     let caseSensitive: Bool
+    let suppressesGlobal: Bool
+
+    init(
+        id: String,
+        source: String,
+        replacement: String,
+        group: String?,
+        enabled: Bool,
+        caseSensitive: Bool,
+        suppressesGlobal: Bool = false
+    ) {
+        self.id = id
+        self.source = source
+        self.replacement = replacement
+        self.group = group
+        self.enabled = enabled
+        self.caseSensitive = caseSensitive
+        self.suppressesGlobal = suppressesGlobal
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, source, replacement, group, enabled
         case caseSensitive = "case_sensitive"
+        case suppressesGlobal = "suppresses_global"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(String.self, forKey: .id)
+        let encodedSuppression = try container.decodeIfPresent(Bool.self, forKey: .suppressesGlobal) ?? false
+        self.init(
+            id: id,
+            source: try container.decode(String.self, forKey: .source),
+            replacement: try container.decode(String.self, forKey: .replacement),
+            group: try container.decodeIfPresent(String.self, forKey: .group),
+            enabled: try container.decode(Bool.self, forKey: .enabled),
+            caseSensitive: try container.decode(Bool.self, forKey: .caseSensitive),
+            suppressesGlobal: id.hasPrefix("suppression:") || encodedSuppression
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(source, forKey: .source)
+        try container.encode(replacement, forKey: .replacement)
+        try container.encodeIfPresent(group, forKey: .group)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(caseSensitive, forKey: .caseSensitive)
+        if suppressesGlobal {
+            try container.encode(true, forKey: .suppressesGlobal)
+        }
     }
 }
 
@@ -33,6 +81,7 @@ enum LocalCorrectionValidationError: Error, Equatable, CustomStringConvertible {
     case emptyReplacement(String)
     case phraseTooLong(String)
     case tooManyEnabledRules(Int)
+    case invalidSuppression(String)
 
     var description: String {
         switch self {
@@ -50,6 +99,8 @@ enum LocalCorrectionValidationError: Error, Equatable, CustomStringConvertible {
             "Local correction rule \(id) exceeds 256 Unicode scalars"
         case .tooManyEnabledRules(let count):
             "Local corrections support at most 1,000 enabled rules (received \(count))"
+        case .invalidSuppression(let id):
+            "A global rule cannot suppress itself: \(id)"
         }
     }
 }
@@ -61,6 +112,7 @@ struct CompiledLocalCorrections: Sendable {
         let replacementUTF8: [UInt8]
         let group: String?
         let scalarCount: Int
+        let suppressesGlobal: Bool
     }
 
     fileprivate struct TrieNode: Sendable {
@@ -111,7 +163,8 @@ enum LocalCorrectionEngine {
                     replacement: rule.replacement,
                     replacementUTF8: Array(rule.replacement.utf8),
                     group: rule.group,
-                    scalarCount: scalars.count
+                    scalarCount: scalars.count,
+                    suppressesGlobal: rule.suppressesGlobal
                 )
             )
             if rule.caseSensitive {
@@ -182,10 +235,14 @@ enum LocalCorrectionEngine {
                 let originalStart = normalized.originalStarts[scalarPosition]
                 let originalEnd = normalized.originalEnds[match.endScalarPosition - 1]
                 output.append(contentsOf: input[copyStart..<originalStart])
-                output.append(match.rule.replacement)
+                if match.rule.suppressesGlobal {
+                    output.append(contentsOf: input[originalStart..<originalEnd])
+                } else {
+                    output.append(match.rule.replacement)
+                    replacementCount += 1
+                }
                 copyStart = originalEnd
                 scalarPosition = match.endScalarPosition
-                replacementCount += 1
             } else {
                 scalarPosition = nextCandidatePosition(
                     afterFailedMatchAt: scalarPosition,
@@ -256,13 +313,18 @@ enum LocalCorrectionEngine {
         output.reserveCapacity(input.count)
         for replacement in replacements {
             output.append(contentsOf: input[copyStart..<replacement.start])
-            output.append(contentsOf: compiled.rules[replacement.match.ruleIndex].replacementUTF8)
+            let rule = compiled.rules[replacement.match.ruleIndex]
+            if rule.suppressesGlobal {
+                output.append(contentsOf: input[replacement.start..<replacement.match.endBytePosition])
+            } else {
+                output.append(contentsOf: rule.replacementUTF8)
+            }
             copyStart = replacement.match.endBytePosition
         }
         output.append(contentsOf: input[copyStart..<input.count])
         return LocalCorrectionResult(
             text: String(decoding: output, as: UTF8.self),
-            replacementCount: replacements.count,
+            replacementCount: replacements.filter { !compiled.rules[$0.match.ruleIndex].suppressesGlobal }.count,
             fallbackReason: nil
         )
     }
@@ -340,12 +402,12 @@ enum LocalCorrectionEngine {
         guard let current else { return true }
         let candidateRule = rules[candidate.ruleIndex]
         let currentRule = rules[current.ruleIndex]
-        let candidateScoped = candidateRule.group == nil ? 0 : 1
-        let currentScoped = currentRule.group == nil ? 0 : 1
-        if candidateScoped != currentScoped { return candidateScoped > currentScoped }
         if candidateRule.scalarCount != currentRule.scalarCount {
             return candidateRule.scalarCount > currentRule.scalarCount
         }
+        let candidateScoped = candidateRule.group == nil ? 0 : 1
+        let currentScoped = currentRule.group == nil ? 0 : 1
+        if candidateScoped != currentScoped { return candidateScoped > currentScoped }
         return candidateRule.id < currentRule.id
     }
 
@@ -560,12 +622,12 @@ enum LocalCorrectionEngine {
 
     private static func isPreferred(_ candidate: Match, over current: Match?) -> Bool {
         guard let current else { return true }
-        let candidateScoped = candidate.rule.group == nil ? 0 : 1
-        let currentScoped = current.rule.group == nil ? 0 : 1
-        if candidateScoped != currentScoped { return candidateScoped > currentScoped }
         if candidate.rule.scalarCount != current.rule.scalarCount {
             return candidate.rule.scalarCount > current.rule.scalarCount
         }
+        let candidateScoped = candidate.rule.group == nil ? 0 : 1
+        let currentScoped = current.rule.group == nil ? 0 : 1
+        if candidateScoped != currentScoped { return candidateScoped > currentScoped }
         return candidate.rule.id < current.rule.id
     }
 
@@ -587,6 +649,9 @@ enum LocalCorrectionEngine {
             }
             guard !rule.replacement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw LocalCorrectionValidationError.emptyReplacement(rule.id)
+            }
+            guard !rule.suppressesGlobal || rule.group != nil else {
+                throw LocalCorrectionValidationError.invalidSuppression(rule.id)
             }
             guard rule.source.unicodeScalars.count <= maximumPhraseScalars,
                   rule.replacement.unicodeScalars.count <= maximumPhraseScalars else {

@@ -2,6 +2,118 @@ import XCTest
 @testable import Foil
 
 final class VocabularyProposalServiceTests: XCTestCase {
+    func testGroupExceptionBlocksConflictingProposalBeforeApplyAndInvalidatesPendingReview() throws {
+        let global = AgentAccessVocabularyCorrection(
+            id: UUID().uuidString.lowercased(),
+            writtenAs: "super base",
+            correctVersion: "Supabase",
+            note: nil,
+            localRule: .init(enabled: true, caseSensitive: false, scopeID: nil)
+        )
+        let scopes = [AgentAccessVocabularyScope(id: "agents", name: "Agents", isDefault: false, isEnabled: true)]
+        let initialModel = AgentAccessVocabularyReadModel(
+            scopes: scopes, terms: [], corrections: [global], localCorrectionsEnabled: true
+        )
+        let fixture = try makeFixture(model: initialModel)
+        let request = VocabularyProposalRequest(
+            requestID: "group-exception",
+            scope: .init(kind: "cleanup_group", id: "agents"),
+            corrections: [.init(spokenForms: ["super base"], replacement: "Superbase")]
+        )
+        let pending = try fixture.service.submit(request)
+        let tokenBeforeException = try fixture.service.currentSnapshotToken()
+
+        fixture.readModelStore.update(AgentAccessVocabularyReadModel(
+            scopes: scopes,
+            terms: [],
+            corrections: [global],
+            localCorrectionsEnabled: true,
+            suppressionRules: [LocalCorrectionRule(
+                id: "suppression:\(global.id):agents",
+                source: "super base",
+                replacement: "super base",
+                group: "agents",
+                enabled: true,
+                caseSensitive: false,
+                suppressesGlobal: true
+            )]
+        ))
+
+        XCTAssertNotEqual(try fixture.service.currentSnapshotToken(), tokenBeforeException)
+        let proposal = try XCTUnwrap(fixture.store.proposal(id: pending.receipt.proposalID))
+        let preview = fixture.service.preview(for: proposal)
+        XCTAssertFalse(preview.valid)
+        XCTAssertEqual(preview.issues.first?.code, "correction_conflict")
+        XCTAssertTrue(preview.issues.first?.message.contains("Remove the exception in Foil") == true)
+        XCTAssertThrowsError(try fixture.service.validateForApply(proposal)) { error in
+            guard case .validation(let code, _) = error as? VocabularyProposalServiceError else {
+                return XCTFail("Expected a correction conflict")
+            }
+            XCTAssertEqual(code, "correction_conflict")
+        }
+        XCTAssertThrowsError(try fixture.service.submit(VocabularyProposalRequest(
+            requestID: "new-group-exception",
+            scope: request.scope,
+            corrections: request.corrections
+        ))) { error in
+            guard let serviceError = error as? VocabularyProposalServiceError,
+                  case .validation(let code, _) = serviceError else {
+                return XCTFail("Expected a correction conflict")
+            }
+            XCTAssertEqual(code, "correction_conflict")
+        }
+
+        // Catalog validation reserves aliases even when a stored exception is disabled.
+        fixture.readModelStore.update(AgentAccessVocabularyReadModel(
+            scopes: scopes,
+            terms: [],
+            corrections: [global],
+            localCorrectionsEnabled: true,
+            suppressionRules: [LocalCorrectionRule(
+                id: "suppression:\(global.id):agents",
+                source: "super base",
+                replacement: "super base",
+                group: "agents",
+                enabled: false,
+                caseSensitive: false,
+                suppressesGlobal: true
+            )]
+        ))
+        XCTAssertThrowsError(try fixture.service.submit(VocabularyProposalRequest(
+            requestID: "disabled-group-exception",
+            scope: request.scope,
+            corrections: request.corrections
+        ))) { error in
+            guard let serviceError = error as? VocabularyProposalServiceError,
+                  case .validation(let code, _) = serviceError else {
+                return XCTFail("Expected a correction conflict")
+            }
+            XCTAssertEqual(code, "correction_conflict")
+        }
+
+        let disabledGlobal = AgentAccessVocabularyCorrection(
+            id: global.id,
+            writtenAs: global.writtenAs,
+            correctVersion: global.correctVersion,
+            note: nil,
+            localRule: .init(enabled: false, caseSensitive: false, scopeID: nil)
+        )
+        fixture.readModelStore.update(AgentAccessVocabularyReadModel(
+            scopes: scopes, terms: [], corrections: [disabledGlobal], localCorrectionsEnabled: true
+        ))
+        XCTAssertThrowsError(try fixture.service.submit(VocabularyProposalRequest(
+            requestID: "disabled-global-correction",
+            scope: .init(kind: "global", id: "global"),
+            corrections: request.corrections
+        ))) { error in
+            guard let serviceError = error as? VocabularyProposalServiceError,
+                  case .validation(let code, _) = serviceError else {
+                return XCTFail("Expected a correction conflict")
+            }
+            XCTAssertEqual(code, "correction_conflict")
+        }
+    }
+
     func testValidSubmissionPersistsAndStatusReturnsSameReceipt() throws {
         let fixture = try makeFixture()
 

@@ -85,7 +85,7 @@ hidden corrections, History writes, or agent calls.
   is literal in v1. Use NFC canonical equivalence and ASCII-only case folding in
   v1, with an original-offset map. Preserve the bytes of every untouched span.
 - Select leftmost matches; for candidates starting at the same position, prefer
-  more specific scope, then longest phrase, then stable rule ID. Reject identical
+  the longest normalized phrase, then more specific scope, then stable rule ID. Reject identical
   normalized source/scope pairs with conflicting replacements at write time.
 - Never rescan replacement output. `A -> B` plus `B -> C` changes original `A` to
   `B`, not `C`. Do not claim all rule sets are mathematically idempotent; enforce
@@ -304,8 +304,8 @@ agent's current working directory elsewhere is not reliable project detection.
 - T4.1: Project activation is visible. Unknown/expired context applies no project
   rules. Switching between two repositories in one agent app is demonstrated;
   delayed transcripts keep the project captured at recording start.
-- T4.2: Scope precedence is project > group > global for candidates at the same
-  position, followed by the existing length/ID rules. Collision previews identify
+- T4.2: For candidates at the same position, the longest phrase wins first;
+  equal-length ties use project > group > global, then stable rule ID. Collision previews identify
   shadowed rules. Test all combinations with the same input phrase.
 - T4.3: Imported packs are inert data until activated. Import does not execute
   scripts, follow remote references, read arbitrary paths, or enable new providers.

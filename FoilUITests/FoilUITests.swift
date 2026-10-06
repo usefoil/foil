@@ -1396,6 +1396,46 @@ final class FoilUITests: XCTestCase {
         add(attachment)
     }
 
+    func testGlobalCorrectionExceptionPreviewUsesSelectedGroup() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--settings-tab-cleanup"])
+        openSettingsPanel()
+        clickElement(button(id: "settings.cleanupGroups.addGroupButton", fallbackLabel: "Add cleanup group"))
+        let groupName = app.textFields["settings.cleanupGroups.nameField"]
+        XCTAssertTrue(groupName.waitForExistence(timeout: 3), app.debugDescription)
+        replaceText(in: groupName, with: "Agents")
+
+        replaceText(in: app.textFields["settings.vocabularyCorrectionWrittenAs"], with: "super base")
+        replaceText(in: app.textFields["settings.vocabularyCorrectionCorrectVersion"], with: "Supabase")
+        clickElement(app.buttons["settings.addVocabularyCorrectionButton"])
+        let scope = app.popUpButtons["settings.localCorrectionScope"]
+        XCTAssertTrue(scope.waitForExistence(timeout: 3), app.debugDescription)
+        clickElement(scope)
+        clickElement(app.menuItems["Everywhere"])
+        clickElement(app.checkBoxes["settings.localCorrectionsEnabled"])
+
+        let exceptions = button(id: "settings.localCorrectionExceptions", fallbackLabel: "Exceptions")
+        scrollSettingsUntilHittable(exceptions)
+        clickElement(exceptions)
+        clickElement(app.menuItems["Agents"])
+        XCTAssertTrue(app.staticTexts["Off in: Agents"].waitForExistence(timeout: 3), app.debugDescription)
+
+        let previewInput = app.textFields["settings.localCorrectionPreviewInput"]
+        scrollSettingsUntilHittable(previewInput)
+        replaceText(in: previewInput, with: "use super base")
+        XCTAssertTrue(elementLabelOrValueContains(
+            app.staticTexts["settings.localCorrectionPreviewOutput"], "use super base"
+        ), app.debugDescription)
+        let defaultGroup = app.buttons["settings.cleanupGroups.groupRow.default-unassigned-apps"]
+        for _ in 0..<8 where !defaultGroup.isHittable {
+            app.scrollViews["settings.root"].swipeDown()
+        }
+        XCTAssertTrue(defaultGroup.isHittable, app.debugDescription)
+        clickElement(defaultGroup)
+        XCTAssertTrue(elementLabelOrValueContains(
+            app.staticTexts["settings.localCorrectionPreviewOutput"], "use Supabase"
+        ), app.debugDescription)
+    }
+
     func testActiveCleanupModeSelectorPersistsAndScreenshotsResult() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-history", "--settings-tab-cleanup"])
         openAppShellCleanupSettings()

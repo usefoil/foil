@@ -49,6 +49,16 @@ Applying a proposal creates ordinary Foil Vocabulary entries and exact local rul
 it does not turn on the global **Apply local corrections** switch. That switch and
 any Cleanup Group scope remain under your control.
 
+Global exact corrections act as defaults. A rule in the active Cleanup Group
+wins when it matches the same phrase; a longer distinct phrase wins over a
+shorter match. In Vocabulary settings, use a global correction's **Exceptions**
+menu to leave its phrase unchanged in selected Cleanup Groups. Turning a scoped
+rule off does not suppress a global rule; an exception is an explicit choice.
+Turning a global correction off clears its group exceptions. A proposal for a
+phrase already covered by an exception in that group must resolve the exception
+before it can be submitted or applied. Disabling a Cleanup Group also clears its
+exceptions; group corrections remain off if that group is re-enabled.
+
 ## Review agent action requests
 
 An agent can POST a request to `/v1/vocabulary/actions` to ask Foil to apply a

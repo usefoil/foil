@@ -421,6 +421,19 @@ final class VocabularyCatalogStore: @unchecked Sendable {
                 return false
             }
         }
+        for rule in snapshot.rules where rule.id.hasPrefix("suppression:") {
+            let suffix = String(rule.id.dropFirst("suppression:".count))
+            guard let separator = suffix.firstIndex(of: ":"),
+                  let correctionID = UUID(uuidString: String(suffix[..<separator])),
+                  let correction = correctionsByID[correctionID],
+                  let groupID = rule.group,
+                  String(suffix[suffix.index(after: separator)...]) == groupID,
+                  rule.suppressesGlobal,
+                  rule.source.utf8.elementsEqual(correction.writtenAs.utf8),
+                  rule.replacement.utf8.elementsEqual(correction.writtenAs.utf8) else {
+                return false
+            }
+        }
         return true
     }
 

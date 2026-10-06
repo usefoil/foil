@@ -5,6 +5,11 @@ an implemented feature. The corpus and Python harness contain **no production
 matcher**. Its mutation checks prove the oracle can reject selected defects, not
 that any engine currently passes the corpus.
 
+Amended on 2026-10-05 for app-specific override semantics: phrase length now
+precedes scope, and development cases E04 and E19 were updated deliberately.
+The holdout corpus and all other expectations remain unchanged. The manifest
+hash records this reviewed change; the adapter schema stays at version 1.
+
 ## Matching decisions
 
 - Literal phrase replacement only. No regex, fuzzy matching, spelling inference,
@@ -25,7 +30,7 @@ that any engine currently passes the corpus.
 - Whitespace *inside* a source is literal: space, tab, NBSP, CRLF and repeated
   spaces are distinct. Do not trim transcript input or output.
 - Resolve candidates left to right in original input. At the same original start,
-  group scope beats global, then longest normalized source in Unicode scalars,
+  the longest normalized source in Unicode scalars wins, then group scope beats global,
   then lexicographically smallest stable rule ID. Rule-array order is irrelevant.
 - Emit replacement text exactly, including its case, dollar signs, backslashes,
   emoji or explicit newline. Replacement output is never scanned again. Separate
