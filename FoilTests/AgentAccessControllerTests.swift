@@ -213,7 +213,7 @@ final class AgentAccessControllerTests: XCTestCase {
         ))
         _ = try state.setVocabularyCorrectionLocalScope(id: codexCorrection.id, groupID: nil)
         let scopedCorrection = try XCTUnwrap(state.addVocabularyCorrection(
-            writtenAs: "code ex", correctVersion: "CodeX"
+            writtenAs: "code ex", correctVersion: "CodeX App"
         ))
         _ = try state.setVocabularyCorrectionLocalScope(id: scopedCorrection.id, groupID: group.id)
         let supabase = try XCTUnwrap(state.addVocabularyCorrection(
@@ -226,6 +226,10 @@ final class AgentAccessControllerTests: XCTestCase {
             LocalCorrectionRule(id: "manual:legacy", source: "ufo", replacement: "UFO",
                                 group: nil, enabled: true, caseSensitive: false)
         ])
+        state.addAppMatcher(
+            CleanupAppMatcher(displayName: "Notes", appPath: notes.path),
+            toCleanupGroupID: CleanupGroup.defaultGroupID
+        )
 
         let groups = state.cleanupGroups
         let verified = try AgentAccessTargetInspection.verify(
@@ -238,6 +242,15 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertEqual(verified.allMatchExpectedGroup, true)
         XCTAssertEqual(verified.groupContainsOnlyRequestedPaths, true)
         XCTAssertTrue(verified.targets.allSatisfy(\.exactPathMatch))
+        let defaultVerified = try AgentAccessTargetInspection.verify(
+            AgentAccessTargetVerificationRequest(
+                appPaths: [notes.path], expectedGroupID: CleanupGroup.defaultGroupID
+            ),
+            requestID: "default-verify", groups: groups
+        )
+        XCTAssertEqual(defaultVerified.allMatchExpectedGroup, true)
+        XCTAssertEqual(defaultVerified.groupContainsOnlyRequestedPaths, false)
+        XCTAssertEqual(defaultVerified.targets.first?.exactPathMatch, true)
 
         let model = AgentAccessController.makeReadModel(from: state)
         let inGroup = try AgentAccessTargetInspection.effectivePreview(
@@ -247,7 +260,7 @@ final class AgentAccessControllerTests: XCTestCase {
             requestID: "group-preview", model: model, groups: groups
         )
         XCTAssertEqual(inGroup.target.resolvedGroupID, group.id)
-        XCTAssertEqual(inGroup.outputText, "CodeX and super base")
+        XCTAssertEqual(inGroup.outputText, "CodeX App and super base")
         XCTAssertEqual(inGroup.replacementCount, 1)
         XCTAssertTrue(inGroup.rules.contains { $0.correctionID == supabase.id.uuidString.lowercased() && $0.suppressesGlobal })
         XCTAssertTrue(inGroup.rules.contains { $0.ruleID == "manual:legacy" && $0.correctionID == nil })
@@ -819,11 +832,7 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertTrue(state.localCorrectionSnapshot.isEnabled)
         XCTAssertEqual(try actionStore.load().records.first?.state, .approved)
         let replay = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
-            method: .post, path: "/v1/vocabulary/actions", headers: [:],
-            body: try JSONEncoder().encode(AgentAccessActionRequest(
-                requestID: "batch-1", action: .setCorrectionPolicies, enabled: true,
-                correctionPolicies: Array((request.correctionPolicies ?? []).reversed())
-            ))
+            method: .post, path: "/v1/vocabulary/actions", headers: [:], body: body
         ))
         XCTAssertEqual(replay.status, 200)
         let decoder = JSONDecoder()
@@ -944,7 +953,11 @@ final class AgentAccessControllerTests: XCTestCase {
         ).text, "Supabase code ex")
 
         let replay = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
-            method: .post, path: "/v1/vocabulary/actions", headers: [:], body: body
+            method: .post, path: "/v1/vocabulary/actions", headers: [:],
+            body: try JSONEncoder().encode(AgentAccessActionRequest(
+                requestID: "batch-1", action: .setCorrectionPolicies, enabled: true,
+                correctionPolicies: Array((request.correctionPolicies ?? []).reversed())
+            ))
         ))
         XCTAssertEqual(replay.status, 200)
         XCTAssertEqual(try actionStore.load().records.count, 1)

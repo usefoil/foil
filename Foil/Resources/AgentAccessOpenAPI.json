@@ -308,7 +308,7 @@
           "request_id": {"type": "string"},
           "targets": {"type": "array", "items": {"$ref": "#/components/schemas/VerifiedTarget"}},
           "all_match_expected_group": {"type": "boolean"},
-          "group_contains_only_requested_paths": {"type": "boolean"}
+          "group_contains_only_requested_paths": {"type": "boolean", "description": "True only for an enabled non-default group with exactly the supplied path matchers. The default group is a fallback for other apps and is never exclusive."}
         }
       },
       "EffectivePreviewRequest": {
