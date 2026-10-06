@@ -17,6 +17,23 @@ struct AgentAccessCorrectionPolicy: Codable, Equatable, Sendable {
     let enabled: Bool
     let caseSensitive: Bool
     let suppressedGroupIDs: [String]
+    let matchPunctuationVariants: Bool?
+
+    init(
+        correctionID: String,
+        scopeID: String,
+        enabled: Bool,
+        caseSensitive: Bool,
+        suppressedGroupIDs: [String],
+        matchPunctuationVariants: Bool? = nil
+    ) {
+        self.correctionID = correctionID
+        self.scopeID = scopeID
+        self.enabled = enabled
+        self.caseSensitive = caseSensitive
+        self.suppressedGroupIDs = suppressedGroupIDs
+        self.matchPunctuationVariants = matchPunctuationVariants
+    }
 
     enum CodingKeys: String, CodingKey {
         case correctionID = "correction_id"
@@ -24,6 +41,27 @@ struct AgentAccessCorrectionPolicy: Codable, Equatable, Sendable {
         case enabled
         case caseSensitive = "case_sensitive"
         case suppressedGroupIDs = "suppressed_group_ids"
+        case matchPunctuationVariants = "match_punctuation_variants"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        correctionID = try container.decode(String.self, forKey: .correctionID)
+        scopeID = try container.decode(String.self, forKey: .scopeID)
+        enabled = try container.decode(Bool.self, forKey: .enabled)
+        caseSensitive = try container.decode(Bool.self, forKey: .caseSensitive)
+        suppressedGroupIDs = try container.decode([String].self, forKey: .suppressedGroupIDs)
+        matchPunctuationVariants = try container.decodeIfPresent(Bool.self, forKey: .matchPunctuationVariants)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(correctionID, forKey: .correctionID)
+        try container.encode(scopeID, forKey: .scopeID)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(caseSensitive, forKey: .caseSensitive)
+        try container.encode(suppressedGroupIDs, forKey: .suppressedGroupIDs)
+        try container.encodeIfPresent(matchPunctuationVariants, forKey: .matchPunctuationVariants)
     }
 
     func validated() throws -> AgentAccessCorrectionPolicy {
@@ -40,7 +78,8 @@ struct AgentAccessCorrectionPolicy: Codable, Equatable, Sendable {
         return AgentAccessCorrectionPolicy(
             correctionID: id.uuidString.lowercased(), scopeID: scopeID,
             enabled: enabled, caseSensitive: caseSensitive,
-            suppressedGroupIDs: suppressedGroupIDs.sorted()
+            suppressedGroupIDs: suppressedGroupIDs.sorted(),
+            matchPunctuationVariants: matchPunctuationVariants
         )
     }
 }
@@ -459,7 +498,8 @@ enum AgentAccessPolicyBatchPlanner {
             return LocalCorrectionRule(
                 id: "vocabulary:\(correction.id)", source: correction.writtenAs,
                 replacement: correction.correctVersion, group: local.scopeID,
-                enabled: local.enabled, caseSensitive: local.caseSensitive
+                enabled: local.enabled, caseSensitive: local.caseSensitive,
+                matchPunctuationVariants: local.matchPunctuationVariants
             )
         } + model.suppressionRules
         var rules = model.catalogRules.isEmpty ? projectedRules : model.catalogRules
@@ -473,18 +513,23 @@ enum AgentAccessPolicyBatchPlanner {
             }
             let ruleID = "vocabulary:\(policy.correctionID)"
             let suppressionPrefix = "suppression:\(policy.correctionID):"
+            let punctuationVariants = policy.matchPunctuationVariants ??
+                correction.localRule?.matchPunctuationVariants ?? false
             rules.removeAll { $0.id == ruleID || $0.id.hasPrefix(suppressionPrefix) }
             rules.append(LocalCorrectionRule(
                 id: ruleID, source: correction.writtenAs, replacement: correction.correctVersion,
                 group: policy.scopeID == "global" ? nil : policy.scopeID,
-                enabled: policy.enabled, caseSensitive: policy.caseSensitive
+                enabled: policy.enabled, caseSensitive: policy.caseSensitive,
+                matchPunctuationVariants: punctuationVariants
             ))
             for groupID in policy.suppressedGroupIDs {
                 rules.append(LocalCorrectionRule(
                     id: suppressionPrefix + groupID,
                     source: correction.writtenAs, replacement: correction.writtenAs,
                     group: groupID, enabled: true,
-                    caseSensitive: policy.caseSensitive, suppressesGlobal: true
+                    caseSensitive: policy.caseSensitive,
+                    matchPunctuationVariants: punctuationVariants,
+                    suppressesGlobal: true
                 ))
             }
         }
@@ -496,12 +541,15 @@ enum AgentAccessPolicyBatchPlanner {
         let policyByID = Dictionary(uniqueKeysWithValues: policies.map { ($0.correctionID, $0) })
         let updatedCorrections = model.corrections.map { correction in
             guard let policy = policyByID[correction.id] else { return correction }
+            let punctuationVariants = policy.matchPunctuationVariants ??
+                correction.localRule?.matchPunctuationVariants ?? false
             return AgentAccessVocabularyCorrection(
                 id: correction.id, writtenAs: correction.writtenAs,
                 correctVersion: correction.correctVersion, note: correction.note,
                 localRule: AgentAccessLocalRule(
                     enabled: policy.enabled, caseSensitive: policy.caseSensitive,
-                    scopeID: policy.scopeID == "global" ? nil : policy.scopeID
+                    scopeID: policy.scopeID == "global" ? nil : policy.scopeID,
+                    matchPunctuationVariants: punctuationVariants
                 )
             )
         }

@@ -2,6 +2,70 @@ import XCTest
 @testable import Foil
 
 final class LocalCorrectionEngineTests: XCTestCase {
+    func testOptInPunctuationVariantsReplaceOnlyTheInternalSeparator() throws {
+        let compiled = try LocalCorrectionEngine.compile([
+            rule(id: "supabase", source: "super base", replacement: "Supabase", matchPunctuationVariants: true)
+        ])
+        let input = "super base, super-base; super, base! super—base? superbase"
+        let result = LocalCorrectionEngine.correct(input, activeGroup: "agents", enabled: true, compiled: compiled)
+        XCTAssertEqual(result.text, "Supabase, Supabase; Supabase! Supabase? superbase")
+        XCTAssertEqual(result.replacementCount, 4)
+    }
+
+    func testPunctuationVariantsRemainExactByDefaultAndSkipProtectedText() throws {
+        let exact = try LocalCorrectionEngine.compile([
+            rule(id: "exact", source: "super base", replacement: "Supabase")
+        ])
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct("super-base, super base", activeGroup: "agents", enabled: true, compiled: exact).text,
+            "super-base, Supabase"
+        )
+
+        let variants = try LocalCorrectionEngine.compile([
+            rule(id: "variants", source: "super base", replacement: "Supabase", matchPunctuationVariants: true)
+        ])
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct("`super-base` https://host/super-base then super-base", activeGroup: "agents", enabled: true, compiled: variants).text,
+            "`super-base` https://host/super-base then Supabase"
+        )
+    }
+
+    func testScopedPunctuationVariantOverridesGlobalMatchAndSuppression() throws {
+        let compiled = try LocalCorrectionEngine.compile([
+            rule(id: "global", source: "super base", replacement: "Global", group: nil, matchPunctuationVariants: true),
+            rule(id: "scoped", source: "super base", replacement: "Scoped", group: "agents", matchPunctuationVariants: true)
+        ])
+        XCTAssertEqual(LocalCorrectionEngine.correct("super-base", activeGroup: "agents", enabled: true, compiled: compiled).text, "Scoped")
+        XCTAssertEqual(LocalCorrectionEngine.correct("super-base", activeGroup: "other", enabled: true, compiled: compiled).text, "Global")
+
+        let suppressed = try LocalCorrectionEngine.compile([
+            rule(id: "global", source: "super base", replacement: "Global", group: nil, matchPunctuationVariants: true),
+            rule(id: "suppression:global:agents", source: "super base", replacement: "super base",
+                 group: "agents", matchPunctuationVariants: true, suppressesGlobal: true)
+        ])
+        XCTAssertEqual(LocalCorrectionEngine.correct("super-base", activeGroup: "agents", enabled: true, compiled: suppressed).text, "super-base")
+
+        let exactGlobal = try LocalCorrectionEngine.compile([
+            rule(id: "global", source: "super--base", replacement: "Global", group: nil),
+            rule(id: "scoped", source: "super base", replacement: "Scoped", group: "agents", matchPunctuationVariants: true)
+        ])
+        XCTAssertEqual(LocalCorrectionEngine.correct("super--base", activeGroup: "agents", enabled: true, compiled: exactGlobal).text, "Scoped")
+    }
+
+    func testPunctuationVariantValidationRejectsOverlappingAliases() throws {
+        XCTAssertThrowsError(try LocalCorrectionEngine.compile([
+            rule(id: "a", source: "super base", replacement: "A", matchPunctuationVariants: true),
+            rule(id: "b", source: "super-base", replacement: "B")
+        ])) { error in
+            XCTAssertEqual(error as? LocalCorrectionValidationError, .ambiguousAlias("a", "b"))
+        }
+        XCTAssertThrowsError(try LocalCorrectionEngine.compile([
+            rule(id: "bad", source: "Supabase", replacement: "Good", matchPunctuationVariants: true)
+        ])) { error in
+            XCTAssertEqual(error as? LocalCorrectionValidationError, .invalidPunctuationVariantSource("bad"))
+        }
+    }
+
     func testCanonicalMatchPreservesUntouchedOriginalBytes() throws {
         let input = "Cafe\u{301} with cafe\u{301}"
         let compiled = try LocalCorrectionEngine.compile([
@@ -86,6 +150,7 @@ final class LocalCorrectionEngineTests: XCTestCase {
         let payload = #"{"id":"suppression:11111111-1111-1111-1111-111111111111:agents","source":"super base","replacement":"super base","group":"agents","enabled":true,"case_sensitive":false}"#
         let rule = try JSONDecoder().decode(LocalCorrectionRule.self, from: Data(payload.utf8))
         XCTAssertTrue(rule.suppressesGlobal)
+        XCTAssertFalse(rule.matchPunctuationVariants)
         let compiled = try LocalCorrectionEngine.compile([
             self.rule(id: "global", source: "super base", replacement: "Supabase", group: nil), rule
         ])
@@ -93,6 +158,16 @@ final class LocalCorrectionEngineTests: XCTestCase {
             LocalCorrectionEngine.correct("super base", activeGroup: "agents", enabled: true, compiled: compiled).text,
             "super base"
         )
+    }
+
+    func testPunctuationVariantFlagPersistsWithoutChangingLegacyRuleEncoding() throws {
+        let exact = rule(id: "exact", source: "super base", replacement: "Supabase")
+        let exactJSON = String(decoding: try JSONEncoder().encode(exact), as: UTF8.self)
+        XCTAssertFalse(exactJSON.contains("match_punctuation_variants"))
+        let variant = rule(id: "variant", source: "super base", replacement: "Supabase", matchPunctuationVariants: true)
+        let stored = try JSONEncoder().encode(variant)
+        XCTAssertTrue(String(decoding: stored, as: UTF8.self).contains("\"match_punctuation_variants\":true"))
+        XCTAssertEqual(try JSONDecoder().decode(LocalCorrectionRule.self, from: stored), variant)
     }
 
     func testProtectedCodeAndURLRemainUntouched() throws {
@@ -321,6 +396,7 @@ final class LocalCorrectionEngineTests: XCTestCase {
         group: String? = "agents",
         enabled: Bool = true,
         caseSensitive: Bool = false,
+        matchPunctuationVariants: Bool = false,
         suppressesGlobal: Bool = false
     ) -> LocalCorrectionRule {
         LocalCorrectionRule(
@@ -330,6 +406,7 @@ final class LocalCorrectionEngineTests: XCTestCase {
             group: group,
             enabled: enabled,
             caseSensitive: caseSensitive,
+            matchPunctuationVariants: matchPunctuationVariants,
             suppressesGlobal: suppressesGlobal
         )
     }

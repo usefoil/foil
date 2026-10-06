@@ -201,7 +201,8 @@ final class VocabularyProposalService: @unchecked Sendable {
                 replacement: correction.correctVersion,
                 group: rule.scopeID,
                 enabled: rule.enabled,
-                caseSensitive: rule.caseSensitive
+                caseSensitive: rule.caseSensitive,
+                matchPunctuationVariants: rule.matchPunctuationVariants
             )
         } + model.suppressionRules
         let existingRules = model.catalogRules.isEmpty ? projectedRules : model.catalogRules
@@ -213,7 +214,9 @@ final class VocabularyProposalService: @unchecked Sendable {
                     replacement: correction.replacement,
                     group: scopeID,
                     enabled: true,
-                    caseSensitive: correction.caseSensitive
+                    caseSensitive: correction.caseSensitive,
+                    matchPunctuationVariants: correction.matchPunctuationVariants &&
+                        LocalCorrectionEngine.supportsPunctuationVariants(form)
                 )
             }
         }
@@ -259,7 +262,8 @@ final class VocabularyProposalService: @unchecked Sendable {
                     spokenForms: $0.spokenForms,
                     replacement: $0.replacement,
                     scopeID: scopeID,
-                    caseSensitive: $0.caseSensitive
+                    caseSensitive: $0.caseSensitive,
+                    matchPunctuationVariants: $0.matchPunctuationVariants
                 )
             }),
             requestID: requestID,

@@ -722,7 +722,8 @@ final class AgentAccessControllerTests: XCTestCase {
             id: proposalID,
             scope: .init(kind: "cleanup_group", id: "agents"),
             corrections: [
-                .init(spokenForms: ["Superbase", "super base"], replacement: "Supabase"),
+                .init(spokenForms: ["Superbase", "super base"], replacement: "Supabase",
+                      matchPunctuationVariants: true),
                 .init(spokenForms: ["codecs"], replacement: "Codex")
             ]
         )
@@ -734,6 +735,7 @@ final class AgentAccessControllerTests: XCTestCase {
         ])
         XCTAssertEqual(state.localCorrectionSnapshot.rules.count, 3)
         XCTAssertTrue(state.localCorrectionSnapshot.rules.allSatisfy { $0.group == "agents" })
+        XCTAssertEqual(state.localCorrectionSnapshot.rules.map(\.matchPunctuationVariants), [false, true, false])
         XCTAssertFalse(state.localCorrectionSnapshot.isEnabled)
         XCTAssertEqual(try proposalStore.proposal(id: proposalID)?.state, .applied)
         XCTAssertEqual(state.agentAccessPendingProposalCount, 0)
@@ -741,6 +743,10 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertEqual(
             state.previewLocalCorrections("Superbase and codecs", activeGroupID: "agents").text,
             "Supabase and Codex"
+        )
+        XCTAssertEqual(
+            state.previewLocalCorrections("super-base and super, base", activeGroupID: "agents").text,
+            "Supabase and Supabase"
         )
         XCTAssertEqual(
             state.previewLocalCorrections("Superbase and codecs", activeGroupID: "messages").text,
@@ -949,9 +955,11 @@ final class AgentAccessControllerTests: XCTestCase {
             requestID: "batch-1", action: .setCorrectionPolicies, enabled: true,
             correctionPolicies: [
                 .init(correctionID: global.id.uuidString, scopeID: "global", enabled: true,
-                      caseSensitive: false, suppressedGroupIDs: [group.id]),
+                      caseSensitive: false, suppressedGroupIDs: [group.id],
+                      matchPunctuationVariants: true),
                 .init(correctionID: scoped.id.uuidString, scopeID: group.id, enabled: true,
-                      caseSensitive: false, suppressedGroupIDs: [])
+                      caseSensitive: false, suppressedGroupIDs: [],
+                      matchPunctuationVariants: true)
             ]
         )
         let body = try JSONEncoder().encode(request)
@@ -977,11 +985,29 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: global.id)?.group, nil)
         XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: scoped.id)?.group, group.id)
         XCTAssertTrue(state.isVocabularyCorrectionSuppressed(id: global.id, in: group.id))
+        XCTAssertTrue(state.localCorrectionRule(forVocabularyCorrectionID: global.id)?.matchPunctuationVariants == true)
         XCTAssertEqual(state.previewLocalCorrections("super base code ex", activeGroupID: group.id).text,
                        "super base Codex")
+        XCTAssertEqual(state.previewLocalCorrections("super-base code-ex", activeGroupID: group.id).text,
+                       "super-base Codex")
         XCTAssertEqual(state.previewLocalCorrections(
             "super base code ex", activeGroupID: CleanupGroup.defaultGroupID
         ).text, "Supabase code ex")
+        XCTAssertEqual(state.previewLocalCorrections(
+            "super-base code-ex", activeGroupID: CleanupGroup.defaultGroupID
+        ).text, "Supabase code-ex")
+
+        let legacyPolicy = AgentAccessActionRequest(
+            requestID: "batch-preserve-punctuation", action: .setCorrectionPolicies,
+            correctionPolicies: [.init(
+                correctionID: scoped.id.uuidString, scopeID: group.id, enabled: true,
+                caseSensitive: false, suppressedGroupIDs: []
+            )]
+        )
+        let preserved = try AgentAccessPolicyBatchPlanner.plan(
+            legacyPolicy, model: AgentAccessController.makeReadModel(from: state), groups: state.cleanupGroups
+        )
+        XCTAssertTrue(preserved.rules.first(where: { $0.id == "vocabulary:\(scoped.id.uuidString.lowercased())" })?.matchPunctuationVariants == true)
 
         let replay = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
             method: .post, path: "/v1/vocabulary/actions", headers: [:],

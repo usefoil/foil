@@ -209,7 +209,8 @@ enum AgentAccessTargetInspection {
             return LocalCorrectionRule(
                 id: "vocabulary:\(correction.id)", source: correction.writtenAs,
                 replacement: correction.correctVersion, group: local.scopeID,
-                enabled: local.enabled, caseSensitive: local.caseSensitive
+                enabled: local.enabled, caseSensitive: local.caseSensitive,
+                matchPunctuationVariants: local.matchPunctuationVariants
             )
         } + model.suppressionRules
         let rules = model.catalogRules.isEmpty ? projectedRules : model.catalogRules
@@ -239,6 +240,7 @@ enum AgentAccessTargetInspection {
                 replacement: rule.suppressesGlobal ? nil : rule.replacement,
                 scopeID: rule.group,
                 caseSensitive: rule.caseSensitive,
+                matchPunctuationVariants: rule.matchPunctuationVariants,
                 suppressesGlobal: rule.suppressesGlobal
             )
         }
@@ -1088,7 +1090,8 @@ final class AgentAccessController {
                         AgentAccessLocalRule(
                             enabled: $0.enabled,
                             caseSensitive: $0.caseSensitive,
-                            scopeID: $0.group
+                            scopeID: $0.group,
+                            matchPunctuationVariants: $0.matchPunctuationVariants
                         )
                     }
                 )

@@ -1102,6 +1102,7 @@ final class AppState {
                 group: groupID,
                 enabled: true,
                 caseSensitive: globalRule.caseSensitive,
+                matchPunctuationVariants: globalRule.matchPunctuationVariants,
                 suppressesGlobal: true
             ))
         }
@@ -1130,7 +1131,8 @@ final class AppState {
             replacement: correction.correctVersion,
             group: groupID,
             enabled: preserveEnabled ? (existingIndex.map { rules[$0].enabled } ?? false) : true,
-            caseSensitive: existingIndex.map { rules[$0].caseSensitive } ?? false
+            caseSensitive: existingIndex.map { rules[$0].caseSensitive } ?? false,
+            matchPunctuationVariants: existingIndex.map { rules[$0].matchPunctuationVariants } ?? false
         )
         if let existingIndex {
             rules[existingIndex] = rule
@@ -1155,6 +1157,7 @@ final class AppState {
             group: current.group,
             enabled: false,
             caseSensitive: current.caseSensitive,
+            matchPunctuationVariants: current.matchPunctuationVariants,
             suppressesGlobal: current.suppressesGlobal
         )
         return try saveLocalCorrections(rules)
@@ -1176,6 +1179,7 @@ final class AppState {
             group: current.group,
             enabled: current.enabled,
             caseSensitive: caseSensitive,
+            matchPunctuationVariants: current.matchPunctuationVariants,
             suppressesGlobal: current.suppressesGlobal
         )
         for suppressionIndex in rules.indices where rules[suppressionIndex].id.hasPrefix(Self.suppressionRulePrefix(for: id)) {
@@ -1187,6 +1191,42 @@ final class AppState {
                 group: suppression.group,
                 enabled: suppression.enabled,
                 caseSensitive: caseSensitive,
+                matchPunctuationVariants: suppression.matchPunctuationVariants,
+                suppressesGlobal: true
+            )
+        }
+        return try saveLocalCorrections(rules)
+    }
+
+    @discardableResult
+    func setVocabularyLocalCorrectionMatchPunctuationVariants(
+        id: UUID,
+        matchPunctuationVariants: Bool
+    ) throws -> LocalCorrectionSnapshot? {
+        let ruleID = Self.localRuleID(for: id)
+        var rules = localCorrectionSnapshot.rules
+        guard let index = rules.firstIndex(where: { $0.id == ruleID }) else { return nil }
+        let current = rules[index]
+        rules[index] = LocalCorrectionRule(
+            id: current.id,
+            source: current.source,
+            replacement: current.replacement,
+            group: current.group,
+            enabled: current.enabled,
+            caseSensitive: current.caseSensitive,
+            matchPunctuationVariants: matchPunctuationVariants,
+            suppressesGlobal: current.suppressesGlobal
+        )
+        for suppressionIndex in rules.indices where rules[suppressionIndex].id.hasPrefix(Self.suppressionRulePrefix(for: id)) {
+            let suppression = rules[suppressionIndex]
+            rules[suppressionIndex] = LocalCorrectionRule(
+                id: suppression.id,
+                source: suppression.source,
+                replacement: suppression.replacement,
+                group: suppression.group,
+                enabled: suppression.enabled,
+                caseSensitive: suppression.caseSensitive,
+                matchPunctuationVariants: matchPunctuationVariants,
                 suppressesGlobal: true
             )
         }
@@ -1383,7 +1423,9 @@ final class AppState {
                 replacement: normalizedCorrectVersion,
                 group: current.group,
                 enabled: current.enabled,
-                caseSensitive: current.caseSensitive
+                caseSensitive: current.caseSensitive,
+                matchPunctuationVariants: current.matchPunctuationVariants &&
+                    LocalCorrectionEngine.supportsPunctuationVariants(normalizedWrittenAs)
             )
         }
         for suppressionIndex in updatedRules.indices where
@@ -1396,6 +1438,8 @@ final class AppState {
                 group: suppression.group,
                 enabled: suppression.enabled,
                 caseSensitive: suppression.caseSensitive,
+                matchPunctuationVariants: suppression.matchPunctuationVariants &&
+                    LocalCorrectionEngine.supportsPunctuationVariants(normalizedWrittenAs),
                 suppressesGlobal: true
             )
         }
@@ -2388,6 +2432,8 @@ final class AppState {
                         group: rule.group,
                         enabled: rule.enabled,
                         caseSensitive: rule.caseSensitive,
+                        matchPunctuationVariants: rule.matchPunctuationVariants &&
+                            LocalCorrectionEngine.supportsPunctuationVariants(correction.writtenAs),
                         suppressesGlobal: rule.suppressesGlobal
                     )
                 }
@@ -2408,6 +2454,8 @@ final class AppState {
                         group: groupID,
                         enabled: rule.enabled,
                         caseSensitive: rule.caseSensitive,
+                        matchPunctuationVariants: rule.matchPunctuationVariants &&
+                            LocalCorrectionEngine.supportsPunctuationVariants(correction.writtenAs),
                         suppressesGlobal: true
                     )
                 }
@@ -2424,6 +2472,7 @@ final class AppState {
                 group: reconciledRule.group,
                 enabled: false,
                 caseSensitive: reconciledRule.caseSensitive,
+                matchPunctuationVariants: reconciledRule.matchPunctuationVariants,
                 suppressesGlobal: reconciledRule.suppressesGlobal
             )
         }
@@ -2444,6 +2493,7 @@ final class AppState {
                 stringsAreByteEquivalent(left.replacement, right.replacement) &&
                 left.enabled == right.enabled &&
                 left.caseSensitive == right.caseSensitive &&
+                left.matchPunctuationVariants == right.matchPunctuationVariants &&
                 left.suppressesGlobal == right.suppressesGlobal &&
                 optionalStringsAreByteEquivalent(left.group, right.group)
         }
@@ -2474,6 +2524,7 @@ final class AppState {
                 group: rule.group,
                 enabled: false,
                 caseSensitive: rule.caseSensitive,
+                matchPunctuationVariants: rule.matchPunctuationVariants,
                 suppressesGlobal: rule.suppressesGlobal
             )
         }

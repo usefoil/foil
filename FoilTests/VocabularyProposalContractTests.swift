@@ -25,6 +25,7 @@ final class VocabularyProposalContractTests: XCTestCase {
         XCTAssertEqual(request.corrections.first?.replacement, "Supabase")
         XCTAssertEqual(request.corrections.first?.note, "Project dependency")
         XCTAssertEqual(request.corrections.first?.caseSensitive, false)
+        XCTAssertEqual(request.corrections.first?.matchPunctuationVariants, false)
     }
 
     func testReceiptUsesVersionedSnakeCaseWireFields() throws {
@@ -94,6 +95,21 @@ final class VocabularyProposalContractTests: XCTestCase {
         let reorderedDigest = try reordered.canonicalPayloadDigest()
         XCTAssertNotEqual(baseDigest, changedDigest)
         XCTAssertNotEqual(baseDigest, reorderedDigest)
+        let punctuation = VocabularyProposalRequest(
+            requestID: "same", scope: base.scope,
+            corrections: [.init(spokenForms: ["one", "two"], replacement: "Replacement", matchPunctuationVariants: true)]
+        )
+        XCTAssertNotEqual(baseDigest, try punctuation.canonicalPayloadDigest())
+    }
+
+    func testOmittedPunctuationOptionKeepsLegacyProposalDigest() throws {
+        let missing = Data(#"{"schema_version":1,"request_id":"same","scope":{"kind":"global","id":"global"},"corrections":[{"spoken_forms":["super base"],"replacement":"Supabase","case_sensitive":false}]}"#.utf8)
+        let explicitFalse = Data(#"{"schema_version":1,"request_id":"same","scope":{"kind":"global","id":"global"},"corrections":[{"spoken_forms":["super base"],"replacement":"Supabase","case_sensitive":false,"match_punctuation_variants":false}]}"#.utf8)
+        let first = try JSONDecoder().decode(VocabularyProposalRequest.self, from: missing)
+        let second = try JSONDecoder().decode(VocabularyProposalRequest.self, from: explicitFalse)
+        XCTAssertEqual(try first.canonicalPayloadDigest(), try second.canonicalPayloadDigest())
+        XCTAssertFalse(String(decoding: try JSONEncoder().encode(first.canonicalized()), as: UTF8.self)
+            .contains("match_punctuation_variants"))
     }
 
     func testProposalStorePathIsBrandScopedAndInsideSupportDirectory() throws {

@@ -66,6 +66,7 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
     let openAPIPath: String
     let openAPICommand: String
     let unavailableBehavior: String
+    let correctionGuidance: String
     let privacy: [String]
     let limits: AgentAccessLimits
 
@@ -94,6 +95,7 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
         openAPIPath = "/v1/openapi.json"
         openAPICommand = AgentAccessInstructionsResponse.openAPICommand(socketPath: socketPath)
         unavailableBehavior = "If Foil is closed or Agent Access is off, the command exits nonzero within 12 seconds and no JSON response is available."
+        correctionGuidance = "Clarify the target apps or Cleanup Group, uncertain spoken variants, case sensitivity, and whether multiword corrections should match punctuation between words. Keep punctuation matching off unless the user agrees. Preview the exact scope and examples before submitting. A paired grant authorizes only its existing app group; otherwise each change needs approval inside Foil. Poll status to confirm the saved result."
         privacy = [
             "Local processes running as the same macOS user can read the allowed Vocabulary fields while Agent Access is enabled.",
             "It does not expose History, audio, credentials, provider configuration, project files, clipboard contents, or the active application.",
@@ -124,6 +126,7 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
         case openAPIPath = "openapi_path"
         case openAPICommand = "openapi_command"
         case unavailableBehavior = "unavailable_behavior"
+        case correctionGuidance = "correction_guidance"
         case privacy
         case limits
     }
@@ -221,11 +224,38 @@ struct AgentAccessLocalRule: Codable, Equatable, Sendable {
     let enabled: Bool
     let caseSensitive: Bool
     let scopeID: String?
+    let matchPunctuationVariants: Bool
+
+    init(enabled: Bool, caseSensitive: Bool, scopeID: String?, matchPunctuationVariants: Bool = false) {
+        self.enabled = enabled
+        self.caseSensitive = caseSensitive
+        self.scopeID = scopeID
+        self.matchPunctuationVariants = matchPunctuationVariants
+    }
 
     enum CodingKeys: String, CodingKey {
         case enabled
         case caseSensitive = "case_sensitive"
         case scopeID = "scope_id"
+        case matchPunctuationVariants = "match_punctuation_variants"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decode(Bool.self, forKey: .enabled)
+        caseSensitive = try container.decode(Bool.self, forKey: .caseSensitive)
+        scopeID = try container.decodeIfPresent(String.self, forKey: .scopeID)
+        matchPunctuationVariants = try container.decodeIfPresent(Bool.self, forKey: .matchPunctuationVariants) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(caseSensitive, forKey: .caseSensitive)
+        try container.encodeIfPresent(scopeID, forKey: .scopeID)
+        if matchPunctuationVariants {
+            try container.encode(true, forKey: .matchPunctuationVariants)
+        }
     }
 }
 
@@ -265,19 +295,22 @@ struct AgentAccessPreviewCorrection: Codable, Equatable {
     let replacement: String
     let scopeID: String?
     let caseSensitive: Bool
+    let matchPunctuationVariants: Bool
 
     enum CodingKeys: String, CodingKey {
         case spokenForms = "spoken_forms"
         case replacement
         case scopeID = "scope_id"
         case caseSensitive = "case_sensitive"
+        case matchPunctuationVariants = "match_punctuation_variants"
     }
 
-    init(spokenForms: [String], replacement: String, scopeID: String?, caseSensitive: Bool) {
+    init(spokenForms: [String], replacement: String, scopeID: String?, caseSensitive: Bool, matchPunctuationVariants: Bool = false) {
         self.spokenForms = spokenForms
         self.replacement = replacement
         self.scopeID = scopeID
         self.caseSensitive = caseSensitive
+        self.matchPunctuationVariants = matchPunctuationVariants
     }
 
     init(from decoder: Decoder) throws {
@@ -286,6 +319,18 @@ struct AgentAccessPreviewCorrection: Codable, Equatable {
         replacement = try container.decode(String.self, forKey: .replacement)
         scopeID = try container.decodeIfPresent(String.self, forKey: .scopeID)
         caseSensitive = try container.decodeIfPresent(Bool.self, forKey: .caseSensitive) ?? false
+        matchPunctuationVariants = try container.decodeIfPresent(Bool.self, forKey: .matchPunctuationVariants) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(spokenForms, forKey: .spokenForms)
+        try container.encode(replacement, forKey: .replacement)
+        try container.encodeIfPresent(scopeID, forKey: .scopeID)
+        try container.encode(caseSensitive, forKey: .caseSensitive)
+        if matchPunctuationVariants {
+            try container.encode(true, forKey: .matchPunctuationVariants)
+        }
     }
 }
 
@@ -390,6 +435,7 @@ struct AgentAccessEffectiveRule: Encodable {
     let replacement: String?
     let scopeID: String?
     let caseSensitive: Bool
+    let matchPunctuationVariants: Bool
     let suppressesGlobal: Bool
 
     enum CodingKeys: String, CodingKey {
@@ -398,6 +444,7 @@ struct AgentAccessEffectiveRule: Encodable {
         case source, replacement
         case scopeID = "scope_id"
         case caseSensitive = "case_sensitive"
+        case matchPunctuationVariants = "match_punctuation_variants"
         case suppressesGlobal = "suppresses_global"
     }
 }

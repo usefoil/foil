@@ -166,6 +166,9 @@ final class AgentAccessHTTPTests: XCTestCase {
         XCTAssertTrue(decoded.openAPICommand.contains("http://foil/v1/openapi.json"))
         XCTAssertTrue(decoded.openAPICommand.contains("/tmp/Foil Test/agent-v1.sock"))
         XCTAssertTrue(decoded.unavailableBehavior.contains("exits nonzero within 12 seconds"))
+        XCTAssertTrue(decoded.correctionGuidance.contains("case sensitivity"))
+        XCTAssertTrue(decoded.correctionGuidance.contains("punctuation between words"))
+        XCTAssertTrue(decoded.correctionGuidance.contains("approval inside Foil"))
     }
 
     func testOpenAPIRouterAddsRequestMetadataAndMatchesImplementedPaths() throws {
@@ -231,6 +234,11 @@ final class AgentAccessHTTPTests: XCTestCase {
         let previewProperties = try XCTUnwrap(previewRequest["properties"] as? [String: Any])
         let corrections = try XCTUnwrap(previewProperties["corrections"] as? [String: Any])
         XCTAssertEqual(corrections["minItems"] as? Int, 1)
+        for schemaName in ["PreviewCorrection", "ProposalCorrection", "CorrectionPolicy", "LocalRule", "EffectiveRule"] {
+            let schema = try XCTUnwrap(schemas[schemaName] as? [String: Any])
+            let properties = try XCTUnwrap(schema["properties"] as? [String: Any])
+            XCTAssertNotNil(properties["match_punctuation_variants"], schemaName)
+        }
         for (path, method) in [
             ("/v1/instructions", "get"),
             ("/v1/openapi.json", "get"),
