@@ -34,6 +34,7 @@
           "200": {"description": "Current paired grant", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/GrantStatusResponse"}}}},
           "401": {"$ref": "#/components/responses/ErrorResponse"},
           "403": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
           "503": {"$ref": "#/components/responses/ErrorResponse"}
         }
       }
@@ -159,10 +160,13 @@
         "responses": {
           "202": {"description": "Accepted for scoped application", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalResponse"}}}},
           "200": {"description": "Idempotent replay", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalResponse"}}}},
+          "400": {"$ref": "#/components/responses/ErrorResponse"},
           "401": {"$ref": "#/components/responses/ErrorResponse"},
           "403": {"$ref": "#/components/responses/ErrorResponse"},
           "409": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
           "422": {"$ref": "#/components/responses/ErrorResponse"},
+          "429": {"$ref": "#/components/responses/ErrorResponse"},
           "503": {"$ref": "#/components/responses/ErrorResponse"}
         }
       }
@@ -176,10 +180,13 @@
         "responses": {
           "202": {"description": "Accepted for scoped application", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActionResponse"}}}},
           "200": {"description": "Idempotent replay", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActionResponse"}}}},
+          "400": {"$ref": "#/components/responses/ErrorResponse"},
           "401": {"$ref": "#/components/responses/ErrorResponse"},
           "403": {"$ref": "#/components/responses/ErrorResponse"},
           "409": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
           "422": {"$ref": "#/components/responses/ErrorResponse"},
+          "429": {"$ref": "#/components/responses/ErrorResponse"},
           "503": {"$ref": "#/components/responses/ErrorResponse"}
         }
       }
