@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import Foil
 
@@ -154,7 +155,9 @@ final class AgentAccessHTTPTests: XCTestCase {
             "list_vocabulary", "preview_vocabulary_corrections",
             "verify_vocabulary_targets", "preview_effective_vocabulary",
             "propose_vocabulary_corrections", "get_vocabulary_proposal_status",
-            "request_vocabulary_action", "get_vocabulary_action_status"
+            "request_vocabulary_action", "get_vocabulary_action_status",
+            "get_paired_agent_access", "submit_delegated_vocabulary_proposal",
+            "submit_delegated_correction_policies"
         ])
         XCTAssertEqual(decoded.limits, .standard)
         XCTAssertTrue(decoded.bootstrapCommand.contains("--unix-socket"))
@@ -197,7 +200,9 @@ final class AgentAccessHTTPTests: XCTestCase {
             "/v1/vocabulary/targets/verify", "/v1/vocabulary/effective-preview",
             "/v1/vocabulary/proposals",
             "/v1/vocabulary/proposals/{proposal_id}",
-            "/v1/vocabulary/actions", "/v1/vocabulary/actions/{action_id}"
+            "/v1/vocabulary/actions", "/v1/vocabulary/actions/{action_id}",
+            "/v1/access", "/v1/vocabulary/delegated-proposals",
+            "/v1/vocabulary/delegated-actions"
         ])
         let limits = try XCTUnwrap(object["x-foil-limits"] as? [String: Any])
         XCTAssertEqual(limits["maximum_header_bytes"] as? Int, AgentAccessLimits.standard.maximumHeaderBytes)
@@ -217,7 +222,7 @@ final class AgentAccessHTTPTests: XCTestCase {
             "PreviewRequest", "PreviewResponse", "ProposalRequest", "ProposalResponse",
             "TargetVerificationRequest", "TargetVerificationResponse",
             "EffectivePreviewRequest", "EffectivePreviewResponse", "CorrectionPolicy",
-            "ActionRequest", "ActionResponse",
+            "ActionRequest", "ActionResponse", "GrantStatusResponse",
             "ErrorResponse"
         ] {
             XCTAssertNotNil(schemas[schema], "Missing schema \(schema)")
@@ -237,12 +242,16 @@ final class AgentAccessHTTPTests: XCTestCase {
             ("/v1/vocabulary/proposals", "post"),
             ("/v1/vocabulary/proposals/{proposal_id}", "get"),
             ("/v1/vocabulary/actions", "post"),
-            ("/v1/vocabulary/actions/{action_id}", "get")
+            ("/v1/vocabulary/actions/{action_id}", "get"),
+            ("/v1/access", "get"),
+            ("/v1/vocabulary/delegated-proposals", "post"),
+            ("/v1/vocabulary/delegated-actions", "post")
         ] {
             let pathItem = try XCTUnwrap(paths[path] as? [String: Any])
             let operation = try XCTUnwrap(pathItem[method] as? [String: Any])
             let responses = try XCTUnwrap(operation["responses"] as? [String: Any])
-            let successCode = path == "/v1/vocabulary/proposals" || path == "/v1/vocabulary/actions" ? "201" : "200"
+            let successCode = path == "/v1/vocabulary/proposals" || path == "/v1/vocabulary/actions"
+                ? "201" : path.contains("delegated-") ? "202" : "200"
             let success = try XCTUnwrap(responses[successCode] as? [String: Any])
             XCTAssertNotNil(success["content"], "Missing 200 response schema for \(method.uppercased()) \(path)")
         }
@@ -287,6 +296,124 @@ final class AgentAccessHTTPTests: XCTestCase {
         XCTAssertEqual(try errorBody(method).error.code, "method_not_allowed")
         XCTAssertEqual(body.status, 400)
         XCTAssertEqual(try errorBody(body).error.code, "unexpected_body")
+    }
+
+    func testGrantStoreKeepsOnlyTokenDigestAndFailsClosedAfterExpiryOrRevocation() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-grant-test-\(UUID().uuidString)", isDirectory: true)
+        let file = directory.appendingPathComponent("grants.json")
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let token = "foil_" + String(repeating: "a", count: 64)
+        let start = Date(timeIntervalSince1970: 1_700_000_000.345)
+        let store = AgentAccessGrantStore(fileURL: file, now: { start }, makeToken: { token })
+        let (grant, issued) = try store.create(name: " Codex ", groupID: "agent-apps", appPaths: ["/Applications/Codex.app"])
+        XCTAssertEqual(issued, token)
+        XCTAssertEqual(grant.name, "Codex")
+        XCTAssertEqual(try store.authorize(token).id, grant.id)
+        XCTAssertThrowsError(try store.authorize("foil_" + String(repeating: "b", count: 64)))
+        let restarted = AgentAccessGrantStore(fileURL: file, now: { start.addingTimeInterval(30) })
+        XCTAssertThrowsError(try restarted.authorize(token)) {
+            XCTAssertEqual($0 as? AgentAccessGrantError, .unauthorized)
+        }
+        XCTAssertTrue(try XCTUnwrap(restarted.load().grants.first).summary.isRevoked)
+        let data = try Data(contentsOf: file)
+        XCTAssertFalse(String(decoding: data, as: UTF8.self).contains(token))
+        let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+        XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+
+        let forgedToken = "foil_" + String(repeating: "f", count: 64)
+        let forgedDigest = SHA256.hash(data: Data(forgedToken.utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        let forged = StoredAgentAccessGrant(
+            summary: AgentAccessGrantSummary(
+                id: UUID().uuidString.lowercased(), name: "Forged", groupID: "agent-apps",
+                appPaths: ["/Applications/Codex.app"], createdAt: start,
+                expiresAt: start.addingTimeInterval(3_600), revokedAt: nil
+            ), tokenDigest: forgedDigest
+        )
+        let snapshot = try store.load()
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(AgentAccessGrantSnapshot(
+            grants: snapshot.grants + [forged], uses: snapshot.uses
+        )).write(to: file, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: NSNumber(value: 0o600)], ofItemAtPath: file.path)
+        XCTAssertThrowsError(try store.authorize(forgedToken)) {
+            XCTAssertEqual($0 as? AgentAccessGrantError, .unauthorized)
+        }
+        XCTAssertTrue(try XCTUnwrap(store.load().grants.first(where: { $0.summary.id == forged.summary.id })).summary.isRevoked)
+
+        let expired = AgentAccessGrantStore(fileURL: file, now: { start.addingTimeInterval(3_601) })
+        XCTAssertThrowsError(try expired.authorize(token)) { XCTAssertEqual($0 as? AgentAccessGrantError, .unauthorized) }
+        try store.revoke(id: grant.id)
+        XCTAssertThrowsError(try store.authorize(token)) { XCTAssertEqual($0 as? AgentAccessGrantError, .unauthorized) }
+    }
+
+    func testGrantStoreRejectsUnsafeOrCorruptFile() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-grant-unsafe-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("grants.json")
+        try Data("not json".utf8).write(to: file)
+        let store = AgentAccessGrantStore(fileURL: file)
+        XCTAssertThrowsError(try store.load())
+        try FileManager.default.removeItem(at: file)
+        let other = directory.appendingPathComponent("other.json")
+        try Data("{}".utf8).write(to: other)
+        try FileManager.default.createSymbolicLink(at: file, withDestinationURL: other)
+        XCTAssertThrowsError(try store.load())
+    }
+
+    func testEndingAgentAccessInvalidatesActiveGrantWithoutTrustingTheAuditFile() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-grant-session-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let token = "foil_" + String(repeating: "e", count: 64)
+        let store = AgentAccessGrantStore(
+            fileURL: directory.appendingPathComponent("grants.json"), makeToken: { token }
+        )
+        _ = try store.create(name: "Codex", groupID: "agent-apps", appPaths: ["/Applications/Codex.app"])
+        XCTAssertNoThrow(try store.authorize(token))
+        store.invalidateAll()
+        XCTAssertThrowsError(try store.authorize(token)) {
+            XCTAssertEqual($0 as? AgentAccessGrantError, .unauthorized)
+        }
+        XCTAssertTrue(try XCTUnwrap(store.load().grants.first).summary.isRevoked)
+    }
+
+    func testDelegatedRoutesRequireBearerGrant() throws {
+        let grant = AgentAccessGrantSummary(
+            id: UUID().uuidString, name: "Codex", groupID: "agent-apps",
+            appPaths: ["/Applications/Codex.app"], createdAt: Date(),
+            expiresAt: Date().addingTimeInterval(3_600), revokedAt: nil
+        )
+        let router = AgentAccessContractRouter(
+            socketPath: "/tmp/agent-v1.sock", openAPIDocument: try openAPIData(),
+            grantProvider: { token in
+                guard token == "foil_valid" else { throw AgentAccessGrantError.unauthorized }
+                return grant
+            },
+            delegatedProposalSubmitter: { _, _ in throw AgentAccessGrantError.invalidScope },
+            delegatedActionSubmitter: { _, _ in throw AgentAccessGrantError.invalidScope }
+        )
+        let missing = router.response(to: .init(method: .get, path: "/v1/access", headers: [:], body: Data()))
+        XCTAssertEqual(missing.status, 401)
+        let accepted = router.response(to: .init(
+            method: .get, path: "/v1/access", headers: ["authorization": "Bearer foil_valid"], body: Data()
+        ))
+        XCTAssertEqual(accepted.status, 200)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: accepted.body) as? [String: Any])
+        XCTAssertEqual(body["group_id"] as? String, "agent-apps")
+        XCTAssertNil(body["token"])
+        let invalid = router.response(to: .init(
+            method: .get, path: "/v1/access", headers: ["authorization": "Bearer foil_bad"], body: Data()
+        ))
+        XCTAssertEqual(invalid.status, 401)
+        for route in ["/v1/vocabulary/delegated-proposals", "/v1/vocabulary/delegated-actions"] {
+            let response = router.response(to: .init(method: .post, path: route, headers: [:], body: Data("{}".utf8)))
+            XCTAssertEqual(response.status, 401, route)
+        }
     }
 
     private func errorCode(_ result: AgentAccessHTTPParseResult) -> String? {

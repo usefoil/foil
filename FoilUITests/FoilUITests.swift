@@ -503,6 +503,9 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Local agents cannot access Vocabulary. Turn on access when you want to connect."].exists)
         XCTAssertTrue(elementExists(id: "settings.agentAccess.disclosure", timeout: 2), app.debugDescription)
         XCTAssertTrue(copy.waitForExistence(timeout: 2), app.debugDescription)
+        let pair = button(id: "settings.agentAccess.pairAgent", fallbackLabel: "Pair agent and copy editing prompt")
+        XCTAssertTrue(pair.waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertFalse(pair.isEnabled)
         XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
 
         clickElement(toggle)
@@ -516,7 +519,7 @@ final class FoilUITests: XCTestCase {
         clickElement(copy)
         let command = try XCTUnwrap(NSPasteboard.general.string(forType: .string))
         XCTAssertTrue(command.contains("I use Foil for dictation."), command)
-        XCTAssertTrue(command.contains("Proposals do not apply automatically."), command)
+        XCTAssertTrue(command.contains("With this read-only connection, changes require my approval inside Foil."), command)
         XCTAssertTrue(command.contains("Please run the command below on this Mac"), command)
         XCTAssertTrue(command.contains("--unix-socket"), command)
         XCTAssertTrue(command.contains("--max-time 12"), command)
@@ -638,6 +641,7 @@ final class FoilUITests: XCTestCase {
             app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
             "Selected, Service off, 1 pending proposal"
         )
+        scrollAppShellSettingsUntilHittable(reviewAfterDisable)
         clickElement(reviewAfterDisable)
 
         XCTAssertTrue(
@@ -679,6 +683,7 @@ final class FoilUITests: XCTestCase {
             fallbackLabel: "Review vocabulary proposals"
         )
         XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
+        scrollAppShellSettingsUntilHittable(review)
         clickElement(review)
         let applyByLabel = app.buttons["Apply reviewed corrections"]
         XCTAssertTrue(applyByLabel.waitForExistence(timeout: 4), app.debugDescription)
@@ -2430,6 +2435,16 @@ final class FoilUITests: XCTestCase {
             scrollView.swipeUp()
         }
         XCTAssertTrue(isVerticallyVisible(), app.debugDescription)
+    }
+
+    private func scrollAppShellSettingsUntilHittable(_ element: XCUIElement) {
+        let settingsPane = app.descendants(matching: .any)["appShell.preferences"]
+        XCTAssertTrue(settingsPane.waitForExistence(timeout: 3), app.debugDescription)
+        for _ in 0..<8 {
+            if element.isHittable { break }
+            settingsPane.swipeUp()
+        }
+        XCTAssertTrue(element.isHittable, app.debugDescription)
     }
 
     private func scrollProposalReviewUntilHittable(_ element: XCUIElement) {

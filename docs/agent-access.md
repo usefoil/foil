@@ -2,8 +2,9 @@
 
 Agent Access lets a local coding agent inspect Foil's allowed Vocabulary fields,
 preview exact local corrections, and submit proposals or action requests for
-review. It is off by default and works only while Foil is running. An agent
-cannot approve or directly apply a change.
+review. It is off by default and works only while Foil is running. A paired
+agent can apply Vocabulary edits for one exact app group during a grant lasting
+up to one hour or until Foil closes or Agent Access is turned off.
 
 ## Connect a local agent
 
@@ -36,10 +37,42 @@ from Foil instead of typing it when possible. Foil Dev uses its own `Foil Dev`
 Application Support directory, so its copied command points to a different socket.
 
 The instructions response tells the agent how to list available scopes, inspect
-Vocabulary, preview a correction set in memory, submit an inert proposal or
-action request, and read its status. No plugin, skill, MCP registration, helper
+Vocabulary, preview a correction set in memory, submit an ordinary proposal or
+action request, use a paired grant for scoped edits, and read status. No plugin, skill, MCP registration, helper
 installation, or PATH change is required. The agent must be running locally on
 the same Mac and able to access your user-owned Unix socket.
+
+## Pair an agent for scoped edits
+
+In **Agent Access -> Agent permissions**, enter a name, choose an enabled Cleanup
+Group containing only exact installed app paths, then click **Pair agent and copy
+editing prompt**. Paste that prompt into the agent task. It contains a bearer
+credential for a grant lasting up to one hour or until Foil closes or Agent
+Access is turned off; treat it as
+a secret. Foil stores only its hash in the audit file and keeps the active grant
+in the running process. Restarting Foil ends the grant, so a saved or forged
+grant file cannot create write access.
+The agent can check its current scope and expiry with `GET /v1/access` using
+`Authorization: Bearer <credential>`.
+
+While the grant is active, the agent may submit a new correction only for that
+group to `POST /v1/vocabulary/delegated-proposals`, or edit policy fields on
+existing corrections already in that group through
+`POST /v1/vocabulary/delegated-actions`. Foil applies the request using the same
+validation as its review UI and records it under that agent in the permissions
+panel. The agent must poll the ordinary proposal or action status URL until it
+reports `applied` or `approved`; HTTP 202 means accepted for processing, not
+applied. Repeating the same request ID and content is idempotent.
+
+The grant does not permit a global correction, app routing or group creation,
+moving a correction between scopes, global local-corrections toggle, or group
+suppression. These still go through the ordinary in-Foil review routes. If
+group membership or routing differs from the paired paths, Foil blocks the
+grant's requests. Restoring the same routing before expiry makes the grant
+usable again. **Revoke** immediately blocks new requests and pending delegated
+application. Turning Agent Access off ends paired grants and blocks all connections. Recent delegated
+requests remain visible under the paired agent and in the existing proposal or
+action records.
 
 ## Inspect an exact app target
 
@@ -82,7 +115,7 @@ An agent can POST a request to `/v1/vocabulary/actions` to ask Foil to apply a
 pending proposal, turn local corrections on or off, set an individual
 correction's scope, or assign an installed app to an enabled Cleanup Group. An
 agent can also request a new group for 1–8 exact installed app paths and request
-that an existing pending proposal be rescoped to it. Each request needs its own
+that an existing pending proposal be rescoped to it. Each ordinary request needs its own
 approval. The group request's `group_id` appears in the action response and can
 be used for the rescope request after the group is approved. Foil verifies that
 the group contains exactly the requested app paths before changing the proposal.
@@ -138,7 +171,7 @@ complete because the target changed or current validation rejects it, Foil
 keeps the approval as `approved_pending_apply` and shows the reason. You can
 retry after resolving it or stop retrying; stopping does not undo a change
 that may already have applied.
-An applied Vocabulary proposal still needs its own in-Foil review, either in
+An ordinary Vocabulary proposal still needs its own in-Foil review, either in
 the proposal sheet or through an approved apply request.
 
 For example, a proposal may group `super base` and `Superbase` as spoken forms for

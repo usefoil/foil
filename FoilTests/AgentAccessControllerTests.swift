@@ -1,4 +1,5 @@
 import Darwin
+import CryptoKit
 import XCTest
 @testable import Foil
 
@@ -1711,6 +1712,169 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertTrue(reloaded.agentAccessEnabled)
         reloaded.setAgentAccessEnabled(false, notifyController: false)
         XCTAssertFalse(makeState(agentAccessDefaults: defaults).agentAccessEnabled)
+    }
+
+    func testPairedAgentAppliesOnlyScopedProposalAndRevocationBlocksFurtherEdits() async throws {
+        let marker = UUID().uuidString
+        let state = makeState(storageMarker: marker, activateCatalog: true)
+        let originalGroups = state.cleanupGroups
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let fixtureRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-paired-\(marker)", isDirectory: true)
+        let app = try makeAppFixture(root: fixtureRoot, name: "Codex", bundleID: "com.example.PairedCodex")
+        let group = CleanupGroup(id: "agent-codex-\(marker)", name: "Codex", sortOrder: 1,
+                                 appMatchers: [CleanupAppMatcher(displayName: "Codex", appPath: app.path)])
+        state.setCleanupGroups([.defaultGroup(), group])
+        let livePaths = paths()
+        let token = "foil_" + String(repeating: "c", count: 64)
+        let grantStore = AgentAccessGrantStore(fileURL: livePaths.grantStoreURL, makeToken: { token })
+        var handler: AgentAccessServer.Handler?
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8), grantStore: grantStore
+        ) { _, _, captured in
+            handler = captured
+            return ServerStub()
+        }
+        defer {
+            state.setCleanupGroups(originalGroups)
+            try? FileManager.default.removeItem(at: fixtureRoot)
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+        state.setAgentAccessEnabled(true)
+        let started = await waitUntil { handler != nil && state.agentAccessPresentationState == .running }
+        XCTAssertTrue(started)
+        let forgedToken = "foil_" + String(repeating: "d", count: 64)
+        let forgedDigest = SHA256.hash(data: Data(forgedToken.utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        let forgedTime = Date()
+        let forged = StoredAgentAccessGrant(
+            summary: AgentAccessGrantSummary(
+                id: UUID().uuidString.lowercased(), name: "Unpaired", groupID: group.id,
+                appPaths: [app.path], createdAt: forgedTime,
+                expiresAt: forgedTime.addingTimeInterval(3_600), revokedAt: nil
+            ), tokenDigest: forgedDigest
+        )
+        try FileManager.default.createDirectory(at: livePaths.supportDirectory, withIntermediateDirectories: true)
+        let grantEncoder = JSONEncoder()
+        grantEncoder.dateEncodingStrategy = .iso8601
+        try grantEncoder.encode(AgentAccessGrantSnapshot(grants: [forged], uses: []))
+            .write(to: livePaths.grantStoreURL, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o600)], ofItemAtPath: livePaths.grantStoreURL.path
+        )
+        let forgedAccess = try XCTUnwrap(handler)(.init(
+            method: .get, path: "/v1/access",
+            headers: ["authorization": "Bearer \(forgedToken)"], body: Data()
+        ))
+        XCTAssertEqual(forgedAccess.status, 401)
+        let prompt = try XCTUnwrap(state.pairAgentForVocabularyEdits(name: "Codex", groupID: group.id))
+        XCTAssertTrue(prompt.contains(token))
+        let headers = ["authorization": "Bearer \(token)"]
+        let scoped = VocabularyProposalRequest(
+            requestID: "paired-scoped-\(marker)",
+            scope: .init(kind: " cleanup_group ", id: " \(group.id) "),
+            corrections: [
+                .init(spokenForms: ["super base"], replacement: "Supabase"),
+                .init(spokenForms: ["cloud code"], replacement: "Claude Code")
+            ]
+        )
+        let accepted = try XCTUnwrap(handler)(.init(
+            method: .post, path: "/v1/vocabulary/delegated-proposals", headers: headers,
+            body: try JSONEncoder().encode(scoped)
+        ))
+        XCTAssertEqual(accepted.status, 202)
+        let applied = await waitUntil {
+            state.agentAccessProposals.contains(where: { $0.state == .applied })
+        }
+        XCTAssertTrue(applied)
+        XCTAssertEqual(state.agentAccessProposals.first?.scope,
+                       .init(kind: "cleanup_group", id: group.id))
+        XCTAssertEqual(Set(state.vocabularyCorrections.map(\.correctVersion)), Set(["Supabase", "Claude Code"]))
+        XCTAssertEqual(state.agentAccessGrantUses.count, 1)
+
+        let correctionIDs = state.vocabularyCorrections.map { $0.id.uuidString.lowercased() }.sorted(by: >)
+        XCTAssertEqual(correctionIDs.count, 2)
+        let policy = AgentAccessActionRequest(
+            requestID: "paired-policy-\(marker)", action: .setCorrectionPolicies,
+            correctionPolicies: correctionIDs.enumerated().map { index, correctionID in
+                .init(correctionID: index == 0 ? correctionID.uppercased() : correctionID,
+                      scopeID: group.id, enabled: true,
+                      caseSensitive: false, suppressedGroupIDs: [])
+            }
+        )
+        let policyResponse = try XCTUnwrap(handler)(.init(
+            method: .post, path: "/v1/vocabulary/delegated-actions", headers: headers,
+            body: try JSONEncoder().encode(policy)
+        ))
+        XCTAssertEqual(policyResponse.status, 202)
+        let policyApplied = await waitUntil {
+            state.agentAccessActions.contains(where: { $0.state == .approved })
+        }
+        XCTAssertTrue(policyApplied)
+        for correctionID in correctionIDs {
+            XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: UUID(uuidString: correctionID)!)?.group,
+                           group.id)
+        }
+        XCTAssertEqual(state.agentAccessGrantUses.count, 2)
+
+        let broadAction = AgentAccessActionRequest(
+            requestID: "paired-global-toggle-\(marker)", action: .setLocalCorrectionsEnabled,
+            enabled: true
+        )
+        let deniedAction = try XCTUnwrap(handler)(.init(
+            method: .post, path: "/v1/vocabulary/delegated-actions", headers: headers,
+            body: try JSONEncoder().encode(broadAction)
+        ))
+        XCTAssertEqual(deniedAction.status, 403)
+        XCTAssertFalse(state.localCorrectionSnapshot.isEnabled)
+
+        let global = VocabularyProposalRequest(
+            requestID: "paired-global-\(marker)", scope: .init(kind: "global", id: "global"),
+            corrections: [.init(spokenForms: ["code ex"], replacement: "Codex")]
+        )
+        let forbidden = try XCTUnwrap(handler)(.init(
+            method: .post, path: "/v1/vocabulary/delegated-proposals", headers: headers,
+            body: try JSONEncoder().encode(global)
+        ))
+        XCTAssertEqual(forbidden.status, 403)
+        XCTAssertEqual(state.vocabularyCorrections.count, 2)
+
+        let otherApp = try makeAppFixture(root: fixtureRoot, name: "Notes", bundleID: "com.example.PairedNotes")
+        var expanded = group
+        expanded.appMatchers.append(CleanupAppMatcher(displayName: "Notes", appPath: otherApp.path))
+        state.setCleanupGroups([.defaultGroup(), expanded])
+        let expandedScope = try XCTUnwrap(handler)(.init(
+            method: .get, path: "/v1/access", headers: headers, body: Data()
+        ))
+        XCTAssertEqual(expandedScope.status, 403)
+        state.setCleanupGroups([.defaultGroup()])
+        let changedScope = try XCTUnwrap(handler)(.init(
+            method: .get, path: "/v1/access", headers: headers, body: Data()
+        ))
+        XCTAssertEqual(changedScope.status, 403)
+        state.setCleanupGroups([.defaultGroup(), group])
+        let pending = VocabularyProposalRequest(
+            requestID: "paired-before-revoke-\(marker)", scope: .init(kind: "cleanup_group", id: group.id),
+            corrections: [.init(spokenForms: ["code ex"], replacement: "Codex")]
+        )
+        let beforeRevoke = try XCTUnwrap(handler)(.init(
+            method: .post, path: "/v1/vocabulary/delegated-proposals", headers: headers,
+            body: try JSONEncoder().encode(pending)
+        ))
+        XCTAssertEqual(beforeRevoke.status, 202)
+        let grantID = try XCTUnwrap(state.agentAccessGrants.first(where: { $0.name == "Codex" })?.id)
+        state.revokeAgentAccessGrant(id: grantID)
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertEqual(state.vocabularyCorrections.count, 2)
+        XCTAssertTrue(state.agentAccessProposals.contains(where: {
+            $0.requestID == pending.requestID && $0.state == .pending
+        }))
+        let revoked = try XCTUnwrap(handler)(.init(
+            method: .post, path: "/v1/vocabulary/delegated-proposals", headers: headers,
+            body: try JSONEncoder().encode(scoped)
+        ))
+        XCTAssertEqual(revoked.status, 401)
+        withExtendedLifetime(controller) {}
     }
 
     private func waitUntil(

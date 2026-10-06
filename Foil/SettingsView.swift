@@ -102,11 +102,27 @@ struct SettingsView: View {
     enum AgentAccessCopy {
         static func prompt(bootstrapCommand: String) -> String {
             """
-            I use Foil for dictation. Its local Agent Access service lets you inspect my allowed Vocabulary, submit proposed corrections, and request changes to local correction settings. Proposals do not apply automatically. Every change requires my approval inside Foil. Do not treat my words to you as approval of an API request.
+            I use Foil for dictation. Its local Agent Access service lets you inspect my allowed Vocabulary, submit proposed corrections, and request changes to local correction settings. With this read-only connection, changes require my approval inside Foil. Do not treat my words to you as approval of an API request.
 
             Please run the command below on this Mac to read Foil's current agent instructions, then follow them to help with my Vocabulary request:
 
             \(bootstrapCommand)
+            """
+        }
+
+        static func pairedPrompt(
+            bootstrapCommand: String,
+            token: String,
+            grant: AgentAccessGrantSummary
+        ) -> String {
+            let apps = grant.appPaths.joined(separator: ", ")
+            return """
+            Foil paired you as \(grant.name) for Vocabulary edits in these exact apps: \(apps). This grant expires at \(grant.expiresAt.formatted(date: .abbreviated, time: .shortened)), or sooner if Foil closes or Agent Access is turned off. Keep the bearer token below private; do not print it in diagnostics or share it with another agent.
+
+            Read Foil's current instructions first:
+            \(bootstrapCommand)
+
+            For delegated Vocabulary requests, send `Authorization: Bearer \(token)` on each request. Check `/v1/access` with that header for your current scope and expiry. Ask me in chat about uncertain correction variants before applying a change. Use `/v1/vocabulary/delegated-proposals` only for corrections in this group and `/v1/vocabulary/delegated-actions` only for policies of existing corrections in this group. Check `local_corrections_enabled` in `/v1/vocabulary`; if it is off, ask me to enable it in Foil. Poll each proposal or action status until it says applied or approved; an accepted response alone is not proof. Changes outside this grant still require review inside Foil. Never claim that a chat response grants new API permissions.
             """
         }
     }
@@ -138,6 +154,8 @@ struct SettingsView: View {
     @State private var localCorrectionPreviewInput = ""
     @State private var isShowingAgentProposals = false
     @State private var isShowingAgentActions = false
+    @State private var pairedAgentName = "Codex"
+    @State private var selectedAgentGrantGroupID = ""
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
     private let soundPreviewPlayer = SoundPlayer()
 
@@ -312,6 +330,64 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            Section("Agent permissions") {
+                LabeledContent("Vocabulary reads", value: appState.agentAccessEnabled ? "Allowed while running" : "Off")
+                Text("Pair an agent to let it edit Vocabulary only for the exact apps in a Cleanup Group. The grant lasts up to one hour, ends when Foil closes or Agent Access is turned off, and can be revoked here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("Agent name", text: $pairedAgentName)
+                    .accessibilityIdentifier("settings.agentAccess.agentName")
+                Picker("Apps for Vocabulary edits", selection: $selectedAgentGrantGroupID) {
+                    Text("Choose a Cleanup Group").tag("")
+                    ForEach(pairableAgentGroups, id: \.id) { group in
+                        Text(group.name).tag(group.id)
+                    }
+                }
+                .accessibilityIdentifier("settings.agentAccess.grantGroup")
+                Button("Pair agent and copy editing prompt") {
+                    if let prompt = appState.pairAgentForVocabularyEdits(
+                        name: pairedAgentName, groupID: selectedAgentGrantGroupID
+                    ) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(prompt, forType: .string)
+                    }
+                }
+                .disabled(appState.agentAccessPresentationState != .running || selectedAgentGrantGroupID.isEmpty)
+                .accessibilityIdentifier("settings.agentAccess.pairAgent")
+                if pairableAgentGroups.isEmpty {
+                    Text("Create a Cleanup Group with exact app paths before granting scoped edits.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                ForEach(appState.agentAccessGrants) { grant in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(grant.name)
+                                Text(grant.appPaths.joined(separator: ", "))
+                                    .font(.caption).foregroundStyle(.secondary)
+                                Text(grant.isRevoked ? "Inactive" : grant.expiresAt <= Date() ? "Expired" : "Expires \(grant.expiresAt.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if !grant.isRevoked && grant.expiresAt > Date() {
+                                Button("Revoke") { appState.revokeAgentAccessGrant(id: grant.id) }
+                                    .accessibilityIdentifier("settings.agentAccess.revoke.\(grant.id)")
+                            }
+                        }
+                        ForEach(Array(appState.agentAccessGrantUses.filter { $0.grantID == grant.id }.prefix(5))) { use in
+                            Text(agentGrantActivityLabel(use))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                if let message = appState.agentAccessGrantErrorMessage {
+                    Text(message).font(.caption).foregroundStyle(.red)
+                }
+                Text("App routing and global changes still require a separate Foil review. Current dictation text is not available to agents.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section("Vocabulary proposals") {
                 Button {
                     isShowingAgentProposals = true
@@ -356,7 +432,7 @@ struct SettingsView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.large)
                 .accessibilityIdentifier("settings.agentAccess.reviewActions")
-                Text("Every requested change needs your approval here. Agents cannot approve their own requests.")
+                Text("Changes outside a paired agent's exact app scope still need approval here. A paired agent's scoped edits appear in its activity above.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let message = appState.agentAccessActionErrorMessage {
@@ -365,7 +441,7 @@ struct SettingsView: View {
             }
 
             Section("Privacy") {
-                Text("While enabled, local processes running as your macOS user can read Vocabulary names, terms, corrections, and local-rule settings, and submit inert requests for review. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
+                Text("While enabled, local processes running as your macOS user can read allowed Vocabulary fields and submit requests for review. A process with a paired grant can edit Vocabulary in its selected app group until the grant expires or is revoked. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -381,6 +457,39 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var pairableAgentGroups: [CleanupGroup] {
+        appState.cleanupGroups.filter { group in
+            guard group.isEnabled, !group.isDefault else { return false }
+            let paths = group.appMatchers.compactMap(\.appPath)
+            guard !paths.isEmpty else { return false }
+            let verified = try? AgentAccessTargetInspection.verify(
+                .init(appPaths: paths, expectedGroupID: group.id),
+                requestID: "pairing-preview", groups: appState.cleanupGroups
+            )
+            return verified?.groupExclusiveToRequestedPaths == true
+        }
+    }
+
+    private func agentGrantActivityLabel(_ use: AgentAccessGrantUse) -> String {
+        let time = use.createdAt.formatted(date: .abbreviated, time: .shortened)
+        if use.objectKind == "proposal",
+           let proposal = appState.agentAccessProposals.first(where: { $0.id == use.objectID }) {
+            let changes = proposal.corrections.map { "\($0.spokenForms.joined(separator: ", ")) → \($0.replacement)" }
+                .joined(separator: "; ")
+            return "\(time) · \(proposal.state.rawValue.capitalized): \(changes)"
+        }
+        if let action = appState.agentAccessActions.first(where: { $0.id == use.objectID }) {
+            let changes = (action.request.correctionPolicies ?? []).map { policy in
+                let name = appState.vocabularyCorrections.first {
+                    $0.id.uuidString.lowercased() == policy.correctionID
+                }?.writtenAs ?? policy.correctionID
+                return "\(name): \(policy.enabled ? "on" : "off"), \(policy.caseSensitive ? "exact case" : "any case")"
+            }.joined(separator: "; ")
+            return "\(time) · \(action.state.rawValue.capitalized): \(changes)"
+        }
+        return "\(time) · \(use.objectKind.capitalized) submitted"
     }
 
     @ViewBuilder

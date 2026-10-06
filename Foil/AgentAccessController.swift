@@ -272,6 +272,7 @@ final class AgentAccessController {
     private let proposalGate = AgentAccessProposalGate()
     private let proposalStore: VocabularyProposalStore
     private let actionStore: AgentAccessActionStore
+    private let grantStore: AgentAccessGrantStore
     private var proposalService: VocabularyProposalService!
     private var server: AgentAccessServing?
     private var startupTask: Task<Void, Never>?
@@ -284,6 +285,7 @@ final class AgentAccessController {
         openAPIDocument: Data,
         proposalStore: VocabularyProposalStore? = nil,
         actionStore: AgentAccessActionStore? = nil,
+        grantStore: AgentAccessGrantStore? = nil,
         startupDelayNanoseconds: UInt64 = 0,
         appURLForBundleID: @escaping (String) -> URL? = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) },
         serverFactory: @escaping ServerFactory = { paths, limits, handler in
@@ -296,6 +298,7 @@ final class AgentAccessController {
         self.openAPIDocument = openAPIDocument
         self.proposalStore = proposalStore ?? VocabularyProposalStore(fileURL: paths.proposalStoreURL)
         self.actionStore = actionStore ?? AgentAccessActionStore(fileURL: paths.actionStoreURL)
+        self.grantStore = grantStore ?? AgentAccessGrantStore(fileURL: paths.grantStoreURL)
         self.startupDelayNanoseconds = startupDelayNanoseconds
         self.appURLForBundleID = appURLForBundleID
         self.serverFactory = serverFactory
@@ -328,8 +331,15 @@ final class AgentAccessController {
         appState.agentAccessActionDecisionDidRequest = { [weak self] id, approve in
             self?.decideAction(id: id, approve: approve)
         }
+        appState.agentAccessPairingDidRequest = { [weak self] name, groupID in
+            self?.pairAgent(name: name, groupID: groupID)
+        }
+        appState.agentAccessGrantRevokeDidRequest = { [weak self] id in
+            self?.revokeGrant(id: id)
+        }
         refreshReadModel()
         refreshActions()
+        refreshGrants()
     }
 
     convenience init(
@@ -346,6 +356,7 @@ final class AgentAccessController {
             openAPIDocument: Data(contentsOf: url),
             proposalStore: VocabularyProposalStore(fileURL: paths.proposalStoreURL),
             actionStore: AgentAccessActionStore(fileURL: paths.actionStoreURL),
+            grantStore: AgentAccessGrantStore(fileURL: paths.grantStoreURL),
             startupDelayNanoseconds: startupDelayNanoseconds
         )
     }
@@ -395,28 +406,7 @@ final class AgentAccessController {
 
     private func finishStart(generation expectedGeneration: UUID) {
         let proposalService = proposalService!
-        let router = AgentAccessContractRouter(
-            socketPath: paths.socketURL.path,
-            openAPIDocument: openAPIDocument,
-            limits: limits,
-            vocabularyProvider: { [readModelStore] in readModelStore.snapshot() },
-            proposalSubmitter: { [proposalService, proposalGate] request in
-                guard let submission = try proposalGate.withPermit(expectedGeneration, operation: {
-                    try proposalService.submit(request)
-                }) else {
-                    throw VocabularyProposalServiceError.unavailable
-                }
-                return submission
-            },
-            proposalStatusProvider: { [proposalService, proposalGate] id in
-                guard let receipt = try proposalGate.withPermit(expectedGeneration, operation: {
-                    try proposalService.status(id: id)
-                }) else {
-                    throw VocabularyProposalServiceError.unavailable
-                }
-                return receipt
-            },
-            actionSubmitter: { [actionStore, proposalStore, proposalGate, readModelStore] request in
+        let normalActionSubmitter: AgentAccessContractRouter.ActionSubmitter = { [actionStore, proposalStore, proposalGate, readModelStore] request in
                 guard let result = try proposalGate.withPermit(expectedGeneration, operation: {
                     let validatedRequest = try request.validated()
                     // The original receipt is durable even if its proposal or
@@ -467,7 +457,29 @@ final class AgentAccessController {
                     Task { @MainActor [weak self] in self?.refreshActions() }
                 }
                 return result
+        }
+        let router = AgentAccessContractRouter(
+            socketPath: paths.socketURL.path,
+            openAPIDocument: openAPIDocument,
+            limits: limits,
+            vocabularyProvider: { [readModelStore] in readModelStore.snapshot() },
+            proposalSubmitter: { [proposalService, proposalGate] request in
+                guard let submission = try proposalGate.withPermit(expectedGeneration, operation: {
+                    try proposalService.submit(request)
+                }) else {
+                    throw VocabularyProposalServiceError.unavailable
+                }
+                return submission
             },
+            proposalStatusProvider: { [proposalService, proposalGate] id in
+                guard let receipt = try proposalGate.withPermit(expectedGeneration, operation: {
+                    try proposalService.status(id: id)
+                }) else {
+                    throw VocabularyProposalServiceError.unavailable
+                }
+                return receipt
+            },
+            actionSubmitter: normalActionSubmitter,
             actionStatusProvider: { [actionStore, proposalGate] id in
                 guard let record = try proposalGate.withPermit(expectedGeneration, operation: {
                     guard let record = try actionStore.load().records.first(where: { $0.id == id }) else {
@@ -488,6 +500,52 @@ final class AgentAccessController {
                 return try AgentAccessTargetInspection.effectivePreview(
                     request, requestID: requestID, model: snapshot.model, groups: snapshot.groups
                 )
+            },
+            grantProvider: { [grantStore, readModelStore] token in
+                let grant = try grantStore.authorize(token)
+                try AgentAccessGrantScope.validate(grant, groups: readModelStore.snapshotWithRoutes().groups)
+                return grant
+            },
+            delegatedProposalSubmitter: { [grantStore, proposalService, proposalGate, readModelStore] request, token in
+                let grant = try grantStore.authorize(token)
+                try AgentAccessGrantScope.validateProposal(
+                    request, grant: grant, groups: readModelStore.snapshotWithRoutes().groups
+                )
+                guard let submission = try proposalGate.withPermit(expectedGeneration, operation: {
+                    try proposalService.submit(request)
+                }) else { throw VocabularyProposalServiceError.unavailable }
+                let digest = try request.canonicalPayloadDigest()
+                try grantStore.recordUse(
+                    grantID: grant.id, kind: "proposal", objectID: submission.receipt.proposalID,
+                    requestDigest: digest
+                )
+                Task { @MainActor [weak self] in
+                    self?.applyDelegatedProposal(
+                        id: submission.receipt.proposalID, token: token,
+                        requestDigest: digest, generation: expectedGeneration
+                    )
+                }
+                return submission
+            },
+            delegatedActionSubmitter: { [grantStore, readModelStore] request, token in
+                let grant = try grantStore.authorize(token)
+                let validatedRequest = try request.validated()
+                let snapshot = readModelStore.snapshotWithRoutes()
+                try AgentAccessGrantScope.validatePolicyAction(
+                    validatedRequest, grant: grant, model: snapshot.model, groups: snapshot.groups
+                )
+                let result = try normalActionSubmitter(validatedRequest)
+                let digest = result.0.digest
+                try grantStore.recordUse(
+                    grantID: grant.id, kind: "action", objectID: result.0.id, requestDigest: digest
+                )
+                Task { @MainActor [weak self] in
+                    self?.applyDelegatedAction(
+                        id: result.0.id, token: token, requestDigest: digest,
+                        generation: expectedGeneration
+                    )
+                }
+                return result
             }
         )
         let candidate = serverFactory(paths, limits) { request in
@@ -517,6 +575,7 @@ final class AgentAccessController {
     }
 
     func stop() {
+        grantStore.invalidateAll()
         proposalGate.deactivateAndWait()
         lifecycleGeneration = UUID()
         startupTask?.cancel()
@@ -526,6 +585,7 @@ final class AgentAccessController {
         active?.stop()
         appState.agentAccessPresentationState = .off
         appState.agentAccessErrorMessage = nil
+        refreshGrants()
         DiagnosticLog.write("AgentAccess.lifecycle: off")
     }
 
@@ -535,6 +595,110 @@ final class AgentAccessController {
         )
         refreshProposals()
         refreshActions()
+        refreshGrants()
+    }
+
+    func refreshGrants() {
+        do {
+            let snapshot = try grantStore.load()
+            appState.agentAccessGrants = snapshot.grants.map(\.summary)
+                .sorted { $0.createdAt > $1.createdAt }
+            appState.agentAccessGrantUses = snapshot.uses.sorted { $0.createdAt > $1.createdAt }
+            appState.agentAccessGrantErrorMessage = nil
+        } catch {
+            appState.agentAccessGrants = []
+            appState.agentAccessGrantUses = []
+            appState.agentAccessGrantErrorMessage = error.localizedDescription
+            DiagnosticLog.write("AgentAccess.grants: load_failed")
+        }
+    }
+
+    private func pairAgent(name: String, groupID: String) -> String? {
+        do {
+            guard appState.agentAccessEnabled,
+                  appState.agentAccessPresentationState == .running,
+                  let group = appState.cleanupGroups.first(where: { $0.id == groupID && $0.isEnabled && !$0.isDefault }) else {
+                throw AgentAccessGrantError.invalidScope
+            }
+            let paths = group.appMatchers.compactMap(\.appPath)
+            let verified = try AgentAccessTargetInspection.verify(
+                .init(appPaths: paths, expectedGroupID: groupID),
+                requestID: "pairing", groups: appState.cleanupGroups
+            )
+            guard verified.groupExclusiveToRequestedPaths == true else {
+                throw AgentAccessGrantError.invalidScope
+            }
+            let (grant, token) = try grantStore.create(name: name, groupID: groupID, appPaths: paths)
+            refreshGrants()
+            DiagnosticLog.write("AgentAccess.grants: paired grant_id=\(grant.id)")
+            return SettingsView.AgentAccessCopy.pairedPrompt(
+                bootstrapCommand: appState.agentAccessBootstrapCommand,
+                token: token, grant: grant
+            )
+        } catch {
+            appState.agentAccessGrantErrorMessage = error.localizedDescription
+            DiagnosticLog.write("AgentAccess.grants: pair_failed")
+            return nil
+        }
+    }
+
+    private func revokeGrant(id: String) {
+        do {
+            try grantStore.revoke(id: id)
+            refreshGrants()
+            DiagnosticLog.write("AgentAccess.grants: revoked grant_id=\(id)")
+        } catch {
+            appState.agentAccessGrantErrorMessage = error.localizedDescription
+            DiagnosticLog.write("AgentAccess.grants: revoke_failed")
+        }
+    }
+
+    private func applyDelegatedProposal(
+        id: String, token: String, requestDigest: String, generation: UUID
+    ) {
+        guard lifecycleGeneration == generation, appState.agentAccessEnabled else { return }
+        defer { refreshGrants() }
+        do {
+            let grant = try grantStore.authorize(token)
+            guard let proposal = try proposalStore.proposal(id: id), proposal.state == .pending,
+                  (proposal.reviewHash ?? proposal.requestHash) == requestDigest,
+                  try grantStore.load().uses.contains(where: {
+                      $0.grantID == grant.id && $0.objectKind == "proposal" &&
+                          $0.objectID == id && $0.requestDigest == requestDigest
+                  }) else { return }
+            try AgentAccessGrantScope.validateProposal(
+                .init(requestID: proposal.requestID, scope: proposal.scope, corrections: proposal.corrections),
+                grant: grant, groups: appState.cleanupGroups
+            )
+            _ = applyProposal(id: id)
+        } catch {
+            refreshProposals()
+            DiagnosticLog.write("AgentAccess.grants: delegated_proposal_not_applied proposal_id=\(id)")
+        }
+    }
+
+    private func applyDelegatedAction(
+        id: String, token: String, requestDigest: String, generation: UUID
+    ) {
+        guard lifecycleGeneration == generation, appState.agentAccessEnabled else { return }
+        defer { refreshGrants() }
+        do {
+            let grant = try grantStore.authorize(token)
+            guard let record = try actionStore.load().records.first(where: { $0.id == id }),
+                  record.state == .pending, record.digest == requestDigest,
+                  try grantStore.load().uses.contains(where: {
+                      $0.grantID == grant.id && $0.objectKind == "action" &&
+                          $0.objectID == id && $0.requestDigest == requestDigest
+                  }) else { return }
+            try AgentAccessGrantScope.validatePolicyAction(
+                record.request, grant: grant,
+                model: Self.makeReadModel(from: appState), groups: appState.cleanupGroups
+            )
+            decideAction(id: id, approve: true)
+        } catch {
+            refreshActions()
+            DiagnosticLog.write("AgentAccess.grants: delegated_action_not_applied action_id=\(id)")
+        }
     }
 
     func refreshActions() {

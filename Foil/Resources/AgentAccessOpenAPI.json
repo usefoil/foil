@@ -3,7 +3,7 @@
   "info": {
     "title": "Foil Agent Access",
     "version": "1.3.0",
-    "description": "Vocabulary discovery, in-memory preview, and inert proposals or action requests. Every change requires approval inside Foil; agents cannot approve changes."
+    "description": "Vocabulary discovery and in-memory preview. Ordinary proposals and action requests require Foil review. A paired agent with an unexpired bearer grant can apply corrections and policy edits for its exact app group."
   },
   "servers": [{"url": "http://foil", "description": "HTTP over Foil's owner-only Unix domain socket"}],
   "paths": {
@@ -22,6 +22,20 @@
         "responses": {
           "200": {"description": "This OpenAPI document", "content": {"application/vnd.oai.openapi+json;version=3.1": {"schema": {"type": "object"}}}},
           "405": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/access": {
+      "get": {
+        "operationId": "getPairedAgentAccess",
+        "description": "Return the scope and expiry of the bearer grant. A missing, expired, revoked, or previous Foil session token has no edit access.",
+        "parameters": [{"name": "Authorization", "in": "header", "required": true, "schema": {"type": "string", "pattern": "^Bearer foil_"}}],
+        "responses": {
+          "200": {"description": "Current paired grant", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/GrantStatusResponse"}}}},
+          "401": {"$ref": "#/components/responses/ErrorResponse"},
+          "403": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
+          "503": {"$ref": "#/components/responses/ErrorResponse"}
         }
       }
     },
@@ -136,6 +150,46 @@
           "503": {"$ref": "#/components/responses/ErrorResponse"}
         }
       }
+    },
+    "/v1/vocabulary/delegated-proposals": {
+      "post": {
+        "operationId": "submitDelegatedVocabularyProposal",
+        "description": "Submit and apply a correction proposal in the paired exact-path Cleanup Group. Foil revalidates the grant and proposal before application; poll proposal status to confirm applied state.",
+        "parameters": [{"name": "Authorization", "in": "header", "required": true, "schema": {"type": "string", "pattern": "^Bearer foil_"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalRequest"}}}},
+        "responses": {
+          "202": {"description": "Accepted for scoped application", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalResponse"}}}},
+          "200": {"description": "Idempotent replay", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProposalResponse"}}}},
+          "400": {"$ref": "#/components/responses/ErrorResponse"},
+          "401": {"$ref": "#/components/responses/ErrorResponse"},
+          "403": {"$ref": "#/components/responses/ErrorResponse"},
+          "409": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
+          "422": {"$ref": "#/components/responses/ErrorResponse"},
+          "429": {"$ref": "#/components/responses/ErrorResponse"},
+          "503": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/vocabulary/delegated-actions": {
+      "post": {
+        "operationId": "submitDelegatedCorrectionPolicies",
+        "description": "Apply set_correction_policies only to existing corrections in the paired exact-path group. Global toggles, suppressions, routing, and other actions still need Foil review. Poll action status to confirm approved state.",
+        "parameters": [{"name": "Authorization", "in": "header", "required": true, "schema": {"type": "string", "pattern": "^Bearer foil_"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActionRequest"}}}},
+        "responses": {
+          "202": {"description": "Accepted for scoped application", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActionResponse"}}}},
+          "200": {"description": "Idempotent replay", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ActionResponse"}}}},
+          "400": {"$ref": "#/components/responses/ErrorResponse"},
+          "401": {"$ref": "#/components/responses/ErrorResponse"},
+          "403": {"$ref": "#/components/responses/ErrorResponse"},
+          "409": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
+          "422": {"$ref": "#/components/responses/ErrorResponse"},
+          "429": {"$ref": "#/components/responses/ErrorResponse"},
+          "503": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
     }
   },
   "components": {
@@ -146,6 +200,19 @@
       }
     },
     "schemas": {
+      "GrantStatusResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "grant_id", "agent_name", "group_id", "app_paths", "expires_at"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "grant_id": {"type": "string", "format": "uuid"},
+          "agent_name": {"type": "string"},
+          "group_id": {"type": "string"},
+          "app_paths": {"type": "array", "items": {"type": "string"}},
+          "expires_at": {"type": "string", "format": "date-time"}
+        }
+      },
       "InstructionsResponse": {
         "type": "object",
         "required": ["schema_version", "request_id", "service", "api_version", "available_operations", "bootstrap_command", "openapi_path", "openapi_command", "unavailable_behavior", "privacy", "limits"],
