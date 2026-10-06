@@ -641,7 +641,7 @@ final class FoilUITests: XCTestCase {
             app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
             "Selected, Service off, 1 pending proposal"
         )
-        scrollSettingsUntilHittable(reviewAfterDisable)
+        scrollAppShellSettingsUntilHittable(reviewAfterDisable)
         clickElement(reviewAfterDisable)
 
         XCTAssertTrue(
@@ -683,7 +683,7 @@ final class FoilUITests: XCTestCase {
             fallbackLabel: "Review vocabulary proposals"
         )
         XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
-        scrollSettingsUntilHittable(review)
+        scrollAppShellSettingsUntilHittable(review)
         clickElement(review)
         let applyByLabel = app.buttons["Apply reviewed corrections"]
         XCTAssertTrue(applyByLabel.waitForExistence(timeout: 4), app.debugDescription)
@@ -2435,6 +2435,16 @@ final class FoilUITests: XCTestCase {
             scrollView.swipeUp()
         }
         XCTAssertTrue(isVerticallyVisible(), app.debugDescription)
+    }
+
+    private func scrollAppShellSettingsUntilHittable(_ element: XCUIElement) {
+        let settingsPane = app.descendants(matching: .any)["appShell.preferences"]
+        XCTAssertTrue(settingsPane.waitForExistence(timeout: 3), app.debugDescription)
+        for _ in 0..<8 {
+            if element.isHittable { break }
+            settingsPane.swipeUp()
+        }
+        XCTAssertTrue(element.isHittable, app.debugDescription)
     }
 
     private func scrollProposalReviewUntilHittable(_ element: XCUIElement) {
