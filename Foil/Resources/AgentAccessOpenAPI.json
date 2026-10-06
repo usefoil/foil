@@ -56,6 +56,32 @@
         }
       }
     },
+    "/v1/vocabulary/targets/verify": {
+      "post": {
+        "operationId": "verifyVocabularyTargets",
+        "description": "Inspect only the supplied installed app paths. Returns their resolved Cleanup Groups and exact-path assignment status without listing other apps or changing state.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TargetVerificationRequest"}}}},
+        "responses": {
+          "200": {"description": "Resolved targets", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TargetVerificationResponse"}}}},
+          "400": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
+          "422": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
+    "/v1/vocabulary/effective-preview": {
+      "post": {
+        "operationId": "previewEffectiveVocabulary",
+        "description": "Run current local corrections in memory for supplied sample text and one exact installed app path. Does not read transcripts or change state.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/EffectivePreviewRequest"}}}},
+        "responses": {
+          "200": {"description": "Resolved target, applicable rules, and corrected sample", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/EffectivePreviewResponse"}}}},
+          "400": {"$ref": "#/components/responses/ErrorResponse"},
+          "405": {"$ref": "#/components/responses/ErrorResponse"},
+          "422": {"$ref": "#/components/responses/ErrorResponse"}
+        }
+      }
+    },
     "/v1/vocabulary/proposals": {
       "post": {
         "operationId": "proposeVocabularyCorrections",
@@ -253,6 +279,72 @@
           "examples": {"type": "array", "items": {"$ref": "#/components/schemas/PreviewExample"}}
         }
       },
+      "TargetVerificationRequest": {
+        "type": "object",
+        "required": ["app_paths"],
+        "properties": {
+          "app_paths": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "description": "Exact path to an installed .app bundle"}},
+          "expected_group_id": {"type": "string"}
+        }
+      },
+      "VerifiedTarget": {
+        "type": "object",
+        "required": ["app_path", "bundle_id", "display_name", "resolved_group_id", "resolved_group_name", "exact_path_match"],
+        "properties": {
+          "app_path": {"type": "string"},
+          "bundle_id": {"type": "string"},
+          "display_name": {"type": "string"},
+          "resolved_group_id": {"type": "string"},
+          "resolved_group_name": {"type": "string"},
+          "exact_path_match": {"type": "boolean"},
+          "matches_expected_group": {"type": "boolean"}
+        }
+      },
+      "TargetVerificationResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "targets"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "targets": {"type": "array", "items": {"$ref": "#/components/schemas/VerifiedTarget"}},
+          "all_match_expected_group": {"type": "boolean"},
+          "group_exclusive_to_requested_paths": {"type": "boolean", "description": "True only for an enabled non-default group that routes exactly the supplied path matchers. The default group is a fallback for other apps and is never exclusive."}
+        }
+      },
+      "EffectivePreviewRequest": {
+        "type": "object",
+        "required": ["app_path", "sample_text"],
+        "properties": {
+          "app_path": {"type": "string", "description": "Exact path to one installed .app bundle"},
+          "sample_text": {"type": "string", "description": "Caller-supplied text, capped at 16 KiB UTF-8 and processed only in memory"}
+        }
+      },
+      "EffectiveRule": {
+        "type": "object",
+        "required": ["rule_id", "source", "case_sensitive", "suppresses_global"],
+        "properties": {
+          "rule_id": {"type": "string"},
+          "correction_id": {"type": ["string", "null"], "format": "uuid", "description": "Present for rules linked to a Vocabulary correction"},
+          "source": {"type": "string"},
+          "replacement": {"type": ["string", "null"]},
+          "scope_id": {"type": ["string", "null"]},
+          "case_sensitive": {"type": "boolean"},
+          "suppresses_global": {"type": "boolean"}
+        }
+      },
+      "EffectivePreviewResponse": {
+        "type": "object",
+        "required": ["schema_version", "request_id", "target", "local_corrections_enabled", "output_text", "replacement_count", "rules"],
+        "properties": {
+          "schema_version": {"type": "integer", "const": 1},
+          "request_id": {"type": "string"},
+          "target": {"$ref": "#/components/schemas/VerifiedTarget"},
+          "local_corrections_enabled": {"type": "boolean"},
+          "output_text": {"type": "string"},
+          "replacement_count": {"type": "integer"},
+          "rules": {"type": "array", "items": {"$ref": "#/components/schemas/EffectiveRule"}}
+        }
+      },
       "ProposalScope": {
         "type": "object",
         "required": ["kind", "id"],
@@ -298,11 +390,11 @@
       "ActionRequest": {
         "type": "object",
         "required": ["schema_version", "request_id", "action"],
-        "description": "Specify only the fields for one action. apply_proposal: proposal_id; create_cleanup_group: group_name and 1-8 exact installed app_paths; rescope_proposal: proposal_id, non-default enabled group_id, and the exact app_paths expected in that group; set_local_corrections_enabled: enabled; set_correction_scope: correction_id and scope_id (global or enabled group ID); assign_app_to_group: app_bundle_id and group_id (enabled group ID). Creation and rescoping stay pending until separate approvals inside Foil. The created group's ID is returned as group_id. Path targets distinguish installed apps that share a bundle identifier. No approval claim is accepted in this request.",
+        "description": "Specify only the fields for one action. apply_proposal: proposal_id; create_cleanup_group: group_name and 1-8 exact installed app_paths; rescope_proposal: proposal_id, non-default enabled group_id, and the exact app_paths expected in that group; set_local_corrections_enabled: enabled; set_correction_scope: correction_id and scope_id (global or enabled group ID); set_correction_policies: 1-50 complete correction_policies and optional enabled global switch; assign_app_to_group: app_bundle_id and group_id (enabled group ID). Each action stays pending until approval inside Foil. The created group's ID is returned as group_id. Path targets distinguish installed apps that share a bundle identifier. No approval claim is accepted in this request.",
         "properties": {
           "schema_version": {"type": "integer", "const": 1},
           "request_id": {"type": "string", "minLength": 1, "maxLength": 128},
-          "action": {"type": "string", "enum": ["apply_proposal", "create_cleanup_group", "rescope_proposal", "set_local_corrections_enabled", "set_correction_scope", "assign_app_to_group"]},
+          "action": {"type": "string", "enum": ["apply_proposal", "create_cleanup_group", "rescope_proposal", "set_local_corrections_enabled", "set_correction_scope", "set_correction_policies", "assign_app_to_group"]},
           "proposal_id": {"type": "string", "format": "uuid"},
           "enabled": {"type": "boolean"},
           "correction_id": {"type": "string", "format": "uuid"},
@@ -310,7 +402,20 @@
           "app_bundle_id": {"type": "string"},
           "group_id": {"type": "string"},
           "group_name": {"type": "string", "minLength": 1, "maxLength": 80},
-          "app_paths": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": {"type": "string"}}
+          "app_paths": {"type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": {"type": "string"}},
+          "correction_policies": {"type": "array", "minItems": 1, "maxItems": 50, "uniqueItems": true, "items": {"$ref": "#/components/schemas/CorrectionPolicy"}}
+        }
+      },
+      "CorrectionPolicy": {
+        "type": "object",
+        "required": ["correction_id", "scope_id", "enabled", "case_sensitive", "suppressed_group_ids"],
+        "description": "Complete desired policy for one existing Vocabulary correction. scope_id is global or an enabled Cleanup Group ID. suppressed_group_ids are enabled groups excluded from an enabled global rule. The local corrections switch changes only when the outer action has enabled.",
+        "properties": {
+          "correction_id": {"type": "string", "format": "uuid"},
+          "scope_id": {"type": "string"},
+          "enabled": {"type": "boolean"},
+          "case_sensitive": {"type": "boolean"},
+          "suppressed_group_ids": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"type": "string"}}
         }
       },
       "ActionResponse": {

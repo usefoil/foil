@@ -193,7 +193,7 @@ final class VocabularyProposalService: @unchecked Sendable {
             throw VocabularyProposalServiceError.validation(code: issue.code, message: issue.message)
         }
 
-        let existingRules = model.corrections.compactMap { correction -> LocalCorrectionRule? in
+        let projectedRules = model.corrections.compactMap { correction -> LocalCorrectionRule? in
             guard let rule = correction.localRule else { return nil }
             return LocalCorrectionRule(
                 id: "existing-\(correction.id)",
@@ -204,6 +204,7 @@ final class VocabularyProposalService: @unchecked Sendable {
                 caseSensitive: rule.caseSensitive
             )
         } + model.suppressionRules
+        let existingRules = model.catalogRules.isEmpty ? projectedRules : model.catalogRules
         let candidateRules = request.corrections.enumerated().flatMap { correctionIndex, correction in
             correction.spokenForms.enumerated().map { formIndex, form in
                 LocalCorrectionRule(

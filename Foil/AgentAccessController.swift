@@ -13,13 +13,21 @@ final class AgentAccessReadModelStore: @unchecked Sendable {
     private var value = AgentAccessVocabularyReadModel(
         scopes: [], terms: [], corrections: [], localCorrectionsEnabled: false
     )
+    private var routingGroups: [CleanupGroup] = []
 
-    func update(_ value: AgentAccessVocabularyReadModel) {
-        lock.withLock { self.value = value }
+    func update(_ value: AgentAccessVocabularyReadModel, routingGroups: [CleanupGroup] = []) {
+        lock.withLock {
+            self.value = value
+            self.routingGroups = routingGroups
+        }
     }
 
     func snapshot() -> AgentAccessVocabularyReadModel {
         lock.withLock { value }
+    }
+
+    func snapshotWithRoutes() -> (model: AgentAccessVocabularyReadModel, groups: [CleanupGroup]) {
+        lock.withLock { (value, routingGroups) }
     }
 }
 
@@ -126,6 +134,122 @@ enum AgentAccessAppTargeting {
         return groups.first { group in
             group.id != destinationGroupID && group.appMatchers.contains { $0.membershipKey == key }
         }
+    }
+}
+
+enum AgentAccessTargetInspection {
+    static func verify(
+        _ request: AgentAccessTargetVerificationRequest,
+        requestID: String,
+        groups: [CleanupGroup]
+    ) throws -> AgentAccessTargetVerificationResponse {
+        let paths = request.appPaths
+        guard (1...8).contains(paths.count),
+              Set(paths.map { $0.lowercased() }).count == paths.count,
+              paths.allSatisfy({ path in
+                  path.utf8.count <= 1024 && path.hasPrefix("/") &&
+                      path == URL(fileURLWithPath: path).standardizedFileURL.path &&
+                      !path.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+              }) else { throw AgentAccessActionError.invalidRequest }
+        if let expected = request.expectedGroupID,
+           !groups.contains(where: { $0.id == expected && $0.isEnabled }) {
+            throw AgentAccessActionError.invalidRequest
+        }
+        let targets = try AgentAccessAppTargeting.resolve(paths: paths)
+        let verified = targets.map { target in
+            let group = CleanupGroupResolver.resolve(
+                appContext: target.context,
+                groups: groups,
+                providerFactory: { _ in .none }
+            ).group
+            return AgentAccessVerifiedTarget(
+                appPath: target.path,
+                bundleID: target.bundleID,
+                displayName: target.displayName,
+                resolvedGroupID: group.id,
+                resolvedGroupName: group.name,
+                exactPathMatch: group.appMatchers.contains { matcher in
+                    matcher.bundleIdentifier == nil &&
+                        matcher.appPath?.caseInsensitiveCompare(target.path) == .orderedSame
+                },
+                matchesExpectedGroup: request.expectedGroupID.map { group.id == $0 }
+            )
+        }
+        let expectedGroup = request.expectedGroupID.flatMap { id in groups.first { $0.id == id } }
+        return AgentAccessTargetVerificationResponse(
+            requestID: requestID,
+            targets: verified,
+            allMatchExpectedGroup: request.expectedGroupID.map { expected in
+                verified.allSatisfy { $0.resolvedGroupID == expected }
+            },
+            groupExclusiveToRequestedPaths: expectedGroup.map { group in
+                AgentAccessAppTargeting.hasExactlyThesePaths(group, paths: paths) &&
+                    verified.allSatisfy { $0.resolvedGroupID == group.id }
+            }
+        )
+    }
+
+    static func effectivePreview(
+        _ request: AgentAccessEffectivePreviewRequest,
+        requestID: String,
+        model: AgentAccessVocabularyReadModel,
+        groups: [CleanupGroup]
+    ) throws -> AgentAccessEffectivePreviewResponse {
+        guard request.sampleText.utf8.count <= 16 * 1024 else {
+            throw AgentAccessActionError.validation("Sample text exceeds the 16 KiB preview limit.")
+        }
+        let verification = try verify(
+            AgentAccessTargetVerificationRequest(appPaths: [request.appPath], expectedGroupID: nil),
+            requestID: requestID,
+            groups: groups
+        )
+        guard let target = verification.targets.first else { throw AgentAccessActionError.invalidRequest }
+        let projectedRules = model.corrections.compactMap { correction -> LocalCorrectionRule? in
+            guard let local = correction.localRule else { return nil }
+            return LocalCorrectionRule(
+                id: "vocabulary:\(correction.id)", source: correction.writtenAs,
+                replacement: correction.correctVersion, group: local.scopeID,
+                enabled: local.enabled, caseSensitive: local.caseSensitive
+            )
+        } + model.suppressionRules
+        let rules = model.catalogRules.isEmpty ? projectedRules : model.catalogRules
+        let compiled = try LocalCorrectionEngine.compile(rules)
+        let result = LocalCorrectionEngine.correct(
+            request.sampleText,
+            activeGroup: target.resolvedGroupID,
+            enabled: model.localCorrectionsEnabled,
+            compiled: compiled
+        )
+        let effectiveRules = rules.filter {
+            $0.enabled && ($0.group == nil || $0.group == target.resolvedGroupID)
+        }.map { rule in
+            let correctionID: String?
+            if rule.id.hasPrefix("suppression:") {
+                correctionID = String(rule.id.dropFirst("suppression:".count)
+                    .split(separator: ":", maxSplits: 1).first ?? "")
+            } else if rule.id.hasPrefix("vocabulary:") {
+                correctionID = String(rule.id.dropFirst("vocabulary:".count))
+            } else {
+                correctionID = nil
+            }
+            return AgentAccessEffectiveRule(
+                ruleID: rule.id,
+                correctionID: correctionID,
+                source: rule.source,
+                replacement: rule.suppressesGlobal ? nil : rule.replacement,
+                scopeID: rule.group,
+                caseSensitive: rule.caseSensitive,
+                suppressesGlobal: rule.suppressesGlobal
+            )
+        }
+        return AgentAccessEffectivePreviewResponse(
+            requestID: requestID,
+            target: target,
+            localCorrectionsEnabled: model.localCorrectionsEnabled,
+            outputText: result.text,
+            replacementCount: result.replacementCount,
+            rules: effectiveRules
+        )
     }
 }
 
@@ -306,6 +430,15 @@ final class AgentAccessController {
                         || validatedRequest.action == .rescopeProposal)
                         ? try proposalStore.proposal(id: validatedRequest.proposalID ?? "")
                         : nil
+                    let batchPlan: AgentAccessPolicyBatchPlanner.Plan?
+                    if validatedRequest.action == .setCorrectionPolicies {
+                        let snapshot = readModelStore.snapshotWithRoutes()
+                        batchPlan = try AgentAccessPolicyBatchPlanner.plan(
+                            validatedRequest, model: snapshot.model, groups: snapshot.groups
+                        )
+                    } else {
+                        batchPlan = nil
+                    }
                     let resultDigest: String?
                     if validatedRequest.action == .rescopeProposal,
                        let proposal, let groupID = validatedRequest.groupID {
@@ -319,11 +452,11 @@ final class AgentAccessController {
                             corrections: proposal.corrections
                         ).canonicalPayloadDigest()
                     } else {
-                        resultDigest = nil
+                        resultDigest = batchPlan?.resultDigest
                     }
                     return try actionStore.submit(
                         validatedRequest,
-                        targetDigest: proposal?.reviewHash ?? proposal?.requestHash,
+                        targetDigest: batchPlan?.targetDigest ?? proposal?.reviewHash ?? proposal?.requestHash,
                         resultDigest: resultDigest,
                         targetAvailable: proposal == nil
                             ? validatedRequest.action != .applyProposal && validatedRequest.action != .rescopeProposal
@@ -343,6 +476,18 @@ final class AgentAccessController {
                     return record
                 }) else { throw AgentAccessActionError.unavailable }
                 return record
+            },
+            targetVerifier: { [readModelStore] request, requestID in
+                let snapshot = readModelStore.snapshotWithRoutes()
+                return try AgentAccessTargetInspection.verify(
+                    request, requestID: requestID, groups: snapshot.groups
+                )
+            },
+            effectivePreviewer: { [readModelStore] request, requestID in
+                let snapshot = readModelStore.snapshotWithRoutes()
+                return try AgentAccessTargetInspection.effectivePreview(
+                    request, requestID: requestID, model: snapshot.model, groups: snapshot.groups
+                )
             }
         )
         let candidate = serverFactory(paths, limits) { request in
@@ -385,7 +530,9 @@ final class AgentAccessController {
     }
 
     func refreshReadModel() {
-        readModelStore.update(Self.makeReadModel(from: appState))
+        readModelStore.update(
+            Self.makeReadModel(from: appState), routingGroups: appState.cleanupGroups
+        )
         refreshProposals()
         refreshActions()
     }
@@ -609,11 +756,29 @@ final class AgentAccessController {
                   let rawScope = request.scopeID else { throw AgentAccessActionError.invalidRequest }
             let groupID: String? = rawScope == "global" ? nil : rawScope
             if let existing = appState.localCorrectionRule(forVocabularyCorrectionID: id),
-               existing.enabled, existing.group == groupID { return }
-            guard let result = try appState.setVocabularyCorrectionLocalScope(id: id, groupID: groupID) else {
+               existing.group == groupID { return }
+            guard let result = try appState.setVocabularyCorrectionLocalScope(
+                id: id, groupID: groupID, preserveEnabled: true
+            ) else {
                 throw AgentAccessActionError.invalidRequest
             }
             _ = result
+        case .setCorrectionPolicies:
+            let model = Self.makeReadModel(from: appState)
+            let groups = appState.cleanupGroups
+            let currentDigest = try AgentAccessPolicyBatchPlanner.digest(model: model, groups: groups)
+            if currentDigest == record.resultDigest { return }
+            guard currentDigest == record.targetDigest else { throw AgentAccessActionError.targetChanged }
+            let plan = try AgentAccessPolicyBatchPlanner.plan(request, model: model, groups: groups)
+            guard plan.targetDigest == record.targetDigest,
+                  plan.resultDigest == record.resultDigest else {
+                throw AgentAccessActionError.targetChanged
+            }
+            _ = try appState.saveLocalCorrections(plan.rules, isEnabled: plan.localCorrectionsEnabled)
+            let appliedDigest = try AgentAccessPolicyBatchPlanner.digest(
+                model: Self.makeReadModel(from: appState), groups: appState.cleanupGroups
+            )
+            guard appliedDigest == record.resultDigest else { throw AgentAccessActionError.targetChanged }
         case .assignAppToGroup:
             guard let bundleID = request.appBundleID, let groupID = request.groupID,
                   appState.cleanupGroups.contains(where: { $0.id == groupID && $0.isEnabled }),
@@ -765,7 +930,8 @@ final class AgentAccessController {
                 )
             },
             localCorrectionsEnabled: appState.localCorrectionSnapshot.isEnabled,
-            suppressionRules: appState.localCorrectionSnapshot.rules.filter(\.suppressesGlobal)
+            suppressionRules: appState.localCorrectionSnapshot.rules.filter(\.suppressesGlobal),
+            catalogRules: appState.localCorrectionSnapshot.rules
         )
     }
 }

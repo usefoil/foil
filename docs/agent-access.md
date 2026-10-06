@@ -41,6 +41,23 @@ action request, and read its status. No plugin, skill, MCP registration, helper
 installation, or PATH change is required. The agent must be running locally on
 the same Mac and able to access your user-owned Unix socket.
 
+## Inspect an exact app target
+
+`POST /v1/vocabulary/targets/verify` accepts one to eight exact installed
+`.app` paths. It returns each app's resolved Cleanup Group and whether that
+group contains an exact path assignment. With `expected_group_id`, it also
+reports whether all supplied apps resolve to that group and whether routing to
+the group is exclusive to those requested paths. It never lists other installed
+apps. The default Cleanup Group is a fallback for every unassigned app, so it
+is never exclusive and this last field is always false for that group.
+
+`POST /v1/vocabulary/effective-preview` accepts one exact app path and caller
+supplied `sample_text` (up to 16 KiB UTF-8). Foil resolves the target group and
+runs the current local correction rules in memory, returning the output and
+applicable global and group rules. The preview respects the current local
+corrections switch and does not read History, capture a transcript, or save the
+sample. Use a separate proposal preview to validate proposed changes.
+
 ## Review a proposal
 
 Open **Agent Access -> Review vocabulary proposals**. You can edit or omit
@@ -78,6 +95,36 @@ correction or setting, current state, requested scope, and for app assignments
 the resolved application path. Assigning an app changes its whole Cleanup Group
 routing, including that group's cleanup settings. The API has no approval route
 and ignores any agent claim that you approved a request elsewhere.
+
+For a coordinated change, `set_correction_policies` accepts 1–50 complete
+policies in one action. Each policy names an existing correction, its desired
+scope (`global` or an enabled Cleanup Group ID), whether its exact rule is on,
+whether matching is case sensitive, and any Cleanup Groups excluded from an
+enabled global rule. The action can also explicitly set the overall local
+corrections switch. Foil shows the current and requested policy for every
+correction, then applies the full set in one catalog save after approval. A
+changed Vocabulary or Cleanup Group configuration blocks the old request; the
+agent must submit a fresh one. A scope-only `set_correction_scope` request
+preserves the correction's On/Off state; a newly scoped rule starts Off.
+
+For example, this action asks to enable one existing correction only in an
+agent Cleanup Group while leaving the overall local corrections switch as it
+is. The agent gets the correction and group IDs from the read endpoints:
+
+```json
+{
+  "schema_version": 1,
+  "request_id": "scope-codex-correction-1",
+  "action": "set_correction_policies",
+  "correction_policies": [{
+    "correction_id": "<existing correction UUID>",
+    "scope_id": "<enabled Cleanup Group UUID>",
+    "enabled": true,
+    "case_sensitive": false,
+    "suppressed_group_ids": []
+  }]
+}
+```
 
 An exact app bundle match takes precedence over a path or display-name match,
 including when the bundle is explicitly assigned to the default group.

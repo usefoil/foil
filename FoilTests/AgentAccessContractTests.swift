@@ -176,6 +176,53 @@ final class AgentAccessContractTests: XCTestCase {
         XCTAssertEqual(try error(unknown).error.code, "route_not_found")
     }
 
+    func testReadOnlyTargetRoutesReturnOnlySuppliedPathAndSample() throws {
+        let path = "/Applications/ChatGPT.app"
+        let target = AgentAccessVerifiedTarget(
+            appPath: path, bundleID: "com.example.ChatGPT", displayName: "ChatGPT",
+            resolvedGroupID: "agents", resolvedGroupName: "Agents",
+            exactPathMatch: true, matchesExpectedGroup: true
+        )
+        let router = AgentAccessContractRouter(
+            socketPath: "/tmp/foil-agent-test.sock",
+            openAPIDocument: Data("{}".utf8),
+            targetVerifier: { value, requestID in
+                XCTAssertEqual(value.appPaths, [path])
+                XCTAssertEqual(value.expectedGroupID, "agents")
+                return AgentAccessTargetVerificationResponse(
+                    requestID: requestID, targets: [target],
+                    allMatchExpectedGroup: true, groupExclusiveToRequestedPaths: true
+                )
+            },
+            effectivePreviewer: { value, requestID in
+                XCTAssertEqual(value.appPath, path)
+                XCTAssertEqual(value.sampleText, "super base")
+                return AgentAccessEffectivePreviewResponse(
+                    requestID: requestID, target: target, localCorrectionsEnabled: true,
+                    outputText: "Supabase", replacementCount: 1, rules: []
+                )
+            }
+        )
+        let verified = router.response(to: request(
+            .post, path: "/v1/vocabulary/targets/verify",
+            body: Data(#"{"app_paths":["/Applications/ChatGPT.app"],"expected_group_id":"agents"}"#.utf8)
+        ))
+        let preview = router.response(to: request(
+            .post, path: "/v1/vocabulary/effective-preview",
+            body: Data(#"{"app_path":"/Applications/ChatGPT.app","sample_text":"super base"}"#.utf8)
+        ))
+        let verifiedJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: verified.body) as? [String: Any])
+        let previewJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: preview.body) as? [String: Any])
+        XCTAssertEqual(verified.status, 200)
+        XCTAssertEqual(preview.status, 200)
+        XCTAssertEqual(verifiedJSON["all_match_expected_group"] as? Bool, true)
+        XCTAssertEqual(verifiedJSON["group_exclusive_to_requested_paths"] as? Bool, true)
+        XCTAssertEqual(previewJSON["output_text"] as? String, "Supabase")
+        XCTAssertFalse(String(decoding: verified.body + preview.body, as: UTF8.self).contains("OtherApp.app"))
+        XCTAssertEqual(try error(router.response(to: request(.get, path: "/v1/vocabulary/targets/verify"))).error.code,
+                       "method_not_allowed")
+    }
+
     private func makeRouter(model: AgentAccessVocabularyReadModel) -> AgentAccessContractRouter {
         AgentAccessContractRouter(
             socketPath: "/tmp/foil-agent-test.sock",
