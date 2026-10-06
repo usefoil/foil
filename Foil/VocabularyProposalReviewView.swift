@@ -1,48 +1,58 @@
 import AppKit
 import SwiftUI
 
-struct VocabularyProposalReviewView: View {
+struct VocabularyApprovalInboxView: View {
     @Bindable var appState: AppState
     @Environment(\.dismiss) private var dismiss
 
-    private var pending: [VocabularyProposal] {
+    private var pendingProposals: [VocabularyProposal] {
         appState.agentAccessProposals.filter { $0.state == .pending }
+    }
+
+    private var pendingActions: [AgentAccessActionRecord] {
+        appState.agentAccessActions.filter { $0.state == .pending || $0.state == .approvedPendingApply }
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if pending.isEmpty {
+                if pendingProposals.isEmpty && pendingActions.isEmpty {
                     ContentUnavailableView(
-                        "No pending proposals",
-                        systemImage: "tray",
-                        description: Text("Agent proposals will appear here for review.")
+                        "No pending Vocabulary approvals",
+                        systemImage: "checkmark.shield",
+                        description: Text("Agent requests to change Vocabulary will appear here.")
                     )
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 16) {
-                            ForEach(pending) { proposal in
-                                VocabularyProposalEditorCard(
-                                    appState: appState,
-                                    proposal: proposal
-                                )
+                            if !pendingProposals.isEmpty {
+                                Text("Corrections").font(.headline)
+                                ForEach(pendingProposals) { proposal in
+                                    VocabularyProposalEditorCard(appState: appState, proposal: proposal)
+                                }
+                            }
+                            if !pendingActions.isEmpty {
+                                Text("Other Vocabulary requests").font(.headline)
+                                ForEach(pendingActions) { record in
+                                    AgentAccessActionCard(appState: appState, record: record)
+                                }
                             }
                         }
                         .padding()
                     }
                 }
             }
-            .navigationTitle("Vocabulary proposals")
+            .navigationTitle("Vocabulary approvals")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
-                        .accessibilityIdentifier("agentProposals.done")
+                        .accessibilityIdentifier("agentApprovals.done")
                 }
             }
         }
         .frame(minWidth: 680, minHeight: 520)
         .background(FoilTheme.windowBackground)
-        .accessibilityIdentifier("agentProposals.reviewView")
+        .accessibilityIdentifier("agentApprovals.reviewView")
     }
 }
 
@@ -291,47 +301,11 @@ private struct SpokenFormDraft: Identifiable {
     var value: String
 }
 
-struct AgentAccessActionReviewView: View {
+private struct AgentAccessActionCard: View {
     @Bindable var appState: AppState
-    @Environment(\.dismiss) private var dismiss
-
-    private var pending: [AgentAccessActionRecord] {
-        appState.agentAccessActions.filter { $0.state == .pending || $0.state == .approvedPendingApply }
-    }
+    let record: AgentAccessActionRecord
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if pending.isEmpty {
-                    ContentUnavailableView(
-                        "No pending agent actions", systemImage: "checkmark.shield",
-                        description: Text("Requests to change Vocabulary settings will appear here.")
-                    )
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 16) {
-                            ForEach(pending) { record in
-                                actionCard(record)
-                            }
-                        }
-                        .padding()
-                    }
-                }
-            }
-            .navigationTitle("Agent action requests")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .accessibilityIdentifier("agentActions.done")
-                }
-            }
-        }
-        .frame(minWidth: 680, minHeight: 480)
-        .background(FoilTheme.windowBackground)
-        .accessibilityIdentifier("agentActions.reviewView")
-    }
-
-    private func actionCard(_ record: AgentAccessActionRecord) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {

@@ -152,8 +152,7 @@ struct SettingsView: View {
     @State private var vocabularyNote = ""
     @State private var vocabularyEditingID: UUID?
     @State private var localCorrectionPreviewInput = ""
-    @State private var isShowingAgentProposals = false
-    @State private var isShowingAgentActions = false
+    @State private var isShowingVocabularyApprovals = false
     @State private var pairedAgentName = "Codex"
     @State private var selectedAgentGrantGroupID = ""
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
@@ -388,15 +387,15 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            Section("Vocabulary proposals") {
+            Section("Vocabulary approvals") {
                 Button {
-                    isShowingAgentProposals = true
+                    isShowingVocabularyApprovals = true
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "tray.full")
-                        Text("Review vocabulary proposals")
+                        Text("Review Vocabulary changes")
                         Spacer()
-                        Text("\(appState.agentAccessPendingProposalCount) pending")
+                        Text("\(appState.agentAccessPendingApprovalCount) pending")
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.semibold))
                     }
@@ -404,8 +403,12 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                .accessibilityIdentifier("settings.agentAccess.reviewProposals")
-                .accessibilityValue("\(appState.agentAccessPendingProposalCount) pending")
+                .accessibilityIdentifier("settings.agentAccess.reviewVocabulary")
+                .accessibilityValue("\(appState.agentAccessPendingApprovalCount) pending")
+
+                Text("Review correction proposals, Vocabulary settings, and app-scope requests in one place. Scoped edits made under a paired grant appear in the activity above.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 if let message = appState.agentAccessProposalInboxErrorMessage {
                     Text(message)
@@ -414,29 +417,12 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("settings.agentAccess.proposalError")
                 }
-            }
-
-            Section("Agent action requests") {
-                Button {
-                    isShowingAgentActions = true
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "checkmark.shield")
-                        Text("Review agent action requests")
-                        Spacer()
-                        Text("\(appState.agentAccessPendingActionCount) pending")
-                        Image(systemName: "chevron.right")
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .accessibilityIdentifier("settings.agentAccess.reviewActions")
-                Text("Changes outside a paired agent's exact app scope still need approval here. A paired agent's scoped edits appear in its activity above.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 if let message = appState.agentAccessActionErrorMessage {
-                    Text(message).font(.caption).foregroundStyle(.red)
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings.agentAccess.actionError")
                 }
             }
 
@@ -447,12 +433,8 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("settings.agentAccess.disclosure")
             }
-            .sheet(isPresented: $isShowingAgentProposals) {
-                VocabularyProposalReviewView(appState: appState)
-                    .preferredColorScheme(.light)
-            }
-            .sheet(isPresented: $isShowingAgentActions) {
-                AgentAccessActionReviewView(appState: appState)
+            .sheet(isPresented: $isShowingVocabularyApprovals) {
+                VocabularyApprovalInboxView(appState: appState)
                     .preferredColorScheme(.light)
             }
         }

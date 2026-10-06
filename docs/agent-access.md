@@ -20,8 +20,8 @@ or in error. **Running** means Foil is ready to accept local connections; it
 does not mean an agent has connected. If the service fails to start, Foil turns
 access off, shows the error, and offers **Try again** after you resolve it. If
 Foil cannot load the service itself, restart after updating or repairing the
-app. The sidebar also shows a count when proposals are waiting for review, even
-while access is off.
+app. The sidebar also shows a combined count when Vocabulary changes are waiting
+for review, even while access is off.
 
 The production command has this stable shape:
 
@@ -93,8 +93,9 @@ sample. Use a separate proposal preview to validate proposed changes.
 
 ## Review a proposal
 
-Open **Agent Access -> Review vocabulary proposals**. You can edit or omit
-individual suggestions, reject the proposal, or apply the reviewed corrections.
+Open **Agent Access -> Review Vocabulary changes**. This inbox shows correction
+proposals alongside requests to change Vocabulary settings or app scope. You can
+edit or omit individual suggestions, reject a proposal, or apply the reviewed corrections.
 Applying a proposal creates ordinary Foil Vocabulary entries and exact local rules;
 it does not turn on the global **Apply local corrections** switch. That switch and
 any Cleanup Group scope remain under your control.
@@ -122,8 +123,8 @@ the group contains exactly the requested app paths before changing the proposal.
 Rescoping changes the original pending proposal in place; it leaves no second
 global proposal waiting to be applied. It does not apply the corrections.
 Use exact paths when two installed apps share a bundle identifier. A
-new request remains pending until you open **Agent Access -> Review agent action
-requests** and choose **Approve change** or **Reject**. Foil shows the exact
+new request remains pending until you open **Agent Access -> Review Vocabulary
+changes** and choose **Approve change** or **Reject**. Foil shows the exact
 correction or setting, current state, requested scope, and for app assignments
 the resolved application path. Assigning an app changes its whole Cleanup Group
 routing, including that group's cleanup settings. The API has no approval route
@@ -172,7 +173,7 @@ keeps the approval as `approved_pending_apply` and shows the reason. You can
 retry after resolving it or stop retrying; stopping does not undo a change
 that may already have applied.
 An ordinary Vocabulary proposal still needs its own in-Foil review, either in
-the proposal sheet or through an approved apply request.
+the Vocabulary approvals inbox or through an approved apply request.
 
 For example, a proposal may group `super base` and `Superbase` as spoken forms for
 `Supabase`. After review, Foil stores them as separate explicit correction rules.

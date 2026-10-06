@@ -411,6 +411,9 @@ final class AppState {
     var agentAccessPendingProposalCount: Int {
         agentAccessProposals.lazy.filter { $0.state == .pending }.count
     }
+    var agentAccessPendingApprovalCount: Int {
+        agentAccessPendingProposalCount + agentAccessPendingActionCount
+    }
     var appliedVocabularyProposalReceipts: [VocabularyAppliedProposalReceipt] {
         vocabularyCorrectionCoordinator?.loadedCatalog?.snapshot.appliedProposalReceipts ?? []
     }

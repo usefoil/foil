@@ -627,7 +627,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--seed-agent-action") {
                     self?.agentAccessController?.seedAgentActionForUITesting()
-                } else {
+                }
+                if ProcessInfo.processInfo.arguments.contains("--seed-agent-vocabulary-proposal") {
                     self?.agentAccessController?.seedVocabularyProposalForUITesting()
                 }
                 #endif
