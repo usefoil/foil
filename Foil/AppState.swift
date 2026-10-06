@@ -1129,6 +1129,8 @@ final class AppState {
         var rules = localCorrectionSnapshot.rules
         guard let index = rules.firstIndex(where: { $0.id == ruleID }) else { return nil }
         let current = rules[index]
+        rules.removeAll { $0.id.hasPrefix(Self.suppressionRulePrefix(for: id)) }
+        guard let index = rules.firstIndex(where: { $0.id == ruleID }) else { return nil }
         rules[index] = LocalCorrectionRule(
             id: current.id,
             source: current.source,

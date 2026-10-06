@@ -54,6 +54,9 @@ wins when it matches the same phrase; a longer distinct phrase wins over a
 shorter match. In Vocabulary settings, use a global correction's **Exceptions**
 menu to leave its phrase unchanged in selected Cleanup Groups. Turning a scoped
 rule off does not suppress a global rule; an exception is an explicit choice.
+Turning a global correction off clears its group exceptions. A proposal for a
+phrase already covered by an exception in that group must resolve the exception
+before it can be submitted or applied.
 
 ## Review agent action requests
 

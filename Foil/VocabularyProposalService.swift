@@ -203,7 +203,7 @@ final class VocabularyProposalService: @unchecked Sendable {
                 enabled: true,
                 caseSensitive: rule.caseSensitive
             )
-        }
+        } + model.suppressionRules
         let candidateRules = request.corrections.enumerated().flatMap { correctionIndex, correction in
             correction.spokenForms.enumerated().map { formIndex, form in
                 LocalCorrectionRule(
@@ -225,7 +225,11 @@ final class VocabularyProposalService: @unchecked Sendable {
                let second = (existingRules + candidateRules).first(where: { $0.id == secondID }) {
                 let scope = scopeID.flatMap { id in model.scopes.first(where: { $0.id == id })?.name }
                     ?? "Every app"
-                message = "“\(second.source)” conflicts with the active correction “\(first.source)” in \(scope). Change the spoken form or scope before applying."
+                if first.suppressesGlobal {
+                    message = "“\(second.source)” conflicts with an exception for \(scope). Remove the exception in Foil or change the spoken form before applying."
+                } else {
+                    message = "“\(second.source)” conflicts with the active correction “\(first.source)” in \(scope). Change the spoken form or scope before applying."
+                }
             } else {
                 message = error.description
             }

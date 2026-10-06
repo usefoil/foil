@@ -129,6 +129,21 @@ struct AgentAccessVocabularyReadModel: Encodable, Equatable, Sendable {
     let terms: [AgentAccessVocabularyTerm]
     let corrections: [AgentAccessVocabularyCorrection]
     let localCorrectionsEnabled: Bool
+    let suppressionRules: [LocalCorrectionRule]
+
+    init(
+        scopes: [AgentAccessVocabularyScope],
+        terms: [AgentAccessVocabularyTerm],
+        corrections: [AgentAccessVocabularyCorrection],
+        localCorrectionsEnabled: Bool,
+        suppressionRules: [LocalCorrectionRule] = []
+    ) {
+        self.scopes = scopes
+        self.terms = terms
+        self.corrections = corrections
+        self.localCorrectionsEnabled = localCorrectionsEnabled
+        self.suppressionRules = suppressionRules
+    }
 }
 
 struct AgentAccessVocabularyScope: Codable, Equatable, Sendable {

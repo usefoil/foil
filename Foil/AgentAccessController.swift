@@ -764,7 +764,10 @@ final class AgentAccessController {
                     }
                 )
             },
-            localCorrectionsEnabled: appState.localCorrectionSnapshot.isEnabled
+            localCorrectionsEnabled: appState.localCorrectionSnapshot.isEnabled,
+            suppressionRules: appState.localCorrectionSnapshot.rules.filter {
+                $0.enabled && $0.suppressesGlobal
+            }
         )
     }
 }

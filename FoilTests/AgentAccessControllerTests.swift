@@ -165,6 +165,32 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertFalse(exposedResponses.contains("updated_at"))
     }
 
+    func testReadModelTracksExceptionsWithoutExposingInternalRulesInVocabularyResponse() throws {
+        let state = makeState()
+        state.setCleanupGroups([
+            CleanupGroup.defaultGroup(),
+            CleanupGroup(id: "agents", name: "Agents", sortOrder: 1)
+        ])
+        let correction = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Supabase"
+        ))
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: nil)
+        _ = try state.setVocabularyCorrectionSuppressed(id: correction.id, in: "agents", suppressed: true)
+
+        let model = AgentAccessController.makeReadModel(from: state)
+        XCTAssertEqual(model.suppressionRules.count, 1)
+        XCTAssertEqual(model.suppressionRules.first?.group, "agents")
+        let response = AgentAccessVocabularyResponse(
+            requestID: "privacy-test",
+            localCorrectionsEnabled: model.localCorrectionsEnabled,
+            terms: model.terms,
+            corrections: model.corrections
+        )
+        let json = String(decoding: try JSONEncoder().encode(response), as: UTF8.self)
+        XCTAssertFalse(json.contains("suppression:"))
+        XCTAssertFalse(json.contains("suppressionRules"))
+    }
+
     func testRunningHandlerReceivesVocabularyChangesWithoutMainActorReads() async throws {
         let state = makeState()
         state.setAgentAccessEnabled(false, notifyController: false)
