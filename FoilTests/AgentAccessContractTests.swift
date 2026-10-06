@@ -191,7 +191,7 @@ final class AgentAccessContractTests: XCTestCase {
                 XCTAssertEqual(value.expectedGroupID, "agents")
                 return AgentAccessTargetVerificationResponse(
                     requestID: requestID, targets: [target],
-                    allMatchExpectedGroup: true, groupContainsOnlyRequestedPaths: true
+                    allMatchExpectedGroup: true, groupExclusiveToRequestedPaths: true
                 )
             },
             effectivePreviewer: { value, requestID in
@@ -216,6 +216,7 @@ final class AgentAccessContractTests: XCTestCase {
         XCTAssertEqual(verified.status, 200)
         XCTAssertEqual(preview.status, 200)
         XCTAssertEqual(verifiedJSON["all_match_expected_group"] as? Bool, true)
+        XCTAssertEqual(verifiedJSON["group_exclusive_to_requested_paths"] as? Bool, true)
         XCTAssertEqual(previewJSON["output_text"] as? String, "Supabase")
         XCTAssertFalse(String(decoding: verified.body + preview.body, as: UTF8.self).contains("OtherApp.app"))
         XCTAssertEqual(try error(router.response(to: request(.get, path: "/v1/vocabulary/targets/verify"))).error.code,

@@ -152,6 +152,7 @@ final class AgentAccessHTTPTests: XCTestCase {
         XCTAssertEqual(decoded.availableOperations, [
             "get_instructions", "get_openapi", "list_vocabulary_scopes",
             "list_vocabulary", "preview_vocabulary_corrections",
+            "verify_vocabulary_targets", "preview_effective_vocabulary",
             "propose_vocabulary_corrections", "get_vocabulary_proposal_status",
             "request_vocabulary_action", "get_vocabulary_action_status"
         ])
@@ -192,7 +193,9 @@ final class AgentAccessHTTPTests: XCTestCase {
         )
         XCTAssertEqual(Set(paths.keys), [
             "/v1/instructions", "/v1/openapi.json", "/v1/vocabulary/scopes",
-            "/v1/vocabulary", "/v1/vocabulary/preview", "/v1/vocabulary/proposals",
+            "/v1/vocabulary", "/v1/vocabulary/preview",
+            "/v1/vocabulary/targets/verify", "/v1/vocabulary/effective-preview",
+            "/v1/vocabulary/proposals",
             "/v1/vocabulary/proposals/{proposal_id}",
             "/v1/vocabulary/actions", "/v1/vocabulary/actions/{action_id}"
         ])
@@ -212,6 +215,8 @@ final class AgentAccessHTTPTests: XCTestCase {
         for schema in [
             "InstructionsResponse", "ScopesResponse", "VocabularyResponse",
             "PreviewRequest", "PreviewResponse", "ProposalRequest", "ProposalResponse",
+            "TargetVerificationRequest", "TargetVerificationResponse",
+            "EffectivePreviewRequest", "EffectivePreviewResponse", "CorrectionPolicy",
             "ActionRequest", "ActionResponse",
             "ErrorResponse"
         ] {
@@ -227,6 +232,8 @@ final class AgentAccessHTTPTests: XCTestCase {
             ("/v1/vocabulary/scopes", "get"),
             ("/v1/vocabulary", "get"),
             ("/v1/vocabulary/preview", "post"),
+            ("/v1/vocabulary/targets/verify", "post"),
+            ("/v1/vocabulary/effective-preview", "post"),
             ("/v1/vocabulary/proposals", "post"),
             ("/v1/vocabulary/proposals/{proposal_id}", "get"),
             ("/v1/vocabulary/actions", "post"),

@@ -199,7 +199,12 @@ final class AgentAccessControllerTests: XCTestCase {
         let chatGPT = try makeAppFixture(root: root, name: "ChatGPT", bundleID: "com.example.ChatGPT")
         let codex = try makeAppFixture(root: root, name: "Codex", bundleID: "com.example.Codex")
         let notes = try makeAppFixture(root: root, name: "Notes", bundleID: "com.example.Notes")
-        let state = makeState()
+        let suiteName = "com.neonwatty.Foil.AgentTargetTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        addTeardownBlock { defaults.removePersistentDomain(forName: suiteName) }
+        let state = makeState(
+            storageMarker: UUID().uuidString, initialDefaultsOverride: defaults, activateCatalog: true
+        )
         let group = CleanupGroup(
             id: "agent-editors", name: "Agent editors", sortOrder: 1,
             appMatchers: [
@@ -207,31 +212,43 @@ final class AgentAccessControllerTests: XCTestCase {
                 CleanupAppMatcher(displayName: "Codex", appPath: codex.path)
             ]
         )
-        state.setCleanupGroups([CleanupGroup.defaultGroup(), group])
+        var defaultGroup = CleanupGroup.defaultGroup()
+        defaultGroup.appMatchers = [CleanupAppMatcher(displayName: "Notes", appPath: notes.path)]
+        let groups = [defaultGroup, group]
         let codexCorrection = try XCTUnwrap(state.addVocabularyCorrection(
             writtenAs: "code ex", correctVersion: "Codex"
         ))
-        _ = try state.setVocabularyCorrectionLocalScope(id: codexCorrection.id, groupID: nil)
         let scopedCorrection = try XCTUnwrap(state.addVocabularyCorrection(
             writtenAs: "code ex", correctVersion: "CodeX App"
         ))
-        _ = try state.setVocabularyCorrectionLocalScope(id: scopedCorrection.id, groupID: group.id)
         let supabase = try XCTUnwrap(state.addVocabularyCorrection(
             writtenAs: "super base", correctVersion: "Supabase"
         ))
-        _ = try state.setVocabularyCorrectionLocalScope(id: supabase.id, groupID: nil)
-        _ = try state.setVocabularyCorrectionSuppressed(id: supabase.id, in: group.id, suppressed: true)
-        _ = try state.setLocalCorrectionsEnabled(true)
-        _ = try state.saveLocalCorrections(state.localCorrectionSnapshot.rules + [
+        _ = try state.saveLocalCorrections([
+            LocalCorrectionRule(
+                id: "vocabulary:\(codexCorrection.id.uuidString.lowercased())",
+                source: "code ex", replacement: "Codex", group: nil,
+                enabled: true, caseSensitive: false
+            ),
+            LocalCorrectionRule(
+                id: "vocabulary:\(scopedCorrection.id.uuidString.lowercased())",
+                source: "code ex", replacement: "CodeX App", group: group.id,
+                enabled: true, caseSensitive: false
+            ),
+            LocalCorrectionRule(
+                id: "vocabulary:\(supabase.id.uuidString.lowercased())",
+                source: "super base", replacement: "Supabase", group: nil,
+                enabled: true, caseSensitive: false
+            ),
+            LocalCorrectionRule(
+                id: "suppression:\(supabase.id.uuidString.lowercased()):\(group.id)",
+                source: "super base", replacement: "super base", group: group.id,
+                enabled: true, caseSensitive: false, suppressesGlobal: true
+            ),
             LocalCorrectionRule(id: "manual:legacy", source: "ufo", replacement: "UFO",
                                 group: nil, enabled: true, caseSensitive: false)
-        ])
-        state.addAppMatcher(
-            CleanupAppMatcher(displayName: "Notes", appPath: notes.path),
-            toCleanupGroupID: CleanupGroup.defaultGroupID
-        )
+        ], isEnabled: true)
 
-        let groups = state.cleanupGroups
         let verified = try AgentAccessTargetInspection.verify(
             AgentAccessTargetVerificationRequest(
                 appPaths: [chatGPT.path, codex.path], expectedGroupID: group.id
@@ -240,7 +257,7 @@ final class AgentAccessControllerTests: XCTestCase {
         )
         XCTAssertEqual(verified.targets.count, 2)
         XCTAssertEqual(verified.allMatchExpectedGroup, true)
-        XCTAssertEqual(verified.groupContainsOnlyRequestedPaths, true)
+        XCTAssertEqual(verified.groupExclusiveToRequestedPaths, true)
         XCTAssertTrue(verified.targets.allSatisfy(\.exactPathMatch))
         let defaultVerified = try AgentAccessTargetInspection.verify(
             AgentAccessTargetVerificationRequest(
@@ -249,7 +266,7 @@ final class AgentAccessControllerTests: XCTestCase {
             requestID: "default-verify", groups: groups
         )
         XCTAssertEqual(defaultVerified.allMatchExpectedGroup, true)
-        XCTAssertEqual(defaultVerified.groupContainsOnlyRequestedPaths, false)
+        XCTAssertEqual(defaultVerified.groupExclusiveToRequestedPaths, false)
         XCTAssertEqual(defaultVerified.targets.first?.exactPathMatch, true)
 
         let model = AgentAccessController.makeReadModel(from: state)

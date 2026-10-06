@@ -46,10 +46,10 @@ the same Mac and able to access your user-owned Unix socket.
 `POST /v1/vocabulary/targets/verify` accepts one to eight exact installed
 `.app` paths. It returns each app's resolved Cleanup Group and whether that
 group contains an exact path assignment. With `expected_group_id`, it also
-reports whether all supplied apps resolve to that group and whether the group
-contains only those requested paths. It never lists other installed apps.
-The default Cleanup Group is a fallback for every unassigned app, so it is
-never exclusive and this last field is always false for that group.
+reports whether all supplied apps resolve to that group and whether routing to
+the group is exclusive to those requested paths. It never lists other installed
+apps. The default Cleanup Group is a fallback for every unassigned app, so it
+is never exclusive and this last field is always false for that group.
 
 `POST /v1/vocabulary/effective-preview` accepts one exact app path and caller
 supplied `sample_text` (up to 16 KiB UTF-8). Foil resolves the target group and

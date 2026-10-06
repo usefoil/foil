@@ -182,7 +182,7 @@ enum AgentAccessTargetInspection {
             allMatchExpectedGroup: request.expectedGroupID.map { expected in
                 verified.allSatisfy { $0.resolvedGroupID == expected }
             },
-            groupContainsOnlyRequestedPaths: expectedGroup.map {
+            groupExclusiveToRequestedPaths: expectedGroup.map {
                 AgentAccessAppTargeting.hasExactlyThesePaths($0, paths: paths)
             }
         )

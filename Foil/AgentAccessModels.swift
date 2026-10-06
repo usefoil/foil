@@ -330,14 +330,14 @@ struct AgentAccessTargetVerificationResponse: Encodable {
     let requestID: String
     let targets: [AgentAccessVerifiedTarget]
     let allMatchExpectedGroup: Bool?
-    let groupContainsOnlyRequestedPaths: Bool?
+    let groupExclusiveToRequestedPaths: Bool?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
         case requestID = "request_id"
         case targets
         case allMatchExpectedGroup = "all_match_expected_group"
-        case groupContainsOnlyRequestedPaths = "group_contains_only_requested_paths"
+        case groupExclusiveToRequestedPaths = "group_exclusive_to_requested_paths"
     }
 }
 
