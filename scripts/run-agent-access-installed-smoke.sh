@@ -263,6 +263,10 @@ production_openapi="$smoke_root/production-openapi.json"
 production_scopes="$smoke_root/production-scopes.json"
 production_vocabulary="$smoke_root/production-vocabulary.json"
 production_preview="$smoke_root/production-preview.json"
+target_request="$smoke_root/target-request.json"
+target_response="$smoke_root/target-response.json"
+effective_request="$smoke_root/effective-request.json"
+effective_response="$smoke_root/effective-response.json"
 production_proposal="$smoke_root/production-proposal-response.json"
 development_instructions="$smoke_root/development-instructions.json"
 development_proposal="$smoke_root/development-proposal-response.json"
@@ -272,6 +276,18 @@ curl_get "$production_socket" /v1/openapi.json "$production_openapi"
 curl_get "$production_socket" /v1/vocabulary/scopes "$production_scopes"
 curl_get "$production_socket" /v1/vocabulary "$production_vocabulary"
 curl_post "$production_socket" /v1/vocabulary/preview "$preview_request" "$production_preview"
+python3 - "$target_request" "$effective_request" <<'PY'
+import json
+import sys
+
+app_path = "/System/Applications/TextEdit.app"
+with open(sys.argv[1], "w") as output:
+    json.dump({"app_paths": [app_path], "expected_group_id": "default-unassigned-apps"}, output)
+with open(sys.argv[2], "w") as output:
+    json.dump({"app_path": app_path, "sample_text": "super base"}, output)
+PY
+curl_post "$production_socket" /v1/vocabulary/targets/verify "$target_request" "$target_response"
+curl_post "$production_socket" /v1/vocabulary/effective-preview "$effective_request" "$effective_response"
 curl_post "$production_socket" /v1/vocabulary/proposals "$production_request" "$production_proposal"
 curl_get "$development_socket" /v1/instructions "$development_instructions"
 curl_post "$development_socket" /v1/vocabulary/proposals "$development_request" "$development_proposal"
@@ -294,7 +310,7 @@ production_action_id=$(python3 -c 'import json,sys; print(json.load(open(sys.arg
 curl_get "$production_socket" "/v1/vocabulary/actions/$production_action_id" "$production_action_status"
 [[ "$catalog_before_action" == "$(shasum -a 256 "$production_catalog" | awk '{print $1}')" ]]
 
-python3 - "$production_instructions" "$production_openapi" "$production_scopes" "$production_vocabulary" "$production_preview" "$production_proposal" "$production_status" "$production_socket" "$production_proposal_id" "$production_action_response" "$production_action_status" "$production_action_id" <<'PY'
+python3 - "$production_instructions" "$production_openapi" "$production_scopes" "$production_vocabulary" "$production_preview" "$production_proposal" "$production_status" "$production_socket" "$production_proposal_id" "$production_action_response" "$production_action_status" "$production_action_id" "$target_response" "$effective_response" <<'PY'
 import json
 import pathlib
 import sys
@@ -310,6 +326,7 @@ required = {
     "preview_vocabulary_corrections", "propose_vocabulary_corrections",
     "get_vocabulary_proposal_status",
     "request_vocabulary_action", "get_vocabulary_action_status",
+    "verify_vocabulary_targets", "preview_effective_vocabulary",
 }
 assert set(instructions["available_operations"]) == required
 assert socket in instructions["bootstrap_command"]
@@ -319,7 +336,17 @@ assert set(openapi["paths"]) == {
     "/v1/vocabulary", "/v1/vocabulary/preview", "/v1/vocabulary/proposals",
     "/v1/vocabulary/proposals/{proposal_id}",
     "/v1/vocabulary/actions", "/v1/vocabulary/actions/{action_id}",
+    "/v1/vocabulary/targets/verify", "/v1/vocabulary/effective-preview",
 }
+target = json.load(open(sys.argv[13]))
+effective = json.load(open(sys.argv[14]))
+assert len(target["targets"]) == 1
+assert target["targets"][0]["app_path"] == "/System/Applications/TextEdit.app"
+assert target["all_match_expected_group"] is True
+assert target["group_exclusive_to_requested_paths"] is False
+assert effective["target"]["app_path"] == "/System/Applications/TextEdit.app"
+assert effective["output_text"] == "super base"
+assert effective["replacement_count"] == 0
 assert isinstance(scopes["scopes"], list)
 assert isinstance(vocabulary["local_corrections_enabled"], bool)
 assert isinstance(vocabulary["terms"], list)
@@ -460,7 +487,7 @@ receipt="$smoke_root/receipt.txt"
   echo "signatures=verified"
   echo "socket_isolation=verified"
   echo "proposal_store_isolation=verified"
-  echo "copied_command_flow=instructions,openapi,scopes,vocabulary,preview,submit,status,action-request,action-status"
+  echo "copied_command_flow=instructions,openapi,scopes,vocabulary,preview,target-verify,effective-preview,submit,status,action-request,action-status"
   echo "agent_action=inert-until-foil-approval,remote-approval-rejected-405,audit-owner-only"
   echo "remote_apply=absent,request-rejected-404,catalog-and-proposals-byte-identical"
   echo "disable_cleanup=socket-removed,lock-released,catalog-and-proposals-byte-identical"
