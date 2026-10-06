@@ -191,6 +191,92 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertFalse(json.contains("suppressionRules"))
     }
 
+    func testExactTargetVerificationAndEffectivePreviewUseCurrentGroupRules() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-effective-preview-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let chatGPT = try makeAppFixture(root: root, name: "ChatGPT", bundleID: "com.example.ChatGPT")
+        let codex = try makeAppFixture(root: root, name: "Codex", bundleID: "com.example.Codex")
+        let notes = try makeAppFixture(root: root, name: "Notes", bundleID: "com.example.Notes")
+        let state = makeState()
+        let group = CleanupGroup(
+            id: "agent-editors", name: "Agent editors", sortOrder: 1,
+            appMatchers: [
+                CleanupAppMatcher(displayName: "ChatGPT", appPath: chatGPT.path),
+                CleanupAppMatcher(displayName: "Codex", appPath: codex.path)
+            ]
+        )
+        state.setCleanupGroups([CleanupGroup.defaultGroup(), group])
+        let codexCorrection = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "code ex", correctVersion: "Codex"
+        ))
+        _ = try state.setVocabularyCorrectionLocalScope(id: codexCorrection.id, groupID: nil)
+        let scopedCorrection = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "code ex", correctVersion: "CodeX"
+        ))
+        _ = try state.setVocabularyCorrectionLocalScope(id: scopedCorrection.id, groupID: group.id)
+        let supabase = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Supabase"
+        ))
+        _ = try state.setVocabularyCorrectionLocalScope(id: supabase.id, groupID: nil)
+        _ = try state.setVocabularyCorrectionSuppressed(id: supabase.id, in: group.id, suppressed: true)
+        _ = try state.setLocalCorrectionsEnabled(true)
+        _ = try state.saveLocalCorrections(state.localCorrectionSnapshot.rules + [
+            LocalCorrectionRule(id: "manual:legacy", source: "ufo", replacement: "UFO",
+                                group: nil, enabled: true, caseSensitive: false)
+        ])
+
+        let groups = state.cleanupGroups
+        let verified = try AgentAccessTargetInspection.verify(
+            AgentAccessTargetVerificationRequest(
+                appPaths: [chatGPT.path, codex.path], expectedGroupID: group.id
+            ),
+            requestID: "verify", groups: groups
+        )
+        XCTAssertEqual(verified.targets.count, 2)
+        XCTAssertEqual(verified.allMatchExpectedGroup, true)
+        XCTAssertEqual(verified.groupContainsOnlyRequestedPaths, true)
+        XCTAssertTrue(verified.targets.allSatisfy(\.exactPathMatch))
+
+        let model = AgentAccessController.makeReadModel(from: state)
+        let inGroup = try AgentAccessTargetInspection.effectivePreview(
+            AgentAccessEffectivePreviewRequest(
+                appPath: chatGPT.path, sampleText: "code ex and super base"
+            ),
+            requestID: "group-preview", model: model, groups: groups
+        )
+        XCTAssertEqual(inGroup.target.resolvedGroupID, group.id)
+        XCTAssertEqual(inGroup.outputText, "CodeX and super base")
+        XCTAssertEqual(inGroup.replacementCount, 1)
+        XCTAssertTrue(inGroup.rules.contains { $0.correctionID == supabase.id.uuidString.lowercased() && $0.suppressesGlobal })
+        XCTAssertTrue(inGroup.rules.contains { $0.ruleID == "manual:legacy" && $0.correctionID == nil })
+
+        let outside = try AgentAccessTargetInspection.effectivePreview(
+            AgentAccessEffectivePreviewRequest(
+                appPath: notes.path, sampleText: "code ex and super base"
+            ),
+            requestID: "outside-preview", model: model, groups: groups
+        )
+        XCTAssertEqual(outside.target.resolvedGroupID, CleanupGroup.defaultGroupID)
+        XCTAssertEqual(outside.outputText, "Codex and Supabase")
+        XCTAssertEqual(outside.replacementCount, 2)
+        XCTAssertFalse(outside.rules.contains(where: \.suppressesGlobal))
+
+        XCTAssertThrowsError(try AgentAccessTargetInspection.effectivePreview(
+            AgentAccessEffectivePreviewRequest(
+                appPath: chatGPT.path, sampleText: String(repeating: "x", count: 16 * 1024 + 1)
+            ),
+            requestID: "oversize", model: model, groups: groups
+        ))
+        XCTAssertThrowsError(try AgentAccessTargetInspection.verify(
+            AgentAccessTargetVerificationRequest(
+                appPaths: [root.appendingPathComponent("Missing.app").path], expectedGroupID: nil
+            ),
+            requestID: "missing", groups: groups
+        ))
+    }
+
     func testRunningHandlerReceivesVocabularyChangesWithoutMainActorReads() async throws {
         let state = makeState()
         state.setAgentAccessEnabled(false, notifyController: false)
@@ -733,7 +819,11 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertTrue(state.localCorrectionSnapshot.isEnabled)
         XCTAssertEqual(try actionStore.load().records.first?.state, .approved)
         let replay = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
-            method: .post, path: "/v1/vocabulary/actions", headers: [:], body: body
+            method: .post, path: "/v1/vocabulary/actions", headers: [:],
+            body: try JSONEncoder().encode(AgentAccessActionRequest(
+                requestID: "batch-1", action: .setCorrectionPolicies, enabled: true,
+                correctionPolicies: Array((request.correctionPolicies ?? []).reversed())
+            ))
         ))
         XCTAssertEqual(replay.status, 200)
         let decoder = JSONDecoder()
@@ -788,6 +878,164 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertEqual(try actionStore.load().records.first(where: {
             $0.id == applyActionID
         })?.state, .approved)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testBatchPoliciesRequireFoilApprovalAndApplyAtomicallyWithExactScope() async throws {
+        let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let group = state.createCleanupGroup(named: "Agent editors")
+        let global = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Supabase"
+        ))
+        let scoped = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "code ex", correctVersion: "Codex"
+        ))
+        let livePaths = paths()
+        let actionStore = AgentAccessActionStore(fileURL: livePaths.actionStoreURL)
+        var handler: AgentAccessServer.Handler?
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8), actionStore: actionStore
+        ) { _, _, captured in
+            handler = captured
+            return ServerStub()
+        }
+        defer { try? FileManager.default.removeItem(at: livePaths.supportDirectory) }
+        state.setAgentAccessEnabled(true)
+        let didStart = await waitUntil { handler != nil && state.agentAccessPresentationState == .running }
+        XCTAssertTrue(didStart)
+
+        let request = AgentAccessActionRequest(
+            requestID: "batch-1", action: .setCorrectionPolicies, enabled: true,
+            correctionPolicies: [
+                .init(correctionID: global.id.uuidString, scopeID: "global", enabled: true,
+                      caseSensitive: false, suppressedGroupIDs: [group.id]),
+                .init(correctionID: scoped.id.uuidString, scopeID: group.id, enabled: true,
+                      caseSensitive: false, suppressedGroupIDs: [])
+            ]
+        )
+        let body = try JSONEncoder().encode(request)
+        let created = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:], body: body
+        ))
+        XCTAssertEqual(created.status, 201)
+        XCTAssertFalse(state.localCorrectionSnapshot.isEnabled)
+        XCTAssertNil(state.localCorrectionRule(forVocabularyCorrectionID: global.id))
+        XCTAssertNil(state.localCorrectionRule(forVocabularyCorrectionID: scoped.id))
+        let didPublish = await waitUntil { state.agentAccessPendingActionCount == 1 }
+        XCTAssertTrue(didPublish)
+        let actionID = try XCTUnwrap(state.agentAccessActions.first?.id)
+        let pending = try XCTUnwrap(actionStore.load().records.first)
+        XCTAssertEqual(pending.state, .pending)
+        XCTAssertNotNil(pending.targetDigest)
+        XCTAssertNotNil(pending.resultDigest)
+
+        state.decideAgentAccessAction(id: actionID, approve: true)
+        XCTAssertNil(state.agentAccessActionErrorMessage)
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approved)
+        XCTAssertTrue(state.localCorrectionSnapshot.isEnabled)
+        XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: global.id)?.group, nil)
+        XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: scoped.id)?.group, group.id)
+        XCTAssertTrue(state.isVocabularyCorrectionSuppressed(id: global.id, in: group.id))
+        XCTAssertEqual(state.previewLocalCorrections("super base code ex", activeGroupID: group.id).text,
+                       "super base Codex")
+        XCTAssertEqual(state.previewLocalCorrections(
+            "super base code ex", activeGroupID: CleanupGroup.defaultGroupID
+        ).text, "Supabase code ex")
+
+        let replay = try XCTUnwrap(handler)(AgentAccessHTTPRequest(
+            method: .post, path: "/v1/vocabulary/actions", headers: [:], body: body
+        ))
+        XCTAssertEqual(replay.status, 200)
+        XCTAssertEqual(try actionStore.load().records.count, 1)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testBatchPolicyStaleTargetAndConflictLeaveCatalogUnchanged() throws {
+        let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
+        let group = state.createCleanupGroup(named: "Agent editors")
+        let correction = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Supabase"
+        ))
+        let request = AgentAccessActionRequest(
+            requestID: "batch-stale", action: .setCorrectionPolicies,
+            correctionPolicies: [.init(
+                correctionID: correction.id.uuidString, scopeID: group.id,
+                enabled: true, caseSensitive: false, suppressedGroupIDs: []
+            )]
+        )
+        let livePaths = paths()
+        let actionStore = AgentAccessActionStore(fileURL: livePaths.actionStoreURL)
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8), actionStore: actionStore
+        ) { _, _, _ in ServerStub() }
+        defer { try? FileManager.default.removeItem(at: livePaths.supportDirectory) }
+        let model = AgentAccessController.makeReadModel(from: state)
+        let plan = try AgentAccessPolicyBatchPlanner.plan(request, model: model, groups: state.cleanupGroups)
+        let record = try actionStore.submit(
+            request, targetDigest: plan.targetDigest, resultDigest: plan.resultDigest
+        ).0
+        XCTAssertTrue(state.updateCleanupGroup(id: group.id) { $0.isEnabled = false })
+        controller.refreshActions()
+        state.decideAgentAccessAction(id: record.id, approve: true)
+        XCTAssertNil(state.localCorrectionRule(forVocabularyCorrectionID: correction.id))
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approvedPendingApply)
+        XCTAssertTrue(state.agentAccessActionErrorMessage?.contains("changed after") == true)
+
+        let conflicting = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Something else"
+        ))
+        _ = try state.setVocabularyCorrectionLocalScope(id: conflicting.id, groupID: nil)
+        let conflict = AgentAccessActionRequest(
+            requestID: "batch-conflict", action: .setCorrectionPolicies,
+            correctionPolicies: [.init(
+                correctionID: correction.id.uuidString, scopeID: "global",
+                enabled: true, caseSensitive: false, suppressedGroupIDs: []
+            )]
+        )
+        XCTAssertThrowsError(try AgentAccessPolicyBatchPlanner.plan(
+            conflict, model: AgentAccessController.makeReadModel(from: state), groups: state.cleanupGroups
+        ))
+        XCTAssertNil(state.localCorrectionRule(forVocabularyCorrectionID: correction.id))
+        XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: conflicting.id)?.replacement,
+                       "Something else")
+        withExtendedLifetime(controller) {}
+    }
+
+    func testBatchPolicyRetryFinalizesAnAlreadyAppliedCatalogSave() throws {
+        let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
+        let correction = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Supabase"
+        ))
+        let request = AgentAccessActionRequest(
+            requestID: "batch-interrupted", action: .setCorrectionPolicies, enabled: true,
+            correctionPolicies: [.init(
+                correctionID: correction.id.uuidString, scopeID: "global",
+                enabled: true, caseSensitive: false, suppressedGroupIDs: []
+            )]
+        )
+        let livePaths = paths()
+        let actionStore = AgentAccessActionStore(fileURL: livePaths.actionStoreURL)
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8), actionStore: actionStore
+        ) { _, _, _ in ServerStub() }
+        defer { try? FileManager.default.removeItem(at: livePaths.supportDirectory) }
+        let plan = try AgentAccessPolicyBatchPlanner.plan(
+            request, model: AgentAccessController.makeReadModel(from: state), groups: state.cleanupGroups
+        )
+        let record = try actionStore.submit(
+            request, targetDigest: plan.targetDigest, resultDigest: plan.resultDigest
+        ).0
+        _ = try actionStore.transition(id: record.id, to: .approvedPendingApply)
+        _ = try state.saveLocalCorrections(plan.rules, isEnabled: plan.localCorrectionsEnabled)
+        let savedRevision = state.localCorrectionSnapshot.revision
+        controller.refreshActions()
+
+        state.decideAgentAccessAction(id: record.id, approve: true)
+
+        XCTAssertEqual(state.localCorrectionSnapshot.revision, savedRevision)
+        XCTAssertEqual(try actionStore.load().records.first?.state, .approved)
+        XCTAssertNil(state.agentAccessActionErrorMessage)
         withExtendedLifetime(controller) {}
     }
 
@@ -1271,6 +1519,7 @@ final class AgentAccessControllerTests: XCTestCase {
         let actions = state.agentAccessActions
         for action in actions { state.decideAgentAccessAction(id: action.id, approve: true) }
         XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.group, group.id)
+        XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.enabled, false)
         XCTAssertTrue(state.cleanupGroups.first(where: { $0.id == group.id })?.appMatchers.contains(where: {
             $0.bundleIdentifier == bundleID
         }) == true)

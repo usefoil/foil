@@ -1095,7 +1095,8 @@ final class AppState {
     @discardableResult
     func setVocabularyCorrectionLocalScope(
         id: UUID,
-        groupID: String?
+        groupID: String?,
+        preserveEnabled: Bool = false
     ) throws -> LocalCorrectionSnapshot? {
         guard let correction = vocabularyCorrections.first(where: { $0.id == id }) else { return nil }
         guard groupID == nil || cleanupGroups.contains(where: { $0.id == groupID && $0.isEnabled }) else {
@@ -1112,7 +1113,7 @@ final class AppState {
             source: correction.writtenAs,
             replacement: correction.correctVersion,
             group: groupID,
-            enabled: true,
+            enabled: preserveEnabled ? (existingIndex.map { rules[$0].enabled } ?? false) : true,
             caseSensitive: existingIndex.map { rules[$0].caseSensitive } ?? false
         )
         if let existingIndex {

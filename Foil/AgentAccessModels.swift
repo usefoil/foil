@@ -80,6 +80,8 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
             "list_vocabulary_scopes",
             "list_vocabulary",
             "preview_vocabulary_corrections",
+            "verify_vocabulary_targets",
+            "preview_effective_vocabulary",
             "propose_vocabulary_corrections",
             "get_vocabulary_proposal_status",
             "request_vocabulary_action",
@@ -130,19 +132,22 @@ struct AgentAccessVocabularyReadModel: Encodable, Equatable, Sendable {
     let corrections: [AgentAccessVocabularyCorrection]
     let localCorrectionsEnabled: Bool
     let suppressionRules: [LocalCorrectionRule]
+    let catalogRules: [LocalCorrectionRule]
 
     init(
         scopes: [AgentAccessVocabularyScope],
         terms: [AgentAccessVocabularyTerm],
         corrections: [AgentAccessVocabularyCorrection],
         localCorrectionsEnabled: Bool,
-        suppressionRules: [LocalCorrectionRule] = []
+        suppressionRules: [LocalCorrectionRule] = [],
+        catalogRules: [LocalCorrectionRule] = []
     ) {
         self.scopes = scopes
         self.terms = terms
         self.corrections = corrections
         self.localCorrectionsEnabled = localCorrectionsEnabled
         self.suppressionRules = suppressionRules
+        self.catalogRules = catalogRules
     }
 }
 
@@ -287,6 +292,101 @@ struct AgentAccessPreviewExample: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case input, output
         case replacementCount = "replacement_count"
+    }
+}
+
+struct AgentAccessTargetVerificationRequest: Decodable {
+    let appPaths: [String]
+    let expectedGroupID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case appPaths = "app_paths"
+        case expectedGroupID = "expected_group_id"
+    }
+}
+
+struct AgentAccessVerifiedTarget: Encodable {
+    let appPath: String
+    let bundleID: String
+    let displayName: String
+    let resolvedGroupID: String
+    let resolvedGroupName: String
+    let exactPathMatch: Bool
+    let matchesExpectedGroup: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case appPath = "app_path"
+        case bundleID = "bundle_id"
+        case displayName = "display_name"
+        case resolvedGroupID = "resolved_group_id"
+        case resolvedGroupName = "resolved_group_name"
+        case exactPathMatch = "exact_path_match"
+        case matchesExpectedGroup = "matches_expected_group"
+    }
+}
+
+struct AgentAccessTargetVerificationResponse: Encodable {
+    let schemaVersion = AgentAccessContract.schemaVersion
+    let requestID: String
+    let targets: [AgentAccessVerifiedTarget]
+    let allMatchExpectedGroup: Bool?
+    let groupContainsOnlyRequestedPaths: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestID = "request_id"
+        case targets
+        case allMatchExpectedGroup = "all_match_expected_group"
+        case groupContainsOnlyRequestedPaths = "group_contains_only_requested_paths"
+    }
+}
+
+struct AgentAccessEffectivePreviewRequest: Decodable {
+    let appPath: String
+    let sampleText: String
+
+    enum CodingKeys: String, CodingKey {
+        case appPath = "app_path"
+        case sampleText = "sample_text"
+    }
+}
+
+struct AgentAccessEffectiveRule: Encodable {
+    let ruleID: String
+    let correctionID: String?
+    let source: String
+    let replacement: String?
+    let scopeID: String?
+    let caseSensitive: Bool
+    let suppressesGlobal: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case ruleID = "rule_id"
+        case correctionID = "correction_id"
+        case source, replacement
+        case scopeID = "scope_id"
+        case caseSensitive = "case_sensitive"
+        case suppressesGlobal = "suppresses_global"
+    }
+}
+
+struct AgentAccessEffectivePreviewResponse: Encodable {
+    let schemaVersion = AgentAccessContract.schemaVersion
+    let requestID: String
+    let target: AgentAccessVerifiedTarget
+    let localCorrectionsEnabled: Bool
+    let outputText: String
+    let replacementCount: Int
+    let rules: [AgentAccessEffectiveRule]
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case requestID = "request_id"
+        case target
+        case localCorrectionsEnabled = "local_corrections_enabled"
+        case outputText = "output_text"
+        case replacementCount = "replacement_count"
+        case rules
     }
 }
 

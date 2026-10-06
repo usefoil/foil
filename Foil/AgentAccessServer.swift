@@ -389,6 +389,8 @@ final class AgentAccessServer {
         case "/v1/vocabulary/scopes": "vocabulary_scopes"
         case "/v1/vocabulary": "vocabulary_list"
         case "/v1/vocabulary/preview": "vocabulary_preview"
+        case "/v1/vocabulary/targets/verify": "vocabulary_target_verify"
+        case "/v1/vocabulary/effective-preview": "vocabulary_effective_preview"
         case "/v1/vocabulary/proposals": "vocabulary_proposal_submit"
         default:
             path.hasPrefix("/v1/vocabulary/proposals/")

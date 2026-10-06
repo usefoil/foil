@@ -459,15 +459,59 @@ struct AgentAccessActionReviewView: View {
             if let correction = appState.vocabularyCorrections.first(where: {
                 $0.id.uuidString.lowercased() == request.correctionID?.lowercased()
             }) {
-                Text("Set and enable exact correction: \(correction.writtenAs) → \(correction.correctVersion)")
+                Text("Set exact correction scope: \(correction.writtenAs) → \(correction.correctVersion)")
                     .font(.subheadline.weight(.semibold))
                 Text("Requested scope: \(scopeName(request.scopeID ?? ""))")
                 let current = appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)
                 Text("Current scope: \(current.map { scopeName($0.group ?? "global") } ?? "No local rule")")
                     .font(.caption).foregroundStyle(.secondary)
+                Text("The correction stays \(current?.enabled == true ? "On" : "Off"). Use a policy request to change its On/Off state.")
+                    .font(.caption).foregroundStyle(.secondary)
             } else {
                 Label("The correction is unavailable.", systemImage: "exclamationmark.triangle")
             }
+        case .setCorrectionPolicies:
+            Text("Change exact local correction policies")
+                .font(.subheadline.weight(.semibold))
+            ForEach(request.correctionPolicies ?? [], id: \.correctionID) { policy in
+                if let correction = appState.vocabularyCorrections.first(where: {
+                    $0.id.uuidString.lowercased() == policy.correctionID
+                }) {
+                    let current = appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)
+                    let currentExceptions = appState.localCorrectionSnapshot.rules
+                        .filter { $0.id.hasPrefix("suppression:\(policy.correctionID):") && $0.suppressesGlobal }
+                        .compactMap(\.group)
+                        .sorted()
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(correction.writtenAs) → \(correction.correctVersion)")
+                            .font(.body.monospaced()).textSelection(.enabled)
+                        Text("Current: \(current?.enabled == true ? "On" : "Off") · \(scopeName(current?.group ?? "global")) · \(current?.caseSensitive == true ? "Case sensitive" : "Case insensitive")")
+                        Text("Requested: \(policy.enabled ? "On" : "Off") · \(scopeName(policy.scopeID)) · \(policy.caseSensitive ? "Case sensitive" : "Case insensitive")")
+                        Text("Current exceptions: \(currentExceptions.isEmpty ? "None" : currentExceptions.map(scopeName).joined(separator: ", "))")
+                        Text("Requested exceptions: \(policy.suppressedGroupIDs.isEmpty ? "None" : policy.suppressedGroupIDs.map(scopeName).joined(separator: ", "))")
+                    }
+                    .font(.caption)
+                } else {
+                    Label("A requested correction is unavailable (\(policy.correctionID)).", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                }
+            }
+            if let enabled = request.enabled {
+                Text("Local corrections switch: \(appState.localCorrectionSnapshot.isEnabled ? "On" : "Off") → \(enabled ? "On" : "Off")")
+                    .font(.caption.weight(.semibold))
+            } else {
+                Text("Local corrections switch stays \(appState.localCorrectionSnapshot.isEnabled ? "On" : "Off").")
+                    .font(.caption)
+            }
+            if let model = try? AgentAccessPolicyBatchPlanner.digest(
+                model: AgentAccessController.makeReadModel(from: appState), groups: appState.cleanupGroups
+            ), model != record.targetDigest && model != record.resultDigest {
+                Label("Vocabulary or app routing changed after this request. Ask the agent for a new policy request.",
+                      systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
+            Text("Approving applies every listed policy together. No change is made until you approve inside Foil.")
+                .font(.caption).foregroundStyle(.secondary)
         case .assignAppToGroup:
             let bundleID = request.appBundleID ?? ""
             let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
@@ -548,6 +592,18 @@ struct AgentAccessActionReviewView: View {
             } && (request.scopeID == "global" || appState.cleanupGroups.contains {
                 $0.id == request.scopeID && $0.isEnabled
             })
+        case .setCorrectionPolicies:
+            let model = AgentAccessController.makeReadModel(from: appState)
+            let groups = appState.cleanupGroups
+            guard let current = try? AgentAccessPolicyBatchPlanner.digest(model: model, groups: groups) else {
+                return false
+            }
+            if record.state == .approvedPendingApply && current == record.resultDigest { return true }
+            guard current == record.targetDigest,
+                  let plan = try? AgentAccessPolicyBatchPlanner.plan(request, model: model, groups: groups) else {
+                return false
+            }
+            return plan.resultDigest == record.resultDigest
         case .assignAppToGroup:
             guard let bundleID = request.appBundleID,
                   let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {

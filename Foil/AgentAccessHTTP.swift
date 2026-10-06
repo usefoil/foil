@@ -215,6 +215,8 @@ struct AgentAccessContractRouter {
     typealias ProposalStatusProvider = (String) throws -> VocabularyProposalReceipt
     typealias ActionSubmitter = (AgentAccessActionRequest) throws -> (AgentAccessActionRecord, Bool)
     typealias ActionStatusProvider = (String) throws -> AgentAccessActionRecord
+    typealias TargetVerifier = (AgentAccessTargetVerificationRequest, String) throws -> AgentAccessTargetVerificationResponse
+    typealias EffectivePreviewer = (AgentAccessEffectivePreviewRequest, String) throws -> AgentAccessEffectivePreviewResponse
 
     let socketPath: String
     let openAPIDocument: Data
@@ -224,6 +226,8 @@ struct AgentAccessContractRouter {
     let proposalStatusProvider: ProposalStatusProvider?
     let actionSubmitter: ActionSubmitter?
     let actionStatusProvider: ActionStatusProvider?
+    let targetVerifier: TargetVerifier?
+    let effectivePreviewer: EffectivePreviewer?
 
     init(
         socketPath: String,
@@ -237,7 +241,9 @@ struct AgentAccessContractRouter {
         proposalSubmitter: ProposalSubmitter? = nil,
         proposalStatusProvider: ProposalStatusProvider? = nil,
         actionSubmitter: ActionSubmitter? = nil,
-        actionStatusProvider: ActionStatusProvider? = nil
+        actionStatusProvider: ActionStatusProvider? = nil,
+        targetVerifier: TargetVerifier? = nil,
+        effectivePreviewer: EffectivePreviewer? = nil
     ) {
         self.socketPath = socketPath
         self.openAPIDocument = openAPIDocument
@@ -247,6 +253,8 @@ struct AgentAccessContractRouter {
         self.proposalStatusProvider = proposalStatusProvider
         self.actionSubmitter = actionSubmitter
         self.actionStatusProvider = actionStatusProvider
+        self.targetVerifier = targetVerifier
+        self.effectivePreviewer = effectivePreviewer
     }
 
     func response(to request: AgentAccessHTTPRequest) -> AgentAccessHTTPResponse {
@@ -310,6 +318,26 @@ struct AgentAccessContractRouter {
             )
             return (try? .json(requestID: requestID, value: preview))
                 ?? internalError(requestID: requestID)
+        case "/v1/vocabulary/targets/verify":
+            guard request.method == .post else { return methodNotAllowed(requestID: requestID) }
+            guard let targetVerifier else { return unavailableResponse(requestID: requestID) }
+            guard let value = try? JSONDecoder().decode(AgentAccessTargetVerificationRequest.self, from: request.body) else {
+                return errorResponse(status: 400, reason: "Bad Request", requestID: requestID,
+                                     code: "invalid_json", message: "Target verification requires app_paths.")
+            }
+            do {
+                return try .json(requestID: requestID, value: targetVerifier(value, requestID))
+            } catch { return inspectionErrorResponse(error, requestID: requestID) }
+        case "/v1/vocabulary/effective-preview":
+            guard request.method == .post else { return methodNotAllowed(requestID: requestID) }
+            guard let effectivePreviewer else { return unavailableResponse(requestID: requestID) }
+            guard let value = try? JSONDecoder().decode(AgentAccessEffectivePreviewRequest.self, from: request.body) else {
+                return errorResponse(status: 400, reason: "Bad Request", requestID: requestID,
+                                     code: "invalid_json", message: "Effective preview requires app_path and sample_text.")
+            }
+            do {
+                return try .json(requestID: requestID, value: effectivePreviewer(value, requestID))
+            } catch { return inspectionErrorResponse(error, requestID: requestID) }
         case "/v1/vocabulary/proposals":
             guard request.method == .post else { return methodNotAllowed(requestID: requestID) }
             guard let proposalSubmitter else { return unavailableResponse(requestID: requestID) }
@@ -429,11 +457,25 @@ struct AgentAccessContractRouter {
                                  code: "invalid_action_state", message: "The action is no longer pending.")
         case .targetChanged:
             return errorResponse(status: 409, reason: "Conflict", requestID: requestID,
-                                 code: "action_target_changed", message: "The proposal changed after this action request.")
+                                 code: "action_target_changed", message: "The target changed after this action request.")
         case let .validation(message):
             return errorResponse(status: 422, reason: "Unprocessable Content", requestID: requestID,
                                  code: "action_validation_failed", message: message)
         case .unavailable:
+            return unavailableResponse(requestID: requestID)
+        }
+    }
+
+    private func inspectionErrorResponse(_ error: Error, requestID: String) -> AgentAccessHTTPResponse {
+        guard let error = error as? AgentAccessActionError else { return unavailableResponse(requestID: requestID) }
+        switch error {
+        case .invalidRequest:
+            return errorResponse(status: 422, reason: "Unprocessable Content", requestID: requestID,
+                                 code: "invalid_target", message: "Provide one to eight exact installed app paths and an available Cleanup Group.")
+        case let .validation(message):
+            return errorResponse(status: 422, reason: "Unprocessable Content", requestID: requestID,
+                                 code: "target_validation_failed", message: message)
+        default:
             return unavailableResponse(requestID: requestID)
         }
     }

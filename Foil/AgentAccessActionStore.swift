@@ -7,7 +7,42 @@ enum AgentAccessActionKind: String, Codable, Sendable {
     case rescopeProposal = "rescope_proposal"
     case setLocalCorrectionsEnabled = "set_local_corrections_enabled"
     case setCorrectionScope = "set_correction_scope"
+    case setCorrectionPolicies = "set_correction_policies"
     case assignAppToGroup = "assign_app_to_group"
+}
+
+struct AgentAccessCorrectionPolicy: Codable, Equatable, Sendable {
+    let correctionID: String
+    let scopeID: String
+    let enabled: Bool
+    let caseSensitive: Bool
+    let suppressedGroupIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case correctionID = "correction_id"
+        case scopeID = "scope_id"
+        case enabled
+        case caseSensitive = "case_sensitive"
+        case suppressedGroupIDs = "suppressed_group_ids"
+    }
+
+    func validated() throws -> AgentAccessCorrectionPolicy {
+        guard let id = UUID(uuidString: correctionID),
+              !scopeID.isEmpty, scopeID.count <= 256,
+              scopeID == scopeID.trimmingCharacters(in: .whitespacesAndNewlines),
+              suppressedGroupIDs.count <= 20,
+              suppressedGroupIDs.allSatisfy({ !$0.isEmpty && $0.count <= 256 &&
+                  $0 == $0.trimmingCharacters(in: .whitespacesAndNewlines) }),
+              Set(suppressedGroupIDs).count == suppressedGroupIDs.count,
+              (scopeID == "global" && enabled) || suppressedGroupIDs.isEmpty else {
+            throw AgentAccessActionError.invalidRequest
+        }
+        return AgentAccessCorrectionPolicy(
+            correctionID: id.uuidString.lowercased(), scopeID: scopeID,
+            enabled: enabled, caseSensitive: caseSensitive,
+            suppressedGroupIDs: suppressedGroupIDs.sorted()
+        )
+    }
 }
 
 enum AgentAccessActionState: String, Codable, Sendable {
@@ -30,6 +65,7 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
     let groupID: String?
     let groupName: String?
     let appPaths: [String]?
+    let correctionPolicies: [AgentAccessCorrectionPolicy]?
 
     init(
         schemaVersion: Int = 1,
@@ -42,7 +78,8 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
         appBundleID: String? = nil,
         groupID: String? = nil,
         groupName: String? = nil,
-        appPaths: [String]? = nil
+        appPaths: [String]? = nil,
+        correctionPolicies: [AgentAccessCorrectionPolicy]? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.requestID = requestID
@@ -55,6 +92,7 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
         self.groupID = groupID
         self.groupName = groupName
         self.appPaths = appPaths
+        self.correctionPolicies = correctionPolicies
     }
 
     enum CodingKeys: String, CodingKey {
@@ -69,6 +107,7 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
         case groupID = "group_id"
         case groupName = "group_name"
         case appPaths = "app_paths"
+        case correctionPolicies = "correction_policies"
     }
 
     func validated() throws -> AgentAccessActionRequest {
@@ -83,6 +122,17 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
         }) else { throw AgentAccessActionError.invalidRequest }
         var canonicalProposalID = proposalID
         var canonicalCorrectionID = correctionID
+        let canonicalPolicies: [AgentAccessCorrectionPolicy]?
+        if let correctionPolicies {
+            guard (1...50).contains(correctionPolicies.count) else { throw AgentAccessActionError.invalidRequest }
+            let normalized = try correctionPolicies.map { try $0.validated() }
+            guard Set(normalized.map(\.correctionID)).count == normalized.count else {
+                throw AgentAccessActionError.invalidRequest
+            }
+            canonicalPolicies = normalized.sorted { $0.correctionID < $1.correctionID }
+        } else {
+            canonicalPolicies = nil
+        }
         let canonicalAppPaths: [String]?
         if let appPaths {
             guard (1...8).contains(appPaths.count),
@@ -104,46 +154,54 @@ struct AgentAccessActionRequest: Codable, Equatable, Sendable {
             guard let proposalID, let parsedID = UUID(uuidString: proposalID),
                   enabled == nil, correctionID == nil, scopeID == nil,
                   appBundleID == nil, groupID == nil, groupName == nil,
-                  appPaths == nil else { throw AgentAccessActionError.invalidRequest }
+                  appPaths == nil, correctionPolicies == nil else { throw AgentAccessActionError.invalidRequest }
             canonicalProposalID = parsedID.uuidString.lowercased()
         case .createCleanupGroup:
             guard let groupName, !groupName.isEmpty, groupName.unicodeScalars.count <= 80,
                   !groupName.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
                   canonicalAppPaths != nil, proposalID == nil, enabled == nil,
                   correctionID == nil, scopeID == nil, appBundleID == nil,
-                  groupID == nil else { throw AgentAccessActionError.invalidRequest }
+                  groupID == nil, correctionPolicies == nil else { throw AgentAccessActionError.invalidRequest }
         case .rescopeProposal:
             guard let proposalID, let parsedID = UUID(uuidString: proposalID),
                   let groupID, UUID(uuidString: groupID) != nil,
                   canonicalAppPaths != nil, enabled == nil, correctionID == nil,
-                  scopeID == nil, appBundleID == nil, groupName == nil else {
+                  scopeID == nil, appBundleID == nil, groupName == nil,
+                  correctionPolicies == nil else {
                 throw AgentAccessActionError.invalidRequest
             }
             canonicalProposalID = parsedID.uuidString.lowercased()
         case .setLocalCorrectionsEnabled:
             guard enabled != nil, proposalID == nil, correctionID == nil,
                   scopeID == nil, appBundleID == nil, groupID == nil,
-                  groupName == nil, appPaths == nil else {
+                  groupName == nil, appPaths == nil, correctionPolicies == nil else {
                 throw AgentAccessActionError.invalidRequest
             }
         case .setCorrectionScope:
             guard let correctionID, let parsedID = UUID(uuidString: correctionID),
                   scopeID != nil, proposalID == nil, enabled == nil,
                   appBundleID == nil, groupID == nil, groupName == nil,
-                  appPaths == nil else { throw AgentAccessActionError.invalidRequest }
+                  appPaths == nil, correctionPolicies == nil else { throw AgentAccessActionError.invalidRequest }
             canonicalCorrectionID = parsedID.uuidString.lowercased()
+        case .setCorrectionPolicies:
+            guard canonicalPolicies != nil, proposalID == nil, correctionID == nil,
+                  scopeID == nil, appBundleID == nil, groupID == nil,
+                  groupName == nil, appPaths == nil else {
+                throw AgentAccessActionError.invalidRequest
+            }
         case .assignAppToGroup:
             guard let appBundleID, appBundleID.contains("."), !appBundleID.contains("/"),
                   groupID != nil, proposalID == nil, enabled == nil,
                   correctionID == nil, scopeID == nil, groupName == nil,
-                  appPaths == nil else { throw AgentAccessActionError.invalidRequest }
+                  appPaths == nil, correctionPolicies == nil else { throw AgentAccessActionError.invalidRequest }
         }
         return AgentAccessActionRequest(
             schemaVersion: schemaVersion, requestID: requestID, action: action,
             proposalID: canonicalProposalID, enabled: enabled,
             correctionID: canonicalCorrectionID, scopeID: scopeID,
             appBundleID: appBundleID, groupID: groupID,
-            groupName: groupName, appPaths: canonicalAppPaths
+            groupName: groupName, appPaths: canonicalAppPaths,
+            correctionPolicies: canonicalPolicies
         )
     }
 
@@ -209,7 +267,7 @@ enum AgentAccessActionError: Error, Equatable, LocalizedError {
         case .queueFull: "Review pending agent actions before submitting another."
         case .notFound: "The action request was not found."
         case .invalidState: "The proposal or action is no longer pending, or its validation failed. Review it before trying again."
-        case .targetChanged: "This proposal changed after the action request. Apply it in proposal review or ask the agent for a new request."
+        case .targetChanged: "The target changed after this action request. Review the current state and ask the agent for a new request."
         case let .validation(message): message
         case .unavailable: "Foil could not save the action decision. Try again."
         }
@@ -262,14 +320,15 @@ final class AgentAccessActionStore: @unchecked Sendable {
             return (existing, true)
         }
         guard targetAvailable else { throw AgentAccessActionError.invalidRequest }
-        if request.action == .applyProposal || request.action == .rescopeProposal {
+        if request.action == .applyProposal || request.action == .rescopeProposal ||
+            request.action == .setCorrectionPolicies {
             guard let targetDigest, Self.isDigest(targetDigest) else {
                 throw AgentAccessActionError.invalidRequest
             }
         } else if targetDigest != nil {
             throw AgentAccessActionError.invalidRequest
         }
-        if request.action == .rescopeProposal {
+        if request.action == .rescopeProposal || request.action == .setCorrectionPolicies {
             guard let resultDigest, Self.isDigest(resultDigest) else {
                 throw AgentAccessActionError.invalidRequest
             }
@@ -328,9 +387,11 @@ final class AgentAccessActionStore: @unchecked Sendable {
                 guard UUID(uuidString: record.id) != nil,
                       try record.request.validated() == record.request,
                       try record.request.digest() == record.digest,
-                      (record.request.action == .applyProposal || record.request.action == .rescopeProposal)
+                      (record.request.action == .applyProposal || record.request.action == .rescopeProposal ||
+                          record.request.action == .setCorrectionPolicies)
                           == (record.targetDigest.map(Self.isDigest) == true),
-                      (record.request.action == .rescopeProposal) == (record.resultDigest.map(Self.isDigest) == true),
+                      (record.request.action == .rescopeProposal || record.request.action == .setCorrectionPolicies)
+                          == (record.resultDigest.map(Self.isDigest) == true),
                       record.createdAt <= record.updatedAt,
                       record.approvedAt.map({ record.createdAt <= $0 && $0 <= record.updatedAt }) ?? true,
                       (record.state == .pending || record.state == .rejected) == (record.approvedAt == nil) else {
@@ -360,5 +421,102 @@ final class AgentAccessActionStore: @unchecked Sendable {
         value.count == 64 && value.unicodeScalars.allSatisfy {
             (48...57).contains($0.value) || (97...102).contains($0.value)
         }
+    }
+}
+
+enum AgentAccessPolicyBatchPlanner {
+    struct Plan {
+        let rules: [LocalCorrectionRule]
+        let localCorrectionsEnabled: Bool
+        let targetDigest: String
+        let resultDigest: String
+    }
+
+    private struct DigestInput: Encodable {
+        let model: AgentAccessVocabularyReadModel
+        let routingGroups: [CleanupGroup]
+    }
+
+    static func digest(model: AgentAccessVocabularyReadModel, groups: [CleanupGroup]) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(DigestInput(model: model, routingGroups: groups))
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func plan(
+        _ rawRequest: AgentAccessActionRequest,
+        model: AgentAccessVocabularyReadModel,
+        groups: [CleanupGroup]
+    ) throws -> Plan {
+        let request = try rawRequest.validated()
+        guard request.action == .setCorrectionPolicies,
+              let policies = request.correctionPolicies else {
+            throw AgentAccessActionError.invalidRequest
+        }
+        let projectedRules = model.corrections.compactMap { correction -> LocalCorrectionRule? in
+            guard let local = correction.localRule else { return nil }
+            return LocalCorrectionRule(
+                id: "vocabulary:\(correction.id)", source: correction.writtenAs,
+                replacement: correction.correctVersion, group: local.scopeID,
+                enabled: local.enabled, caseSensitive: local.caseSensitive
+            )
+        } + model.suppressionRules
+        var rules = model.catalogRules.isEmpty ? projectedRules : model.catalogRules
+        let correctionsByID = Dictionary(uniqueKeysWithValues: model.corrections.map { ($0.id, $0) })
+        let enabledGroupIDs = Set(model.scopes.filter(\.isEnabled).map(\.id))
+        for policy in policies {
+            guard let correction = correctionsByID[policy.correctionID],
+                  policy.scopeID == "global" || enabledGroupIDs.contains(policy.scopeID),
+                  policy.suppressedGroupIDs.allSatisfy(enabledGroupIDs.contains) else {
+                throw AgentAccessActionError.invalidRequest
+            }
+            let ruleID = "vocabulary:\(policy.correctionID)"
+            let suppressionPrefix = "suppression:\(policy.correctionID):"
+            rules.removeAll { $0.id == ruleID || $0.id.hasPrefix(suppressionPrefix) }
+            rules.append(LocalCorrectionRule(
+                id: ruleID, source: correction.writtenAs, replacement: correction.correctVersion,
+                group: policy.scopeID == "global" ? nil : policy.scopeID,
+                enabled: policy.enabled, caseSensitive: policy.caseSensitive
+            ))
+            for groupID in policy.suppressedGroupIDs {
+                rules.append(LocalCorrectionRule(
+                    id: suppressionPrefix + groupID,
+                    source: correction.writtenAs, replacement: correction.writtenAs,
+                    group: groupID, enabled: true,
+                    caseSensitive: policy.caseSensitive, suppressesGlobal: true
+                ))
+            }
+        }
+        do {
+            _ = try LocalCorrectionEngine.compile(rules)
+        } catch let error as LocalCorrectionValidationError {
+            throw AgentAccessActionError.validation(error.description)
+        }
+        let policyByID = Dictionary(uniqueKeysWithValues: policies.map { ($0.correctionID, $0) })
+        let updatedCorrections = model.corrections.map { correction in
+            guard let policy = policyByID[correction.id] else { return correction }
+            return AgentAccessVocabularyCorrection(
+                id: correction.id, writtenAs: correction.writtenAs,
+                correctVersion: correction.correctVersion, note: correction.note,
+                localRule: AgentAccessLocalRule(
+                    enabled: policy.enabled, caseSensitive: policy.caseSensitive,
+                    scopeID: policy.scopeID == "global" ? nil : policy.scopeID
+                )
+            )
+        }
+        let after = AgentAccessVocabularyReadModel(
+            scopes: model.scopes, terms: model.terms,
+            corrections: updatedCorrections,
+            localCorrectionsEnabled: request.enabled ?? model.localCorrectionsEnabled,
+            suppressionRules: rules.filter(\.suppressesGlobal),
+            catalogRules: rules
+        )
+        return Plan(
+            rules: rules,
+            localCorrectionsEnabled: after.localCorrectionsEnabled,
+            targetDigest: try digest(model: model, groups: groups),
+            resultDigest: try digest(model: after, groups: groups)
+        )
     }
 }
