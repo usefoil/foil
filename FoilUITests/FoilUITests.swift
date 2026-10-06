@@ -519,7 +519,7 @@ final class FoilUITests: XCTestCase {
         clickElement(copy)
         let command = try XCTUnwrap(NSPasteboard.general.string(forType: .string))
         XCTAssertTrue(command.contains("I use Foil for dictation."), command)
-        XCTAssertTrue(command.contains("Proposals do not apply automatically."), command)
+        XCTAssertTrue(command.contains("With this read-only connection, changes require my approval inside Foil."), command)
         XCTAssertTrue(command.contains("Please run the command below on this Mac"), command)
         XCTAssertTrue(command.contains("--unix-socket"), command)
         XCTAssertTrue(command.contains("--max-time 12"), command)
