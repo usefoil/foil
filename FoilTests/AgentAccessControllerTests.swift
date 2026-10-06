@@ -259,6 +259,19 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertEqual(verified.allMatchExpectedGroup, true)
         XCTAssertEqual(verified.groupExclusiveToRequestedPaths, true)
         XCTAssertTrue(verified.targets.allSatisfy(\.exactPathMatch))
+        var overriddenDefault = defaultGroup
+        overriddenDefault.appMatchers.append(CleanupAppMatcher(
+            displayName: "ChatGPT", bundleIdentifier: "com.example.ChatGPT"
+        ))
+        let overridden = try AgentAccessTargetInspection.verify(
+            AgentAccessTargetVerificationRequest(
+                appPaths: [chatGPT.path, codex.path], expectedGroupID: group.id
+            ),
+            requestID: "overridden-verify", groups: [overriddenDefault, group]
+        )
+        XCTAssertEqual(overridden.targets.first?.resolvedGroupID, CleanupGroup.defaultGroupID)
+        XCTAssertEqual(overridden.allMatchExpectedGroup, false)
+        XCTAssertEqual(overridden.groupExclusiveToRequestedPaths, false)
         let defaultVerified = try AgentAccessTargetInspection.verify(
             AgentAccessTargetVerificationRequest(
                 appPaths: [notes.path], expectedGroupID: CleanupGroup.defaultGroupID

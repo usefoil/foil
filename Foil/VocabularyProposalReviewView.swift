@@ -478,6 +478,7 @@ struct AgentAccessActionReviewView: View {
                     $0.id.uuidString.lowercased() == policy.correctionID
                 }) {
                     let current = appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)
+                    let currentScope = current.map { scopeName($0.group ?? "global") } ?? "No local rule"
                     let currentExceptions = appState.localCorrectionSnapshot.rules
                         .filter { $0.id.hasPrefix("suppression:\(policy.correctionID):") && $0.suppressesGlobal }
                         .compactMap(\.group)
@@ -485,7 +486,7 @@ struct AgentAccessActionReviewView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(correction.writtenAs) → \(correction.correctVersion)")
                             .font(.body.monospaced()).textSelection(.enabled)
-                        Text("Current: \(current?.enabled == true ? "On" : "Off") · \(scopeName(current?.group ?? "global")) · \(current?.caseSensitive == true ? "Case sensitive" : "Case insensitive")")
+                        Text("Current: \(current?.enabled == true ? "On" : "Off") · \(currentScope) · \(current?.caseSensitive == true ? "Case sensitive" : "Case insensitive")")
                         Text("Requested: \(policy.enabled ? "On" : "Off") · \(scopeName(policy.scopeID)) · \(policy.caseSensitive ? "Case sensitive" : "Case insensitive")")
                         Text("Current exceptions: \(currentExceptions.isEmpty ? "None" : currentExceptions.map(scopeName).joined(separator: ", "))")
                         Text("Requested exceptions: \(policy.suppressedGroupIDs.isEmpty ? "None" : policy.suppressedGroupIDs.map(scopeName).joined(separator: ", "))")
