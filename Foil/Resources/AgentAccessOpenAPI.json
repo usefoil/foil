@@ -28,7 +28,7 @@
     "/v1/access": {
       "get": {
         "operationId": "getPairedAgentAccess",
-        "description": "Return the scope and expiry of the bearer grant. A missing, expired, or revoked token has no edit access.",
+        "description": "Return the scope and expiry of the bearer grant. A missing, expired, revoked, or previous Foil session token has no edit access.",
         "parameters": [{"name": "Authorization", "in": "header", "required": true, "schema": {"type": "string", "pattern": "^Bearer foil_"}}],
         "responses": {
           "200": {"description": "Current paired grant", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/GrantStatusResponse"}}}},

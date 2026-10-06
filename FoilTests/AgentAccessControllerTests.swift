@@ -1,4 +1,5 @@
 import Darwin
+import CryptoKit
 import XCTest
 @testable import Foil
 
@@ -1742,12 +1743,39 @@ final class AgentAccessControllerTests: XCTestCase {
         state.setAgentAccessEnabled(true)
         let started = await waitUntil { handler != nil && state.agentAccessPresentationState == .running }
         XCTAssertTrue(started)
+        let forgedToken = "foil_" + String(repeating: "d", count: 64)
+        let forgedDigest = SHA256.hash(data: Data(forgedToken.utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        let forgedTime = Date()
+        let forged = StoredAgentAccessGrant(
+            summary: AgentAccessGrantSummary(
+                id: UUID().uuidString.lowercased(), name: "Unpaired", groupID: group.id,
+                appPaths: [app.path], createdAt: forgedTime,
+                expiresAt: forgedTime.addingTimeInterval(3_600), revokedAt: nil
+            ), tokenDigest: forgedDigest
+        )
+        try FileManager.default.createDirectory(at: livePaths.supportDirectory, withIntermediateDirectories: true)
+        let grantEncoder = JSONEncoder()
+        grantEncoder.dateEncodingStrategy = .iso8601
+        try grantEncoder.encode(AgentAccessGrantSnapshot(grants: [forged], uses: []))
+            .write(to: livePaths.grantStoreURL, options: .atomic)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o600)], ofItemAtPath: livePaths.grantStoreURL.path
+        )
+        let forgedAccess = try XCTUnwrap(handler)(.init(
+            method: .get, path: "/v1/access",
+            headers: ["authorization": "Bearer \(forgedToken)"], body: Data()
+        ))
+        XCTAssertEqual(forgedAccess.status, 401)
         let prompt = try XCTUnwrap(state.pairAgentForVocabularyEdits(name: "Codex", groupID: group.id))
         XCTAssertTrue(prompt.contains(token))
         let headers = ["authorization": "Bearer \(token)"]
         let scoped = VocabularyProposalRequest(
             requestID: "paired-scoped-\(marker)", scope: .init(kind: "cleanup_group", id: group.id),
-            corrections: [.init(spokenForms: ["super base"], replacement: "Supabase")]
+            corrections: [
+                .init(spokenForms: ["super base"], replacement: "Supabase"),
+                .init(spokenForms: ["cloud code"], replacement: "Claude Code")
+            ]
         )
         let accepted = try XCTUnwrap(handler)(.init(
             method: .post, path: "/v1/vocabulary/delegated-proposals", headers: headers,
@@ -1758,16 +1786,18 @@ final class AgentAccessControllerTests: XCTestCase {
             state.agentAccessProposals.contains(where: { $0.state == .applied })
         }
         XCTAssertTrue(applied)
-        XCTAssertEqual(state.vocabularyCorrections.first?.correctVersion, "Supabase")
+        XCTAssertEqual(Set(state.vocabularyCorrections.map(\.correctVersion)), Set(["Supabase", "Claude Code"]))
         XCTAssertEqual(state.agentAccessGrantUses.count, 1)
 
-        let correctionID = try XCTUnwrap(state.vocabularyCorrections.first?.id.uuidString.lowercased())
+        let correctionIDs = state.vocabularyCorrections.map { $0.id.uuidString.lowercased() }.sorted(by: >)
+        XCTAssertEqual(correctionIDs.count, 2)
         let policy = AgentAccessActionRequest(
             requestID: "paired-policy-\(marker)", action: .setCorrectionPolicies,
-            correctionPolicies: [.init(
-                correctionID: correctionID, scopeID: group.id, enabled: true,
-                caseSensitive: false, suppressedGroupIDs: []
-            )]
+            correctionPolicies: correctionIDs.enumerated().map { index, correctionID in
+                .init(correctionID: index == 0 ? correctionID.uppercased() : correctionID,
+                      scopeID: group.id, enabled: true,
+                      caseSensitive: false, suppressedGroupIDs: [])
+            }
         )
         let policyResponse = try XCTUnwrap(handler)(.init(
             method: .post, path: "/v1/vocabulary/delegated-actions", headers: headers,
@@ -1778,8 +1808,10 @@ final class AgentAccessControllerTests: XCTestCase {
             state.agentAccessActions.contains(where: { $0.state == .approved })
         }
         XCTAssertTrue(policyApplied)
-        XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: UUID(uuidString: correctionID)!)?.group,
-                       group.id)
+        for correctionID in correctionIDs {
+            XCTAssertEqual(state.localCorrectionRule(forVocabularyCorrectionID: UUID(uuidString: correctionID)!)?.group,
+                           group.id)
+        }
         XCTAssertEqual(state.agentAccessGrantUses.count, 2)
 
         let broadAction = AgentAccessActionRequest(
@@ -1802,7 +1834,7 @@ final class AgentAccessControllerTests: XCTestCase {
             body: try JSONEncoder().encode(global)
         ))
         XCTAssertEqual(forbidden.status, 403)
-        XCTAssertEqual(state.vocabularyCorrections.count, 1)
+        XCTAssertEqual(state.vocabularyCorrections.count, 2)
 
         let otherApp = try makeAppFixture(root: fixtureRoot, name: "Notes", bundleID: "com.example.PairedNotes")
         var expanded = group
@@ -1827,10 +1859,10 @@ final class AgentAccessControllerTests: XCTestCase {
             body: try JSONEncoder().encode(pending)
         ))
         XCTAssertEqual(beforeRevoke.status, 202)
-        let grantID = try XCTUnwrap(state.agentAccessGrants.first?.id)
+        let grantID = try XCTUnwrap(state.agentAccessGrants.first(where: { $0.name == "Codex" })?.id)
         state.revokeAgentAccessGrant(id: grantID)
         try await Task.sleep(nanoseconds: 50_000_000)
-        XCTAssertEqual(state.vocabularyCorrections.count, 1)
+        XCTAssertEqual(state.vocabularyCorrections.count, 2)
         XCTAssertTrue(state.agentAccessProposals.contains(where: {
             $0.requestID == pending.requestID && $0.state == .pending
         }))

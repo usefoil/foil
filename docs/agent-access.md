@@ -3,7 +3,8 @@
 Agent Access lets a local coding agent inspect Foil's allowed Vocabulary fields,
 preview exact local corrections, and submit proposals or action requests for
 review. It is off by default and works only while Foil is running. A paired
-agent can apply Vocabulary edits for one exact app group during a one-hour grant.
+agent can apply Vocabulary edits for one exact app group during a grant lasting
+up to one hour or until Foil closes or Agent Access is turned off.
 
 ## Connect a local agent
 
@@ -46,7 +47,11 @@ the same Mac and able to access your user-owned Unix socket.
 In **Agent Access -> Agent permissions**, enter a name, choose an enabled Cleanup
 Group containing only exact installed app paths, then click **Pair agent and copy
 editing prompt**. Paste that prompt into the agent task. It contains a bearer
-credential for a one-hour grant; treat it as a secret. Foil stores only its hash.
+credential for a grant lasting up to one hour or until Foil closes or Agent
+Access is turned off; treat it as
+a secret. Foil stores only its hash in the audit file and keeps the active grant
+in the running process. Restarting Foil ends the grant, so a saved or forged
+grant file cannot create write access.
 The agent can check its current scope and expiry with `GET /v1/access` using
 `Authorization: Bearer <credential>`.
 
@@ -64,7 +69,7 @@ moving a correction between scopes, global local-corrections toggle, or group
 suppression. These still go through the ordinary in-Foil review routes. If
 group membership or routing changes, the grant stops working until the user
 pairs again. **Revoke** immediately blocks new requests and pending delegated
-application. Turning Agent Access off blocks all connections. Recent delegated
+application. Turning Agent Access off ends paired grants and blocks all connections. Recent delegated
 requests remain visible under the paired agent and in the existing proposal or
 action records.
 

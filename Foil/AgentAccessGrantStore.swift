@@ -68,6 +68,9 @@ final class AgentAccessGrantStore: @unchecked Sendable {
     private let now: @Sendable () -> Date
     private let makeToken: @Sendable () throws -> String
     private let lock = NSLock()
+    // Disk is an audit record, not an authorization source. A process with the
+    // same macOS user can edit Application Support files.
+    private var activeGrants: [String: StoredAgentAccessGrant] = [:]
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -87,7 +90,22 @@ final class AgentAccessGrantStore: @unchecked Sendable {
     func load() throws -> AgentAccessGrantSnapshot {
         lock.lock()
         defer { lock.unlock() }
-        return try read()
+        let snapshot = try read()
+        let visibleGrants = snapshot.grants.map { stored -> StoredAgentAccessGrant in
+            guard activeGrants[stored.summary.id] == stored,
+                  stored.summary.expiresAt > now() else {
+                let old = stored.summary
+                return StoredAgentAccessGrant(
+                    summary: AgentAccessGrantSummary(
+                        id: old.id, name: old.name, groupID: old.groupID,
+                        appPaths: old.appPaths, createdAt: old.createdAt,
+                        expiresAt: old.expiresAt, revokedAt: old.revokedAt ?? now()
+                    ), tokenDigest: stored.tokenDigest
+                )
+            }
+            return stored
+        }
+        return AgentAccessGrantSnapshot(grants: visibleGrants, uses: snapshot.uses)
     }
 
     func create(name rawName: String, groupID: String, appPaths: [String]) throws -> (AgentAccessGrantSummary, String) {
@@ -104,7 +122,7 @@ final class AgentAccessGrantStore: @unchecked Sendable {
         }
         let token = try makeToken()
         guard token.hasPrefix("foil_"), token.count >= 45 else { throw AgentAccessGrantError.unavailable }
-        let timestamp = now()
+        let timestamp = Date(timeIntervalSince1970: now().timeIntervalSince1970.rounded(.down))
         let summary = AgentAccessGrantSummary(
             id: UUID().uuidString.lowercased(), name: name, groupID: groupID,
             appPaths: appPaths.sorted(), createdAt: timestamp,
@@ -118,6 +136,7 @@ final class AgentAccessGrantStore: @unchecked Sendable {
             throw AgentAccessGrantError.unavailable
         }
         try write(AgentAccessGrantSnapshot(grants: current.grants + [stored], uses: current.uses))
+        activeGrants[summary.id] = stored
         return (summary, token)
     }
 
@@ -126,16 +145,19 @@ final class AgentAccessGrantStore: @unchecked Sendable {
         let digest = Self.digest(token)
         lock.lock()
         defer { lock.unlock() }
-        let current = try read()
-        guard let grant = current.grants.first(where: { Self.constantTimeEqual($0.tokenDigest, digest) }),
+        guard let grant = activeGrants.values.first(where: { Self.constantTimeEqual($0.tokenDigest, digest) }),
               grant.summary.revokedAt == nil,
               grant.summary.expiresAt > now() else { throw AgentAccessGrantError.unauthorized }
+        let current = try read()
+        guard current.grants.contains(grant) else { throw AgentAccessGrantError.unavailable }
         return grant.summary
     }
 
     func revoke(id: String) throws {
         lock.lock()
         defer { lock.unlock() }
+        // End access even if the audit file is corrupt or cannot be saved.
+        activeGrants.removeValue(forKey: id)
         let current = try read()
         guard let index = current.grants.firstIndex(where: { $0.summary.id == id }) else {
             throw AgentAccessGrantError.unauthorized
@@ -154,11 +176,17 @@ final class AgentAccessGrantStore: @unchecked Sendable {
         try write(AgentAccessGrantSnapshot(grants: grants, uses: current.uses))
     }
 
+    func invalidateAll() {
+        lock.lock()
+        activeGrants.removeAll()
+        lock.unlock()
+    }
+
     func recordUse(grantID: String, kind: String, objectID: String, requestDigest: String) throws {
         lock.lock()
         defer { lock.unlock() }
         let current = try read()
-        guard current.grants.contains(where: { $0.summary.id == grantID }),
+        guard let active = activeGrants[grantID], current.grants.contains(active),
               Self.isDigest(requestDigest),
               kind == "proposal" || kind == "action" else { throw AgentAccessGrantError.unavailable }
         if let existing = current.uses.first(where: { $0.objectKind == kind && $0.objectID == objectID }) {

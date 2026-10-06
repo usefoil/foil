@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import Foil
 
@@ -303,17 +304,44 @@ final class AgentAccessHTTPTests: XCTestCase {
         let file = directory.appendingPathComponent("grants.json")
         addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
         let token = "foil_" + String(repeating: "a", count: 64)
-        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let start = Date(timeIntervalSince1970: 1_700_000_000.345)
         let store = AgentAccessGrantStore(fileURL: file, now: { start }, makeToken: { token })
         let (grant, issued) = try store.create(name: " Codex ", groupID: "agent-apps", appPaths: ["/Applications/Codex.app"])
         XCTAssertEqual(issued, token)
         XCTAssertEqual(grant.name, "Codex")
         XCTAssertEqual(try store.authorize(token).id, grant.id)
         XCTAssertThrowsError(try store.authorize("foil_" + String(repeating: "b", count: 64)))
+        let restarted = AgentAccessGrantStore(fileURL: file, now: { start.addingTimeInterval(30) })
+        XCTAssertThrowsError(try restarted.authorize(token)) {
+            XCTAssertEqual($0 as? AgentAccessGrantError, .unauthorized)
+        }
+        XCTAssertTrue(try XCTUnwrap(restarted.load().grants.first).summary.isRevoked)
         let data = try Data(contentsOf: file)
         XCTAssertFalse(String(decoding: data, as: UTF8.self).contains(token))
         let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
         XCTAssertEqual((attributes[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+
+        let forgedToken = "foil_" + String(repeating: "f", count: 64)
+        let forgedDigest = SHA256.hash(data: Data(forgedToken.utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        let forged = StoredAgentAccessGrant(
+            summary: AgentAccessGrantSummary(
+                id: UUID().uuidString.lowercased(), name: "Forged", groupID: "agent-apps",
+                appPaths: ["/Applications/Codex.app"], createdAt: start,
+                expiresAt: start.addingTimeInterval(3_600), revokedAt: nil
+            ), tokenDigest: forgedDigest
+        )
+        let snapshot = try store.load()
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(AgentAccessGrantSnapshot(
+            grants: snapshot.grants + [forged], uses: snapshot.uses
+        )).write(to: file, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: NSNumber(value: 0o600)], ofItemAtPath: file.path)
+        XCTAssertThrowsError(try store.authorize(forgedToken)) {
+            XCTAssertEqual($0 as? AgentAccessGrantError, .unauthorized)
+        }
+        XCTAssertTrue(try XCTUnwrap(store.load().grants.first(where: { $0.summary.id == forged.summary.id })).summary.isRevoked)
 
         let expired = AgentAccessGrantStore(fileURL: file, now: { start.addingTimeInterval(3_601) })
         XCTAssertThrowsError(try expired.authorize(token)) { XCTAssertEqual($0 as? AgentAccessGrantError, .unauthorized) }
@@ -335,6 +363,23 @@ final class AgentAccessHTTPTests: XCTestCase {
         try Data("{}".utf8).write(to: other)
         try FileManager.default.createSymbolicLink(at: file, withDestinationURL: other)
         XCTAssertThrowsError(try store.load())
+    }
+
+    func testEndingAgentAccessInvalidatesActiveGrantWithoutTrustingTheAuditFile() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("foil-grant-session-\(UUID().uuidString)", isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
+        let token = "foil_" + String(repeating: "e", count: 64)
+        let store = AgentAccessGrantStore(
+            fileURL: directory.appendingPathComponent("grants.json"), makeToken: { token }
+        )
+        _ = try store.create(name: "Codex", groupID: "agent-apps", appPaths: ["/Applications/Codex.app"])
+        XCTAssertNoThrow(try store.authorize(token))
+        store.invalidateAll()
+        XCTAssertThrowsError(try store.authorize(token)) {
+            XCTAssertEqual($0 as? AgentAccessGrantError, .unauthorized)
+        }
+        XCTAssertTrue(try XCTUnwrap(store.load().grants.first).summary.isRevoked)
     }
 
     func testDelegatedRoutesRequireBearerGrant() throws {

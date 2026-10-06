@@ -117,7 +117,7 @@ struct SettingsView: View {
         ) -> String {
             let apps = grant.appPaths.joined(separator: ", ")
             return """
-            Foil paired you as \(grant.name) for Vocabulary edits in these exact apps: \(apps). This grant expires at \(grant.expiresAt.formatted(date: .abbreviated, time: .shortened)). Keep the bearer token below private; do not print it in diagnostics or share it with another agent.
+            Foil paired you as \(grant.name) for Vocabulary edits in these exact apps: \(apps). This grant expires at \(grant.expiresAt.formatted(date: .abbreviated, time: .shortened)), or sooner if Foil closes or Agent Access is turned off. Keep the bearer token below private; do not print it in diagnostics or share it with another agent.
 
             Read Foil's current instructions first:
             \(bootstrapCommand)
@@ -332,7 +332,7 @@ struct SettingsView: View {
 
             Section("Agent permissions") {
                 LabeledContent("Vocabulary reads", value: appState.agentAccessEnabled ? "Allowed while running" : "Off")
-                Text("Pair an agent to let it edit Vocabulary only for the exact apps in a Cleanup Group. The grant lasts one hour and can be revoked here.")
+                Text("Pair an agent to let it edit Vocabulary only for the exact apps in a Cleanup Group. The grant lasts up to one hour, ends when Foil closes or Agent Access is turned off, and can be revoked here.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 TextField("Agent name", text: $pairedAgentName)
@@ -365,7 +365,7 @@ struct SettingsView: View {
                                 Text(grant.name)
                                 Text(grant.appPaths.joined(separator: ", "))
                                     .font(.caption).foregroundStyle(.secondary)
-                                Text(grant.isRevoked ? "Revoked" : grant.expiresAt <= Date() ? "Expired" : "Expires \(grant.expiresAt.formatted(date: .abbreviated, time: .shortened))")
+                                Text(grant.isRevoked ? "Inactive" : grant.expiresAt <= Date() ? "Expired" : "Expires \(grant.expiresAt.formatted(date: .abbreviated, time: .shortened))")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()

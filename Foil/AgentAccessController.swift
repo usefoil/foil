@@ -529,12 +529,13 @@ final class AgentAccessController {
             },
             delegatedActionSubmitter: { [grantStore, readModelStore] request, token in
                 let grant = try grantStore.authorize(token)
+                let validatedRequest = try request.validated()
                 let snapshot = readModelStore.snapshotWithRoutes()
                 try AgentAccessGrantScope.validatePolicyAction(
-                    request, grant: grant, model: snapshot.model, groups: snapshot.groups
+                    validatedRequest, grant: grant, model: snapshot.model, groups: snapshot.groups
                 )
-                let result = try normalActionSubmitter(request)
-                let digest = try request.digest()
+                let result = try normalActionSubmitter(validatedRequest)
+                let digest = result.0.digest
                 try grantStore.recordUse(
                     grantID: grant.id, kind: "action", objectID: result.0.id, requestDigest: digest
                 )
@@ -574,6 +575,7 @@ final class AgentAccessController {
     }
 
     func stop() {
+        grantStore.invalidateAll()
         proposalGate.deactivateAndWait()
         lifecycleGeneration = UUID()
         startupTask?.cancel()
@@ -583,6 +585,7 @@ final class AgentAccessController {
         active?.stop()
         appState.agentAccessPresentationState = .off
         appState.agentAccessErrorMessage = nil
+        refreshGrants()
         DiagnosticLog.write("AgentAccess.lifecycle: off")
     }
 
