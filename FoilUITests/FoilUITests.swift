@@ -739,9 +739,11 @@ final class FoilUITests: XCTestCase {
     }
 
     func testAgentVocabularyApprovalsShowCorrectionsAndSettingsTogether() {
-        relaunchWithArguments([
+        launchApp(arguments: [
             "--ui-testing", "--reset-defaults",
             "--seed-agent-vocabulary-proposal", "--seed-agent-action"
+        ], extraEnvironment: [
+            "FOIL_UITEST_SESSION_ID": "\(uiTestSessionIdentifier)-combined-\(UUID().uuidString)"
         ])
         openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         let review = button(
