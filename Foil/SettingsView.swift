@@ -122,7 +122,7 @@ struct SettingsView: View {
             Read Foil's current instructions first:
             \(bootstrapCommand)
 
-            For delegated Vocabulary requests, send `Authorization: Bearer \(token)` on each request. Check `/v1/access` with that header for your current scope and expiry. Ask me in chat about uncertain correction variants before applying a change. Use `/v1/vocabulary/delegated-proposals` only for corrections in this group and `/v1/vocabulary/delegated-actions` only for policies of existing corrections in this group. Check `local_corrections_enabled` in `/v1/vocabulary`; if it is off, ask me to enable it in Foil. Poll each proposal or action status until it says applied or approved; an accepted response alone is not proof. Changes outside this grant still require review inside Foil. Never claim that a chat response grants new API permissions.
+            For delegated Vocabulary requests, send `Authorization: Bearer \(token)` on each request. Check `/v1/access` with that header for your current scope and expiry. Ask me in chat about uncertain spoken variants, case sensitivity, and whether a multiword form should match punctuation between words. Keep punctuation matching off unless I agree. Preview the scope and examples before applying. Use `/v1/vocabulary/delegated-proposals` only for corrections in this group and `/v1/vocabulary/delegated-actions` only for policies of existing corrections in this group. Check `local_corrections_enabled` in `/v1/vocabulary`; if it is off, ask me to enable it in Foil. Poll each proposal or action status until it says applied or approved; an accepted response alone is not proof. Changes outside this grant still require review inside Foil. Never claim that a chat response grants new API permissions.
             """
         }
     }
@@ -458,7 +458,9 @@ struct SettingsView: View {
         let time = use.createdAt.formatted(date: .abbreviated, time: .shortened)
         if use.objectKind == "proposal",
            let proposal = appState.agentAccessProposals.first(where: { $0.id == use.objectID }) {
-            let changes = proposal.corrections.map { "\($0.spokenForms.joined(separator: ", ")) → \($0.replacement)" }
+            let changes = proposal.corrections.map {
+                "\($0.spokenForms.joined(separator: ", ")) → \($0.replacement)\($0.matchPunctuationVariants ? " (punctuation variants)" : "")"
+            }
                 .joined(separator: "; ")
             return "\(time) · \(proposal.state.rawValue.capitalized): \(changes)"
         }
@@ -467,7 +469,10 @@ struct SettingsView: View {
                 let name = appState.vocabularyCorrections.first {
                     $0.id.uuidString.lowercased() == policy.correctionID
                 }?.writtenAs ?? policy.correctionID
-                return "\(name): \(policy.enabled ? "on" : "off"), \(policy.caseSensitive ? "exact case" : "any case")"
+                let punctuation = policy.matchPunctuationVariants.map {
+                    $0 ? "punctuation variants" : "exact punctuation"
+                } ?? "punctuation unchanged"
+                return "\(name): \(policy.enabled ? "on" : "off"), \(policy.caseSensitive ? "exact case" : "any case"), \(punctuation)"
             }.joined(separator: "; ")
             return "\(time) · \(action.state.rawValue.capitalized): \(changes)"
         }
@@ -1545,7 +1550,7 @@ struct SettingsView: View {
 
             Toggle("Apply local corrections on this Mac", isOn: localCorrectionsEnabledBinding)
                 .accessibilityIdentifier("settings.localCorrectionsEnabled")
-            Text("Runs exact phrase replacements before Cleanup. Group rules override a global rule for the same phrase; a longer distinct phrase still wins. Use Exceptions to leave a global phrase unchanged in selected groups. Backtick code and http://, https://, or www. links are left alone.")
+            Text("Runs phrase replacements before Cleanup. Match punctuation between words is optional for each multiword correction. Group rules override a global rule for the same phrase; a longer distinct phrase still wins. Use Exceptions to leave a global phrase unchanged in selected groups. Backtick code and http://, https://, or www. links are left alone.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1621,80 +1626,90 @@ struct SettingsView: View {
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(appState.vocabularyCorrections) { correction in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("\(correction.writtenAs) -> \(correction.correctVersion)")
-                                    .font(.callout)
-                                    .lineLimit(2)
-                                if let note = correction.note, !note.isEmpty {
-                                    Text(note)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("\(correction.writtenAs) -> \(correction.correctVersion)")
+                                        .font(.callout)
                                         .lineLimit(2)
-                                }
-                                let excludedGroups = suppressedGroupNames(for: correction)
-                                if !excludedGroups.isEmpty {
-                                    Text("Off in: \(excludedGroups.joined(separator: ", "))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            Picker("Local scope", selection: localCorrectionScopeBinding(correction)) {
-                                Text("Off").tag("__off__")
-                                Text("Everywhere").tag("__global__")
-                                ForEach(appState.cleanupGroups.filter(\.isEnabled)) { group in
-                                    Text(group.isDefault ? "Unassigned apps" : group.name).tag(group.id)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: 150)
-                            .accessibilityLabel("Local correction scope")
-                            .accessibilityIdentifier("settings.localCorrectionScope")
-
-                            if appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.enabled == true {
-                                Toggle("Match case", isOn: localCorrectionCaseBinding(correction))
-                                    .toggleStyle(.checkbox)
-                                    .font(.caption)
-                                    .accessibilityIdentifier("settings.localCorrectionCaseSensitive")
-                            }
-
-                            if let rule = appState.localCorrectionRule(forVocabularyCorrectionID: correction.id),
-                               rule.enabled, rule.group == nil {
-                                Menu("Exceptions") {
-                                    ForEach(appState.cleanupGroups.filter(\.isEnabled)) { group in
-                                        Toggle(group.isDefault ? "Unassigned apps" : group.name,
-                                               isOn: localCorrectionSuppressionBinding(correction, groupID: group.id))
+                                    if let note = correction.note, !note.isEmpty {
+                                        Text(note)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                    let excludedGroups = suppressedGroupNames(for: correction)
+                                    if !excludedGroups.isEmpty {
+                                        Text("Off in: \(excludedGroups.joined(separator: ", "))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
-                                .accessibilityIdentifier("settings.localCorrectionExceptions")
-                            }
-
-                            Button {
-                                vocabularyEditingID = correction.id
-                                vocabularyWrittenAs = correction.writtenAs
-                                vocabularyCorrectVersion = correction.correctVersion
-                                vocabularyNote = correction.note ?? ""
-                            } label: {
-                                Image(systemName: "pencil")
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Edit vocabulary correction")
-                            .accessibilityIdentifier("settings.editVocabularyCorrectionButton")
-
-                            Button(role: .destructive) {
-                                if appState.deleteVocabularyCorrection(id: correction.id),
-                                   vocabularyEditingID == correction.id {
-                                    clearVocabularyCorrectionForm()
+                                Spacer()
+                                Button {
+                                    vocabularyEditingID = correction.id
+                                    vocabularyWrittenAs = correction.writtenAs
+                                    vocabularyCorrectVersion = correction.correctVersion
+                                    vocabularyNote = correction.note ?? ""
+                                } label: {
+                                    Image(systemName: "pencil")
                                 }
-                            } label: {
-                                Image(systemName: "trash")
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Edit vocabulary correction")
+                                .accessibilityIdentifier("settings.editVocabularyCorrectionButton")
+
+                                Button(role: .destructive) {
+                                    if appState.deleteVocabularyCorrection(id: correction.id),
+                                       vocabularyEditingID == correction.id {
+                                        clearVocabularyCorrectionForm()
+                                    }
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Delete vocabulary correction")
+                                .accessibilityIdentifier("settings.deleteVocabularyCorrectionButton")
                             }
-                            .buttonStyle(.borderless)
-                            .accessibilityLabel("Delete vocabulary correction")
-                            .accessibilityIdentifier("settings.deleteVocabularyCorrectionButton")
+
+                            HStack(spacing: 8) {
+                                Picker("Local scope", selection: localCorrectionScopeBinding(correction)) {
+                                    Text("Off").tag("__off__")
+                                    Text("Everywhere").tag("__global__")
+                                    ForEach(appState.cleanupGroups.filter(\.isEnabled)) { group in
+                                        Text(group.isDefault ? "Unassigned apps" : group.name).tag(group.id)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 150)
+                                .accessibilityLabel("Local correction scope")
+                                .accessibilityIdentifier("settings.localCorrectionScope")
+
+                                if let rule = appState.localCorrectionRule(forVocabularyCorrectionID: correction.id),
+                                   rule.enabled, rule.group == nil {
+                                    Menu("Exceptions") {
+                                        ForEach(appState.cleanupGroups.filter(\.isEnabled)) { group in
+                                            Toggle(group.isDefault ? "Unassigned apps" : group.name,
+                                                   isOn: localCorrectionSuppressionBinding(correction, groupID: group.id))
+                                        }
+                                    }
+                                    .accessibilityIdentifier("settings.localCorrectionExceptions")
+                                }
+                                Spacer()
+                            }
+
+                            if appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.enabled == true {
+                                HStack(spacing: 14) {
+                                    Toggle("Match case", isOn: localCorrectionCaseBinding(correction))
+                                        .accessibilityIdentifier("settings.localCorrectionCaseSensitive")
+                                    Toggle("Match punctuation between words", isOn: localCorrectionPunctuationBinding(correction))
+                                        .disabled(!LocalCorrectionEngine.supportsPunctuationVariants(correction.writtenAs))
+                                        .help("For a multiword spoken form, match spaces or punctuation between words, such as super base and super-base.")
+                                        .accessibilityIdentifier("settings.localCorrectionPunctuationVariants")
+                                }
+                                .toggleStyle(.checkbox)
+                                .font(.caption)
+                                .fixedSize(horizontal: true, vertical: false)
+                            }
                         }
                         .padding(.vertical, 4)
                     }
@@ -1803,6 +1818,20 @@ struct SettingsView: View {
                 _ = try? appState.setVocabularyLocalCorrectionCaseSensitive(
                     id: correction.id,
                     caseSensitive: caseSensitive
+                )
+            }
+        )
+    }
+
+    private func localCorrectionPunctuationBinding(_ correction: VocabularyCorrection) -> Binding<Bool> {
+        Binding(
+            get: {
+                appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.matchPunctuationVariants ?? false
+            },
+            set: { matchPunctuationVariants in
+                _ = try? appState.setVocabularyLocalCorrectionMatchPunctuationVariants(
+                    id: correction.id,
+                    matchPunctuationVariants: matchPunctuationVariants
                 )
             }
         )

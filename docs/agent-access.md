@@ -1,7 +1,7 @@
 # Agent Access
 
 Agent Access lets a local coding agent inspect Foil's allowed Vocabulary fields,
-preview exact local corrections, and submit proposals or action requests for
+preview local corrections, and submit proposals or action requests for
 review. It is off by default and works only while Foil is running. A paired
 agent can apply Vocabulary edits for one exact app group during a grant lasting
 up to one hour or until Foil closes or Agent Access is turned off.
@@ -41,6 +41,8 @@ Vocabulary, preview a correction set in memory, submit an ordinary proposal or
 action request, use a paired grant for scoped edits, and read status. No plugin, skill, MCP registration, helper
 installation, or PATH change is required. The agent must be running locally on
 the same Mac and able to access your user-owned Unix socket.
+Its correction guidance asks the agent to clarify uncertain spoken variants,
+case sensitivity, punctuation matching, and app scope with you before a change.
 
 ## Pair an agent for scoped edits
 
@@ -96,11 +98,22 @@ sample. Use a separate proposal preview to validate proposed changes.
 Open **Agent Access -> Review Vocabulary changes**. This inbox shows correction
 proposals alongside requests to change Vocabulary settings or app scope. You can
 edit or omit individual suggestions, reject a proposal, or apply the reviewed corrections.
-Applying a proposal creates ordinary Foil Vocabulary entries and exact local rules;
+Applying a proposal creates ordinary Foil Vocabulary entries and local rules;
 it does not turn on the global **Apply local corrections** switch. That switch and
 any Cleanup Group scope remain under your control.
 
-Global exact corrections act as defaults. A rule in the active Cleanup Group
+For a multiword spoken form, the optional **Match punctuation between words**
+setting also recognizes runs of spacing or punctuation between the words. For
+example, `super base` can match `super-base` and `super, base` while leaving a
+comma after the complete phrase intact. It does not match `superbase`, change
+surrounding punctuation, consume path separators or underscores, or operate
+beside path slashes or email `@` signs or inside protected code and URLs. The setting
+is off for existing rules and requires a spoken form with at least two words.
+Agents should preview examples and ask before enabling it. Foil shows the
+setting during proposal review and in each policy action's current and
+requested state.
+
+Global corrections act as defaults. A rule in the active Cleanup Group
 wins when it matches the same phrase; a longer distinct phrase wins over a
 shorter match. In Vocabulary settings, use a global correction's **Exceptions**
 menu to leave its phrase unchanged in selected Cleanup Groups. Turning a scoped
@@ -132,11 +145,14 @@ and ignores any agent claim that you approved a request elsewhere.
 
 For a coordinated change, `set_correction_policies` accepts 1–50 complete
 policies in one action. Each policy names an existing correction, its desired
-scope (`global` or an enabled Cleanup Group ID), whether its exact rule is on,
+scope (`global` or an enabled Cleanup Group ID), whether its local rule is on,
 whether matching is case sensitive, and any Cleanup Groups excluded from an
 enabled global rule. The action can also explicitly set the overall local
 corrections switch. Foil shows the current and requested policy for every
 correction, then applies the full set in one catalog save after approval. A
+policy may opt into `match_punctuation_variants` for multiword spoken forms;
+omitting it preserves that correction's current punctuation setting. A paired agent may change this
+setting only for corrections already in its granted app group. A
 changed Vocabulary or Cleanup Group configuration blocks the old request; the
 agent must submit a fresh one. A scope-only `set_correction_scope` request
 preserves the correction's On/Off state; a newly scoped rule starts Off.
@@ -155,6 +171,7 @@ is. The agent gets the correction and group IDs from the read endpoints:
     "scope_id": "<enabled Cleanup Group UUID>",
     "enabled": true,
     "case_sensitive": false,
+    "match_punctuation_variants": false,
     "suppressed_group_ids": []
   }]
 }
@@ -183,7 +200,7 @@ available as the original recovery text for the current session.
 
 ## Privacy and shutdown
 
-Agent Access exposes only Vocabulary names, terms, corrections, exact-rule
+Agent Access exposes only Vocabulary names, terms, corrections, local-rule
 settings, and enabled Cleanup Group identities. It does not expose History,
 transcripts, audio, credentials, provider settings, source apps, project files, the
 clipboard, or the active application. Request bodies and correction text are not

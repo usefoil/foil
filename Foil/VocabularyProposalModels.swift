@@ -15,23 +15,27 @@ struct VocabularyProposalCorrection: Codable, Equatable, Sendable {
     let replacement: String
     let note: String?
     let caseSensitive: Bool
+    let matchPunctuationVariants: Bool
 
     init(
         spokenForms: [String],
         replacement: String,
         note: String? = nil,
-        caseSensitive: Bool = false
+        caseSensitive: Bool = false,
+        matchPunctuationVariants: Bool = false
     ) {
         self.spokenForms = spokenForms
         self.replacement = replacement
         self.note = note
         self.caseSensitive = caseSensitive
+        self.matchPunctuationVariants = matchPunctuationVariants
     }
 
     enum CodingKeys: String, CodingKey {
         case spokenForms = "spoken_forms"
         case replacement, note
         case caseSensitive = "case_sensitive"
+        case matchPunctuationVariants = "match_punctuation_variants"
     }
 
     init(from decoder: Decoder) throws {
@@ -40,6 +44,18 @@ struct VocabularyProposalCorrection: Codable, Equatable, Sendable {
         replacement = try container.decode(String.self, forKey: .replacement)
         note = try container.decodeIfPresent(String.self, forKey: .note)
         caseSensitive = try container.decodeIfPresent(Bool.self, forKey: .caseSensitive) ?? false
+        matchPunctuationVariants = try container.decodeIfPresent(Bool.self, forKey: .matchPunctuationVariants) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(spokenForms, forKey: .spokenForms)
+        try container.encode(replacement, forKey: .replacement)
+        try container.encodeIfPresent(note, forKey: .note)
+        try container.encode(caseSensitive, forKey: .caseSensitive)
+        if matchPunctuationVariants {
+            try container.encode(true, forKey: .matchPunctuationVariants)
+        }
     }
 }
 
@@ -77,7 +93,8 @@ struct VocabularyProposalRequest: Codable, Equatable, Sendable {
                     spokenForms: correction.spokenForms.map(Self.normalize),
                     replacement: Self.normalize(correction.replacement),
                     note: Self.normalizeOptional(correction.note),
-                    caseSensitive: correction.caseSensitive
+                    caseSensitive: correction.caseSensitive,
+                    matchPunctuationVariants: correction.matchPunctuationVariants
                 )
             }
         )

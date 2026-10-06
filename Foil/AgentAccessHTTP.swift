@@ -734,8 +734,10 @@ struct AgentAccessPreviewEvaluator {
                     LocalCorrectionEngine.aliasesOverlap(
                         $0,
                         caseSensitive: correction.caseSensitive,
+                        matchPunctuationVariants: correction.matchPunctuationVariants,
                         form,
-                        caseSensitive: correction.caseSensitive
+                        caseSensitive: correction.caseSensitive,
+                        matchPunctuationVariants: correction.matchPunctuationVariants
                     )
                 }) {
                     issues.append(.init(code: "duplicate_spoken_form", message: "A spoken form is duplicated in this correction.", correctionIndex: index))
@@ -743,11 +745,20 @@ struct AgentAccessPreviewEvaluator {
                     forms.append(form)
                 }
             }
+            if correction.matchPunctuationVariants &&
+                !forms.contains(where: LocalCorrectionEngine.supportsPunctuationVariants) {
+                issues.append(.init(
+                    code: "punctuation_variants_require_multiword",
+                    message: "Punctuation matching needs at least one spoken form with two words separated by spacing or punctuation.",
+                    correctionIndex: index
+                ))
+            }
             normalized.append(.init(
                 spokenForms: forms,
                 replacement: replacement,
                 scopeID: scopeID.flatMap { $0.isEmpty ? nil : $0 },
-                caseSensitive: correction.caseSensitive
+                caseSensitive: correction.caseSensitive,
+                matchPunctuationVariants: correction.matchPunctuationVariants
             ))
         }
 
@@ -759,7 +770,9 @@ struct AgentAccessPreviewEvaluator {
                     replacement: correction.replacement,
                     group: correction.scopeID,
                     enabled: true,
-                    caseSensitive: correction.caseSensitive
+                    caseSensitive: correction.caseSensitive,
+                    matchPunctuationVariants: correction.matchPunctuationVariants &&
+                        LocalCorrectionEngine.supportsPunctuationVariants(form)
                 )
             }
         }
@@ -776,16 +789,26 @@ struct AgentAccessPreviewEvaluator {
 
         let examples: [AgentAccessPreviewExample]
         if let compiled {
-            examples = normalized.compactMap { correction in
-                guard let form = correction.spokenForms.first else { return nil }
-                let input = "Use \(form) in this project."
-                let result = LocalCorrectionEngine.correct(
-                    input,
-                    activeGroup: correction.scopeID,
-                    enabled: true,
-                    compiled: compiled
-                )
-                return .init(input: input, output: result.text, replacementCount: result.replacementCount)
+            examples = normalized.flatMap { correction -> [AgentAccessPreviewExample] in
+                guard let form = correction.matchPunctuationVariants
+                    ? correction.spokenForms.first(where: LocalCorrectionEngine.supportsPunctuationVariants)
+                        ?? correction.spokenForms.first
+                    : correction.spokenForms.first else { return [] }
+                var forms = [form]
+                if correction.matchPunctuationVariants,
+                   let variant = LocalCorrectionEngine.punctuationVariantExample(of: form), variant != form {
+                    forms.append(variant)
+                }
+                return forms.map { exampleForm in
+                    let input = "Use \(exampleForm) in this project."
+                    let result = LocalCorrectionEngine.correct(
+                        input,
+                        activeGroup: correction.scopeID,
+                        enabled: true,
+                        compiled: compiled
+                    )
+                    return .init(input: input, output: result.text, replacementCount: result.replacementCount)
+                }
             }
         } else {
             examples = []

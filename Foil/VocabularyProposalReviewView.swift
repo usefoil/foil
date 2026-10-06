@@ -99,7 +99,8 @@ private struct VocabularyProposalEditorCard: View {
                 spokenForms: correction.spokenForms.map(\.value),
                 replacement: correction.replacement,
                 note: normalizedNote.isEmpty ? nil : normalizedNote,
-                caseSensitive: correction.caseSensitive
+                caseSensitive: correction.caseSensitive,
+                matchPunctuationVariants: correction.matchPunctuationVariants
             )
         }
     }
@@ -192,6 +193,8 @@ private struct VocabularyProposalEditorCard: View {
                         TextField("Note (optional)", text: $correction.note)
                             .accessibilityLabel("Note")
                         Toggle("Case sensitive", isOn: $correction.caseSensitive)
+                        Toggle("Match punctuation between words", isOn: $correction.matchPunctuationVariants)
+                            .help("For a multiword spoken form, match spaces or punctuation between words, such as super base and super-base.")
                     }
                     .padding(10)
                     .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
@@ -287,12 +290,14 @@ private struct CorrectionDraft: Identifiable {
     var replacement: String
     var note: String
     var caseSensitive: Bool
+    var matchPunctuationVariants: Bool
 
     init(_ correction: VocabularyProposalCorrection) {
         spokenForms = correction.spokenForms.map { SpokenFormDraft(value: $0) }
         replacement = correction.replacement
         note = correction.note ?? ""
         caseSensitive = correction.caseSensitive
+        matchPunctuationVariants = correction.matchPunctuationVariants
     }
 }
 
@@ -375,7 +380,7 @@ private struct AgentAccessActionCard: View {
                     Text("This proposal is already in Vocabulary. Retry records the completed change in the action audit.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Text("Applying saves exact local corrections. It does not turn on local corrections.")
+                Text("Applying saves local corrections. It does not turn on local corrections.")
                     .font(.caption).foregroundStyle(.secondary)
             } else {
                 Label("The proposal is unavailable.", systemImage: "exclamationmark.triangle")
@@ -427,13 +432,13 @@ private struct AgentAccessActionCard: View {
             Text(request.enabled == true ? "Turn on local corrections on this Mac" : "Turn off local corrections on this Mac")
                 .font(.subheadline.weight(.semibold))
             Text("Current: \(appState.localCorrectionSnapshot.isEnabled ? "On" : "Off") · Requested: \(request.enabled == true ? "On" : "Off")")
-            Text("Scope: all enabled exact local correction rules; each rule still keeps its own app or Cleanup Group scope.")
+            Text("Scope: all enabled local correction rules; each rule still keeps its own app or Cleanup Group scope.")
                 .font(.caption).foregroundStyle(.secondary)
         case .setCorrectionScope:
             if let correction = appState.vocabularyCorrections.first(where: {
                 $0.id.uuidString.lowercased() == request.correctionID?.lowercased()
             }) {
-                Text("Set exact correction scope: \(correction.writtenAs) → \(correction.correctVersion)")
+                Text("Set correction scope: \(correction.writtenAs) → \(correction.correctVersion)")
                     .font(.subheadline.weight(.semibold))
                 Text("Requested scope: \(scopeName(request.scopeID ?? ""))")
                 let current = appState.localCorrectionRule(forVocabularyCorrectionID: correction.id)
@@ -445,7 +450,7 @@ private struct AgentAccessActionCard: View {
                 Label("The correction is unavailable.", systemImage: "exclamationmark.triangle")
             }
         case .setCorrectionPolicies:
-            Text("Change exact local correction policies")
+            Text("Change local correction policies")
                 .font(.subheadline.weight(.semibold))
             ForEach(request.correctionPolicies ?? [], id: \.correctionID) { policy in
                 if let correction = appState.vocabularyCorrections.first(where: {
@@ -460,8 +465,8 @@ private struct AgentAccessActionCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(correction.writtenAs) → \(correction.correctVersion)")
                             .font(.body.monospaced()).textSelection(.enabled)
-                        Text("Current: \(current?.enabled == true ? "On" : "Off") · \(currentScope) · \(current?.caseSensitive == true ? "Case sensitive" : "Case insensitive")")
-                        Text("Requested: \(policy.enabled ? "On" : "Off") · \(scopeName(policy.scopeID)) · \(policy.caseSensitive ? "Case sensitive" : "Case insensitive")")
+                        Text("Current: \(current?.enabled == true ? "On" : "Off") · \(currentScope) · \(current?.caseSensitive == true ? "Case sensitive" : "Case insensitive") · \(current?.matchPunctuationVariants == true ? "Punctuation variants" : "Exact punctuation")")
+                        Text("Requested: \(policy.enabled ? "On" : "Off") · \(scopeName(policy.scopeID)) · \(policy.caseSensitive ? "Case sensitive" : "Case insensitive") · \(policy.matchPunctuationVariants.map { $0 ? "Punctuation variants" : "Exact punctuation" } ?? "Punctuation unchanged")")
                         Text("Current exceptions: \(currentExceptions.isEmpty ? "None" : currentExceptions.map(scopeName).joined(separator: ", "))")
                         Text("Requested exceptions: \(policy.suppressedGroupIDs.isEmpty ? "None" : policy.suppressedGroupIDs.map(scopeName).joined(separator: ", "))")
                     }

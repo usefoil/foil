@@ -7,6 +7,7 @@ struct LocalCorrectionRule: Codable, Equatable, Sendable {
     let group: String?
     let enabled: Bool
     let caseSensitive: Bool
+    let matchPunctuationVariants: Bool
     let suppressesGlobal: Bool
 
     init(
@@ -16,6 +17,7 @@ struct LocalCorrectionRule: Codable, Equatable, Sendable {
         group: String?,
         enabled: Bool,
         caseSensitive: Bool,
+        matchPunctuationVariants: Bool = false,
         suppressesGlobal: Bool = false
     ) {
         self.id = id
@@ -24,12 +26,14 @@ struct LocalCorrectionRule: Codable, Equatable, Sendable {
         self.group = group
         self.enabled = enabled
         self.caseSensitive = caseSensitive
+        self.matchPunctuationVariants = matchPunctuationVariants
         self.suppressesGlobal = suppressesGlobal
     }
 
     enum CodingKeys: String, CodingKey {
         case id, source, replacement, group, enabled
         case caseSensitive = "case_sensitive"
+        case matchPunctuationVariants = "match_punctuation_variants"
         case suppressesGlobal = "suppresses_global"
     }
 
@@ -44,6 +48,7 @@ struct LocalCorrectionRule: Codable, Equatable, Sendable {
             group: try container.decodeIfPresent(String.self, forKey: .group),
             enabled: try container.decode(Bool.self, forKey: .enabled),
             caseSensitive: try container.decode(Bool.self, forKey: .caseSensitive),
+            matchPunctuationVariants: try container.decodeIfPresent(Bool.self, forKey: .matchPunctuationVariants) ?? false,
             suppressesGlobal: id.hasPrefix("suppression:") || encodedSuppression
         )
     }
@@ -56,6 +61,9 @@ struct LocalCorrectionRule: Codable, Equatable, Sendable {
         try container.encodeIfPresent(group, forKey: .group)
         try container.encode(enabled, forKey: .enabled)
         try container.encode(caseSensitive, forKey: .caseSensitive)
+        if matchPunctuationVariants {
+            try container.encode(true, forKey: .matchPunctuationVariants)
+        }
         if suppressesGlobal {
             try container.encode(true, forKey: .suppressesGlobal)
         }
@@ -82,6 +90,7 @@ enum LocalCorrectionValidationError: Error, Equatable, CustomStringConvertible {
     case phraseTooLong(String)
     case tooManyEnabledRules(Int)
     case invalidSuppression(String)
+    case invalidPunctuationVariantSource(String)
 
     var description: String {
         switch self {
@@ -101,6 +110,8 @@ enum LocalCorrectionValidationError: Error, Equatable, CustomStringConvertible {
             "Local corrections support at most 1,000 enabled rules (received \(count))"
         case .invalidSuppression(let id):
             "A global rule cannot suppress itself: \(id)"
+        case .invalidPunctuationVariantSource(let id):
+            "Local correction rule \(id) needs two words separated by spacing or punctuation for punctuation variants"
         }
     }
 }
@@ -123,6 +134,8 @@ struct CompiledLocalCorrections: Sendable {
     fileprivate let rules: [Rule]
     fileprivate let sensitiveTrie: [TrieNode]
     fileprivate let insensitiveTrie: [TrieNode]
+    fileprivate let punctuationSensitiveTrie: [TrieNode]
+    fileprivate let punctuationInsensitiveTrie: [TrieNode]
 }
 
 struct LocalCorrectionExecutionSnapshot: Sendable {
@@ -135,6 +148,7 @@ enum LocalCorrectionEngine {
     static let maximumInputBytes = 65_536
     static let maximumEnabledRules = 1_000
     static let maximumPhraseScalars = 256
+    private static let punctuationSeparator: UInt32 = UInt32.max
 
     private struct AliasKey: Hashable {
         let group: String?
@@ -144,7 +158,9 @@ enum LocalCorrectionEngine {
     private struct PriorAlias {
         let id: String
         let normalizedSource: [UInt32]
+        let comparableSource: [UInt32]
         let caseSensitive: Bool
+        let matchPunctuationVariants: Bool
     }
 
     static func compile(_ rules: [LocalCorrectionRule]) throws -> CompiledLocalCorrections {
@@ -153,9 +169,14 @@ enum LocalCorrectionEngine {
         var compiledRules: [CompiledLocalCorrections.Rule] = []
         var sensitiveTrie = [CompiledLocalCorrections.TrieNode()]
         var insensitiveTrie = [CompiledLocalCorrections.TrieNode()]
+        var punctuationSensitiveTrie = [CompiledLocalCorrections.TrieNode()]
+        var punctuationInsensitiveTrie = [CompiledLocalCorrections.TrieNode()]
 
         for rule in rules where rule.enabled {
             let scalars = normalizedScalars(rule.source)
+            let matchingScalars = rule.matchPunctuationVariants
+                ? punctuationVariantScalars(scalars)!
+                : scalars
             let compiledIndex = compiledRules.count
             compiledRules.append(
                 .init(
@@ -163,11 +184,15 @@ enum LocalCorrectionEngine {
                     replacement: rule.replacement,
                     replacementUTF8: Array(rule.replacement.utf8),
                     group: rule.group,
-                    scalarCount: scalars.count,
+                    scalarCount: matchingScalars.count,
                     suppressesGlobal: rule.suppressesGlobal
                 )
             )
-            if rule.caseSensitive {
+            if rule.matchPunctuationVariants && rule.caseSensitive {
+                insert(matchingScalars, ruleIndex: compiledIndex, into: &punctuationSensitiveTrie)
+            } else if rule.matchPunctuationVariants {
+                insert(matchingScalars.map(asciiFold), ruleIndex: compiledIndex, into: &punctuationInsensitiveTrie)
+            } else if rule.caseSensitive {
                 insert(scalars, ruleIndex: compiledIndex, into: &sensitiveTrie)
             } else {
                 insert(scalars.map(asciiFold), ruleIndex: compiledIndex, into: &insensitiveTrie)
@@ -177,7 +202,9 @@ enum LocalCorrectionEngine {
         return CompiledLocalCorrections(
             rules: compiledRules,
             sensitiveTrie: sensitiveTrie,
-            insensitiveTrie: insensitiveTrie
+            insensitiveTrie: insensitiveTrie,
+            punctuationSensitiveTrie: punctuationSensitiveTrie,
+            punctuationInsensitiveTrie: punctuationInsensitiveTrie
         )
     }
 
@@ -199,7 +226,9 @@ enum LocalCorrectionEngine {
         }
 
         let inputUTF8 = input.utf8
-        if inputUTF8.allSatisfy({ $0 < 128 }) {
+        if compiled.punctuationSensitiveTrie.count == 1,
+           compiled.punctuationInsensitiveTrie.count == 1,
+           inputUTF8.allSatisfy({ $0 < 128 }) {
             let bytes = Array(inputUTF8)
             if !containsProtectedSyntaxASCII(bytes) {
                 return correctUnprotectedASCII(
@@ -261,6 +290,7 @@ enum LocalCorrectionEngine {
     private struct Match {
         let rule: CompiledLocalCorrections.Rule
         let endScalarPosition: Int
+        let matchedScalarCount: Int
     }
 
     private struct ASCIIMatch {
@@ -577,12 +607,41 @@ enum LocalCorrectionEngine {
                 best: &best
             )
         }
+        if compiled.punctuationSensitiveTrie.count > 1 &&
+            !isIdentifierDelimiter(normalized.scalars[safe: start - 1]) {
+            scanTrie(
+                compiled.punctuationSensitiveTrie,
+                folded: false,
+                punctuationVariants: true,
+                start: start,
+                normalized: normalized,
+                activeGroup: activeGroup,
+                compiled: compiled,
+                protectedRanges: protectedRanges,
+                best: &best
+            )
+        }
+        if compiled.punctuationInsensitiveTrie.count > 1 &&
+            !isIdentifierDelimiter(normalized.scalars[safe: start - 1]) {
+            scanTrie(
+                compiled.punctuationInsensitiveTrie,
+                folded: true,
+                punctuationVariants: true,
+                start: start,
+                normalized: normalized,
+                activeGroup: activeGroup,
+                compiled: compiled,
+                protectedRanges: protectedRanges,
+                best: &best
+            )
+        }
         return best
     }
 
     private static func scanTrie(
         _ trie: [CompiledLocalCorrections.TrieNode],
         folded: Bool,
+        punctuationVariants: Bool = false,
         start: Int,
         normalized: NormalizedInput,
         activeGroup: String?,
@@ -593,14 +652,25 @@ enum LocalCorrectionEngine {
         var nodeIndex = 0
         var position = start
         while position < normalized.scalars.count {
-            let scalar = folded ? asciiFold(normalized.scalars[position]) : normalized.scalars[position]
+            let inputScalar = normalized.scalars[position]
+            let scalar: UInt32
+            if punctuationVariants && isPunctuationSeparator(inputScalar) {
+                scalar = punctuationSeparator
+                repeat {
+                    position += 1
+                } while position < normalized.scalars.count &&
+                    isPunctuationSeparator(normalized.scalars[position])
+            } else {
+                scalar = folded ? asciiFold(inputScalar) : inputScalar
+                position += 1
+            }
             guard let nextNode = trie[nodeIndex].children[scalar] else { return }
             nodeIndex = nextNode
-            position += 1
 
             guard !trie[nodeIndex].terminalRuleIndexes.isEmpty,
                   normalized.isCharacterEnd(at: position),
-                  !isBoundaryBlocking(normalized.scalars[safe: position]) else {
+                  !isBoundaryBlocking(normalized.scalars[safe: position]),
+                  !(punctuationVariants && isIdentifierDelimiter(normalized.scalars[safe: position])) else {
                 continue
             }
 
@@ -612,7 +682,11 @@ enum LocalCorrectionEngine {
             for ruleIndex in trie[nodeIndex].terminalRuleIndexes {
                 let rule = compiled.rules[ruleIndex]
                 guard rule.group == nil || rule.group == activeGroup else { continue }
-                let candidate = Match(rule: rule, endScalarPosition: position)
+                let candidate = Match(
+                    rule: rule,
+                    endScalarPosition: position,
+                    matchedScalarCount: position - start
+                )
                 if isPreferred(candidate, over: best) {
                     best = candidate
                 }
@@ -622,8 +696,8 @@ enum LocalCorrectionEngine {
 
     private static func isPreferred(_ candidate: Match, over current: Match?) -> Bool {
         guard let current else { return true }
-        if candidate.rule.scalarCount != current.rule.scalarCount {
-            return candidate.rule.scalarCount > current.rule.scalarCount
+        if candidate.matchedScalarCount != current.matchedScalarCount {
+            return candidate.matchedScalarCount > current.matchedScalarCount
         }
         let candidateScoped = candidate.rule.group == nil ? 0 : 1
         let currentScoped = current.rule.group == nil ? 0 : 1
@@ -658,17 +732,29 @@ enum LocalCorrectionEngine {
                 throw LocalCorrectionValidationError.phraseTooLong(rule.id)
             }
             let normalizedSource = normalizedScalars(rule.source)
-            let key = AliasKey(group: rule.group, foldedSource: normalizedSource.map(asciiFold))
+            let variantSource = punctuationVariantScalars(normalizedSource)
+            if rule.matchPunctuationVariants && variantSource == nil {
+                throw LocalCorrectionValidationError.invalidPunctuationVariantSource(rule.id)
+            }
+            let comparableSource = variantSource ?? normalizedSource
+            let key = AliasKey(group: rule.group, foldedSource: comparableSource.map(asciiFold))
             for previous in priorByAlias[key] ?? [] {
-                if !previous.caseSensitive || !rule.caseSensitive ||
-                    previous.normalizedSource == normalizedSource {
+                let prior = previous.matchPunctuationVariants || rule.matchPunctuationVariants
+                    ? previous.comparableSource : previous.normalizedSource
+                let current = previous.matchPunctuationVariants || rule.matchPunctuationVariants
+                    ? comparableSource : normalizedSource
+                let overlaps = previous.caseSensitive && rule.caseSensitive
+                    ? prior == current : prior.map(asciiFold) == current.map(asciiFold)
+                if overlaps {
                     throw LocalCorrectionValidationError.ambiguousAlias(previous.id, rule.id)
                 }
             }
             priorByAlias[key, default: []].append(PriorAlias(
                 id: rule.id,
                 normalizedSource: normalizedSource,
-                caseSensitive: rule.caseSensitive
+                comparableSource: comparableSource,
+                caseSensitive: rule.caseSensitive,
+                matchPunctuationVariants: rule.matchPunctuationVariants
             ))
         }
     }
@@ -676,15 +762,80 @@ enum LocalCorrectionEngine {
     static func aliasesOverlap(
         _ first: String,
         caseSensitive firstCaseSensitive: Bool,
+        matchPunctuationVariants firstPunctuationVariants: Bool = false,
         _ second: String,
-        caseSensitive secondCaseSensitive: Bool
+        caseSensitive secondCaseSensitive: Bool,
+        matchPunctuationVariants secondPunctuationVariants: Bool = false
     ) -> Bool {
         let firstNormalized = normalizedScalars(first)
         let secondNormalized = normalizedScalars(second)
+        let firstComparable = firstPunctuationVariants || secondPunctuationVariants
+            ? (punctuationVariantScalars(firstNormalized) ?? firstNormalized)
+            : firstNormalized
+        let secondComparable = firstPunctuationVariants || secondPunctuationVariants
+            ? (punctuationVariantScalars(secondNormalized) ?? secondNormalized)
+            : secondNormalized
         if firstCaseSensitive && secondCaseSensitive {
-            return firstNormalized == secondNormalized
+            return firstComparable == secondComparable
         }
-        return firstNormalized.map(asciiFold) == secondNormalized.map(asciiFold)
+        return firstComparable.map(asciiFold) == secondComparable.map(asciiFold)
+    }
+
+    static func supportsPunctuationVariants(_ source: String) -> Bool {
+        punctuationVariantScalars(normalizedScalars(source)) != nil
+    }
+
+    static func punctuationVariantExample(of source: String) -> String? {
+        guard supportsPunctuationVariants(source) else { return nil }
+        let scalars = source.unicodeScalars
+        guard let start = scalars.indices.first(where: { isPunctuationSeparator(scalars[$0].value) }) else {
+            return nil
+        }
+        var end = start
+        while end < scalars.endIndex, isPunctuationSeparator(scalars[end].value) {
+            end = scalars.index(after: end)
+        }
+        var result = source
+        result.replaceSubrange(start..<end, with: "—")
+        return result
+    }
+
+    private static func punctuationVariantScalars(_ scalars: [UInt32]) -> [UInt32]? {
+        guard let first = scalars.first, let last = scalars.last,
+              isBoundaryBlocking(first), isBoundaryBlocking(last) else { return nil }
+        var result: [UInt32] = []
+        result.reserveCapacity(scalars.count)
+        var sawSeparator = false
+        for scalar in scalars {
+            if isPunctuationSeparator(scalar) {
+                if result.last != punctuationSeparator {
+                    result.append(punctuationSeparator)
+                    sawSeparator = true
+                }
+            } else if isBoundaryBlocking(scalar) {
+                result.append(scalar)
+            } else {
+                return nil
+            }
+        }
+        return sawSeparator ? result : nil
+    }
+
+    private static func isPunctuationSeparator(_ value: UInt32) -> Bool {
+        guard value != 47, value != 64, value != 92, value != 95 else { return false }
+        guard let scalar = Unicode.Scalar(value) else { return false }
+        if CharacterSet.whitespacesAndNewlines.contains(scalar) { return true }
+        switch scalar.properties.generalCategory {
+        case .dashPunctuation, .openPunctuation, .closePunctuation,
+             .initialPunctuation, .finalPunctuation, .otherPunctuation:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func isIdentifierDelimiter(_ value: UInt32?) -> Bool {
+        value == 47 || value == 64 || value == 92
     }
 
     private static func insert(

@@ -482,7 +482,8 @@ final class VocabularyCatalogStoreTests: XCTestCase {
             state: .pending,
             scope: .init(kind: "cleanup_group", id: "agents"),
             corrections: [
-                .init(spokenForms: ["Superbase", "super base"], replacement: "Supabase"),
+                .init(spokenForms: ["Superbase", "super base"], replacement: "Supabase",
+                      matchPunctuationVariants: true),
                 .init(spokenForms: ["codecs"], replacement: "Codex", note: "Only in agent work")
             ],
             snapshotToken: token,
@@ -502,6 +503,7 @@ final class VocabularyCatalogStoreTests: XCTestCase {
         ])
         XCTAssertEqual(applied.loaded.snapshot.rules.count, 3)
         XCTAssertTrue(applied.loaded.snapshot.rules.allSatisfy { $0.group == "agents" })
+        XCTAssertEqual(applied.loaded.snapshot.rules.map(\.matchPunctuationVariants), [false, true, false])
         XCTAssertFalse(applied.loaded.snapshot.localCorrectionsEnabled)
         XCTAssertEqual(applied.receipt.items.count, 3)
         XCTAssertEqual(
@@ -512,6 +514,18 @@ final class VocabularyCatalogStoreTests: XCTestCase {
                 compiled: applied.loaded.compiledLocalCorrections
             ).text,
             "Supabase and Codex"
+        )
+        let reloaded = try fixture.store.loadOrMigrate(
+            legacyVocabularyData: nil, legacyLocalCorrectionsData: nil
+        )
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct(
+                "super-base and super, base",
+                activeGroup: "agents",
+                enabled: true,
+                compiled: reloaded.compiledLocalCorrections
+            ).text,
+            "Supabase and Supabase"
         )
         XCTAssertEqual(
             LocalCorrectionEngine.correct(

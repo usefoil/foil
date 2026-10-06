@@ -1443,7 +1443,9 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(groupName.waitForExistence(timeout: 3), app.debugDescription)
         replaceText(in: groupName, with: "Agents")
 
-        replaceText(in: app.textFields["settings.vocabularyCorrectionWrittenAs"], with: "super base")
+        let writtenAs = app.textFields["settings.vocabularyCorrectionWrittenAs"]
+        scrollSettingsUntilHittable(writtenAs)
+        replaceText(in: writtenAs, with: "super base")
         replaceText(in: app.textFields["settings.vocabularyCorrectionCorrectVersion"], with: "Supabase")
         clickElement(app.buttons["settings.addVocabularyCorrectionButton"])
         let scope = app.popUpButtons["settings.localCorrectionScope"]
@@ -1451,27 +1453,30 @@ final class FoilUITests: XCTestCase {
         clickElement(scope)
         clickElement(app.menuItems["Everywhere"])
         clickElement(app.checkBoxes["settings.localCorrectionsEnabled"])
+        let punctuationVariants = app.checkBoxes["settings.localCorrectionPunctuationVariants"]
+        scrollSettingsUntilHittable(punctuationVariants)
+        XCTAssertTrue(punctuationVariants.isEnabled, app.debugDescription)
+        clickElement(punctuationVariants)
+        let optionScreenshot = XCTAttachment(screenshot: app.screenshot())
+        optionScreenshot.name = "Vocabulary punctuation option enabled"
+        optionScreenshot.lifetime = .keepAlways
+        add(optionScreenshot)
 
-        let exceptions = button(id: "settings.localCorrectionExceptions", fallbackLabel: "Exceptions")
+        let previewInput = app.textFields["settings.localCorrectionPreviewInput"]
+        scrollSettingsUntilHittable(previewInput)
+        replaceText(in: previewInput, with: "use super-base")
+        XCTAssertTrue(elementLabelOrValueContains(
+            app.staticTexts["settings.localCorrectionPreviewOutput"], "use Supabase"
+        ), app.debugDescription)
+
+        let exceptions = app.descendants(matching: .any)["settings.localCorrectionExceptions"]
         scrollSettingsUntilHittable(exceptions)
         clickElement(exceptions)
         clickElement(app.menuItems["Agents"])
         XCTAssertTrue(app.staticTexts["Off in: Agents"].waitForExistence(timeout: 3), app.debugDescription)
 
-        let previewInput = app.textFields["settings.localCorrectionPreviewInput"]
-        scrollSettingsUntilHittable(previewInput)
-        replaceText(in: previewInput, with: "use super base")
         XCTAssertTrue(elementLabelOrValueContains(
-            app.staticTexts["settings.localCorrectionPreviewOutput"], "use super base"
-        ), app.debugDescription)
-        let defaultGroup = app.buttons["settings.cleanupGroups.groupRow.default-unassigned-apps"]
-        for _ in 0..<8 where !defaultGroup.isHittable {
-            app.scrollViews["settings.root"].swipeDown()
-        }
-        XCTAssertTrue(defaultGroup.isHittable, app.debugDescription)
-        clickElement(defaultGroup)
-        XCTAssertTrue(elementLabelOrValueContains(
-            app.staticTexts["settings.localCorrectionPreviewOutput"], "use Supabase"
+            app.staticTexts["settings.localCorrectionPreviewOutput"], "use super-base"
         ), app.debugDescription)
     }
 

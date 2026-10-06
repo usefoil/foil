@@ -125,7 +125,9 @@ final class VocabularyCorrectionCoordinator {
                     replacement: proposed.replacement,
                     group: scopeID,
                     enabled: true,
-                    caseSensitive: proposed.caseSensitive
+                    caseSensitive: proposed.caseSensitive,
+                    matchPunctuationVariants: proposed.matchPunctuationVariants &&
+                        LocalCorrectionEngine.supportsPunctuationVariants(spokenForm)
                 ))
                 itemReceipts.append(VocabularyAppliedCorrectionReceipt(
                     proposalItemIndex: proposalItemIndex,

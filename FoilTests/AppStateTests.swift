@@ -2022,24 +2022,49 @@ final class AppStateTests: XCTestCase {
         _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: nil)
         _ = try state.setLocalCorrectionsEnabled(true)
         _ = try state.setVocabularyCorrectionSuppressed(id: correction.id, in: "agents", suppressed: true)
+        _ = try state.setVocabularyLocalCorrectionMatchPunctuationVariants(
+            id: correction.id, matchPunctuationVariants: true
+        )
 
         XCTAssertTrue(state.isVocabularyCorrectionSuppressed(id: correction.id, in: "agents"))
         XCTAssertEqual(state.previewLocalCorrections("super base", activeGroupID: "agents").text, "super base")
         XCTAssertEqual(state.previewLocalCorrections("super base", activeGroupID: "other").text, "Supabase")
+        XCTAssertEqual(state.previewLocalCorrections("super-base", activeGroupID: "agents").text, "super-base")
+        XCTAssertEqual(state.previewLocalCorrections("super-base", activeGroupID: "other").text, "Supabase")
 
         let reloaded = AppState(localCorrectionStore: store)
         XCTAssertTrue(reloaded.isVocabularyCorrectionSuppressed(id: correction.id, in: "agents"))
         XCTAssertEqual(reloaded.previewLocalCorrections("super base", activeGroupID: "agents").text, "super base")
+        XCTAssertTrue(reloaded.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.matchPunctuationVariants == true)
+        XCTAssertEqual(reloaded.previewLocalCorrections("super-base", activeGroupID: "agents").text, "super-base")
         XCTAssertNotNil(reloaded.updateVocabularyCorrection(
             id: correction.id, writtenAs: "supa base", correctVersion: "Supabase"
         ))
         XCTAssertEqual(reloaded.previewLocalCorrections("supa base", activeGroupID: "agents").text, "supa base")
         XCTAssertEqual(reloaded.previewLocalCorrections("supa base", activeGroupID: "other").text, "Supabase")
+        XCTAssertEqual(reloaded.previewLocalCorrections("supa-base", activeGroupID: "agents").text, "supa-base")
+        XCTAssertEqual(reloaded.previewLocalCorrections("supa-base", activeGroupID: "other").text, "Supabase")
         XCTAssertTrue(reloaded.deleteVocabularyCorrection(id: correction.id))
         XCTAssertFalse(reloaded.localCorrectionSnapshot.rules.contains { $0.suppressesGlobal })
         XCTAssertTrue(reloaded.undoVocabularyCorrectionDeletion())
         XCTAssertTrue(reloaded.isVocabularyCorrectionSuppressed(id: correction.id, in: "agents"))
         XCTAssertEqual(reloaded.previewLocalCorrections("supa base", activeGroupID: "agents").text, "supa base")
+    }
+
+    func testEditingPunctuationVariantCorrectionToSingleWordClearsTheOption() throws {
+        let store = LocalCorrectionStore(fileURL: testDirectory.appendingPathComponent("single-word-correction.json"))
+        let state = AppState(localCorrectionStore: store)
+        let correction = try XCTUnwrap(state.addVocabularyCorrection(
+            writtenAs: "super base", correctVersion: "Supabase"
+        ))
+        _ = try state.setVocabularyCorrectionLocalScope(id: correction.id, groupID: nil)
+        _ = try state.setVocabularyLocalCorrectionMatchPunctuationVariants(
+            id: correction.id, matchPunctuationVariants: true
+        )
+        XCTAssertNotNil(state.updateVocabularyCorrection(
+            id: correction.id, writtenAs: "superbase", correctVersion: "Supabase"
+        ))
+        XCTAssertFalse(state.localCorrectionRule(forVocabularyCorrectionID: correction.id)?.matchPunctuationVariants ?? true)
     }
 
     func testTurningGlobalCorrectionOffRemovesItsGroupExceptions() throws {

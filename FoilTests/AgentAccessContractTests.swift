@@ -44,6 +44,36 @@ final class AgentAccessContractTests: XCTestCase {
         XCTAssertEqual(preview.examples.first?.replacementCount, 1)
     }
 
+    func testPreviewShowsOptInPunctuationExampleAndRejectsSingleWordOption() throws {
+        let model = AgentAccessVocabularyReadModel(
+            scopes: [], terms: [], corrections: [], localCorrectionsEnabled: false
+        )
+        let validBody = Data(#"{"corrections":[{"spoken_forms":["super base","Superbase"],"replacement":"Supabase","match_punctuation_variants":true}]}"#.utf8)
+        let response = makeRouter(model: model).response(to: request(.post, path: "/v1/vocabulary/preview", body: validBody))
+        let preview = try JSONDecoder().decode(AgentAccessPreviewResponse.self, from: response.body)
+        XCTAssertEqual(response.status, 200)
+        XCTAssertTrue(preview.valid, "\(preview.issues)")
+        XCTAssertEqual(preview.normalizedCorrections.first?.matchPunctuationVariants, true)
+        XCTAssertTrue(preview.examples.contains { $0.input.contains("super—base") && $0.output.contains("Supabase") })
+
+        let identifierBody = Data(#"{"corrections":[{"spoken_forms":["super_base test"],"replacement":"Supabase","match_punctuation_variants":true}]}"#.utf8)
+        let identifierResponse = makeRouter(model: model).response(
+            to: request(.post, path: "/v1/vocabulary/preview", body: identifierBody)
+        )
+        let identifierPreview = try JSONDecoder().decode(AgentAccessPreviewResponse.self, from: identifierResponse.body)
+        XCTAssertTrue(identifierPreview.valid, "\(identifierPreview.issues)")
+        XCTAssertTrue(identifierPreview.examples.contains {
+            $0.input.contains("super_base—test") && $0.output.contains("Supabase") && $0.replacementCount == 1
+        })
+        XCTAssertFalse(identifierPreview.examples.contains { $0.input.contains("super—base") })
+
+        let invalidBody = Data(#"{"corrections":[{"spoken_forms":["Supabase"],"replacement":"Supabase Inc.","match_punctuation_variants":true}]}"#.utf8)
+        let invalidResponse = makeRouter(model: model).response(to: request(.post, path: "/v1/vocabulary/preview", body: invalidBody))
+        let invalid = try JSONDecoder().decode(AgentAccessPreviewResponse.self, from: invalidResponse.body)
+        XCTAssertFalse(invalid.valid)
+        XCTAssertEqual(invalid.issues.first?.code, "punctuation_variants_require_multiword")
+    }
+
     func testPreviewRejectsUnknownScopeDuplicateAliasAndLimitsWithoutMutation() throws {
         let model = AgentAccessVocabularyReadModel(
             scopes: [.init(id: "disabled", name: "Disabled", isDefault: false, isEnabled: false)],
