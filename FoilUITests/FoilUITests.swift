@@ -1457,6 +1457,10 @@ final class FoilUITests: XCTestCase {
         scrollSettingsUntilHittable(punctuationVariants)
         XCTAssertTrue(punctuationVariants.isEnabled, app.debugDescription)
         clickElement(punctuationVariants)
+        let optionScreenshot = XCTAttachment(screenshot: app.screenshot())
+        optionScreenshot.name = "Vocabulary punctuation option enabled"
+        optionScreenshot.lifetime = .keepAlways
+        add(optionScreenshot)
 
         let previewInput = app.textFields["settings.localCorrectionPreviewInput"]
         scrollSettingsUntilHittable(previewInput)

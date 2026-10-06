@@ -30,6 +30,17 @@ final class LocalCorrectionEngineTests: XCTestCase {
         )
     }
 
+    func testPunctuationVariantsDoNotRewriteBarePathsOrIdentifiers() throws {
+        let compiled = try LocalCorrectionEngine.compile([
+            rule(id: "variants", source: "super base", replacement: "Supabase", matchPunctuationVariants: true)
+        ])
+        let input = "super-base /super-base super-base/ path/super-base/config super_base super/base super\\base"
+        XCTAssertEqual(
+            LocalCorrectionEngine.correct(input, activeGroup: "agents", enabled: true, compiled: compiled).text,
+            "Supabase /super-base super-base/ path/super-base/config super_base super/base super\\base"
+        )
+    }
+
     func testScopedPunctuationVariantOverridesGlobalMatchAndSuppression() throws {
         let compiled = try LocalCorrectionEngine.compile([
             rule(id: "global", source: "super base", replacement: "Global", group: nil, matchPunctuationVariants: true),
@@ -63,6 +74,11 @@ final class LocalCorrectionEngineTests: XCTestCase {
             rule(id: "bad", source: "Supabase", replacement: "Good", matchPunctuationVariants: true)
         ])) { error in
             XCTAssertEqual(error as? LocalCorrectionValidationError, .invalidPunctuationVariantSource("bad"))
+        }
+        XCTAssertThrowsError(try LocalCorrectionEngine.compile([
+            rule(id: "path", source: "super/base", replacement: "Supabase", matchPunctuationVariants: true)
+        ])) { error in
+            XCTAssertEqual(error as? LocalCorrectionValidationError, .invalidPunctuationVariantSource("path"))
         }
     }
 

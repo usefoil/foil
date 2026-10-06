@@ -106,7 +106,8 @@ For a multiword spoken form, the optional **Match punctuation between words**
 setting also recognizes runs of spacing or punctuation between the words. For
 example, `super base` can match `super-base` and `super, base` while leaving a
 comma after the complete phrase intact. It does not match `superbase`, change
-surrounding punctuation, or operate inside protected code and URLs. The setting
+surrounding punctuation, consume path separators or underscores, or operate
+beside path slashes or inside protected code and URLs. The setting
 is off for existing rules and requires a spoken form with at least two words.
 Agents should preview examples and ask before enabling it. Foil shows the
 setting during proposal review and in each policy action's current and

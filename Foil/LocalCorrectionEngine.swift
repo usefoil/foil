@@ -607,7 +607,8 @@ enum LocalCorrectionEngine {
                 best: &best
             )
         }
-        if compiled.punctuationSensitiveTrie.count > 1 {
+        if compiled.punctuationSensitiveTrie.count > 1 &&
+            !isPathDelimiter(normalized.scalars[safe: start - 1]) {
             scanTrie(
                 compiled.punctuationSensitiveTrie,
                 folded: false,
@@ -620,7 +621,8 @@ enum LocalCorrectionEngine {
                 best: &best
             )
         }
-        if compiled.punctuationInsensitiveTrie.count > 1 {
+        if compiled.punctuationInsensitiveTrie.count > 1 &&
+            !isPathDelimiter(normalized.scalars[safe: start - 1]) {
             scanTrie(
                 compiled.punctuationInsensitiveTrie,
                 folded: true,
@@ -667,7 +669,8 @@ enum LocalCorrectionEngine {
 
             guard !trie[nodeIndex].terminalRuleIndexes.isEmpty,
                   normalized.isCharacterEnd(at: position),
-                  !isBoundaryBlocking(normalized.scalars[safe: position]) else {
+                  !isBoundaryBlocking(normalized.scalars[safe: position]),
+                  !(punctuationVariants && isPathDelimiter(normalized.scalars[safe: position])) else {
                 continue
             }
 
@@ -804,15 +807,20 @@ enum LocalCorrectionEngine {
     }
 
     private static func isPunctuationSeparator(_ value: UInt32) -> Bool {
+        guard value != 47, value != 92, value != 95 else { return false }
         guard let scalar = Unicode.Scalar(value) else { return false }
         if CharacterSet.whitespacesAndNewlines.contains(scalar) { return true }
         switch scalar.properties.generalCategory {
-        case .connectorPunctuation, .dashPunctuation, .openPunctuation, .closePunctuation,
+        case .dashPunctuation, .openPunctuation, .closePunctuation,
              .initialPunctuation, .finalPunctuation, .otherPunctuation:
             return true
         default:
             return false
         }
+    }
+
+    private static func isPathDelimiter(_ value: UInt32?) -> Bool {
+        value == 47 || value == 92
     }
 
     private static func insert(
