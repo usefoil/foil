@@ -1771,7 +1771,8 @@ final class AgentAccessControllerTests: XCTestCase {
         XCTAssertTrue(prompt.contains(token))
         let headers = ["authorization": "Bearer \(token)"]
         let scoped = VocabularyProposalRequest(
-            requestID: "paired-scoped-\(marker)", scope: .init(kind: "cleanup_group", id: group.id),
+            requestID: "paired-scoped-\(marker)",
+            scope: .init(kind: " cleanup_group ", id: " \(group.id) "),
             corrections: [
                 .init(spokenForms: ["super base"], replacement: "Supabase"),
                 .init(spokenForms: ["cloud code"], replacement: "Claude Code")
@@ -1786,6 +1787,8 @@ final class AgentAccessControllerTests: XCTestCase {
             state.agentAccessProposals.contains(where: { $0.state == .applied })
         }
         XCTAssertTrue(applied)
+        XCTAssertEqual(state.agentAccessProposals.first?.scope,
+                       .init(kind: "cleanup_group", id: group.id))
         XCTAssertEqual(Set(state.vocabularyCorrections.map(\.correctVersion)), Set(["Supabase", "Claude Code"]))
         XCTAssertEqual(state.agentAccessGrantUses.count, 1)
 

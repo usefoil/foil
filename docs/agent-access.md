@@ -67,8 +67,9 @@ applied. Repeating the same request ID and content is idempotent.
 The grant does not permit a global correction, app routing or group creation,
 moving a correction between scopes, global local-corrections toggle, or group
 suppression. These still go through the ordinary in-Foil review routes. If
-group membership or routing changes, the grant stops working until the user
-pairs again. **Revoke** immediately blocks new requests and pending delegated
+group membership or routing differs from the paired paths, Foil blocks the
+grant's requests. Restoring the same routing before expiry makes the grant
+usable again. **Revoke** immediately blocks new requests and pending delegated
 application. Turning Agent Access off ends paired grants and blocks all connections. Recent delegated
 requests remain visible under the paired agent and in the existing proposal or
 action records.

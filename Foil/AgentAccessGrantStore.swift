@@ -295,7 +295,8 @@ enum AgentAccessGrantScope {
         groups: [CleanupGroup]
     ) throws {
         try validate(grant, groups: groups)
-        guard request.scope.kind == "cleanup_group", request.scope.id == grant.groupID else {
+        let scope = request.canonicalized().scope
+        guard scope.kind == "cleanup_group", scope.id == grant.groupID else {
             throw AgentAccessGrantError.invalidScope
         }
     }
