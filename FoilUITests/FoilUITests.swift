@@ -619,33 +619,33 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "running", timeout: 4), app.debugDescription)
 
         let review = button(
-            id: "settings.agentAccess.reviewProposals",
-            fallbackLabel: "Review vocabulary proposals"
+            id: "settings.agentAccess.reviewVocabulary",
+            fallbackLabel: "Review Vocabulary changes"
         )
         XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
         XCTAssertEqual(review.value as? String, "1 pending")
         XCTAssertEqual(
             app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
-            "Selected, Service running, 1 pending proposal"
+            "Selected, Service running, 1 pending Vocabulary approval"
         )
 
         clickElement(toggle)
         XCTAssertTrue(waitForElementLabelOrValue(status, containing: "off", timeout: 4), app.debugDescription)
         XCTAssertFalse(FileManager.default.fileExists(atPath: socketURL.path))
         let reviewAfterDisable = button(
-            id: "settings.agentAccess.reviewProposals",
-            fallbackLabel: "Review vocabulary proposals"
+            id: "settings.agentAccess.reviewVocabulary",
+            fallbackLabel: "Review Vocabulary changes"
         )
         XCTAssertEqual(reviewAfterDisable.value as? String, "1 pending")
         XCTAssertEqual(
             app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
-            "Selected, Service off, 1 pending proposal"
+            "Selected, Service off, 1 pending Vocabulary approval"
         )
         scrollAppShellSettingsUntilHittable(reviewAfterDisable)
         clickElement(reviewAfterDisable)
 
         XCTAssertTrue(
-            app.buttons["agentProposals.done"].waitForExistence(timeout: 5),
+            app.buttons["agentApprovals.done"].waitForExistence(timeout: 5),
             app.debugDescription
         )
         let reviewScreenshot = XCTAttachment(screenshot: app.screenshot())
@@ -662,10 +662,10 @@ final class FoilUITests: XCTestCase {
         scrollProposalReviewUntilHittable(reject)
         clickElement(reject)
         XCTAssertTrue(reject.waitForNonExistence(timeout: 3), app.debugDescription)
-        clickElement(app.buttons["agentProposals.done"])
+        clickElement(app.buttons["agentApprovals.done"])
         let reviewAfterRejection = button(
-            id: "settings.agentAccess.reviewProposals",
-            fallbackLabel: "Review vocabulary proposals"
+            id: "settings.agentAccess.reviewVocabulary",
+            fallbackLabel: "Review Vocabulary changes"
         )
         XCTAssertEqual(reviewAfterRejection.value as? String, "0 pending")
     }
@@ -679,8 +679,8 @@ final class FoilUITests: XCTestCase {
         ])
         openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         let review = button(
-            id: "settings.agentAccess.reviewProposals",
-            fallbackLabel: "Review vocabulary proposals"
+            id: "settings.agentAccess.reviewVocabulary",
+            fallbackLabel: "Review Vocabulary changes"
         )
         XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
         scrollAppShellSettingsUntilHittable(review)
@@ -691,7 +691,7 @@ final class FoilUITests: XCTestCase {
         XCTAssertTrue(applyByLabel.isEnabled, app.debugDescription)
         clickElement(applyByLabel)
         XCTAssertTrue(applyByLabel.waitForNonExistence(timeout: 4), app.debugDescription)
-        clickElement(app.buttons["agentProposals.done"])
+        clickElement(app.buttons["agentApprovals.done"])
 
         clickElement(app.descendants(matching: .any)["appShell.nav.settings.cleanup"])
         XCTAssertTrue(app.staticTexts["super base -> Supabase"].waitForExistence(timeout: 4), app.debugDescription)
@@ -706,13 +706,13 @@ final class FoilUITests: XCTestCase {
         ])
         openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         let review = button(
-            id: "settings.agentAccess.reviewActions",
-            fallbackLabel: "Review agent action requests"
+            id: "settings.agentAccess.reviewVocabulary",
+            fallbackLabel: "Review Vocabulary changes"
         )
         XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
         XCTAssertEqual(
             app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
-            "Selected, Service off, 1 pending action"
+            "Selected, Service off, 1 pending Vocabulary approval"
         )
         let settingsPane = app.descendants(matching: .any)["appShell.preferences"]
         XCTAssertTrue(settingsPane.exists, app.debugDescription)
@@ -732,10 +732,42 @@ final class FoilUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
         clickElement(approve)
-        XCTAssertTrue(app.staticTexts["No pending agent actions"].waitForExistence(timeout: 4), app.debugDescription)
-        clickElement(app.buttons["agentActions.done"])
+        XCTAssertTrue(app.staticTexts["No pending Vocabulary approvals"].waitForExistence(timeout: 4), app.debugDescription)
+        clickElement(app.buttons["agentApprovals.done"])
         clickElement(app.descendants(matching: .any)["appShell.nav.settings.cleanup"])
         XCTAssertEqual(controlValueString(app.checkBoxes["settings.localCorrectionsEnabled"]), "1")
+    }
+
+    func testAgentVocabularyApprovalsShowCorrectionsAndSettingsTogether() {
+        relaunchWithArguments([
+            "--ui-testing", "--reset-defaults",
+            "--seed-agent-vocabulary-proposal", "--seed-agent-action"
+        ])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        let review = button(
+            id: "settings.agentAccess.reviewVocabulary",
+            fallbackLabel: "Review Vocabulary changes"
+        )
+        XCTAssertTrue(review.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertEqual(review.value as? String, "2 pending")
+        XCTAssertEqual(
+            app.descendants(matching: .any)["appShell.nav.settings.agentAccess"].value as? String,
+            "Selected, Service off, 2 pending Vocabulary approvals"
+        )
+        scrollAppShellSettingsUntilHittable(review)
+        clickElement(review)
+        XCTAssertTrue(app.staticTexts["Corrections"].waitForExistence(timeout: 4), app.debugDescription)
+        XCTAssertTrue(app.textFields["Spoken form"].firstMatch.exists, app.debugDescription)
+
+        let settingsHeading = app.staticTexts["Other Vocabulary requests"]
+        let sheetScroll = app.sheets.firstMatch.scrollViews.firstMatch
+        XCTAssertTrue(sheetScroll.waitForExistence(timeout: 3), app.debugDescription)
+        for _ in 0..<8 {
+            if settingsHeading.exists { break }
+            sheetScroll.swipeUp()
+        }
+        XCTAssertTrue(settingsHeading.exists, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Turn on local corrections on this Mac"].exists, app.debugDescription)
     }
 
     func testAppShellShowsAllSettingsSidebarPanes() {

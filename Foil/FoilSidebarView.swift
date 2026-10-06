@@ -212,8 +212,8 @@ struct FoilSidebarView: View {
 
     @ViewBuilder
     private var agentAccessSidebarIndicators: some View {
-        if appState.agentAccessPendingProposalCount + appState.agentAccessPendingActionCount > 0 {
-            Text("\(appState.agentAccessPendingProposalCount + appState.agentAccessPendingActionCount)")
+        if appState.agentAccessPendingApprovalCount > 0 {
+            Text("\(appState.agentAccessPendingApprovalCount)")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(FoilTheme.deepTeal)
                 .padding(.horizontal, 5)
@@ -247,11 +247,9 @@ struct FoilSidebarView: View {
         if selection == section { parts.append("Selected") }
         if section == .agentAccess {
             parts.append("Service \(appState.agentAccessPresentationState.rawValue)")
-            let count = appState.agentAccessPendingProposalCount
-            if count > 0 { parts.append("\(count) pending \(count == 1 ? "proposal" : "proposals")") }
-            let actionCount = appState.agentAccessPendingActionCount
-            if actionCount > 0 {
-                parts.append("\(actionCount) pending \(actionCount == 1 ? "action" : "actions")")
+            let count = appState.agentAccessPendingApprovalCount
+            if count > 0 {
+                parts.append("\(count) pending Vocabulary \(count == 1 ? "approval" : "approvals")")
             }
         }
         return parts.joined(separator: ", ")
