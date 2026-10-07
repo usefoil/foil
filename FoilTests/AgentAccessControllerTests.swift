@@ -1626,6 +1626,57 @@ final class AgentAccessControllerTests: XCTestCase {
         withExtendedLifetime(controller) {}
     }
 
+    func testLiveSocketAppliedProposalReplayReturnsReceiptWithoutWriting() async throws {
+        let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let livePaths = paths()
+        let controller = AgentAccessController(
+            appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8)
+        )
+        defer {
+            controller.stop()
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+        state.setAgentAccessEnabled(true)
+        let started = await waitUntil { state.agentAccessPresentationState == .running }
+        XCTAssertTrue(started)
+        let body = Data(#"{"schema_version":1,"request_id":"replay-applied","scope":{"kind":"global","id":"global"},"corrections":[{"spoken_forms":["orbit desk"],"replacement":"OrbitDesk","match_punctuation_variants":true}]}"#.utf8)
+        let created = try sendHTTPRequest(
+            to: livePaths.socketURL, method: "POST", path: "/v1/vocabulary/proposals", body: body
+        )
+        XCTAssertTrue(String(decoding: created, as: UTF8.self).contains("201 Created"))
+        let published = await waitUntil { state.agentAccessPendingProposalCount == 1 }
+        XCTAssertTrue(published)
+        let id = try XCTUnwrap(state.agentAccessProposals.first?.id)
+        state.applyAgentAccessProposal(id: id)
+        XCTAssertEqual(state.agentAccessProposals.first?.state, .applied)
+        XCTAssertEqual(state.vocabularyCorrections.count, 1)
+        let proposalBytes = try Data(contentsOf: livePaths.proposalStoreURL)
+        let catalog = state.vocabularyCorrections
+        let rules = state.localCorrectionSnapshot
+
+        let replay = try sendHTTPRequest(
+            to: livePaths.socketURL, method: "POST", path: "/v1/vocabulary/proposals", body: body
+        )
+        let response = String(decoding: replay, as: UTF8.self)
+        XCTAssertTrue(response.contains("200 OK"), response)
+        XCTAssertTrue(response.contains("\"replayed\":true"), response)
+        XCTAssertTrue(response.contains("\"state\":\"applied\""), response)
+        XCTAssertTrue(response.contains(id), response)
+
+        let changedBody = Data(String(decoding: body, as: UTF8.self)
+            .replacingOccurrences(of: "OrbitDesk", with: "Different").utf8)
+        let conflict = try sendHTTPRequest(
+            to: livePaths.socketURL, method: "POST", path: "/v1/vocabulary/proposals", body: changedBody
+        )
+        let conflictResponse = String(decoding: conflict, as: UTF8.self)
+        XCTAssertTrue(conflictResponse.contains("409 Conflict"), conflictResponse)
+        XCTAssertTrue(conflictResponse.contains("request_id_conflict"), conflictResponse)
+        XCTAssertEqual(try Data(contentsOf: livePaths.proposalStoreURL), proposalBytes)
+        XCTAssertEqual(state.vocabularyCorrections, catalog)
+        XCTAssertEqual(state.localCorrectionSnapshot, rules)
+    }
+
     func testLiveSocketActionRemainsInertUntilFoilDecision() async throws {
         let state = makeState(storageMarker: UUID().uuidString, activateCatalog: true)
         state.setAgentAccessEnabled(false, notifyController: false)
