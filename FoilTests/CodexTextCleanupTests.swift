@@ -148,7 +148,7 @@ final class CodexTextCleanupTests: XCTestCase {
     }
 
     func testMessageWithoutSuccessfulTurnIsRejected() async throws {
-        for terminal in ["", #"{"type":"turn.failed","error":{"message":"private secret"}}"#] {
+        for terminal in ["", #"{"type":"turn.failed","error":{"message":"private secret"}}"#, #"{"type":"error","message":"private secret"}"#] {
             let binary = try executable("""
             /usr/bin/printf '%s\\n' '{"type":"item.completed","item":{"type":"agent_message","text":"{\\"cleaned_text\\":\\"Premature.\\"}"}}'
             \(terminal.isEmpty ? "" : "/usr/bin/printf '%s\\n' '\(terminal)'")
@@ -158,6 +158,36 @@ final class CodexTextCleanupTests: XCTestCase {
         }
         var events = CodexCleanupEvents()
         XCTAssertThrowsError(try events.consume(["type": "turn.completed"], at: 0))
+    }
+
+    func testCommentaryDoesNotReplaceOrInvalidateTheFinalAnswer() throws {
+        func message(_ text: String) -> [String: Any] {
+            ["type": "item.completed", "item": ["type": "agent_message", "text": text]]
+        }
+        var events = CodexCleanupEvents()
+        try events.consume(message("I will clean up the wording."), at: 0.1)
+        XCTAssertNil(events.text)
+        try events.consume(message(#"{"cleaned_text":"Hello."}"#), at: 0.2)
+        try events.consume(["type": "turn.completed"], at: 0.3)
+        XCTAssertEqual(events.text, "Hello.")
+        var invalidFinal = CodexCleanupEvents()
+        try invalidFinal.consume(message(#"{"cleaned_text":"Intermediate."}"#), at: 0.1)
+        try invalidFinal.consume(message("not a structured final answer"), at: 0.2)
+        XCTAssertThrowsError(try invalidFinal.consume(["type": "turn.completed"], at: 0.3))
+    }
+
+    func testRecoverableErrorCanCompleteButTerminalFailureCannot() throws {
+        var events = CodexCleanupEvents()
+        try events.consume(["type": "turn.started"], at: 0)
+        try events.consume(["type": "error", "message": "Reconnecting... 2/5"], at: 0.1)
+        XCTAssertFalse(events.completed)
+        try events.consume(["type": "item.completed", "item": ["type": "agent_message", "text": #"{"cleaned_text":"Recovered."}"#]], at: 0.2)
+        try events.consume(["type": "turn.completed"], at: 0.3)
+        XCTAssertEqual(events.text, "Recovered.")
+        var failure = CodexCleanupEvents()
+        try failure.consume(["type": "error", "message": "Reconnecting... 2/5"], at: 0.1)
+        XCTAssertThrowsError(try failure.consume(["type": "turn.failed"], at: 0.2))
+        XCTAssertFalse(failure.completed)
     }
 
     func testEventReaderHandlesFragmentedMessagesAndRejectsUnboundedOutput() throws {

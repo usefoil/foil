@@ -212,6 +212,7 @@ struct CodexTextCleanup: Sendable {
         defer { try? pipe.fileHandleForReading.close(); try? pipe.fileHandleForWriting.close() }
         var reader = try CodexJSONLines(handle: pipe.fileHandleForReading)
         let process = Process()
+        let lifecycle = CodexProcessLifecycle(process: process)
         process.executableURL = executable
         process.arguments = try Self.arguments(directory: directory, modelID: configuration.modelID)
         process.currentDirectoryURL = directory
@@ -223,11 +224,7 @@ struct CodexTextCleanup: Sendable {
         let launched = clock.now
         do { try process.run() } catch { throw CodexCleanupError.failed }
         try? pipe.fileHandleForWriting.close()
-        func stop() {
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            process.waitUntilExit()
-        }
-        defer { stop() }
+        defer { _ = lifecycle.stop() }
         var events = CodexCleanupEvents()
         while true {
             try Task.checkCancellation()
@@ -251,7 +248,7 @@ struct CodexTextCleanup: Sendable {
         let ready = clock.now
         // turn.completed plus validated structured output is the success boundary.
         // Reap the ephemeral child now instead of waiting for its post-turn shutdown delay.
-        stop()
+        guard lifecycle.stop() else { throw CodexCleanupError.failed }
         let finished = clock.now
         return CodexCleanupOutput(text: text, metrics: CodexCleanupMetrics(
             preparation: Self.seconds(began.duration(to: launched)),
@@ -433,6 +430,7 @@ struct CodexJSONLines {
 }
 
 struct CodexCleanupEvents {
+    private var lastMessage: String?
     private(set) var text: String?
     private(set) var completed = false
     private(set) var turnStarted: Double?
@@ -447,18 +445,23 @@ struct CodexCleanupEvents {
         case "turn.started": turnStarted = turnStarted ?? elapsed
         case "item.completed":
             if let item = event["item"] as? [String: Any], item["type"] as? String == "agent_message" {
-                guard let response = item["text"] as? String else { throw CodexCleanupError.invalidOutput }
-                text = try CodexTextCleanup.parse(Data(response.utf8))
+                guard let response = item["text"] as? String, response.utf8.count <= 65_536 else { throw CodexCleanupError.invalidOutput }
+                // exec JSONL omits phases: commentary and final answers share this type.
+                lastMessage = response
             }
         case "turn.completed":
-            guard text != nil else { throw CodexCleanupError.invalidOutput }
+            guard let lastMessage else { throw CodexCleanupError.invalidOutput }
+            text = try CodexTextCleanup.parse(Data(lastMessage.utf8))
             turnCompleted = elapsed
             completed = true
             let usage = event["usage"] as? [String: Any]
             inputTokens = Self.count(usage?["input_tokens"])
             cachedInputTokens = Self.count(usage?["cached_input_tokens"])
             outputTokens = Self.count(usage?["output_tokens"])
-        case "turn.failed", "error": throw CodexCleanupError.failed
+        case "turn.failed": throw CodexCleanupError.failed
+        // Top-level errors also carry reconnect notices; terminal failure is turn.failed
+        // or process exit without turn.completed. Let the CLI finish its bounded retries.
+        case "error": break
         default: break
         }
     }
@@ -501,6 +504,7 @@ struct CodexCleanupCatalog: Sendable {
         _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
         var reader = try CodexJSONLines(handle: output.fileHandleForReading)
         let process = Process()
+        let lifecycle = CodexProcessLifecycle(process: process)
         process.executableURL = executable
         process.arguments = ["--strict-config", "app-server", "--listen", "stdio://"]
             + (try CodexTextCleanup.configurationArguments(directory: directory))
@@ -515,10 +519,7 @@ struct CodexCleanupCatalog: Sendable {
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         try process.run()
-        defer {
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            process.waitUntilExit()
-        }
+        defer { _ = lifecycle.stop() }
         try? input.fileHandleForReading.close(); try? output.fileHandleForWriting.close()
         func send(_ message: [String: Any]) throws {
             var data = try JSONSerialization.data(withJSONObject: message)
@@ -551,6 +552,7 @@ struct CodexCleanupCatalog: Sendable {
                         var seen = Set<String>()
                         let unique = choices.filter { seen.insert($0.id).inserted }
                         guard !unique.isEmpty else { throw CodexCleanupError.catalogUnavailable }
+                        guard lifecycle.stop() else { throw CodexCleanupError.failed }
                         return unique
                     }
                 }
@@ -569,5 +571,26 @@ struct CodexCleanupCatalog: Sendable {
             if let modalities = item["inputModalities"] as? [String], !modalities.contains("text") { return nil }
             return CodexCleanupModelChoice(id: id, name: name)
         }
+    }
+}
+
+/// Foundation reaps Process children before invoking terminationHandler. A bounded
+/// signal avoids waitUntilExit's run-loop dependency when async work changes threads.
+final class CodexProcessLifecycle {
+    private let process: Process
+    private let exited = DispatchSemaphore(value: 0)
+    private var stopped: Bool?
+
+    init(process: Process) {
+        self.process = process
+        process.terminationHandler = { [exited] _ in exited.signal() }
+    }
+
+    func stop() -> Bool {
+        if let stopped { return stopped }
+        if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        let observedExit = exited.wait(timeout: .now() + 2) == .success
+        stopped = observedExit
+        return observedExit
     }
 }

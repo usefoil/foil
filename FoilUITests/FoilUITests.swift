@@ -92,21 +92,29 @@ final class FoilUITests: XCTestCase {
     }
 
     func testCodexCleanupModelAndInstructionsPersistAcrossRelaunch() {
+        // Native XCTest typing avoids the general helper's direct CGEvent fallback,
+        // which requires a separate event-posting permission on macOS 27.
+        func replaceCleanupText(in element: XCUIElement, with text: String) {
+            element.click()
+            element.typeKey("a", modifierFlags: .command)
+            element.typeText(text)
+            XCTAssertEqual(element.value as? String, text)
+        }
         launchApp(arguments: ["--ui-testing", "--reset-defaults", "--mock-codex-cleanup"])
         openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
         let modelField = app.textFields["codexCleanup.modelID"]
         XCTAssertTrue(modelField.waitForExistence(timeout: 3))
-        replaceText(in: modelField, with: "qa-cleanup-model")
+        replaceCleanupText(in: modelField, with: "qa-cleanup-model")
         app.disclosureTriangles["Cleanup instructions"].click()
         let editor = app.textViews["codexCleanup.instructions"]
         XCTAssertTrue(editor.waitForExistence(timeout: 3), app.debugDescription)
-        replaceText(in: editor, with: "Make it concise and informal.")
+        replaceCleanupText(in: editor, with: "Make it concise and informal.")
         button(id: "codexCleanup.example", fallbackLabel: "Load example").click()
         button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").click()
         let copy = button(id: "codexCleanup.copy", fallbackLabel: "Copy result")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: copy)], timeout: 8), .completed)
-        replaceText(in: modelField, with: "qa-cleanup-model-v2")
+        replaceCleanupText(in: modelField, with: "qa-cleanup-model-v2")
         XCTAssertFalse(copy.isEnabled, "Changing configuration must invalidate the old result")
         relaunchWithArguments(["--ui-testing", "--mock-codex-cleanup"])
         openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
