@@ -74,6 +74,7 @@ struct CodexCleanupView: View {
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(10)
+                            .accessibilityLabel(model.result ?? "Your cleaned text will appear here.")
                             .accessibilityIdentifier("codexCleanup.result")
                     }
                     .background(.background)

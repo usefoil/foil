@@ -281,6 +281,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $isShowingCodexCleanup) {
                 CodexCleanupView(appState: appState)
+                    .preferredColorScheme(.light)
             }
 
             Section("Local agent service") {
