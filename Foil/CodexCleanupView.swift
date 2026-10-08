@@ -184,6 +184,7 @@ struct CodexCleanupView: View {
                     }
                 }
             }
+            .padding(.leading, 22)
             if !configurationIsValid {
                 Text("Enter a valid model ID and nonempty instructions within the size limit.")
                     .font(.caption).foregroundStyle(.red)
@@ -201,6 +202,7 @@ struct CodexCleanupView: View {
             }
             .accessibilityIdentifier("codexCleanup.timings")
         }
+        .padding(.leading, 22)
     }
 
     @MainActor private func refreshModels() async {
