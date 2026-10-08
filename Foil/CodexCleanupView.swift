@@ -155,3 +155,23 @@ struct CodexCleanupView: View {
         return result
     }
 }
+
+extension CodexCleanupRequest {
+    @MainActor
+    static func make(text: String, groupID: String, state: AppState) throws -> Self {
+        guard state.cleanupGroups.contains(where: { $0.id == groupID && $0.isEnabled }) else {
+            throw CodexCleanupError.scopeUnavailable
+        }
+        let snapshot = state.localCorrectionSnapshot
+        // Ask the same engine used by dictation to resolve overrides and suppressions.
+        // Never send rules from another group, disabled rules, or shadowed global aliases.
+        let corrections = snapshot.isEnabled ? snapshot.rules.filter { rule in
+            guard rule.enabled, !rule.suppressesGlobal,
+                  rule.group == nil || rule.group == groupID else { return false }
+            let result = state.previewLocalCorrections(rule.source, activeGroupID: groupID)
+            return result.replacementCount > 0 && result.text == rule.replacement
+        }.map { Correction(source: $0.source, replacement: $0.replacement) } : []
+        return Self(text: text, terms: state.preferredTerms, corrections: corrections)
+    }
+
+}

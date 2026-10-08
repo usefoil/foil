@@ -38,6 +38,12 @@ final class CodexTextCleanupTests: XCTestCase {
         XCTAssertTrue(args.contains("features.shell_tool=false"))
         XCTAssertTrue(args.contains("features.plugins=false"))
         XCTAssertTrue(args.contains("features.hooks=false"))
+        XCTAssertTrue(args.contains("skills.include_instructions=false"))
+        XCTAssertTrue(args.contains("skills.bundled.enabled=false"))
+        XCTAssertTrue(args.contains("--strict-config"))
+        XCTAssertTrue(args.contains("permissions.foil_cleanup.filesystem={\":root\"=\"deny\"}"))
+        XCTAssertTrue(args.contains("permissions.foil_cleanup.network.enabled=false"))
+        XCTAssertFalse(args.contains("--sandbox"), "Legacy sandbox flags override the restrictive profile")
         XCTAssertTrue(args.contains("web_search=\"disabled\""))
         XCTAssertTrue(try String(contentsOf: directory.appendingPathComponent("received"), encoding: .utf8).contains(input))
         let cwd = try String(contentsOf: directory.appendingPathComponent("working-directory"), encoding: .utf8)
@@ -94,6 +100,21 @@ final class CodexTextCleanupTests: XCTestCase {
             XCTAssertEqual(error as? CodexCleanupError, .failed)
             XCTAssertFalse(error.localizedDescription.contains("private transcript secret"))
         }
+    }
+
+    func testSkillsAreDisabledByPathIncludingSymlinksAndCycles() throws {
+        let skills = directory.appendingPathComponent("skills")
+        let real = directory.appendingPathComponent("real-skill")
+        try FileManager.default.createDirectory(at: skills, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        try Data("private skill body".utf8).write(to: real.appendingPathComponent("SKILL.md"))
+        try FileManager.default.createSymbolicLink(at: skills.appendingPathComponent("linked"), withDestinationURL: real)
+        try FileManager.default.createSymbolicLink(at: real.appendingPathComponent("cycle"), withDestinationURL: skills)
+        let config = try CodexTextCleanup.disabledSkillsConfig(roots: [skills])
+        XCTAssertTrue(config.contains(real.appendingPathComponent("SKILL.md").path))
+        XCTAssertTrue(config.contains("enabled=false"))
+        XCTAssertFalse(config.contains("private skill body"))
+        XCTAssertLessThan(config.count, 2_000)
     }
 
     func testMalformedEmptyOversizedAndExtraFieldOutputIsRejected() throws {

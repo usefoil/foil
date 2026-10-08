@@ -28,9 +28,12 @@ hosted service. Errors preserve the input and never insert fallback or late text
 - No microphone, recording, automatic insertion, History access, or Vocabulary writes.
 - No credentials are passed in the prompt. Codex handles its own existing login.
 - The subprocess receives an allowlisted environment, an isolated temporary
-  working directory, and no user config or project instructions. Shell, web,
-  browser, computer, plugin, app, hook, and subagent features are disabled; its
-  filesystem sandbox is read-only. This is a dedicated cleanup invocation, not
+  working directory, and no user config or project instructions. Skill instructions and bundled skills are disabled; discovered local skill paths
+  are individually disabled so literal `$skill` text cannot inject a skill body. Shell, web,
+  browser, computer, plugin, app, hook, and subagent features are disabled. A custom
+  permission profile denies all tool filesystem access and command networking,
+  including built-in tools that older CLIs still advertise. Strict config parsing
+  rejects unsupported options instead of silently ignoring restrictions. This is a dedicated cleanup invocation, not
   an existing interactive Codex conversation.
 - The request is supplied through stdin, not shell interpolation or argv. Foil
   discards Codex stdout/stderr because they may echo input. The structured result
@@ -61,3 +64,9 @@ Focused tests: `FoilTests/CodexTextCleanupTests` and
 `FoilUITests/FoilUITests/testCodexCleanupExampleAndCancellation`. The UI test uses
 a deterministic runner only with both `--ui-testing` and `--mock-codex-cleanup`
 in Debug builds; installed live QA must omit the mock flag.
+
+Run `python3 scripts/test-codex-cleanup-boundary.py` on a Mac with Codex installed
+to verify the actual assembled request and built-in file-tool denial against a
+loopback Responses stub. It compiles the production argument builder, injects a
+synthetic skill and PNG, and proves the ordinary read-only control can read the
+image while the cleanup profile cannot. No hosted inference is used.

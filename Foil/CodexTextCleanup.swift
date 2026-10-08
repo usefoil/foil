@@ -19,23 +19,6 @@ struct CodexCleanupRequest: Encodable, Sendable {
         text: exampleText, terms: ["Supabase", "Vercel"], corrections: []
     )
 
-    @MainActor
-    static func make(text: String, groupID: String, state: AppState) throws -> Self {
-        guard state.cleanupGroups.contains(where: { $0.id == groupID && $0.isEnabled }) else {
-            throw CodexCleanupError.scopeUnavailable
-        }
-        let snapshot = state.localCorrectionSnapshot
-        // Ask the same engine used by dictation to resolve overrides and suppressions.
-        // Never send rules from another group, disabled rules, or shadowed global aliases.
-        let corrections = snapshot.isEnabled ? snapshot.rules.filter { rule in
-            guard rule.enabled, !rule.suppressesGlobal,
-                  rule.group == nil || rule.group == groupID else { return false }
-            let result = state.previewLocalCorrections(rule.source, activeGroupID: groupID)
-            return result.replacementCount > 0 && result.text == rule.replacement
-        }.map { Correction(source: $0.source, replacement: $0.replacement) } : []
-        return Self(text: text, terms: state.preferredTerms, corrections: corrections)
-    }
-
     func prompt() throws -> Data {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               text.utf8.count <= Self.maximumTextBytes else { throw CodexCleanupError.invalidInput }
@@ -117,22 +100,69 @@ struct CodexTextCleanup: Sendable {
          "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"]
     }
 
-    static func arguments(directory: URL) -> [String] {
+    static func arguments(directory: URL) throws -> [String] {
         var result = [
-            "exec", "--ignore-user-config", "--ephemeral", "--skip-git-repo-check",
-            "--sandbox", "read-only", "--model", defaultModel, "--color", "never",
+            "exec", "--strict-config", "--ignore-user-config", "--ephemeral", "--skip-git-repo-check",
+            "--model", defaultModel, "--color", "never",
             "--cd", directory.path, "--output-schema", directory.appendingPathComponent("schema.json").path,
             "--output-last-message", directory.appendingPathComponent("result.json").path,
             "-c", "model_provider=\"openai\"", "-c", "model_reasoning_effort=\"low\"",
             "-c", "approval_policy=\"never\"", "-c", "web_search=\"disabled\"",
-            "-c", "project_doc_max_bytes=0", "-c", "history.persistence=\"none\""
+            "-c", "project_doc_max_bytes=0", "-c", "history.persistence=\"none\"",
+            "-c", "skills.include_instructions=false", "-c", "skills.bundled.enabled=false",
+            "-c", "default_permissions=\"foil_cleanup\"",
+            "-c", "permissions.foil_cleanup.filesystem={\":root\"=\"deny\"}",
+            "-c", "permissions.foil_cleanup.network.enabled=false"
         ]
         for feature in ["shell_tool", "unified_exec", "shell_snapshot", "apps", "plugins", "hooks",
-                        "multi_agent", "browser_use", "browser_use_external", "computer_use", "image_generation",
+                        "tool_suggest", "multi_agent", "browser_use", "browser_use_external", "computer_use", "image_generation",
                         "in_app_browser", "workspace_dependencies", "goals", "memories", "skill_mcp_dependency_install"] {
             result += ["-c", "features.\(feature)=false"]
         }
+        var roots = [URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".agents/skills"),
+                     URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".codex/skills"),
+                     URL(fileURLWithPath: "/etc/codex/skills")]
+        var ancestor = directory
+        while true {
+            roots.append(ancestor.appendingPathComponent(".agents/skills"))
+            if ancestor.path == "/" { break }
+            ancestor.deleteLastPathComponent()
+        }
+        result += ["-c", try disabledSkillsConfig(roots: roots)]
         return result + ["-"]
+    }
+
+    /// Catalog suppression alone still lets literal "$skill" dictation inject a skill body.
+    /// Disable every discoverable local skill by path as well, without reading its contents.
+    static func disabledSkillsConfig(roots: [URL]) throws -> String {
+        let fm = FileManager.default
+        var pending = roots, visited = Set<String>(), paths = Set<String>()
+        while let directory = pending.popLast() {
+            let canonical = directory.resolvingSymlinksInPath()
+            guard visited.insert(canonical.path).inserted else { continue }
+            var isDirectory: ObjCBool = false
+            guard fm.fileExists(atPath: canonical.path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
+            guard visited.count <= 20_000 else { throw CodexCleanupError.contextTooLarge }
+            let children = try fm.contentsOfDirectory(at: canonical, includingPropertiesForKeys: [.isDirectoryKey])
+            for child in children {
+                let resolved = child.resolvingSymlinksInPath()
+                if child.lastPathComponent == "SKILL.md" {
+                    paths.insert(child.path)
+                    paths.insert(resolved.path)
+                    paths.insert(directory.appendingPathComponent("SKILL.md").path)
+                } else if (try? resolved.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                    pending.append(child)
+                }
+            }
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .withoutEscapingSlashes
+        let entries = try paths.sorted().map { path in
+            "{path=\(String(decoding: try encoder.encode(path), as: UTF8.self)),enabled=false}"
+        }
+        let config = "skills.config=[" + entries.joined(separator: ",") + "]"
+        guard config.utf8.count <= 131_072 else { throw CodexCleanupError.contextTooLarge }
+        return config
     }
 
     func clean(_ request: CodexCleanupRequest) async throws -> String {
@@ -161,7 +191,7 @@ struct CodexTextCleanup: Sendable {
         defer { try? inputHandle.close() }
         let process = Process()
         process.executableURL = executable
-        process.arguments = Self.arguments(directory: directory)
+        process.arguments = try Self.arguments(directory: directory)
         process.currentDirectoryURL = directory
         process.environment = Self.environment
         process.standardInput = inputHandle
