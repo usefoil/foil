@@ -11,8 +11,8 @@ up to 8 KiB of text and select an enabled Cleanup Group. Foil supplies preferred
 terms and enabled correction aliases for that group, respecting global overrides
 and suppressions. Disabled local corrections are not supplied as aliases.
 
-Codex runs on the Mac using the hosted OpenAI `gpt-5.5` model and the user's CLI
-sign-in. This is not on-device inference. The panel explicitly discloses that
+Codex runs on the Mac using the selected hosted OpenAI model and the user's CLI
+sign-in. The initial selection is `gpt-5.5`. This is not on-device inference. The panel explicitly discloses that
 entered text and selected Vocabulary go to OpenAI. It is independent of the
 Vocabulary socket's enable switch: each **Clean up with Codex** click authorizes
 one explicit submission. No background cleanup is enabled.
@@ -22,6 +22,34 @@ is highlighted; this is not a word-by-word diff. Review the result, then optiona
 copy it. Cancel stops the local invocation and discards late results. Requests
 time out after 60 seconds. Cancellation cannot retract text already sent to the
 hosted service. Errors preserve the input and never insert fallback or late text.
+
+## Model, instructions, and timing
+
+The **Model** field is saved on this Mac. **Choose model** loads suggestions from
+an isolated Codex app-server catalog session; the catalog can be bundled with the
+installed CLI and does not verify account access. You can enter a model ID when
+it is missing from the catalog. Cleanup itself uses the existing CLI sign-in;
+an unavailable model produces a run error without changing the saved selection.
+The initial `gpt-5.5` selection retains low reasoning effort. Other models use
+their own default effort, so model comparisons may also differ in reasoning.
+
+Expand **Cleanup instructions** to edit the saved wording/style prompt or restore
+the default. Instructions are limited to 8 KiB and can request concise or informal
+wording; the fixed request contract still preserves meaning and treats dictation
+as data. Model and instructions are local settings shared by this experiment's
+Vocabulary selections, not changes to a Cleanup Group's recording settings.
+A run snapshots its configuration; editing settings invalidates an older result.
+
+**Timing details** separates local preparation, launch-to-turn-start, the Codex
+turn, and finalization, plus input/cached/output token counts when supplied by the
+CLI. The turn interval includes connection/waiting/model work; it is not a
+measurement of server inference alone. Only model ID, durations and token counts
+are written to Foil diagnostics. Raw event content, instructions and transcripts
+are not logged. The UI accepts a validated answer only after `turn.completed`,
+then stops/reaps the ephemeral process to avoid waiting for post-turn shutdown.
+
+Recording integration, reusable templates, and a persistent cleanup server remain
+future work. No background cleanup is enabled by changing these preferences.
 
 ## Boundaries
 
@@ -36,8 +64,8 @@ hosted service. Errors preserve the input and never insert fallback or late text
   rejects unsupported options instead of silently ignoring restrictions. This is a dedicated cleanup invocation, not
   an existing interactive Codex conversation.
 - The request is supplied through stdin, not shell interpolation or argv. Foil
-  discards Codex stdout/stderr because they may echo input. The structured result
-  is validated before display. No raw provider error is shown or logged by Foil.
+  parses bounded JSONL stdout in memory and discards stderr because either may echo input. The structured result
+  and successful turn completion are validated before display. No raw provider error is shown or logged by Foil.
 - Owner-private temporary input/schema/output files are removed on normal
   completion, failure, or cancellation. A process/app crash can leave temporary
   files for OS cleanup. Codex uses ephemeral mode and disables its history
@@ -61,7 +89,8 @@ hosted service. Errors preserve the input and never insert fallback or late text
    show an actionable error. No submitted text appears in Foil diagnostics.
 
 Focused tests: `FoilTests/CodexTextCleanupTests` and
-`FoilUITests/FoilUITests/testCodexCleanupExampleAndCancellation`. The UI test uses
+`FoilUITests/FoilUITests/testCodexCleanupExampleAndCancellation`, and
+`FoilUITests/FoilUITests/testCodexCleanupModelAndInstructionsPersistAcrossRelaunch`. The UI test uses
 a deterministic runner only with both `--ui-testing` and `--mock-codex-cleanup`
 in Debug builds; installed live QA must omit the mock flag.
 

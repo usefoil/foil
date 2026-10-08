@@ -91,6 +91,34 @@ final class FoilUITests: XCTestCase {
         XCTAssertFalse(button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").isEnabled)
     }
 
+    func testCodexCleanupModelAndInstructionsPersistAcrossRelaunch() {
+        launchApp(arguments: ["--ui-testing", "--reset-defaults", "--mock-codex-cleanup"])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
+        let modelField = app.textFields["codexCleanup.modelID"]
+        XCTAssertTrue(modelField.waitForExistence(timeout: 3))
+        replaceText(in: modelField, with: "qa-cleanup-model")
+        app.disclosureTriangles["Cleanup instructions"].click()
+        let editor = app.textViews["codexCleanup.instructions"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 3), app.debugDescription)
+        replaceText(in: editor, with: "Make it concise and informal.")
+        button(id: "codexCleanup.example", fallbackLabel: "Load example").click()
+        button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").click()
+        let copy = button(id: "codexCleanup.copy", fallbackLabel: "Copy result")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: copy)], timeout: 8), .completed)
+        replaceText(in: modelField, with: "qa-cleanup-model-v2")
+        XCTAssertFalse(copy.isEnabled, "Changing configuration must invalidate the old result")
+        relaunchWithArguments(["--ui-testing", "--mock-codex-cleanup"])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
+        XCTAssertEqual(app.textFields["codexCleanup.modelID"].value as? String, "qa-cleanup-model-v2")
+        app.disclosureTriangles["Cleanup instructions"].click()
+        XCTAssertEqual(app.textViews["codexCleanup.instructions"].value as? String, "Make it concise and informal.")
+        button(id: "codexCleanup.restoreInstructions", fallbackLabel: "Restore default").click()
+        XCTAssertTrue((app.textViews["codexCleanup.instructions"].value as? String)?.contains("Correct spelling") == true)
+        XCTAssertFalse(button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").isEnabled)
+    }
+
     func testControlCenterShowsSeededReadyState() {
         let state = waitForUITestStateSnapshot { $0.sessionTitle == "Ready" }
         XCTAssertEqual(state?.statusText, "Ready")
