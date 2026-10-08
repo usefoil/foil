@@ -169,7 +169,15 @@ struct CodexCleanupView: View {
             }
             Text("Saved on this Mac. Choose a catalog model or enter an ID; availability is verified by running cleanup.")
                 .font(.caption).foregroundStyle(.secondary)
-            DisclosureGroup("Cleanup instructions", isExpanded: $showsInstructions) {
+            Button {
+                showsInstructions.toggle()
+            } label: {
+                Label("Cleanup instructions", systemImage: showsInstructions ? "chevron.down" : "chevron.right")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("codexCleanup.toggleInstructions")
+            .accessibilityValue(showsInstructions ? "Expanded" : "Collapsed")
+            if showsInstructions {
                 VStack(alignment: .leading, spacing: 5) {
                     TextEditor(text: $preferences.instructions)
                         .font(.body).padding(4).frame(height: 78)
@@ -184,7 +192,6 @@ struct CodexCleanupView: View {
                     }
                 }
             }
-            .padding(.leading, 22)
             if !configurationIsValid {
                 Text("Enter a valid model ID and nonempty instructions within the size limit.")
                     .font(.caption).foregroundStyle(.red)
@@ -194,15 +201,24 @@ struct CodexCleanupView: View {
     }
 
     private func timingDetails(_ metrics: CodexCleanupMetrics) -> some View {
-        DisclosureGroup("Timing details", isExpanded: $showsTiming) {
+        VStack(alignment: .leading, spacing: 5) {
+            Button {
+                showsTiming.toggle()
+            } label: {
+                Label("Timing details", systemImage: showsTiming ? "chevron.down" : "chevron.right")
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("codexCleanup.toggleTiming")
+            .accessibilityValue(showsTiming ? "Expanded" : "Collapsed")
+            if showsTiming {
             VStack(alignment: .leading, spacing: 3) {
                 Text(metrics.displaySummary).font(.caption).monospacedDigit()
                 Text("Codex turn includes connection, waiting and model processing. These are client measurements.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .accessibilityIdentifier("codexCleanup.timings")
+            }
         }
-        .padding(.leading, 22)
     }
 
     @MainActor private func refreshModels() async {
