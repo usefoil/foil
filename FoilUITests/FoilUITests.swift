@@ -106,7 +106,7 @@ final class FoilUITests: XCTestCase {
         let modelField = app.textFields["codexCleanup.modelID"]
         XCTAssertTrue(modelField.waitForExistence(timeout: 3))
         replaceCleanupText(in: modelField, with: "qa-cleanup-model")
-        app.disclosureTriangles["Cleanup instructions"].click()
+        app.disclosureTriangles["Cleanup instructions"].coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.5)).click()
         let editor = app.textViews["codexCleanup.instructions"]
         XCTAssertTrue(editor.waitForExistence(timeout: 3), app.debugDescription)
         replaceCleanupText(in: editor, with: "Make it concise and informal.")
@@ -120,7 +120,7 @@ final class FoilUITests: XCTestCase {
         openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
         button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
         XCTAssertEqual(app.textFields["codexCleanup.modelID"].value as? String, "qa-cleanup-model-v2")
-        app.disclosureTriangles["Cleanup instructions"].click()
+        app.disclosureTriangles["Cleanup instructions"].coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.5)).click()
         XCTAssertEqual(app.textViews["codexCleanup.instructions"].value as? String, "Make it concise and informal.")
         button(id: "codexCleanup.restoreInstructions", fallbackLabel: "Restore default").click()
         XCTAssertTrue((app.textViews["codexCleanup.instructions"].value as? String)?.contains("Correct spelling") == true)
