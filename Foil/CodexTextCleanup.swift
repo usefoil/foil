@@ -41,12 +41,13 @@ struct CodexCleanupRequest: Encodable, Sendable {
 }
 
 enum CodexCleanupError: Error, LocalizedError, Equatable {
-    case missingCodex, invalidInput, invalidInstructions, invalidModel, catalogUnavailable, contextTooLarge, scopeUnavailable, failed, timedOut, invalidOutput
+    case missingCodex, invalidInput, invalidInstructions, invalidModel, unsupportedReasoning, catalogUnavailable, contextTooLarge, scopeUnavailable, failed, timedOut, invalidOutput
 
     var errorDescription: String? {
         switch self {
         case .invalidInstructions: "Enter cleanup instructions, up to 8 KiB, or restore the default."
         case .invalidModel: "Choose a model or enter a valid Codex model ID."
+        case .unsupportedReasoning: "This reasoning level is not confirmed for the selected model. Refresh models or choose Automatic or Model default."
         case .catalogUnavailable: "Could not load the Codex model catalog. Check your CLI sign-in or use your saved model. Access is checked when you run cleanup."
         case .missingCodex: "Codex CLI was not found. Install Codex CLI and sign in with codex login, then try again."
         case .invalidInput: "Enter some text, up to 8 KiB, to try cleanup."
@@ -106,7 +107,7 @@ struct CodexTextCleanup: Sendable {
          "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"]
     }
 
-    static func arguments(directory: URL, modelID: String = defaultModel) throws -> [String] {
+    static func arguments(directory: URL, modelID: String = defaultModel, reasoningEffort: CodexCleanupReasoning? = nil) throws -> [String] {
         guard CodexCleanupConfiguration.validModelID(modelID) else { throw CodexCleanupError.invalidModel }
         var result = [
             "exec", "--strict-config", "--ignore-user-config", "--ephemeral", "--skip-git-repo-check",
@@ -114,8 +115,10 @@ struct CodexTextCleanup: Sendable {
             "--cd", directory.path, "--output-schema", directory.appendingPathComponent("schema.json").path,
             "--output-last-message", directory.appendingPathComponent("result.json").path
         ]
-        // Other models use their own supported default rather than assuming they support low.
-        if modelID == defaultModel { result += ["-c", "model_reasoning_effort=\"low\""] }
+        if let reasoningEffort {
+            guard reasoningEffort.isExplicit else { throw CodexCleanupError.unsupportedReasoning }
+            result += ["-c", "model_reasoning_effort=\"\(reasoningEffort.rawValue)\""]
+        }
         return result + (try configurationArguments(directory: directory)) + ["-"]
     }
 
@@ -214,7 +217,7 @@ struct CodexTextCleanup: Sendable {
         let process = Process()
         let lifecycle = CodexProcessLifecycle(process: process)
         process.executableURL = executable
-        process.arguments = try Self.arguments(directory: directory, modelID: configuration.modelID)
+        process.arguments = try Self.arguments(directory: directory, modelID: configuration.modelID, reasoningEffort: configuration.reasoningEffort)
         process.currentDirectoryURL = directory
         process.environment = Self.environment
         process.standardInput = inputHandle
@@ -331,11 +334,26 @@ final class CodexCleanupModel {
     }
 }
 
+enum CodexCleanupReasoning: String, CaseIterable, Sendable {
+    case automatic, modelDefault, none, minimal, low, medium, high, xhigh, max, ultra
+
+    var isExplicit: Bool { self != .automatic && self != .modelDefault }
+    var label: String {
+        switch self {
+        case .automatic: "Automatic — prefer Low"
+        case .modelDefault: "Model default"
+        case .xhigh: "Extra high"
+        default: rawValue.capitalized
+        }
+    }
+}
+
 struct CodexCleanupConfiguration: Equatable, Sendable {
     static let maximumInstructionBytes = 8_192
     static let defaultInstructions = "Correct spelling, capitalization, punctuation and obvious transcription errors using Vocabulary. Preserve paragraph intent. Leave ambiguous wording alone. Keep the speaker’s style. If nothing needs correction, return the original text."
     var modelID = CodexTextCleanup.defaultModel
     var instructions = defaultInstructions
+    var reasoningEffort: CodexCleanupReasoning?
 
     static func validModelID(_ value: String) -> Bool {
         value.range(of: #"^[A-Za-z0-9][A-Za-z0-9._/\-]{0,127}$"#, options: .regularExpression) == value.startIndex..<value.endIndex
@@ -343,6 +361,7 @@ struct CodexCleanupConfiguration: Equatable, Sendable {
 
     func validate() throws {
         guard Self.validModelID(modelID) else { throw CodexCleanupError.invalidModel }
+        guard reasoningEffort?.isExplicit != false else { throw CodexCleanupError.unsupportedReasoning }
         guard !instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               instructions.utf8.count <= Self.maximumInstructionBytes else { throw CodexCleanupError.invalidInstructions }
     }
@@ -353,12 +372,28 @@ final class CodexCleanupPreferences {
     @ObservationIgnored private let defaults: UserDefaults
     var modelID: String { didSet { defaults.set(modelID, forKey: "codexCleanup.modelID") } }
     var instructions: String { didSet { defaults.set(instructions, forKey: "codexCleanup.instructions") } }
+    var reasoning: CodexCleanupReasoning { didSet { defaults.set(reasoning.rawValue, forKey: "codexCleanup.reasoning") } }
     var configuration: CodexCleanupConfiguration { .init(modelID: modelID, instructions: instructions) }
+
+    func resolvedConfiguration(choice: CodexCleanupModelChoice?) throws -> CodexCleanupConfiguration {
+        var config = configuration
+        let supported = choice?.id == modelID ? choice?.supportedReasoning ?? [] : []
+        switch reasoning {
+        case .automatic: config.reasoningEffort = supported.contains(.low) ? .low : nil
+        case .modelDefault: config.reasoningEffort = nil
+        default:
+            guard supported.contains(reasoning) else { throw CodexCleanupError.unsupportedReasoning }
+            config.reasoningEffort = reasoning
+        }
+        try config.validate()
+        return config
+    }
 
     init(defaults: UserDefaults) {
         self.defaults = defaults
         modelID = defaults.string(forKey: "codexCleanup.modelID") ?? CodexTextCleanup.defaultModel
         instructions = defaults.string(forKey: "codexCleanup.instructions") ?? CodexCleanupConfiguration.defaultInstructions
+        reasoning = defaults.string(forKey: "codexCleanup.reasoning").flatMap(CodexCleanupReasoning.init(rawValue:)) ?? .automatic
     }
 }
 
@@ -475,6 +510,8 @@ struct CodexCleanupEvents {
 struct CodexCleanupModelChoice: Identifiable, Equatable, Sendable {
     let id: String
     let name: String
+    var supportedReasoning: [CodexCleanupReasoning] = []
+    var defaultReasoning: CodexCleanupReasoning?
 }
 
 /// A short-lived catalog-only app-server session: no inference turn or transcript is submitted.
@@ -569,7 +606,13 @@ struct CodexCleanupCatalog: Sendable {
                   let id = item["model"] as? String, CodexCleanupConfiguration.validModelID(id),
                   let name = item["displayName"] as? String, !name.isEmpty, name.utf8.count <= 256 else { return nil }
             if let modalities = item["inputModalities"] as? [String], !modalities.contains("text") { return nil }
-            return CodexCleanupModelChoice(id: id, name: name)
+            let advertised = (item["supportedReasoningEfforts"] as? [[String: Any]] ?? []).compactMap {
+                ($0["reasoningEffort"] as? String).flatMap(CodexCleanupReasoning.init(rawValue:))
+            }
+            let supported = CodexCleanupReasoning.allCases.filter { $0.isExplicit && advertised.contains($0) }
+            let defaultEffort = (item["defaultReasoningEffort"] as? String).flatMap(CodexCleanupReasoning.init(rawValue:))
+            return CodexCleanupModelChoice(id: id, name: name, supportedReasoning: supported,
+                                           defaultReasoning: defaultEffort?.isExplicit == true ? defaultEffort : nil)
         }
     }
 }

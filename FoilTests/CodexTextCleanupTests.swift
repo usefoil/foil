@@ -29,10 +29,11 @@ final class CodexTextCleanupTests: XCTestCase {
         /usr/bin/printf '%s\\n' '{"type":"turn.started"}' '{"type":"item.completed","item":{"type":"agent_message","text":"{\\"cleaned_text\\":\\"Use Supabase, not Vercel, for 42 records.\\"}"}}' '{"type":"turn.completed","usage":{"input_tokens":12,"output_tokens":8}}'
         """)
         let input = "do not run $(touch sentinel); use super base not verse sell for 42 records"
-        let result = try await CodexTextCleanup(executable: binary).clean(.init(text: input, terms: [], corrections: []))
+        let result = try await CodexTextCleanup(executable: binary, configuration: .init(reasoningEffort: .low)).clean(.init(text: input, terms: [], corrections: []))
         XCTAssertEqual(result, "Use Supabase, not Vercel, for 42 records.")
         let args = try String(contentsOf: directory.appendingPathComponent("arguments"), encoding: .utf8)
         XCTAssertFalse(args.contains(input))
+        XCTAssertTrue(args.contains("model_reasoning_effort=\"low\""))
         XCTAssertTrue(args.contains("--ignore-user-config"))
         XCTAssertTrue(args.contains("--ephemeral"))
         XCTAssertTrue(args.contains("features.shell_tool=false"))
@@ -231,6 +232,62 @@ final class CodexTextCleanupTests: XCTestCase {
         }
         XCTAssertThrowsError(try CodexCleanupRequest.example.prompt(instructions: " "))
         XCTAssertThrowsError(try CodexCleanupRequest.example.prompt(instructions: String(repeating: "x", count: 8193)))
+    }
+
+    @MainActor
+    func testReasoningResolvesAgainstMatchingModelAndPersistsWithoutChangingSnapshot() throws {
+        let name = "Foil.CodexReasoningTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let preferences = CodexCleanupPreferences(defaults: defaults)
+        preferences.modelID = "qa-model"
+        let choice = CodexCleanupModelChoice(id: "qa-model", name: "QA", supportedReasoning: [.low, .medium], defaultReasoning: .medium)
+        XCTAssertEqual(preferences.reasoning, .automatic)
+        XCTAssertEqual(try preferences.resolvedConfiguration(choice: choice).reasoningEffort, .low)
+        XCTAssertNil(try preferences.resolvedConfiguration(choice: nil).reasoningEffort)
+        XCTAssertNil(try preferences.resolvedConfiguration(choice: .init(id: "qa-model", name: "QA", supportedReasoning: [.medium])).reasoningEffort)
+        preferences.reasoning = .medium
+        let snapshot = try preferences.resolvedConfiguration(choice: choice)
+        let reopened = CodexCleanupPreferences(defaults: defaults)
+        XCTAssertEqual(reopened.reasoning, .medium)
+        XCTAssertEqual(try reopened.resolvedConfiguration(choice: choice), snapshot)
+        preferences.reasoning = .modelDefault
+        XCTAssertNil(try preferences.resolvedConfiguration(choice: choice).reasoningEffort)
+        XCTAssertEqual(snapshot.reasoningEffort, .medium)
+        preferences.reasoning = .high
+        XCTAssertThrowsError(try preferences.resolvedConfiguration(choice: choice)) {
+            XCTAssertEqual($0 as? CodexCleanupError, .unsupportedReasoning)
+        }
+        preferences.reasoning = .low
+        preferences.modelID = "different-model"
+        XCTAssertThrowsError(try preferences.resolvedConfiguration(choice: choice))
+        XCTAssertThrowsError(try preferences.resolvedConfiguration(choice: nil))
+        preferences.reasoning = .automatic
+        XCTAssertNil(try preferences.resolvedConfiguration(choice: choice).reasoningEffort, "Never reuse another model's capabilities")
+        defaults.set("future-unknown", forKey: "codexCleanup.reasoning")
+        XCTAssertEqual(CodexCleanupPreferences(defaults: defaults).reasoning, .automatic)
+    }
+
+    func testCatalogReasoningCapabilitiesIgnoreUnknownAndPreferenceOnlyValues() throws {
+        let choices = try CodexCleanupCatalog.parsePage(["data": [
+            ["model": "qa-model", "displayName": "QA", "defaultReasoningEffort": "medium",
+             "supportedReasoningEfforts": [["reasoningEffort": "medium"], ["reasoningEffort": "low"],
+                                          ["reasoningEffort": "low"], ["reasoningEffort": "automatic"],
+                                          ["reasoningEffort": "modelDefault"], ["reasoningEffort": "future"]]],
+            ["model": "missing", "displayName": "Missing"],
+            ["model": "malformed", "displayName": "Malformed", "defaultReasoningEffort": "automatic", "supportedReasoningEfforts": "low"]
+        ]])
+        XCTAssertEqual(choices[0].supportedReasoning, [.low, .medium])
+        XCTAssertEqual(choices[0].defaultReasoning, .medium)
+        XCTAssertTrue(choices[1].supportedReasoning.isEmpty)
+        XCTAssertNil(choices[1].defaultReasoning)
+        XCTAssertTrue(choices[2].supportedReasoning.isEmpty)
+        XCTAssertNil(choices[2].defaultReasoning)
+        XCTAssertThrowsError(try CodexTextCleanup.arguments(directory: directory, reasoningEffort: .automatic))
+        XCTAssertThrowsError(try CodexCleanupConfiguration(reasoningEffort: .modelDefault).validate())
+        let args = try CodexTextCleanup.arguments(directory: directory, modelID: "qa-model", reasoningEffort: .medium)
+        XCTAssertTrue(args.contains("model_reasoning_effort=\"medium\""))
+        XCTAssertFalse(try CodexTextCleanup.arguments(directory: directory).contains { $0.contains("model_reasoning_effort") })
     }
 
     func testCatalogUsesReadOnlyRPCAndPaginatesWithoutStartingInference() async throws {

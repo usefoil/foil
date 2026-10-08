@@ -40,14 +40,14 @@ struct CodexCleanupView: View {
                 .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("codexCleanup.disclosure")
             HStack {
-                Label(!hasRunner ? "Codex CLI not found" : "Codex CLI found",
+                Label(!hasRunner ? "Codex unavailable" : "Codex available · Starts per cleanup",
                       systemImage: !hasRunner ? "exclamationmark.circle" : "checkmark.circle")
                     .accessibilityIdentifier("codexCleanup.connection")
                 Spacer()
                 Button("Check again") { executable = CodexTextCleanup.findExecutable(); catalogRefresh += 1 }
                     .disabled(model.isRunning)
             }
-            Text("Uses your Codex CLI sign-in. Model access is checked when you run cleanup.")
+            Text("Uses your Codex sign-in. Each cleanup starts and stops its own process; no cleanup server stays running. Model access is checked on each run.")
                 .font(.caption).foregroundStyle(.secondary)
             configurationEditor
             HStack {
@@ -115,7 +115,7 @@ struct CodexCleanupView: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(!hasRunner || input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                   || input.utf8.count > CodexCleanupRequest.maximumTextBytes
-                                  || !configurationIsValid)
+                                  || !configurationIsValid || isLoadingModels)
                         .accessibilityIdentifier("codexCleanup.run")
                 }
                 if let elapsed = model.elapsed { Text(String(format: "Completed in %.1f s", elapsed)).font(.caption) }
@@ -128,7 +128,7 @@ struct CodexCleanupView: View {
                 .disabled(model.result == nil)
                 .accessibilityIdentifier("codexCleanup.copy")
             }
-            Text("This experiment does not save text to Foil History or change Vocabulary. Model and instructions are saved; closing discards the entered text and result. Recording and audio are not used.")
+            Text("This experiment does not save text to Foil History or change Vocabulary. Model, reasoning and instructions are saved; closing discards the entered text and result. Recording and audio are not used.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(24)
@@ -137,12 +137,28 @@ struct CodexCleanupView: View {
         .onChange(of: groupID) { _, _ in model.reset() }
         .onChange(of: preferences.modelID) { _, _ in model.reset() }
         .onChange(of: preferences.instructions) { _, _ in model.reset() }
+        .onChange(of: preferences.reasoning) { _, _ in model.reset() }
+        .onChange(of: choices) { _, _ in model.reset() }
         .task(id: catalogRefresh) { await refreshModels() }
         .onDisappear { model.cancel() }
     }
 
+    private var selectedChoice: CodexCleanupModelChoice? { choices.first { $0.id == preferences.modelID } }
+    private var reasoningOptions: [CodexCleanupReasoning] {
+        var options: [CodexCleanupReasoning] = [.automatic, .modelDefault] + (selectedChoice?.supportedReasoning ?? [])
+        if !options.contains(preferences.reasoning) { options.append(preferences.reasoning) }
+        return options
+    }
     private var configurationIsValid: Bool {
-        do { try preferences.configuration.validate(); return true } catch { return false }
+        (try? preferences.resolvedConfiguration(choice: selectedChoice)) != nil
+    }
+    private var reasoningSummary: String {
+        do {
+            let config = try preferences.resolvedConfiguration(choice: selectedChoice)
+            if let effort = config.reasoningEffort { return "Uses \(effort.label) reasoning. Lower effort can be faster; review cleanup quality." }
+            if let effort = selectedChoice?.defaultReasoning { return "Uses model default: \(effort.label)." }
+            return "Uses model default; reasoning capabilities are unavailable for this model."
+        } catch { return error.localizedDescription }
     }
 
     private var configurationEditor: some View {
@@ -169,6 +185,14 @@ struct CodexCleanupView: View {
             }
             Text("Saved on this Mac. Choose a catalog model or enter an ID; availability is verified by running cleanup.")
                 .font(.caption).foregroundStyle(.secondary)
+            Picker("Reasoning", selection: $preferences.reasoning) {
+                ForEach(reasoningOptions, id: \.self) { effort in
+                    Text(effort.label).tag(effort)
+                }
+            }
+            .accessibilityIdentifier("codexCleanup.reasoning")
+            Text(reasoningSummary).font(.caption).foregroundStyle(.secondary)
+                .accessibilityIdentifier("codexCleanup.reasoningSummary")
             Button {
                 showsInstructions.toggle()
             } label: {
@@ -193,7 +217,7 @@ struct CodexCleanupView: View {
                 }
             }
             if !configurationIsValid {
-                Text("Enter a valid model ID and nonempty instructions within the size limit.")
+                Text("Check the model ID, supported reasoning level, and nonempty instructions within the size limit.")
                     .font(.caption).foregroundStyle(.red)
             }
         }
@@ -228,7 +252,7 @@ struct CodexCleanupView: View {
         defer { if refresh == catalogRefresh { isLoadingModels = false } }
         catalogError = nil
         if usesTestRunner {
-            choices = [.init(id: "gpt-5.5", name: "GPT-5.5"), .init(id: "qa-cleanup-model", name: "QA cleanup model")]
+            choices = [.init(id: "gpt-5.5", name: "GPT-5.5", supportedReasoning: [.low, .medium], defaultReasoning: .medium), .init(id: "qa-cleanup-model", name: "QA cleanup model", supportedReasoning: [.low, .medium], defaultReasoning: .medium)]
             return
         }
         guard let executable else { choices = []; return }
@@ -244,9 +268,8 @@ struct CodexCleanupView: View {
     }
 
     private func run() {
-        let configuration = preferences.configuration
         do {
-            try configuration.validate()
+            let configuration = try preferences.resolvedConfiguration(choice: selectedChoice)
             let request = groupID == Self.exampleID
                 ? CodexCleanupRequest(text: input, terms: CodexCleanupRequest.example.terms, corrections: [])
                 : try CodexCleanupRequest.make(text: input, groupID: groupID, state: appState)
@@ -264,7 +287,7 @@ struct CodexCleanupView: View {
             model.runMeasured(request) {
                 let output = try await service.cleanWithMetrics($0)
                 if let metrics = output.metrics {
-                    DiagnosticLog.write("Codex cleanup model=\(configuration.modelID) \(metrics.diagnosticSummary)")
+                    DiagnosticLog.write("Codex cleanup model=\(configuration.modelID) effort=\(configuration.reasoningEffort?.rawValue ?? "default") \(metrics.diagnosticSummary)")
                 }
                 return output
             }

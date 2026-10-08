@@ -2,7 +2,7 @@
 
 Open **Agent Access → Try transcript cleanup**. Install Codex CLI and sign in
 with `codex login` first. Foil finds the native Codex executable in common
-Homebrew/npm, user-local, or desktop-app locations. “CLI found” confirms discovery,
+Homebrew/npm, user-local, or desktop-app locations. “Codex available · Starts per cleanup” confirms discovery,
 not authentication; the first cleanup checks hosted model access.
 
 Click **Load example**, then **Clean up with Codex**. The example supplies the
@@ -30,20 +30,28 @@ an isolated Codex app-server catalog session; the catalog can be bundled with th
 installed CLI and does not verify account access. You can enter a model ID when
 it is missing from the catalog. Cleanup itself uses the existing CLI sign-in;
 an unavailable model produces a run error without changing the saved selection.
-The initial `gpt-5.5` selection retains low reasoning effort. Other models use
-their own default effort, so model comparisons may also differ in reasoning.
+**Reasoning** is saved separately. The initial **Automatic — prefer Low** setting
+uses Low when the selected model advertises support; otherwise it visibly uses
+the model default. **Model default** leaves the effort unset. Explicit choices
+come from the model catalog. If a saved choice is unsupported by a new model, or
+the catalog cannot confirm support, cleanup is blocked until you choose Automatic,
+Model default, or a supported level. Refreshing the catalog does not silently
+replace an explicit selection. Lower effort can improve latency, but review quality.
+
+Each run starts and stops its own cleanup process. No cleanup server stays running;
+the short-lived model catalog process and Vocabulary access server are separate.
 
 Expand **Cleanup instructions** to edit the saved wording/style prompt or restore
 the default. Instructions are limited to 8 KiB and can request concise or informal
 wording; the fixed request contract still preserves meaning and treats dictation
-as data. Model and instructions are local settings shared by this experiment's
+as data. Model, reasoning and instructions are local settings shared by this experiment's
 Vocabulary selections, not changes to a Cleanup Group's recording settings.
 A run snapshots its configuration; editing settings invalidates an older result.
 
 **Timing details** separates local preparation, launch-to-turn-start, the Codex
 turn, and finalization, plus input/cached/output token counts when supplied by the
 CLI. The turn interval includes connection/waiting/model work; it is not a
-measurement of server inference alone. Only model ID, durations and token counts
+measurement of server inference alone. Only model ID, resolved effort (or `default`), durations and token counts
 are written to Foil diagnostics. Raw event content, instructions and transcripts
 are not logged. The UI accepts a validated answer only after `turn.completed`,
 then stops/reaps the ephemeral process to avoid waiting for post-turn shutdown.
@@ -87,6 +95,14 @@ future work. No background cleanup is enabled by changing these preferences.
    from requests. Invalid/deleted groups fail before invoking Codex.
 5. Unavailable Codex, failed runs, and malformed output preserve the original and
    show an actionable error. No submitted text appears in Foil diagnostics.
+6. Automatic resolves to Low only for matching advertised capabilities. A saved
+   unsupported explicit level blocks cleanup after a model change and relaunch;
+   selecting Model default permits recovery. Changing reasoning invalidates the
+   old result, and the native subprocess receives the selected explicit effort.
+
+For the next learning UX discussion, see
+[Post-transcript Vocabulary suggestions](product/agent-vocabulary-learning-experiment.md).
+That draft does not enable learning or expand agent access.
 
 Focused tests: `FoilTests/CodexTextCleanupTests` and
 `FoilUITests/FoilUITests/testCodexCleanupExampleAndCancellation`, and
