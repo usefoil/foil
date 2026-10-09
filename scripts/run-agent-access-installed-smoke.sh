@@ -337,6 +337,9 @@ required = {
     "verify_vocabulary_targets", "preview_effective_vocabulary",
     "get_paired_agent_access", "submit_delegated_vocabulary_proposal",
     "submit_delegated_correction_policies",
+    "list_scoped_vocabulary_v2", "preview_vocabulary_batch_v2",
+    "propose_vocabulary_batch_v2", "get_vocabulary_batch_status_v2",
+    "submit_delegated_vocabulary_batch_v2",
 }
 assert set(instructions["available_operations"]) == required
 assert socket in instructions["bootstrap_command"]
@@ -349,6 +352,8 @@ assert set(openapi["paths"]) == {
     "/v1/vocabulary/targets/verify", "/v1/vocabulary/effective-preview",
     "/v1/access", "/v1/vocabulary/delegated-proposals",
     "/v1/vocabulary/delegated-actions",
+    "/v2/vocabulary", "/v2/vocabulary/preview", "/v2/vocabulary/proposals",
+    "/v2/vocabulary/proposals/{id}", "/v2/vocabulary/delegated-proposals",
 }
 target = json.load(open(sys.argv[13]))
 effective = json.load(open(sys.argv[14]))
@@ -376,6 +381,53 @@ assert action_status["action_id"] == action_id and action_status["state"] == "pe
 status_text = pathlib.Path(sys.argv[7]).read_text()
 for forbidden in ("super base", "Superbase", "Supabase", "codecs", "Codex", "agent-diagnostic-canary"):
     assert forbidden not in status_text, forbidden
+PY
+
+# Exercise typed v2 requests through both installed bundles with isolated state.
+python3 - "$production_socket" "$development_socket" "$production_catalog" "$development_catalog" "$diagnostic_canary" <<'PY'
+import hashlib
+import json
+import pathlib
+import stat
+import subprocess
+import sys
+
+
+def call(socket, path, body=None):
+    command = ["/usr/bin/curl", "--silent", "--show-error", "--max-time", "12",
+               "--unix-socket", socket, "--write-out", "\n%{http_code}"]
+    if body is not None:
+        command += ["-H", "Content-Type: application/json", "--data-binary", json.dumps(body)]
+    command += ["http://foil" + path]
+    result = subprocess.run(command, check=True, capture_output=True, text=True)
+    payload, status = result.stdout.rsplit("\n", 1)
+    return int(status), json.loads(payload)
+
+
+for index, (socket, catalog) in enumerate(zip(sys.argv[1:3], sys.argv[3:5])):
+    catalog = pathlib.Path(catalog)
+    before = hashlib.sha256(catalog.read_bytes()).hexdigest()
+    request = {"schema_version": 2, "request_id": f"installed-mixed-{index}",
+               "scope": {"kind": "global", "id": "global"}, "items": [
+                   {"id": "term", "kind": "preferred_term", "term": "Supabase", "note": sys.argv[5]},
+                   {"id": "alias", "kind": "correction", "correction": {"spoken_forms": ["super base"], "replacement": "Supabase"}}]}
+    code, preview = call(socket, "/v2/vocabulary/preview", request)
+    assert code == 200 and preview["valid"] is True, preview
+    code, record = call(socket, "/v2/vocabulary/proposals", request)
+    assert code == 202 and record["state"] == "pending", record
+    code, replay = call(socket, "/v2/vocabulary/proposals", request)
+    assert code == 200 and replay["id"] == record["id"], replay
+    code, status = call(socket, "/v2/vocabulary/proposals/" + record["id"])
+    assert code == 200 and status["state"] == "pending", status
+    code, _ = call(socket, "/v2/vocabulary/delegated-proposals", request)
+    assert code == 403
+    code, vocabulary = call(socket, "/v2/vocabulary")
+    assert code == 200 and len(vocabulary["pending_proposals"]) == 1
+    assert vocabulary["terms"] == [] and vocabulary["corrections"] == []
+    assert hashlib.sha256(catalog.read_bytes()).hexdigest() == before
+    inbox = pathlib.Path(socket).parent / "agent-vocabulary-batches-v2.json"
+    assert stat.S_IMODE(inbox.stat().st_mode) == 0o600
+    assert len(json.loads(inbox.read_text())["records"]) == 1
 PY
 
 for required_file in "$production_store" "$development_store" "$production_action_store" "$production_catalog" "$development_catalog"; do
