@@ -110,6 +110,13 @@ struct SettingsView: View {
             """
         }
 
+        static func vocabularyStarter(bootstrapCommand: String, repositories: Bool) -> String {
+            let request = repositories
+                ? "Help me set up Foil Vocabulary from repositories I commonly work in. Ask me which repositories and target apps if I have not supplied them. Follow the repository_setup workflow, present a short evidence-based shortlist, and let me select the terms before submitting a batch."
+                : "Help me add preferred spellings or corrections to Foil in a short conversation. Follow the quick_addition workflow, clarify only missing scope or meaningful matching ambiguity, preview the changes, and confirm their durable saved or pending status."
+            return "\(request)\n\nFirst run this command on my Mac and follow Foil's live vocabulary_workflows instructions and permissions:\n\n\(bootstrapCommand)"
+        }
+
         static func pairedPrompt(
             bootstrapCommand: String,
             token: String,
@@ -118,6 +125,8 @@ struct SettingsView: View {
             let apps = grant.appPaths.joined(separator: ", ")
             return """
             Foil paired you as \(grant.name) for Vocabulary edits in these exact apps: \(apps). This grant expires at \(grant.expiresAt.formatted(date: .abbreviated, time: .shortened)), or sooner if Foil closes or Agent Access is turned off. Keep the bearer token below private; do not print it in diagnostics or share it with another agent.
+
+            Allowed capabilities: \(grant.capabilities.joined(separator: ", ")). Use the versioned mixed-batch workflow in the instructions when preferred terms are needed; a correction-only grant cannot authorize them.
 
             Read Foil's current instructions first:
             \(bootstrapCommand)
@@ -157,6 +166,7 @@ struct SettingsView: View {
     @State private var localCorrectionPreviewInput = ""
     @State private var isShowingVocabularyApprovals = false
     @State private var pairedAgentName = "Codex"
+    @State private var allowAgentPreferredTerms = false
     @State private var selectedAgentGrantGroupID = ""
     private var sparkleUpdater: SparkleUpdater { SparkleUpdater.shared }
     private let soundPreviewPlayer = SoundPlayer()
@@ -326,6 +336,16 @@ struct SettingsView: View {
                 .disabled(appState.agentAccessBootstrapCommand.isEmpty)
                 .accessibilityIdentifier("settings.agentAccess.copyCommand")
 
+                HStack {
+                    Button("Set up from repositories") { copyVocabularyStarter(repositories: true) }
+                        .accessibilityIdentifier("settings.agentAccess.repositoryStarter")
+                    Button("Add Vocabulary") { copyVocabularyStarter(repositories: false) }
+                        .accessibilityIdentifier("settings.agentAccess.quickAddStarter")
+                }
+                .disabled(appState.agentAccessBootstrapCommand.isEmpty)
+                Text("These buttons copy a starter for your agent. Repository discovery happens in that agent's conversation; Foil receives only the selected Vocabulary changes.")
+                    .font(.caption).foregroundStyle(.secondary)
+
                 Text("Once the service is running, paste this prompt into a local agent task and add your Vocabulary request. Running means Foil is ready to accept a connection; it does not mean an agent is connected.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -346,9 +366,13 @@ struct SettingsView: View {
                     }
                 }
                 .accessibilityIdentifier("settings.agentAccess.grantGroup")
+                Toggle("Allow adding preferred spellings", isOn: $allowAgentPreferredTerms)
+                    .accessibilityIdentifier("settings.agentAccess.allowPreferredTerms")
+                Text("Corrections and their matching policies are included. Preferred spellings require the additional permission above.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Button("Pair agent and copy editing prompt") {
                     if let prompt = appState.pairAgentForVocabularyEdits(
-                        name: pairedAgentName, groupID: selectedAgentGrantGroupID
+                        name: pairedAgentName, groupID: selectedAgentGrantGroupID, allowPreferredTerms: allowAgentPreferredTerms
                     ) {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(prompt, forType: .string)
@@ -365,6 +389,8 @@ struct SettingsView: View {
                         HStack {
                             VStack(alignment: .leading) {
                                 Text(grant.name)
+                                Text(grant.allowsPreferredTerms == true ? "Corrections and preferred spellings" : "Corrections only")
+                                    .font(.caption).foregroundStyle(.secondary)
                                 Text(grant.appPaths.joined(separator: ", "))
                                     .font(.caption).foregroundStyle(.secondary)
                                 Text(grant.isRevoked ? "Inactive" : grant.expiresAt <= Date() ? "Expired" : "Expires \(grant.expiresAt.formatted(date: .abbreviated, time: .shortened))")
@@ -413,6 +439,9 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
+                if let message = appState.agentAccessBatchErrorMessage {
+                    Text(message).font(.caption).foregroundStyle(.red)
+                }
                 if let message = appState.agentAccessProposalInboxErrorMessage {
                     Text(message)
                         .font(.caption)
@@ -444,6 +473,13 @@ struct SettingsView: View {
         .formStyle(.grouped)
     }
 
+    private func copyVocabularyStarter(repositories: Bool) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(AgentAccessCopy.vocabularyStarter(
+            bootstrapCommand: appState.agentAccessBootstrapCommand, repositories: repositories
+        ), forType: .string)
+    }
+
     private var pairableAgentGroups: [CleanupGroup] {
         appState.cleanupGroups.filter { group in
             guard group.isEnabled, !group.isDefault else { return false }
@@ -459,6 +495,11 @@ struct SettingsView: View {
 
     private func agentGrantActivityLabel(_ use: AgentAccessGrantUse) -> String {
         let time = use.createdAt.formatted(date: .abbreviated, time: .shortened)
+        if use.objectKind == "batch", let batch = appState.agentAccessBatches.first(where: { $0.id == use.objectID }) {
+            let changes = batch.reviewedRequest.items.map { $0.term ?? $0.correction?.replacement ?? "" }.joined(separator: ", ")
+            let scope = appState.cleanupGroups.first(where: { $0.id == batch.reviewedRequest.scope.id })?.name ?? batch.reviewedRequest.scope.id
+            return "\(time) · \(batch.state.rawValue.capitalized): \(changes) · \(scope)"
+        }
         if use.objectKind == "proposal",
            let proposal = appState.agentAccessProposals.first(where: { $0.id == use.objectID }) {
             let changes = proposal.corrections.map {

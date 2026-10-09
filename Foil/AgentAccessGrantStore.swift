@@ -11,6 +11,11 @@ struct AgentAccessGrantSummary: Codable, Equatable, Identifiable, Sendable {
     let createdAt: Date
     let expiresAt: Date
     let revokedAt: Date?
+    var allowsPreferredTerms: Bool? = nil
+
+    var capabilities: [String] {
+        ["add_corrections", "edit_correction_policies"] + (allowsPreferredTerms == true ? ["add_preferred_terms"] : [])
+    }
 
     var isRevoked: Bool { revokedAt != nil }
 }
@@ -99,7 +104,7 @@ final class AgentAccessGrantStore: @unchecked Sendable {
                     summary: AgentAccessGrantSummary(
                         id: old.id, name: old.name, groupID: old.groupID,
                         appPaths: old.appPaths, createdAt: old.createdAt,
-                        expiresAt: old.expiresAt, revokedAt: old.revokedAt ?? now()
+                        expiresAt: old.expiresAt, revokedAt: old.revokedAt ?? now(), allowsPreferredTerms: old.allowsPreferredTerms
                     ), tokenDigest: stored.tokenDigest
                 )
             }
@@ -108,7 +113,7 @@ final class AgentAccessGrantStore: @unchecked Sendable {
         return AgentAccessGrantSnapshot(grants: visibleGrants, uses: snapshot.uses)
     }
 
-    func create(name rawName: String, groupID: String, appPaths: [String]) throws -> (AgentAccessGrantSummary, String) {
+    func create(name rawName: String, groupID: String, appPaths: [String], allowPreferredTerms: Bool = false) throws -> (AgentAccessGrantSummary, String) {
         let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, name.count <= 80,
               !name.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
@@ -126,7 +131,7 @@ final class AgentAccessGrantStore: @unchecked Sendable {
         let summary = AgentAccessGrantSummary(
             id: UUID().uuidString.lowercased(), name: name, groupID: groupID,
             appPaths: appPaths.sorted(), createdAt: timestamp,
-            expiresAt: timestamp.addingTimeInterval(60 * 60), revokedAt: nil
+            expiresAt: timestamp.addingTimeInterval(60 * 60), revokedAt: nil, allowsPreferredTerms: allowPreferredTerms ? true : nil
         )
         let stored = StoredAgentAccessGrant(summary: summary, tokenDigest: Self.digest(token))
         lock.lock()
@@ -169,7 +174,7 @@ final class AgentAccessGrantStore: @unchecked Sendable {
             summary: AgentAccessGrantSummary(
                 id: old.summary.id, name: old.summary.name, groupID: old.summary.groupID,
                 appPaths: old.summary.appPaths, createdAt: old.summary.createdAt,
-                expiresAt: old.summary.expiresAt, revokedAt: now()
+                expiresAt: old.summary.expiresAt, revokedAt: now(), allowsPreferredTerms: old.summary.allowsPreferredTerms
             ),
             tokenDigest: old.tokenDigest
         )
@@ -188,7 +193,7 @@ final class AgentAccessGrantStore: @unchecked Sendable {
         let current = try read()
         guard let active = activeGrants[grantID], current.grants.contains(active),
               Self.isDigest(requestDigest),
-              kind == "proposal" || kind == "action" else { throw AgentAccessGrantError.unavailable }
+              kind == "proposal" || kind == "action" || kind == "batch" else { throw AgentAccessGrantError.unavailable }
         if let existing = current.uses.first(where: { $0.objectKind == kind && $0.objectID == objectID }) {
             guard existing.grantID == grantID, existing.requestDigest == requestDigest else {
                 throw AgentAccessGrantError.unavailable
@@ -298,6 +303,17 @@ enum AgentAccessGrantScope {
         let scope = request.canonicalized().scope
         guard scope.kind == "cleanup_group", scope.id == grant.groupID else {
             throw AgentAccessGrantError.invalidScope
+        }
+    }
+
+    static func validateBatch(_ request: VocabularyBatchRequest, grant: AgentAccessGrantSummary, groups: [CleanupGroup]) throws {
+        try validate(grant, groups: groups)
+        let request = request.normalized()
+        guard request.scope.kind == "cleanup_group", request.scope.id == grant.groupID else {
+            throw AgentAccessGrantError.invalidScope
+        }
+        guard !request.items.contains(where: { $0.kind == .preferredTerm }) || grant.allowsPreferredTerms == true else {
+            throw AgentAccessGrantError.unauthorized
         }
     }
 

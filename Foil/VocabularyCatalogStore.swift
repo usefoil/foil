@@ -52,6 +52,11 @@ struct VocabularyAppliedProposalReceipt: Codable, Equatable, Sendable {
     let catalogRevision: Int
     let items: [VocabularyAppliedCorrectionReceipt]
     let appliedAt: Date
+    var batchItems: [VocabularyBatchAppliedItem]? = nil
+    var requestDigest: String? = nil
+    var reviewedDigest: String? = nil
+    var scope: VocabularyProposalScope? = nil
+    var grantID: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case proposalID = "proposal_id"
@@ -59,6 +64,7 @@ struct VocabularyAppliedProposalReceipt: Codable, Equatable, Sendable {
         case catalogRevision = "catalog_revision"
         case items
         case appliedAt = "applied_at"
+        case batchItems = "batch_items", requestDigest = "request_digest", reviewedDigest = "reviewed_digest", scope, grantID = "grant_id"
     }
 }
 
@@ -283,6 +289,7 @@ final class VocabularyCatalogStore: @unchecked Sendable {
         rules: [LocalCorrectionRule],
         appliedProposalReceipts: [VocabularyAppliedProposalReceipt],
         expectedSnapshot: VocabularyCatalogSnapshot,
+        preserveRevisionForReceiptOnlyCommit: Bool = false,
         legacyVocabularyData: Data?,
         legacyLocalCorrectionsData: Data?,
         legacyTermsData: Data? = nil,
@@ -323,7 +330,10 @@ final class VocabularyCatalogStore: @unchecked Sendable {
             throw VocabularyCatalogStoreError.invalidCatalog
         }
         let snapshot = VocabularyCatalogSnapshot(
-            revision: current.revision + 1,
+            revision: current.revision + ((preserveRevisionForReceiptOnlyCommit &&
+                vocabularyCorrections == current.vocabularyCorrections &&
+                (vocabularyTerms ?? current.vocabularyTerms) == current.vocabularyTerms &&
+                localCorrectionsEnabled == current.localCorrectionsEnabled && rules == current.rules) ? 0 : 1),
             vocabularyCorrections: vocabularyCorrections,
             vocabularyTerms: vocabularyTerms ?? current.vocabularyTerms,
             localCorrectionsEnabled: localCorrectionsEnabled,
@@ -505,6 +515,15 @@ final class VocabularyCatalogStore: @unchecked Sendable {
               }) else {
             return false
         }
+        for receipt in snapshot.appliedProposalReceipts where receipt.batchItems != nil {
+            guard let items = receipt.batchItems, !items.isEmpty,
+                  let requestDigest = receipt.requestDigest, isSHA256Digest(requestDigest),
+                  let reviewedDigest = receipt.reviewedDigest, isSHA256Digest(reviewedDigest),
+                  receipt.scope != nil, Set(items.map(\.itemID)).count == items.count,
+                  items.allSatisfy({ VocabularyBatchEvaluator.validID($0.itemID) &&
+                    ["added", "already_present"].contains($0.disposition) && !$0.entryIDs.isEmpty &&
+                    $0.entryIDs.allSatisfy { UUID(uuidString: $0) != nil } }) else { return false }
+        }
         for digest in [
             snapshot.legacySourceFingerprint.vocabularyCorrectionsSHA256,
             snapshot.legacySourceFingerprint.localCorrectionsSHA256,
@@ -548,7 +567,7 @@ final class VocabularyCatalogStore: @unchecked Sendable {
         }
     }
 
-    private static func writeOwnerOnly(_ data: Data, to url: URL) throws {
+    static func writeOwnerOnly(_ data: Data, to url: URL) throws {
         guard FileManager.default.createFile(
             atPath: url.path,
             contents: nil,

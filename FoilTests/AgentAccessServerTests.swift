@@ -107,12 +107,52 @@ final class AgentAccessServerTests: XCTestCase {
         let result = try runCurl(socketURL: fixture.paths.socketURL, path: "/v1/instructions")
         XCTAssertEqual(result.status, 0, result.stderr)
         let decoded = try JSONDecoder().decode(AgentAccessInstructionsResponse.self, from: result.stdout)
-        XCTAssertEqual(decoded.availableOperations.count, 14)
+        XCTAssertEqual(decoded.availableOperations.count, 19)
         XCTAssertTrue(decoded.bootstrapCommand.contains(fixture.paths.socketURL.path))
         let contract = try runCurl(socketURL: fixture.paths.socketURL, path: decoded.openAPIPath)
         XCTAssertEqual(contract.status, 0, contract.stderr)
         let openAPI = try XCTUnwrap(try JSONSerialization.jsonObject(with: contract.stdout) as? [String: Any])
         XCTAssertNotNil((openAPI["paths"] as? [String: Any])?["/v1/vocabulary/preview"])
+    }
+
+    func testLiveCurlMixedBatchRemainsPendingAndReplaysOverUnixSocket() throws {
+        let paths = AgentAccessPaths(applicationSupportRoot: temporaryRoot, directoryName: "FoilV2")
+        let store = VocabularyBatchStore(fileURL: paths.supportDirectory.appendingPathComponent("batches.json"))
+        let model = AgentAccessVocabularyReadModel(scopes: [], terms: [], corrections: [], localCorrectionsEnabled: false)
+        let batches = VocabularyBatchHTTP(store: store, model: { model }, didChange: {})
+        let router = AgentAccessContractRouter(socketPath: paths.socketURL.path, openAPIDocument: try openAPIData(), batchHandler: { request, id in batches.response(to: request, requestID: id) })
+        let server = AgentAccessServer(paths: paths) { router.response(to: $0) }
+        try server.start()
+        defer { server.stop() }
+        let request = VocabularyBatchRequest(requestID: "socket-batch", scope: .init(kind: "global", id: "global"), items: [
+            .init(id: "name", kind: .preferredTerm, term: "Supabase"),
+            .init(id: "alias", kind: .correction, correction: .init(spokenForms: ["super base"], replacement: "Supabase"))
+        ])
+        let body = try JSONEncoder().encode(request)
+        let preview = try runCurl(socketURL: paths.socketURL, path: "/v2/vocabulary/preview", body: body)
+        XCTAssertEqual(preview.status, 0, preview.stderr)
+        let previewObject = try XCTUnwrap(JSONSerialization.jsonObject(with: preview.stdout) as? [String: Any])
+        XCTAssertEqual(previewObject["valid"] as? Bool, true)
+        XCTAssertTrue(try store.records().isEmpty)
+        let submitted = try runCurl(socketURL: paths.socketURL, path: "/v2/vocabulary/proposals", body: body)
+        XCTAssertEqual(submitted.status, 0, submitted.stderr)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: submitted.stdout) as? [String: Any])
+        let id = try XCTUnwrap(object["id"] as? String)
+        XCTAssertEqual(object["state"] as? String, "pending")
+        let replay = try runCurl(socketURL: paths.socketURL, path: "/v2/vocabulary/proposals", body: body)
+        XCTAssertEqual(replay.status, 0, replay.stderr)
+        let replayObject = try XCTUnwrap(JSONSerialization.jsonObject(with: replay.stdout) as? [String: Any])
+        XCTAssertEqual(replayObject["id"] as? String, id)
+        XCTAssertEqual(replayObject["state"] as? String, "pending")
+        let status = try runCurl(socketURL: paths.socketURL, path: "/v2/vocabulary/proposals/\(id)")
+        XCTAssertEqual(status.status, 0, status.stderr)
+        let statusObject = try XCTUnwrap(JSONSerialization.jsonObject(with: status.stdout) as? [String: Any])
+        XCTAssertEqual(statusObject["id"] as? String, id)
+        XCTAssertEqual(statusObject["state"] as? String, "pending")
+        XCTAssertEqual(try store.records().count, 1)
+        var info = stat()
+        XCTAssertEqual(lstat(paths.supportDirectory.appendingPathComponent("batches.json").path, &info), 0)
+        XCTAssertEqual(info.st_mode & 0o777, 0o600)
     }
 
     func testSecondServerCannotReplaceActiveSocket() throws {
@@ -420,7 +460,7 @@ final class AgentAccessServerTests: XCTestCase {
         return try Data(contentsOf: fileURL)
     }
 
-    private func runCurl(socketURL: URL, path: String) throws -> (status: Int32, stdout: Data, stderr: String) {
+    private func runCurl(socketURL: URL, path: String, body: Data? = nil) throws -> (status: Int32, stdout: Data, stderr: String) {
         let process = Process()
         let output = Pipe()
         let errors = Pipe()
@@ -432,6 +472,9 @@ final class AgentAccessServerTests: XCTestCase {
             "--unix-socket", socketURL.path,
             "http://foil\(path)"
         ]
+        if let body {
+            process.arguments?.append(contentsOf: ["--header", "Content-Type: application/json", "--data-binary", String(decoding: body, as: UTF8.self)])
+        }
         process.standardOutput = output
         process.standardError = errors
         try process.run()

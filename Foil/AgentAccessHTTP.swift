@@ -239,6 +239,7 @@ struct AgentAccessContractRouter {
     let effectivePreviewer: EffectivePreviewer?
     let grantProvider: GrantProvider?
     let delegatedProposalSubmitter: DelegatedProposalSubmitter?
+    let batchHandler: ((AgentAccessHTTPRequest, String) -> AgentAccessHTTPResponse)?
     let delegatedActionSubmitter: DelegatedActionSubmitter?
 
     init(
@@ -258,8 +259,10 @@ struct AgentAccessContractRouter {
         effectivePreviewer: EffectivePreviewer? = nil,
         grantProvider: GrantProvider? = nil,
         delegatedProposalSubmitter: DelegatedProposalSubmitter? = nil,
-        delegatedActionSubmitter: DelegatedActionSubmitter? = nil
+        delegatedActionSubmitter: DelegatedActionSubmitter? = nil,
+        batchHandler: ((AgentAccessHTTPRequest, String) -> AgentAccessHTTPResponse)? = nil
     ) {
+        self.batchHandler = batchHandler
         self.socketPath = socketPath
         self.openAPIDocument = openAPIDocument
         self.limits = limits
@@ -285,6 +288,9 @@ struct AgentAccessContractRouter {
                 code: "unexpected_body",
                 message: "GET requests must not include a body."
             )
+        }
+        if request.path == "/v2/vocabulary" || request.path.hasPrefix("/v2/vocabulary/") {
+            return batchHandler?(request, requestID) ?? VocabularyBatchHTTP.unavailable(requestID: requestID)
         }
         switch request.path {
         case "/v1/instructions":

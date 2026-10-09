@@ -2,11 +2,319 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Foil Agent Access",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "description": "Vocabulary discovery and in-memory preview. Ordinary proposals and action requests require Foil review. A paired agent with an unexpired bearer grant can apply corrections and policy edits for its exact app group."
   },
   "servers": [{"url": "http://foil", "description": "HTTP over Foil's owner-only Unix domain socket"}],
   "paths": {
+    "/v2/vocabulary": {
+      "get": {
+        "operationId": "listScopedVocabularyV2",
+        "description": "Scoped preferred spellings, corrections, available groups, and pending mixed batches. No History, audio, credentials, or repository contents.",
+        "responses": {
+          "200": {
+            "description": "Current Vocabulary and pending batches",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyV2Response"
+                }
+              }
+            }
+          },
+          "405": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "503": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v2/vocabulary/preview": {
+      "post": {
+        "operationId": "previewVocabularyBatchV2",
+        "description": "Preview is read-only. Ordinary submissions require one review inside Foil. Delegated submissions require an unexpired exact-group bearer grant with add_preferred_terms for any term items. HTTP 202 means pending; poll status for applied. Same request ID and canonical payload replay the original record; changed payload returns 409.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VocabularyBatchRequest"
+              },
+              "example": {
+                "schema_version": 2,
+                "request_id": "setup-1",
+                "scope": {
+                  "kind": "cleanup_group",
+                  "id": "your-existing-group-id"
+                },
+                "items": [
+                  {
+                    "id": "supabase-term",
+                    "kind": "preferred_term",
+                    "term": "Supabase"
+                  },
+                  {
+                    "id": "supabase-correction",
+                    "kind": "correction",
+                    "correction": {
+                      "spoken_forms": [
+                        "super base"
+                      ],
+                      "replacement": "Supabase",
+                      "case_sensitive": false,
+                      "match_punctuation_variants": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview or durable replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyBatchPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "413": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "429": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "503": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
+    "/v2/vocabulary/proposals": {
+      "post": {
+        "operationId": "proposeVocabularyBatchV2",
+        "description": "Preview is read-only. Ordinary submissions require one review inside Foil. Delegated submissions require an unexpired exact-group bearer grant with add_preferred_terms for any term items. HTTP 202 means pending; poll status for applied. Same request ID and canonical payload replay the original record; changed payload returns 409.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VocabularyBatchRequest"
+              },
+              "example": {
+                "schema_version": 2,
+                "request_id": "setup-1",
+                "scope": {
+                  "kind": "cleanup_group",
+                  "id": "your-existing-group-id"
+                },
+                "items": [
+                  {
+                    "id": "supabase-term",
+                    "kind": "preferred_term",
+                    "term": "Supabase"
+                  },
+                  {
+                    "id": "supabase-correction",
+                    "kind": "correction",
+                    "correction": {
+                      "spoken_forms": [
+                        "super base"
+                      ],
+                      "replacement": "Supabase",
+                      "case_sensitive": false,
+                      "match_punctuation_variants": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview or durable replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyBatchRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "413": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "429": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "503": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "202": {
+            "description": "Pending review or queued delegated apply",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyBatchRecord"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/vocabulary/delegated-proposals": {
+      "post": {
+        "operationId": "submitDelegatedVocabularyBatchV2",
+        "description": "Preview is read-only. Ordinary submissions require one review inside Foil. Delegated submissions require an unexpired exact-group bearer grant with add_preferred_terms for any term items. HTTP 202 means pending; poll status for applied. Same request ID and canonical payload replay the original record; changed payload returns 409.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VocabularyBatchRequest"
+              },
+              "example": {
+                "schema_version": 2,
+                "request_id": "setup-1",
+                "scope": {
+                  "kind": "cleanup_group",
+                  "id": "your-existing-group-id"
+                },
+                "items": [
+                  {
+                    "id": "supabase-term",
+                    "kind": "preferred_term",
+                    "term": "Supabase"
+                  },
+                  {
+                    "id": "supabase-correction",
+                    "kind": "correction",
+                    "correction": {
+                      "spoken_forms": [
+                        "super base"
+                      ],
+                      "replacement": "Supabase",
+                      "case_sensitive": false,
+                      "match_punctuation_variants": false
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preview or durable replay",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyBatchRecord"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "403": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "409": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "413": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "429": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "503": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "202": {
+            "description": "Pending review or queued delegated apply",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyBatchRecord"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^Bearer foil_"
+            }
+          }
+        ]
+      }
+    },
+    "/v2/vocabulary/proposals/{id}": {
+      "get": {
+        "operationId": "getVocabularyBatchStatusV2",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Durable batch state and saved item receipts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VocabularyBatchRecord"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/ErrorResponse"
+          },
+          "503": {
+            "$ref": "#/components/responses/ErrorResponse"
+          }
+        }
+      }
+    },
     "/v1/instructions": {
       "get": {
         "operationId": "getInstructions",
@@ -200,35 +508,515 @@
       }
     },
     "schemas": {
+      "PreferredTermItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "term"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[!-~]+$"
+          },
+          "kind": {
+            "const": "preferred_term"
+          },
+          "term": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "independent_scope": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "BatchCorrectionItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "correction"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[!-~]+$"
+          },
+          "kind": {
+            "const": "correction"
+          },
+          "correction": {
+            "$ref": "#/components/schemas/ProposalCorrection"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VocabularyBatchItem": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PreferredTermItem"
+          },
+          {
+            "$ref": "#/components/schemas/BatchCorrectionItem"
+          }
+        ]
+      },
+      "VocabularyBatchRequest": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "request_id",
+          "scope",
+          "items"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 2
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[!-~]+$"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ProposalScope"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/VocabularyBatchItem"
+            }
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "additionalProperties": false
+      },
+      "ScopedVocabularyTerm": {
+        "type": "object",
+        "required": [
+          "id",
+          "term"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "term": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "VocabularyBatchItemPreview": {
+        "type": "object",
+        "required": [
+          "item",
+          "disposition",
+          "message",
+          "existing_ids",
+          "examples"
+        ],
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/VocabularyBatchItem"
+          },
+          "disposition": {
+            "enum": [
+              "add",
+              "already_present",
+              "conflict",
+              "invalid"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "existing_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewExample"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "VocabularyBatchPreview": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "scope",
+          "valid",
+          "items",
+          "issues",
+          "local_corrections_enabled",
+          "guidance"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 2
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ProposalScope"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VocabularyBatchItemPreview"
+            }
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "local_corrections_enabled": {
+            "type": "boolean"
+          },
+          "guidance": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VocabularyBatchAppliedItem": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "kind",
+          "disposition",
+          "entry_ids"
+        ],
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[!-~]+$"
+          },
+          "kind": {
+            "enum": [
+              "preferred_term",
+              "correction"
+            ]
+          },
+          "disposition": {
+            "enum": [
+              "added",
+              "already_present"
+            ]
+          },
+          "entry_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "VocabularyBatchRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "original_request",
+          "reviewed_request",
+          "request_digest",
+          "state",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "original_request": {
+            "$ref": "#/components/schemas/VocabularyBatchRequest"
+          },
+          "reviewed_request": {
+            "$ref": "#/components/schemas/VocabularyBatchRequest"
+          },
+          "request_digest": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "applied",
+              "rejected",
+              "discarded"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "applied_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VocabularyBatchAppliedItem"
+            }
+          },
+          "catalog_revision": {
+            "type": "integer"
+          },
+          "grant_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "VocabularyV2Response": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "terms",
+          "corrections",
+          "scopes",
+          "local_corrections_enabled",
+          "pending_proposals"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 2
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScopedVocabularyTerm"
+            }
+          },
+          "corrections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VocabularyCorrection"
+            }
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VocabularyScope"
+            }
+          },
+          "local_corrections_enabled": {
+            "type": "boolean"
+          },
+          "pending_proposals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VocabularyBatchRecord"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "VocabularyWorkflows": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "routes",
+          "maximum_items",
+          "repository_setup",
+          "quick_addition",
+          "privacy"
+        ],
+        "properties": {
+          "schema_version": {
+            "const": 2
+          },
+          "routes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "maximum_items": {
+            "const": 50
+          },
+          "repository_setup": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "quick_addition": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "privacy": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "GrantStatusResponse": {
         "type": "object",
-        "required": ["schema_version", "request_id", "grant_id", "agent_name", "group_id", "app_paths", "expires_at"],
+        "required": [
+          "schema_version",
+          "request_id",
+          "grant_id",
+          "agent_name",
+          "group_id",
+          "app_paths",
+          "expires_at",
+          "capabilities"
+        ],
         "properties": {
-          "schema_version": {"type": "integer", "const": 1},
-          "request_id": {"type": "string"},
-          "grant_id": {"type": "string", "format": "uuid"},
-          "agent_name": {"type": "string"},
-          "group_id": {"type": "string"},
-          "app_paths": {"type": "array", "items": {"type": "string"}},
-          "expires_at": {"type": "string", "format": "date-time"}
+          "schema_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "grant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "agent_name": {
+            "type": "string"
+          },
+          "group_id": {
+            "type": "string"
+          },
+          "app_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "add_corrections",
+                "edit_correction_policies",
+                "add_preferred_terms"
+              ]
+            }
+          }
         }
       },
       "InstructionsResponse": {
         "type": "object",
-        "required": ["schema_version", "request_id", "service", "api_version", "available_operations", "bootstrap_command", "openapi_path", "openapi_command", "unavailable_behavior", "correction_guidance", "privacy", "limits"],
+        "required": [
+          "schema_version",
+          "request_id",
+          "service",
+          "api_version",
+          "available_operations",
+          "bootstrap_command",
+          "openapi_path",
+          "openapi_command",
+          "unavailable_behavior",
+          "correction_guidance",
+          "privacy",
+          "limits",
+          "vocabulary_workflows"
+        ],
         "properties": {
-          "schema_version": {"type": "integer", "const": 1},
-          "request_id": {"type": "string"},
-          "service": {"type": "string"},
-          "api_version": {"type": "string"},
-          "available_operations": {"type": "array", "items": {"type": "string"}},
-          "bootstrap_command": {"type": "string"},
-          "openapi_path": {"type": "string", "const": "/v1/openapi.json"},
-          "openapi_command": {"type": "string"},
-          "unavailable_behavior": {"type": "string"},
-          "correction_guidance": {"type": "string"},
-          "privacy": {"type": "array", "items": {"type": "string"}},
-          "limits": {"$ref": "#/components/schemas/Limits"}
+          "schema_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "api_version": {
+            "type": "string"
+          },
+          "available_operations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "bootstrap_command": {
+            "type": "string"
+          },
+          "openapi_path": {
+            "type": "string",
+            "const": "/v1/openapi.json"
+          },
+          "openapi_command": {
+            "type": "string"
+          },
+          "unavailable_behavior": {
+            "type": "string"
+          },
+          "correction_guidance": {
+            "type": "string"
+          },
+          "privacy": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "vocabulary_workflows": {
+            "$ref": "#/components/schemas/VocabularyWorkflows"
+          }
         }
       },
       "Limits": {

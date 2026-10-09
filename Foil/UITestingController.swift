@@ -287,7 +287,7 @@ final class UITestingController {
             history.addFailure(error: "Seeded network failure", audioFileURL: nil)
         }
 
-        if args.contains("--seed-agent-vocabulary-proposal") || args.contains("--seed-agent-action") {
+        if args.contains("--seed-agent-vocabulary-proposal") || args.contains("--seed-agent-action") || args.contains("--seed-agent-vocabulary-batch") {
             onSeedAgentVocabularyProposal()
         }
 
