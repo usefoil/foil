@@ -181,6 +181,12 @@ struct AgentAccessVocabularyReadModel: Encodable, Equatable, Sendable {
     let catalogRules: [LocalCorrectionRule]
     let scopedTerms: [VocabularyBatchTerm]
 
+    // v1 action receipts hash this encoding. Keep their persisted digest contract
+    // stable; v2 routes expose scoped terms through their own response model.
+    enum CodingKeys: String, CodingKey {
+        case scopes, terms, corrections, localCorrectionsEnabled, suppressionRules, catalogRules
+    }
+
     init(
         scopes: [AgentAccessVocabularyScope],
         terms: [AgentAccessVocabularyTerm],
