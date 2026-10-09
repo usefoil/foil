@@ -800,7 +800,7 @@ final class FoilUITests: XCTestCase {
         clickElement(apply)
         XCTAssertTrue(apply.waitForNonExistence(timeout: 4), app.debugDescription)
         clickElement(app.buttons["agentApprovals.done"])
-        openAppShellSettings(navID: "appShell.nav.settings.cleanup")
+        XCTAssertTrue(selectAppShellSettingsPane(navID: "appShell.nav.settings.cleanup", timeout: 5), app.debugDescription)
         let editor = app.textViews["settings.preferredTermsEditor"]
         XCTAssertTrue(editor.waitForExistence(timeout: 3), app.debugDescription)
         XCTAssertEqual(editor.value as? String, "Supabase")
