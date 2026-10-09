@@ -347,12 +347,10 @@ final class CodexTextCleanupTests: XCTestCase {
             LocalCorrectionRule(id: "suppression:test", source: "cloud dock", replacement: "CloudDock", group: group.id, enabled: true, caseSensitive: false, suppressesGlobal: true)
         ]
         _ = try state.saveLocalCorrections(rules, isEnabled: true)
-        state.vocabularyTerms = [
-            .init(term: "Supabase"),
-            .init(term: "supabase", scopeID: group.id),
-            .init(term: "Vercel", scopeID: group.id),
-            .init(term: "OtherPrivateService", scopeID: "elsewhere")
-        ]
+        let other = state.createCleanupGroup(named: "Other group", id: "elsewhere")
+        XCTAssertTrue(state.setPreferredTermsText("Supabase", scopeID: nil))
+        XCTAssertTrue(state.setPreferredTermsText("supabase\nVercel", scopeID: group.id))
+        XCTAssertTrue(state.setPreferredTermsText("OtherPrivateService", scopeID: other.id))
         let request = try CodexCleanupRequest.make(text: "hello", groupID: group.id, state: state)
         XCTAssertEqual(request.corrections, [.init(source: "orbit desk", replacement: "OrbitDesk")])
         XCTAssertEqual(request.terms, ["supabase", "Vercel"])
