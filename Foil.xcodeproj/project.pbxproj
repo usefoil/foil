@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C0DE03000000000000000002 /* CodexTextCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE03000000000000000001 /* CodexTextCleanupTests.swift */; };
+
+		C0DE02000000000000000002 /* CodexCleanupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE02000000000000000001 /* CodexCleanupView.swift */; };
+		C0DE02000000000000000003 /* CodexCleanupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE02000000000000000001 /* CodexCleanupView.swift */; };
+
+		C0DE01000000000000000002 /* CodexTextCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE01000000000000000001 /* CodexTextCleanup.swift */; };
+		C0DE01000000000000000003 /* CodexTextCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE01000000000000000001 /* CodexTextCleanup.swift */; };
+
 		AACD10000000000000000001 /* AgentAccessActionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACD10000000000000000003 /* AgentAccessActionStore.swift */; };
 		AACD10000000000000000002 /* AgentAccessActionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AACD10000000000000000003 /* AgentAccessActionStore.swift */; };
 		AAGT10000000000000000001 /* AgentAccessGrantStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAGT10000000000000000003 /* AgentAccessGrantStore.swift */; };
@@ -255,6 +263,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		C0DE03000000000000000001 /* CodexTextCleanupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexTextCleanupTests.swift; sourceTree = "<group>"; };
+		C0DE02000000000000000001 /* CodexCleanupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexCleanupView.swift; sourceTree = "<group>"; };
+		C0DE01000000000000000001 /* CodexTextCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexTextCleanup.swift; sourceTree = "<group>"; };
 		AACD10000000000000000003 /* AgentAccessActionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessActionStore.swift; sourceTree = "<group>"; };
 		AAGT10000000000000000003 /* AgentAccessGrantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentAccessGrantStore.swift; sourceTree = "<group>"; };
 		A3C000000000000000000001 /* VocabularyCatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyCatalogStore.swift; sourceTree = "<group>"; };
@@ -426,6 +437,7 @@
 				A3C000000000000000000004 /* VocabularyCatalogStoreTests.swift */,
 				AEF100000000000000000001 /* VocabularyBatchTests.swift */,
 				AACC20000000000000000003 /* AgentAccessControllerTests.swift */,
+				C0DE03000000000000000001 /* CodexTextCleanupTests.swift */,
 				AACC20000000000000000004 /* AgentAccessContractTests.swift */,
 				0157347280D9DFAE6E0A177F /* AgentAccessHTTPTests.swift */,
 				9C7C134031D4DFE0D78FE6D9 /* AgentAccessServerTests.swift */,
@@ -586,6 +598,8 @@
 				63FF044A9D0CE6F2D31590EE /* RecordingController.swift */,
 				0364A3EA681FE127352D7A68 /* ReleaseNotes.swift */,
 				5D904A4D7FBC8A395289FD4D /* SettingsView.swift */,
+				C0DE02000000000000000001 /* CodexCleanupView.swift */,
+				C0DE01000000000000000001 /* CodexTextCleanup.swift */,
 				6A427A267FEC1552AF780F77 /* SingleInstanceGuard.swift */,
 				D9F549666C526DB70503ABC3 /* SkyLightBridge.swift */,
 				B1C99484E73592AE472A500E /* SoundPlayer.swift */,
@@ -906,6 +920,8 @@
 				B8D7579ACE777842C06A05C4 /* RecordingController.swift in Sources */,
 				0DF540CE9ABDBDBCE6876628 /* ReleaseNotes.swift in Sources */,
 				D3430213DB2C6BB19CBFB9AE /* SettingsView.swift in Sources */,
+				C0DE02000000000000000002 /* CodexCleanupView.swift in Sources */,
+				C0DE01000000000000000002 /* CodexTextCleanup.swift in Sources */,
 				2D9054D3894DD2578C5568D3 /* SingleInstanceGuard.swift in Sources */,
 				D067B5E430A4CADCCB027370 /* SkyLightBridge.swift in Sources */,
 				D8A78606C66A2F1F500D126B /* SoundPlayer.swift in Sources */,
@@ -962,6 +978,7 @@
 				A3C000000000000000000005 /* VocabularyCatalogStoreTests.swift in Sources */,
 				AEF100000000000000000002 /* VocabularyBatchTests.swift in Sources */,
 				AACC20000000000000000001 /* AgentAccessControllerTests.swift in Sources */,
+				C0DE03000000000000000002 /* CodexTextCleanupTests.swift in Sources */,
 				AACC20000000000000000002 /* AgentAccessContractTests.swift in Sources */,
 				DB7957B5C832B9319A3CAF7D /* AgentAccessHTTPTests.swift in Sources */,
 				DF09A926E8D1AE016CB1553C /* AgentAccessServerTests.swift in Sources */,
@@ -1076,6 +1093,8 @@
 				71A87747EAF65AAA90597F35 /* RecordingController.swift in Sources */,
 				F4E91B203D627970441484DA /* ReleaseNotes.swift in Sources */,
 				9C3D323F79A052130557ACC5 /* SettingsView.swift in Sources */,
+				C0DE02000000000000000003 /* CodexCleanupView.swift in Sources */,
+				C0DE01000000000000000003 /* CodexTextCleanup.swift in Sources */,
 				E706E6A6FD6EC6B40FA0E59B /* SingleInstanceGuard.swift in Sources */,
 				5FB3FD6E5C9097384B00C580 /* SkyLightBridge.swift in Sources */,
 				2E4A5A6D3AA6F73AF4929340 /* SoundPlayer.swift in Sources */,

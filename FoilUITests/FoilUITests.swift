@@ -67,6 +67,81 @@ final class FoilUITests: XCTestCase {
         DistributedNotificationCenter.default().removeObserver(self)
     }
 
+    func testCodexCleanupExampleAndCancellation() {
+        launchApp(arguments: ["--ui-testing", "--reset-defaults", "--mock-codex-cleanup"])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
+        XCTAssertTrue(elementExists(id: "codexCleanup.disclosure", timeout: 3), app.debugDescription)
+        let run = button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex")
+        XCTAssertFalse(run.isEnabled)
+        button(id: "codexCleanup.example", fallbackLabel: "Load example").click()
+        XCTAssertTrue(run.isEnabled)
+        run.click()
+        let copy = button(id: "codexCleanup.copy", fallbackLabel: "Copy result")
+        let completed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: copy)
+        XCTAssertEqual(XCTWaiter.wait(for: [completed], timeout: 8), .completed, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["We put the Supabase credentials in the Vercel environment."].exists, app.debugDescription)
+        run.click()
+        button(id: "codexCleanup.cancel", fallbackLabel: "Cancel").click()
+        XCTAssertTrue(run.waitForExistence(timeout: 3))
+        XCTAssertFalse(copy.isEnabled, "Cancelled work must not expose a prior or late result")
+        button(id: "codexCleanup.done", fallbackLabel: "Done").click()
+        button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
+        XCTAssertFalse(button(id: "codexCleanup.copy", fallbackLabel: "Copy result").isEnabled)
+        XCTAssertFalse(button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").isEnabled)
+    }
+
+    func testCodexCleanupModelAndInstructionsPersistAcrossRelaunch() {
+        // Native XCTest typing avoids the general helper's direct CGEvent fallback,
+        // which requires a separate event-posting permission on macOS 27.
+        func replaceCleanupText(in element: XCUIElement, with text: String) {
+            element.click()
+            element.typeKey("a", modifierFlags: .command)
+            element.typeText(text)
+            XCTAssertEqual(element.value as? String, text)
+        }
+        launchApp(arguments: ["--ui-testing", "--reset-defaults", "--mock-codex-cleanup"])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
+        let modelField = app.textFields["codexCleanup.modelID"]
+        XCTAssertTrue(modelField.waitForExistence(timeout: 3))
+        replaceCleanupText(in: modelField, with: "qa-cleanup-model")
+        XCTAssertTrue((app.staticTexts["codexCleanup.reasoningSummary"].value as? String ?? "").contains("Uses Low reasoning"), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Codex available · Starts per cleanup"].exists)
+        app.popUpButtons["codexCleanup.reasoning"].click()
+        app.menuItems["Medium"].click()
+        XCTAssertTrue((app.staticTexts["codexCleanup.reasoningSummary"].value as? String ?? "").contains("Uses Medium reasoning"))
+        app.buttons["codexCleanup.toggleInstructions"].click()
+        let editor = app.textViews["codexCleanup.instructions"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 3), app.debugDescription)
+        replaceCleanupText(in: editor, with: "Make it concise and informal.")
+        button(id: "codexCleanup.example", fallbackLabel: "Load example").click()
+        button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").click()
+        let copy = button(id: "codexCleanup.copy", fallbackLabel: "Copy result")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: copy)], timeout: 8), .completed)
+        app.popUpButtons["codexCleanup.reasoning"].click()
+        app.menuItems["Low"].click()
+        XCTAssertFalse(copy.isEnabled, "Changing reasoning must invalidate the old result")
+        replaceCleanupText(in: modelField, with: "qa-cleanup-model-v2")
+        XCTAssertTrue((app.staticTexts["codexCleanup.reasoningSummary"].value as? String ?? "").contains("not confirmed"))
+        XCTAssertFalse(button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").isEnabled)
+        relaunchWithArguments(["--ui-testing", "--mock-codex-cleanup"])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
+        XCTAssertEqual(app.textFields["codexCleanup.modelID"].value as? String, "qa-cleanup-model-v2")
+        XCTAssertEqual(app.popUpButtons["codexCleanup.reasoning"].value as? String, "Low")
+        button(id: "codexCleanup.example", fallbackLabel: "Load example").click()
+        XCTAssertFalse(button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").isEnabled, "Unsupported saved effort must not silently fall back")
+        app.popUpButtons["codexCleanup.reasoning"].click()
+        app.menuItems["Model default"].click()
+        XCTAssertTrue(button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").isEnabled)
+        app.buttons["codexCleanup.toggleInstructions"].click()
+        XCTAssertEqual(app.textViews["codexCleanup.instructions"].value as? String, "Make it concise and informal.")
+        button(id: "codexCleanup.restoreInstructions", fallbackLabel: "Restore default").click()
+        XCTAssertTrue((app.textViews["codexCleanup.instructions"].value as? String)?.contains("Correct spelling") == true)
+        XCTAssertTrue(button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").isEnabled)
+    }
+
     func testControlCenterShowsSeededReadyState() {
         let state = waitForUITestStateSnapshot { $0.sessionTitle == "Ready" }
         XCTAssertEqual(state?.statusText, "Ready")

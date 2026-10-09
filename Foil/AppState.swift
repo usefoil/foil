@@ -349,6 +349,8 @@ final class AppState {
         return .standard
     }
 
+    static var codexCleanupPreferencesDefaults: UserDefaults { defaults }
+
     static var uiTestingDefaults: UserDefaults {
         if Bundle.main.bundleIdentifier != AppBrand.productionBundleIdentifier {
             return .standard

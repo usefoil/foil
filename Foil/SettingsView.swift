@@ -165,6 +165,7 @@ struct SettingsView: View {
     @State private var vocabularyEditingID: UUID?
     @State private var localCorrectionPreviewInput = ""
     @State private var isShowingVocabularyApprovals = false
+    @State private var isShowingCodexCleanup = false
     @State private var pairedAgentName = "Codex"
     @State private var allowAgentPreferredTerms = false
     @State private var selectedAgentGrantGroupID = ""
@@ -284,6 +285,18 @@ struct SettingsView: View {
 
     private var agentAccessSettings: some View {
         Form {
+            Section("Transcript cleanup · Experimental") {
+                Button("Try transcript cleanup") { isShowingCodexCleanup = true }
+                    .accessibilityIdentifier("settings.agentAccess.tryCleanup")
+                Text("Try text cleanup with Codex running on this Mac and an OpenAI hosted model. Paste a sample and compare the result before connecting recordings.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .sheet(isPresented: $isShowingCodexCleanup) {
+                CodexCleanupView(appState: appState)
+                    .preferredColorScheme(.light)
+            }
+
             Section("Local agent service") {
                 Toggle("Allow local agents to access Vocabulary", isOn: Binding(
                     get: { appState.agentAccessEnabled },
@@ -459,7 +472,7 @@ struct SettingsView: View {
             }
 
             Section("Privacy") {
-                Text("While enabled, local processes running as your macOS user can read allowed Vocabulary fields and submit requests for review. A process with a paired grant can edit Vocabulary in its selected app group until the grant expires or is revoked. History, transcripts, audio, credentials, provider settings, source apps, and project files are not exposed.")
+                Text("While enabled, local processes running as your macOS user can read allowed Vocabulary fields and submit requests for review. A process with a paired grant can edit Vocabulary in its selected app group until the grant expires or is revoked. The Vocabulary service does not expose History, transcripts, audio, credentials, provider settings, source apps, or project files. The separate transcript cleanup experiment sends only text you enter and selected Vocabulary when you click Clean up with Codex.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
