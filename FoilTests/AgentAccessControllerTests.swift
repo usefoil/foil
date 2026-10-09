@@ -1903,6 +1903,145 @@ final class AgentAccessControllerTests: XCTestCase {
         withExtendedLifetime(controller) {}
     }
 
+    func testMixedBatchesRequireExplicitTermGrantAndRecheckRevocationBeforeApply() async throws {
+        let marker = UUID().uuidString
+        let defaults = UserDefaults(suiteName: "foil-batch-controller-\(marker)")!
+        let state = makeState(storageMarker: marker, initialDefaultsOverride: defaults, activateCatalog: true)
+        state.setAgentAccessEnabled(false, notifyController: false)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("foil-batch-app-\(marker)")
+        let app = try makeAppFixture(root: root, name: "Codex", bundleID: "com.example.BatchCodex")
+        let group = CleanupGroup(id: "batch-agents", name: "Agents", sortOrder: 1,
+                                 appMatchers: [.init(displayName: "Codex", appPath: app.path)])
+        state.setCleanupGroups([.defaultGroup(), group])
+        let livePaths = paths()
+        let grants = AgentAccessGrantStore(fileURL: livePaths.grantStoreURL)
+        var handler: AgentAccessServer.Handler?
+        let controller = AgentAccessController(appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8), grantStore: grants) { _, _, captured in
+            handler = captured
+            return ServerStub()
+        }
+        defer {
+            state.setAgentAccessEnabled(false)
+            defaults.removePersistentDomain(forName: "foil-batch-controller-\(marker)")
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+        }
+        state.setAgentAccessEnabled(true)
+        let running = await waitUntil { state.agentAccessPresentationState == .running }
+        XCTAssertTrue(running)
+        let send = try XCTUnwrap(handler)
+        func post(_ request: VocabularyBatchRequest, token: String?, delegated: Bool = true) throws -> AgentAccessHTTPResponse {
+            send(.init(method: .post, path: delegated ? "/v2/vocabulary/delegated-proposals" : "/v2/vocabulary/proposals", headers: token.map { ["authorization": "Bearer \($0)"] } ?? [:], body: try JSONEncoder().encode(request)))
+        }
+        let request = VocabularyBatchRequest(requestID: "mixed-grant", scope: .init(kind: "cleanup_group", id: group.id), items: [
+            .init(id: "term", kind: .preferredTerm, term: "Supabase"),
+            .init(id: "correction", kind: .correction, correction: .init(spokenForms: ["super base"], replacement: "Supabase"))
+        ])
+        let (_, oldToken) = try grants.create(name: "Old capabilities", groupID: group.id, appPaths: [app.path])
+        XCTAssertEqual(try post(request, token: oldToken).status, 403)
+        XCTAssertTrue(state.vocabularyTerms.isEmpty)
+        let (grant, token) = try grants.create(name: "Terms and corrections", groupID: group.id, appPaths: [app.path], allowPreferredTerms: true)
+        XCTAssertTrue(grant.capabilities.contains("add_preferred_terms"))
+        var global = request
+        global.scope = .init(kind: "global", id: "global")
+        XCTAssertEqual(try post(global, token: token).status, 403)
+        XCTAssertEqual(try post(request, token: nil).status, 403)
+        XCTAssertEqual(try post(request, token: token).status, 202)
+        let applied = await waitUntil { state.agentAccessBatches.first?.state == .applied }
+        XCTAssertTrue(applied)
+        XCTAssertEqual(state.preferredTerms(for: group.id), ["Supabase"])
+        XCTAssertEqual(state.preferredTerms, [])
+        XCTAssertEqual(state.vocabularyCorrections.map(\.correctVersion), ["Supabase"])
+        XCTAssertFalse(state.localCorrectionSnapshot.isEnabled)
+        let receipt = try XCTUnwrap(state.appliedVocabularyProposalReceipts.last)
+        XCTAssertEqual(receipt.grantID, grant.id)
+        XCTAssertEqual(receipt.batchItems?.count, 2)
+        XCTAssertEqual(try post(request, token: token).status, 200)
+        let noOp = VocabularyBatchRequest(requestID: "fresh-repeat", scope: request.scope, items: request.items)
+        XCTAssertEqual(try post(noOp, token: token).status, 202)
+        let repeated = await waitUntil { state.agentAccessBatches.filter { $0.state == .applied }.count == 2 }
+        XCTAssertTrue(repeated)
+        XCTAssertEqual(state.appliedVocabularyProposalReceipts.last?.catalogRevision, receipt.catalogRevision)
+        let revokedRequest = VocabularyBatchRequest(requestID: "revocation-race", scope: request.scope, items: [.init(id: "vercel", kind: .preferredTerm, term: "Vercel")])
+        XCTAssertEqual(try post(revokedRequest, token: token).status, 202)
+        try grants.revoke(id: grant.id)
+        let pendingVisible = await waitUntil { state.agentAccessBatches.contains { $0.originalRequest.requestID == "revocation-race" } }
+        XCTAssertTrue(pendingVisible)
+        for _ in 0..<5 { await Task.yield() }
+        XCTAssertEqual(state.preferredTerms(for: group.id), ["Supabase"])
+        XCTAssertEqual(state.agentAccessBatches.first { $0.originalRequest.requestID == "revocation-race" }?.state, .pending)
+        XCTAssertEqual(try post(revokedRequest, token: token).status, 403)
+        // An ordinary request remains inert until the same visible review callback is used.
+        let ordinary = VocabularyBatchRequest(requestID: "ordinary", scope: request.scope, items: [.init(id: "term", kind: .preferredTerm, term: "Vercel")])
+        XCTAssertEqual(try post(ordinary, token: nil, delegated: false).status, 202)
+        let visible = await waitUntil { state.agentAccessBatches.contains { $0.originalRequest.requestID == "ordinary" } }
+        XCTAssertTrue(visible)
+        XCTAssertEqual(state.preferredTerms(for: group.id), ["Supabase"])
+        let record = try XCTUnwrap(state.agentAccessBatches.first { $0.originalRequest.requestID == "ordinary" })
+        state.agentAccessBatchApplyDidRequest?(record.id, record.reviewedRequest)
+        XCTAssertEqual(state.preferredTerms(for: group.id), ["Supabase", "Vercel"])
+        let v1 = send(.init(method: .get, path: "/v1/vocabulary", headers: [:], body: Data()))
+        let v1Object = try XCTUnwrap(JSONSerialization.jsonObject(with: v1.body) as? [String: Any])
+        XCTAssertEqual((v1Object["terms"] as? [Any])?.count, 0, "v1 cannot represent scoped terms")
+        withExtendedLifetime(controller) {}
+    }
+
+    func testCommittedBatchRecoversBeforeStaleReviewActionsCanMutateIt() throws {
+        final class InboxFault: @unchecked Sendable {
+            private let lock = NSLock()
+            private var failing = false
+            func set(_ value: Bool) { lock.withLock { failing = value } }
+            func write(_ data: Data, _ url: URL) throws {
+                try lock.withLock {
+                    if failing { throw VocabularyBatchError.unavailable }
+                    try data.write(to: url, options: .atomic)
+                }
+            }
+        }
+        for action in ["edit", "apply", "reject", "discard"] {
+            let marker = UUID().uuidString
+            let defaultsName = "foil-batch-recovery-\(marker)"
+            let defaults = UserDefaults(suiteName: defaultsName)!
+            let state = makeState(storageMarker: marker, initialDefaultsOverride: defaults, activateCatalog: true)
+            state.setAgentAccessEnabled(false, notifyController: false)
+            let livePaths = paths()
+            let fault = InboxFault()
+            let store = VocabularyBatchStore(fileURL: livePaths.supportDirectory.appendingPathComponent("batches.json"), write: { try fault.write($0, $1) })
+            let controller = AgentAccessController(appState: state, paths: livePaths, openAPIDocument: Data("{}".utf8), batchStore: store) { _, _, _ in ServerStub() }
+            defer {
+                defaults.removePersistentDomain(forName: defaultsName)
+                try? FileManager.default.removeItem(at: livePaths.supportDirectory)
+            }
+            let request = VocabularyBatchRequest(requestID: "recovery-\(action)", scope: .init(kind: "global", id: "global"), items: [.init(id: "term", kind: .preferredTerm, term: "Supabase")])
+            let pending = try store.submit(request) {}.record
+            controller.refreshBatches()
+            fault.set(true)
+            XCTAssertThrowsError(try store.apply(id: pending.id) { try state.applyReviewedVocabularyBatch($0) })
+            controller.refreshBatches()
+            XCTAssertEqual(state.agentAccessBatches.first?.state, .pending)
+            XCTAssertNotNil(state.agentAccessBatchErrorMessage)
+            XCTAssertEqual(state.preferredTerms, ["Supabase"])
+            fault.set(false)
+            var edited = request
+            edited.items[0].term = "Vercel"
+            switch action {
+            case "edit": state.agentAccessBatchRevisionDidRequest?(pending.id, edited)
+            case "apply": state.agentAccessBatchApplyDidRequest?(pending.id, edited)
+            case "reject": state.agentAccessBatchTransitionDidRequest?(pending.id, .rejected)
+            default: state.agentAccessBatchTransitionDidRequest?(pending.id, .discarded)
+            }
+            let recovered = try store.record(id: pending.id)
+            XCTAssertEqual(recovered.state, .applied, action)
+            XCTAssertEqual(recovered.reviewedRequest, request, action)
+            XCTAssertEqual(state.preferredTerms, ["Supabase"], action)
+            XCTAssertEqual(state.appliedVocabularyProposalReceipts.count, 1, action)
+            controller.refreshBatches()
+            XCTAssertNil(state.agentAccessBatchErrorMessage, action)
+            XCTAssertEqual(state.agentAccessBatches.first?.state, .applied, action)
+            withExtendedLifetime(controller) {}
+        }
+    }
+
     private func waitUntil(
         timeoutNanoseconds: UInt64 = 2_000_000_000,
         _ condition: @escaping @MainActor () -> Bool

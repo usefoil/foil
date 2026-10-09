@@ -67,11 +67,13 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
     let openAPICommand: String
     let unavailableBehavior: String
     let correctionGuidance: String
+    let vocabularyWorkflows: AgentVocabularyWorkflows
     let privacy: [String]
     let limits: AgentAccessLimits
 
     init(requestID: String, socketPath: String, limits: AgentAccessLimits = .standard) {
         schemaVersion = AgentAccessContract.schemaVersion
+        vocabularyWorkflows = AgentVocabularyWorkflows()
         self.requestID = requestID
         service = AgentAccessContract.serviceName
         apiVersion = AgentAccessContract.apiVersion
@@ -89,7 +91,12 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
             "get_vocabulary_action_status",
             "get_paired_agent_access",
             "submit_delegated_vocabulary_proposal",
-            "submit_delegated_correction_policies"
+            "submit_delegated_correction_policies",
+            "list_scoped_vocabulary_v2",
+            "preview_vocabulary_batch_v2",
+            "propose_vocabulary_batch_v2",
+            "get_vocabulary_batch_status_v2",
+            "submit_delegated_vocabulary_batch_v2"
         ]
         bootstrapCommand = AgentAccessInstructionsResponse.bootstrapCommand(socketPath: socketPath)
         openAPIPath = "/v1/openapi.json"
@@ -127,6 +134,7 @@ struct AgentAccessInstructionsResponse: Codable, Equatable {
         case openAPICommand = "openapi_command"
         case unavailableBehavior = "unavailable_behavior"
         case correctionGuidance = "correction_guidance"
+        case vocabularyWorkflows = "vocabulary_workflows"
         case privacy
         case limits
     }
@@ -140,6 +148,7 @@ struct AgentAccessGrantStatusResponse: Encodable {
     let groupID: String
     let appPaths: [String]
     let expiresAt: Date
+    let capabilities: [String]
 
     init(requestID: String, grant: AgentAccessGrantSummary) {
         self.requestID = requestID
@@ -148,6 +157,7 @@ struct AgentAccessGrantStatusResponse: Encodable {
         groupID = grant.groupID
         appPaths = grant.appPaths
         expiresAt = grant.expiresAt
+        capabilities = grant.capabilities
     }
 
     enum CodingKeys: String, CodingKey {
@@ -158,6 +168,7 @@ struct AgentAccessGrantStatusResponse: Encodable {
         case groupID = "group_id"
         case appPaths = "app_paths"
         case expiresAt = "expires_at"
+        case capabilities
     }
 }
 
@@ -168,6 +179,13 @@ struct AgentAccessVocabularyReadModel: Encodable, Equatable, Sendable {
     let localCorrectionsEnabled: Bool
     let suppressionRules: [LocalCorrectionRule]
     let catalogRules: [LocalCorrectionRule]
+    let scopedTerms: [VocabularyBatchTerm]
+
+    // v1 action receipts hash this encoding. Keep their persisted digest contract
+    // stable; v2 routes expose scoped terms through their own response model.
+    enum CodingKeys: String, CodingKey {
+        case scopes, terms, corrections, localCorrectionsEnabled, suppressionRules, catalogRules
+    }
 
     init(
         scopes: [AgentAccessVocabularyScope],
@@ -175,7 +193,8 @@ struct AgentAccessVocabularyReadModel: Encodable, Equatable, Sendable {
         corrections: [AgentAccessVocabularyCorrection],
         localCorrectionsEnabled: Bool,
         suppressionRules: [LocalCorrectionRule] = [],
-        catalogRules: [LocalCorrectionRule] = []
+        catalogRules: [LocalCorrectionRule] = [],
+        scopedTerms: [VocabularyBatchTerm] = []
     ) {
         self.scopes = scopes
         self.terms = terms
@@ -183,6 +202,7 @@ struct AgentAccessVocabularyReadModel: Encodable, Equatable, Sendable {
         self.localCorrectionsEnabled = localCorrectionsEnabled
         self.suppressionRules = suppressionRules
         self.catalogRules = catalogRules
+        self.scopedTerms = scopedTerms
     }
 }
 
@@ -361,7 +381,7 @@ struct AgentAccessPreviewIssue: Codable, Equatable {
     }
 }
 
-struct AgentAccessPreviewExample: Codable, Equatable {
+struct AgentAccessPreviewExample: Codable, Equatable, Sendable {
     let input: String
     let output: String
     let replacementCount: Int

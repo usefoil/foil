@@ -173,4 +173,77 @@ final class VocabularyCorrectionCoordinator {
         loadedCatalog = loaded
         return (loaded, receipt, false)
     }
+
+    func applyBatch(
+        _ record: VocabularyBatchRecord,
+        scopes: [AgentAccessVocabularyScope],
+        authorize: () throws -> Void = {}
+    ) throws -> (loaded: LoadedVocabularyCatalog, receipt: VocabularyAppliedProposalReceipt) {
+        guard let current = loadedCatalog else { throw VocabularyCorrectionCoordinatorError.notActivated }
+        if let receipt = current.snapshot.appliedProposalReceipts.first(where: {
+            $0.proposalID == record.id || $0.requestID == record.originalRequest.requestID
+        }) {
+            guard receipt.proposalID == record.id, receipt.requestDigest == record.requestDigest,
+                  try receipt.reviewedDigest == record.reviewedRequest.digest(), receipt.batchItems != nil else {
+                throw VocabularyBatchError.conflict("This request identity belongs to a different saved operation.")
+            }
+            return (current, receipt)
+        }
+        guard record.state == .pending else { throw VocabularyBatchError.conflict("This batch is no longer pending.") }
+        let request = record.reviewedRequest.normalized()
+        let model = VocabularyBatchEvaluator.model(snapshot: current.snapshot, scopes: scopes)
+        let preview = VocabularyBatchEvaluator.preview(request, model: model)
+        guard preview.valid else {
+            throw VocabularyBatchError.conflict((preview.issues + preview.items.filter { $0.disposition == .conflict || $0.disposition == .invalid }.map(\.message)).joined(separator: " "))
+        }
+        let scopeID = request.scope.kind == "global" ? nil : request.scope.id
+        let timestamp = now()
+        var terms = current.snapshot.vocabularyTerms
+        var corrections = current.snapshot.vocabularyCorrections
+        var rules = current.snapshot.rules
+        var items: [VocabularyBatchAppliedItem] = []
+        for row in preview.items {
+            var entryIDs = row.existingIDs
+            if row.disposition == .add {
+                switch row.item.kind {
+                case .preferredTerm:
+                    guard let term = row.item.term else { throw VocabularyBatchError.invalid("A preferred term is missing.") }
+                    let id = makeID()
+                    terms.append(.init(id: id, term: term, note: row.item.note, scopeID: scopeID, createdAt: timestamp, updatedAt: timestamp))
+                    entryIDs.append(id.uuidString.lowercased())
+                case .correction:
+                    guard let correction = row.item.correction else { throw VocabularyBatchError.invalid("A correction is missing.") }
+                    for alias in correction.spokenForms {
+                        if model.corrections.contains(where: { row.existingIDs.contains($0.id) && $0.writtenAs == alias }) { continue }
+                        let id = makeID()
+                        let stringID = id.uuidString.lowercased()
+                        corrections.append(.init(id: id, writtenAs: alias, correctVersion: correction.replacement, note: correction.note, createdAt: timestamp, updatedAt: timestamp))
+                        rules.append(.init(id: "vocabulary:\(stringID)", source: alias, replacement: correction.replacement, group: scopeID, enabled: true, caseSensitive: correction.caseSensitive, matchPunctuationVariants: correction.matchPunctuationVariants && LocalCorrectionEngine.supportsPunctuationVariants(alias)))
+                        entryIDs.append(stringID)
+                    }
+                }
+            }
+            items.append(.init(itemID: row.item.id, kind: row.item.kind, disposition: row.disposition == .alreadyPresent ? "already_present" : "added", entryIDs: entryIDs))
+        }
+        let changed = terms != current.snapshot.vocabularyTerms || corrections != current.snapshot.vocabularyCorrections || rules != current.snapshot.rules
+        let receipt = VocabularyAppliedProposalReceipt(
+            proposalID: record.id, requestID: record.originalRequest.requestID,
+            catalogRevision: current.snapshot.revision + (changed ? 1 : 0), items: [], appliedAt: timestamp,
+            batchItems: items, requestDigest: record.requestDigest,
+            reviewedDigest: try request.digest(), scope: request.scope, grantID: record.grantID
+        )
+        // Authorization is checked after revalidation, immediately before the synchronous atomic save.
+        try authorize()
+        let loaded = try store.save(
+            vocabularyCorrections: corrections, vocabularyTerms: terms,
+            localCorrectionsEnabled: current.snapshot.localCorrectionsEnabled, rules: rules,
+            appliedProposalReceipts: current.snapshot.appliedProposalReceipts + [receipt],
+            expectedSnapshot: current.snapshot, preserveRevisionForReceiptOnlyCommit: true,
+            legacyVocabularyData: legacyVocabularyData, legacyLocalCorrectionsData: legacyLocalCorrectionsData,
+            legacyTermsData: legacyTermsData, legacyPreferredTermsText: legacyPreferredTermsText
+        )
+        loadedCatalog = loaded
+        return (loaded, receipt)
+    }
+
 }

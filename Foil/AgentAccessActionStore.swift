@@ -558,7 +558,8 @@ enum AgentAccessPolicyBatchPlanner {
             corrections: updatedCorrections,
             localCorrectionsEnabled: request.enabled ?? model.localCorrectionsEnabled,
             suppressionRules: rules.filter(\.suppressesGlobal),
-            catalogRules: rules
+            catalogRules: rules,
+            scopedTerms: model.scopedTerms
         )
         return Plan(
             rules: rules,
