@@ -5,15 +5,26 @@ import Foundation
 struct VocabularyLegacySourceFingerprint: Codable, Equatable, Sendable {
     let vocabularyCorrectionsSHA256: String?
     let localCorrectionsSHA256: String?
+    let vocabularyTermsSHA256: String?
+    let preferredTermsTextSHA256: String?
+    let previousCatalogSHA256: String?
 
     enum CodingKeys: String, CodingKey {
         case vocabularyCorrectionsSHA256 = "vocabulary_corrections_sha256"
         case localCorrectionsSHA256 = "local_corrections_sha256"
+        case vocabularyTermsSHA256 = "vocabulary_terms_sha256"
+        case preferredTermsTextSHA256 = "preferred_terms_text_sha256"
+        case previousCatalogSHA256 = "previous_catalog_sha256"
     }
 
-    init(vocabularyCorrectionsData: Data?, localCorrectionsData: Data?) {
+    init(vocabularyCorrectionsData: Data?, localCorrectionsData: Data?, vocabularyTermsData: Data? = nil,
+         preferredTermsText: String? = nil, previousCatalogData: Data? = nil) {
         vocabularyCorrectionsSHA256 = vocabularyCorrectionsData.map(Self.digest)
         localCorrectionsSHA256 = localCorrectionsData.map(Self.digest)
+        vocabularyTermsSHA256 = vocabularyTermsData.map(Self.digest)
+        // Registered defaults expose an absent legacy text value as an empty string.
+        preferredTermsTextSHA256 = preferredTermsText.flatMap { $0.isEmpty ? nil : Self.digest(Data($0.utf8)) }
+        previousCatalogSHA256 = previousCatalogData.map(Self.digest)
     }
 
     private static func digest(_ data: Data) -> String {
@@ -52,11 +63,12 @@ struct VocabularyAppliedProposalReceipt: Codable, Equatable, Sendable {
 }
 
 struct VocabularyCatalogSnapshot: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 3
 
     let schemaVersion: Int
     let revision: Int
     let vocabularyCorrections: [VocabularyCorrection]
+    let vocabularyTerms: [VocabularyTerm]
     let localCorrectionsEnabled: Bool
     let rules: [LocalCorrectionRule]
     let appliedProposalReceipts: [VocabularyAppliedProposalReceipt]
@@ -65,6 +77,7 @@ struct VocabularyCatalogSnapshot: Codable, Equatable, Sendable {
     init(
         revision: Int,
         vocabularyCorrections: [VocabularyCorrection],
+        vocabularyTerms: [VocabularyTerm] = [],
         localCorrectionsEnabled: Bool,
         rules: [LocalCorrectionRule],
         appliedProposalReceipts: [VocabularyAppliedProposalReceipt] = [],
@@ -73,6 +86,7 @@ struct VocabularyCatalogSnapshot: Codable, Equatable, Sendable {
         schemaVersion = Self.currentSchemaVersion
         self.revision = revision
         self.vocabularyCorrections = vocabularyCorrections
+        self.vocabularyTerms = vocabularyTerms
         self.localCorrectionsEnabled = localCorrectionsEnabled
         self.rules = rules
         self.appliedProposalReceipts = appliedProposalReceipts
@@ -83,10 +97,23 @@ struct VocabularyCatalogSnapshot: Codable, Equatable, Sendable {
         case schemaVersion = "schema_version"
         case revision
         case vocabularyCorrections = "vocabulary_corrections"
+        case vocabularyTerms = "vocabulary_terms"
         case localCorrectionsEnabled = "local_corrections_enabled"
         case rules
         case appliedProposalReceipts = "applied_proposal_receipts"
         case legacySourceFingerprint = "legacy_source_fingerprint"
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try values.decode(Int.self, forKey: .schemaVersion)
+        revision = try values.decode(Int.self, forKey: .revision)
+        vocabularyCorrections = try values.decode([VocabularyCorrection].self, forKey: .vocabularyCorrections)
+        vocabularyTerms = schemaVersion == 2 ? [] : try values.decode([VocabularyTerm].self, forKey: .vocabularyTerms)
+        localCorrectionsEnabled = try values.decode(Bool.self, forKey: .localCorrectionsEnabled)
+        rules = try values.decode([LocalCorrectionRule].self, forKey: .rules)
+        appliedProposalReceipts = try values.decode([VocabularyAppliedProposalReceipt].self, forKey: .appliedProposalReceipts)
+        legacySourceFingerprint = try values.decode(VocabularyLegacySourceFingerprint.self, forKey: .legacySourceFingerprint)
     }
 }
 
@@ -99,6 +126,7 @@ enum VocabularyCatalogStoreError: Error, Equatable {
     case unreadable
     case unsupportedSchema(Int)
     case unreadableLegacyVocabulary
+    case unreadableLegacyTerms
     case unreadableLegacyLocalCorrections
     case unsupportedLegacyLocalCorrectionsSchema(Int)
     case invalidLegacyLocalCorrections
@@ -109,7 +137,8 @@ enum VocabularyCatalogStoreError: Error, Equatable {
 }
 
 final class VocabularyCatalogStore: @unchecked Sendable {
-    static let fileName = "vocabulary-catalog-v2.json"
+    static let fileName = "vocabulary-catalog-v3.json"
+    static let previousFileName = "vocabulary-catalog-v2.json"
     static let maximumAppliedProposalReceipts = 100
 
     let fileURL: URL
@@ -163,14 +192,20 @@ final class VocabularyCatalogStore: @unchecked Sendable {
 
     func loadOrMigrate(
         legacyVocabularyData: Data?,
-        legacyLocalCorrectionsData: Data?
+        legacyLocalCorrectionsData: Data?,
+        legacyTermsData: Data? = nil,
+        legacyPreferredTermsText: String? = nil
     ) throws -> LoadedVocabularyCatalog {
         lock.lock()
         defer { lock.unlock() }
 
+        let previousData = try previousCatalogData()
         let fingerprint = VocabularyLegacySourceFingerprint(
             vocabularyCorrectionsData: legacyVocabularyData,
-            localCorrectionsData: legacyLocalCorrectionsData
+            localCorrectionsData: legacyLocalCorrectionsData,
+            vocabularyTermsData: legacyTermsData,
+            preferredTermsText: legacyPreferredTermsText,
+            previousCatalogData: previousData
         )
         if fileManager.fileExists(atPath: fileURL.path) {
             let loaded = try decodeCatalog()
@@ -180,8 +215,18 @@ final class VocabularyCatalogStore: @unchecked Sendable {
             return loaded
         }
 
-        let vocabularyCorrections = try decodeLegacyVocabulary(legacyVocabularyData)
-        let localCorrections = try decodeLegacyLocalCorrections(legacyLocalCorrectionsData)
+        let previous = try previousData.map { try decodeCatalog(data: $0, expectedSchema: 2).snapshot }
+        if let previous {
+            guard previous.legacySourceFingerprint.vocabularyCorrectionsSHA256 == fingerprint.vocabularyCorrectionsSHA256,
+                  previous.legacySourceFingerprint.localCorrectionsSHA256 == fingerprint.localCorrectionsSHA256 else {
+                throw VocabularyCatalogStoreError.legacySourcesChanged
+            }
+        }
+        let vocabularyCorrections = try previous?.vocabularyCorrections ?? decodeLegacyVocabulary(legacyVocabularyData)
+        let localCorrections = try previous.map {
+            LocalCorrectionSnapshot(revision: $0.revision, isEnabled: $0.localCorrectionsEnabled, rules: $0.rules)
+        } ?? decodeLegacyLocalCorrections(legacyLocalCorrectionsData)
+        let vocabularyTerms = try decodeLegacyTerms(legacyTermsData, fallback: legacyPreferredTermsText)
         let compiled: CompiledLocalCorrections
         do {
             compiled = try LocalCorrectionEngine.compile(localCorrections.rules)
@@ -189,10 +234,12 @@ final class VocabularyCatalogStore: @unchecked Sendable {
             throw VocabularyCatalogStoreError.invalidLegacyLocalCorrections
         }
         let snapshot = VocabularyCatalogSnapshot(
-            revision: 1,
+            revision: previous?.revision ?? 1,
             vocabularyCorrections: vocabularyCorrections,
+            vocabularyTerms: vocabularyTerms,
             localCorrectionsEnabled: localCorrections.isEnabled,
             rules: localCorrections.rules,
+            appliedProposalReceipts: previous?.appliedProposalReceipts ?? [],
             legacySourceFingerprint: fingerprint
         )
         guard Self.isValid(snapshot) else {
@@ -204,7 +251,9 @@ final class VocabularyCatalogStore: @unchecked Sendable {
 
     func load(
         legacyVocabularyData: Data?,
-        legacyLocalCorrectionsData: Data?
+        legacyLocalCorrectionsData: Data?,
+        legacyTermsData: Data? = nil,
+        legacyPreferredTermsText: String? = nil
     ) throws -> LoadedVocabularyCatalog {
         lock.lock()
         defer { lock.unlock() }
@@ -213,9 +262,13 @@ final class VocabularyCatalogStore: @unchecked Sendable {
             throw VocabularyCatalogStoreError.unreadable
         }
         let loaded = try decodeCatalog()
+        let previousData = try previousCatalogData()
         let fingerprint = VocabularyLegacySourceFingerprint(
             vocabularyCorrectionsData: legacyVocabularyData,
-            localCorrectionsData: legacyLocalCorrectionsData
+            localCorrectionsData: legacyLocalCorrectionsData,
+            vocabularyTermsData: legacyTermsData,
+            preferredTermsText: legacyPreferredTermsText,
+            previousCatalogData: previousData
         )
         guard loaded.snapshot.legacySourceFingerprint == fingerprint else {
             throw VocabularyCatalogStoreError.legacySourcesChanged
@@ -225,12 +278,15 @@ final class VocabularyCatalogStore: @unchecked Sendable {
 
     func save(
         vocabularyCorrections: [VocabularyCorrection],
+        vocabularyTerms: [VocabularyTerm]? = nil,
         localCorrectionsEnabled: Bool,
         rules: [LocalCorrectionRule],
         appliedProposalReceipts: [VocabularyAppliedProposalReceipt],
         expectedSnapshot: VocabularyCatalogSnapshot,
         legacyVocabularyData: Data?,
-        legacyLocalCorrectionsData: Data?
+        legacyLocalCorrectionsData: Data?,
+        legacyTermsData: Data? = nil,
+        legacyPreferredTermsText: String? = nil
     ) throws -> LoadedVocabularyCatalog {
         lock.lock()
         defer { lock.unlock() }
@@ -245,14 +301,21 @@ final class VocabularyCatalogStore: @unchecked Sendable {
             }
             throw VocabularyCatalogStoreError.unreadable
         }
+        let previousData = try previousCatalogData()
         let fingerprint = VocabularyLegacySourceFingerprint(
             vocabularyCorrectionsData: legacyVocabularyData,
-            localCorrectionsData: legacyLocalCorrectionsData
+            localCorrectionsData: legacyLocalCorrectionsData,
+            vocabularyTermsData: legacyTermsData,
+            preferredTermsText: legacyPreferredTermsText,
+            previousCatalogData: previousData
         )
         guard current.legacySourceFingerprint == fingerprint else {
             throw VocabularyCatalogStoreError.legacySourcesChanged
         }
 
+        guard PreferredTermPolicy.validChanges(vocabularyTerms ?? current.vocabularyTerms, from: current.vocabularyTerms) else {
+            throw VocabularyCatalogStoreError.invalidCatalog
+        }
         let compiled: CompiledLocalCorrections
         do {
             compiled = try LocalCorrectionEngine.compile(rules)
@@ -262,6 +325,7 @@ final class VocabularyCatalogStore: @unchecked Sendable {
         let snapshot = VocabularyCatalogSnapshot(
             revision: current.revision + 1,
             vocabularyCorrections: vocabularyCorrections,
+            vocabularyTerms: vocabularyTerms ?? current.vocabularyTerms,
             localCorrectionsEnabled: localCorrectionsEnabled,
             rules: rules,
             appliedProposalReceipts: Array(
@@ -283,13 +347,17 @@ final class VocabularyCatalogStore: @unchecked Sendable {
         } catch {
             throw VocabularyCatalogStoreError.unreadable
         }
+        return try decodeCatalog(data: data, expectedSchema: VocabularyCatalogSnapshot.currentSchemaVersion)
+    }
+
+    private func decodeCatalog(data: Data, expectedSchema: Int) throws -> LoadedVocabularyCatalog {
         let schemaVersion: Int
         do {
             schemaVersion = try JSONDecoder().decode(SchemaHeader.self, from: data).schemaVersion
         } catch {
             throw VocabularyCatalogStoreError.unreadable
         }
-        guard schemaVersion == VocabularyCatalogSnapshot.currentSchemaVersion else {
+        guard schemaVersion == expectedSchema else {
             throw VocabularyCatalogStoreError.unsupportedSchema(schemaVersion)
         }
         do {
@@ -304,6 +372,39 @@ final class VocabularyCatalogStore: @unchecked Sendable {
         } catch {
             throw VocabularyCatalogStoreError.invalidCatalog
         }
+    }
+
+    private func previousCatalogData() throws -> Data? {
+        let url = fileURL.deletingLastPathComponent().appendingPathComponent(Self.previousFileName)
+        guard url != fileURL, fileManager.fileExists(atPath: url.path) else { return nil }
+        do { return try Data(contentsOf: url) }
+        catch { throw VocabularyCatalogStoreError.unreadable }
+    }
+
+    private func decodeLegacyTerms(_ data: Data?, fallback: String?) throws -> [VocabularyTerm] {
+        var terms: [VocabularyTerm]
+        if let data {
+            do { terms = try decoder.decode([VocabularyTerm].self, from: data) }
+            catch { throw VocabularyCatalogStoreError.unreadableLegacyTerms }
+            guard Set(terms.map(\.id)).count == terms.count,
+                  terms.allSatisfy({ $0.scopeID == nil && $0.createdAt <= $0.updatedAt }) else {
+                throw VocabularyCatalogStoreError.unreadableLegacyTerms
+            }
+        } else { terms = [] }
+        if terms.isEmpty {
+            terms = (fallback ?? "").components(separatedBy: .newlines)
+                .map { VocabularyTerm(term: PreferredTermPolicy.normalized($0)) }
+                .filter { !$0.term.isEmpty }
+        }
+        var seen = Set<String>()
+        terms = terms.compactMap { value in
+            var term = value
+            term.term = PreferredTermPolicy.normalized(term.term)
+            guard seen.insert(PreferredTermPolicy.identity(term.term)).inserted else { return nil }
+            return term
+        }
+        guard PreferredTermPolicy.isValidStored(terms) else { throw VocabularyCatalogStoreError.unreadableLegacyTerms }
+        return terms
     }
 
     private func decodeLegacyVocabulary(_ data: Data?) throws -> [VocabularyCorrection] {
@@ -379,7 +480,8 @@ final class VocabularyCatalogStore: @unchecked Sendable {
     }
 
     private static func isValid(_ snapshot: VocabularyCatalogSnapshot) -> Bool {
-        guard snapshot.revision >= 1,
+        guard PreferredTermPolicy.isValidStored(snapshot.vocabularyTerms),
+              snapshot.revision >= 1,
               snapshot.revision < Int.max,
               snapshot.appliedProposalReceipts.count <= maximumAppliedProposalReceipts,
               Set(snapshot.vocabularyCorrections.map(\.id)).count == snapshot.vocabularyCorrections.count,
@@ -405,7 +507,10 @@ final class VocabularyCatalogStore: @unchecked Sendable {
         }
         for digest in [
             snapshot.legacySourceFingerprint.vocabularyCorrectionsSHA256,
-            snapshot.legacySourceFingerprint.localCorrectionsSHA256
+            snapshot.legacySourceFingerprint.localCorrectionsSHA256,
+            snapshot.legacySourceFingerprint.vocabularyTermsSHA256,
+            snapshot.legacySourceFingerprint.preferredTermsTextSHA256,
+            snapshot.legacySourceFingerprint.previousCatalogSHA256
         ].compactMap({ $0 }) where !isSHA256Digest(digest) {
             return false
         }

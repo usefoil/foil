@@ -13,6 +13,8 @@ final class VocabularyCorrectionCoordinator {
     private let store: VocabularyCatalogStore
     private let legacyVocabularyData: Data?
     private let legacyLocalCorrectionsData: Data?
+    private let legacyTermsData: Data?
+    private let legacyPreferredTermsText: String?
     private let now: () -> Date
     private let makeID: () -> UUID
     private(set) var loadedCatalog: LoadedVocabularyCatalog?
@@ -21,12 +23,16 @@ final class VocabularyCorrectionCoordinator {
         store: VocabularyCatalogStore,
         legacyVocabularyData: Data?,
         legacyLocalCorrectionsData: Data?,
+        legacyTermsData: Data? = nil,
+        legacyPreferredTermsText: String? = nil,
         now: @escaping () -> Date = { Date() },
         makeID: @escaping () -> UUID = { UUID() }
     ) {
         self.store = store
         self.legacyVocabularyData = legacyVocabularyData
         self.legacyLocalCorrectionsData = legacyLocalCorrectionsData
+        self.legacyTermsData = legacyTermsData
+        self.legacyPreferredTermsText = legacyPreferredTermsText
         self.now = now
         self.makeID = makeID
     }
@@ -35,7 +41,9 @@ final class VocabularyCorrectionCoordinator {
     func activate() throws -> LoadedVocabularyCatalog {
         let loaded = try store.loadOrMigrate(
             legacyVocabularyData: legacyVocabularyData,
-            legacyLocalCorrectionsData: legacyLocalCorrectionsData
+            legacyLocalCorrectionsData: legacyLocalCorrectionsData,
+            legacyTermsData: legacyTermsData,
+            legacyPreferredTermsText: legacyPreferredTermsText
         )
         loadedCatalog = loaded
         return loaded
@@ -44,6 +52,7 @@ final class VocabularyCorrectionCoordinator {
     @discardableResult
     func save(
         vocabularyCorrections: [VocabularyCorrection],
+        vocabularyTerms: [VocabularyTerm]? = nil,
         localCorrectionsEnabled: Bool,
         rules: [LocalCorrectionRule]
     ) throws -> LoadedVocabularyCatalog {
@@ -52,12 +61,15 @@ final class VocabularyCorrectionCoordinator {
         }
         let loaded = try store.save(
             vocabularyCorrections: vocabularyCorrections,
+            vocabularyTerms: vocabularyTerms,
             localCorrectionsEnabled: localCorrectionsEnabled,
             rules: rules,
             appliedProposalReceipts: current.snapshot.appliedProposalReceipts,
             expectedSnapshot: current.snapshot,
             legacyVocabularyData: legacyVocabularyData,
-            legacyLocalCorrectionsData: legacyLocalCorrectionsData
+            legacyLocalCorrectionsData: legacyLocalCorrectionsData,
+            legacyTermsData: legacyTermsData,
+            legacyPreferredTermsText: legacyPreferredTermsText
         )
         loadedCatalog = loaded
         return loaded
@@ -154,7 +166,9 @@ final class VocabularyCorrectionCoordinator {
             appliedProposalReceipts: current.snapshot.appliedProposalReceipts + [receipt],
             expectedSnapshot: current.snapshot,
             legacyVocabularyData: legacyVocabularyData,
-            legacyLocalCorrectionsData: legacyLocalCorrectionsData
+            legacyLocalCorrectionsData: legacyLocalCorrectionsData,
+            legacyTermsData: legacyTermsData,
+            legacyPreferredTermsText: legacyPreferredTermsText
         )
         loadedCatalog = loaded
         return (loaded, receipt, false)

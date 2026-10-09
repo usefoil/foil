@@ -1435,6 +1435,56 @@ final class FoilUITests: XCTestCase {
         add(attachment)
     }
 
+    func testPreferredTermsScopesSaveAndSurviveGlobalEditsAndRelaunch() {
+        func typeText(_ text: String, into element: XCUIElement) {
+            scrollSettingsUntilHittable(element)
+            element.click()
+            element.typeKey("a", modifierFlags: .command)
+            element.typeText(text)
+        }
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--settings-tab-cleanup"])
+        openSettingsPanel()
+        button(id: "settings.cleanupGroups.addGroupButton", fallbackLabel: "Add cleanup group").click()
+        let name = app.textFields["settings.cleanupGroups.nameField"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3), app.debugDescription)
+        typeText("Terms QA", into: name)
+        let scope = app.popUpButtons["settings.preferredTermsScope"]
+        let editor = app.textViews["settings.preferredTermsEditor"]
+        let save = app.buttons["settings.savePreferredTerms"]
+        scrollSettingsUntilHittable(scope)
+        scope.click()
+        app.menuItems["Terms QA"].click()
+        typeText("Supabase\nC++", into: editor)
+        scrollSettingsUntilHittable(save)
+        save.click()
+        XCTAssertFalse(save.isEnabled, app.debugDescription)
+        scope.click()
+        app.menuItems["Everywhere"].click()
+        typeText("Vercel", into: editor)
+        scrollSettingsUntilHittable(save)
+        save.click()
+        scope.click()
+        app.menuItems["Terms QA"].click()
+        XCTAssertEqual(editor.value as? String, "Supabase\nC++")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Scoped preferred terms"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        relaunchWithArguments(["--ui-testing", "--settings-tab-cleanup"])
+        openSettingsPanel()
+        scrollSettingsUntilHittable(editor)
+        XCTAssertEqual(editor.value as? String, "Vercel")
+        scope.click()
+        app.menuItems["Terms QA"].click()
+        XCTAssertEqual(editor.value as? String, "Supabase\nC++")
+        typeText("Supabase", into: editor)
+        scrollSettingsUntilHittable(save)
+        save.click()
+        scope.click()
+        app.menuItems["Everywhere"].click()
+        XCTAssertEqual(editor.value as? String, "Vercel")
+    }
+
     func testGlobalCorrectionExceptionPreviewUsesSelectedGroup() {
         relaunchWithArguments(["--ui-testing", "--reset-defaults", "--settings-tab-cleanup"])
         openSettingsPanel()

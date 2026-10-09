@@ -603,7 +603,7 @@ final class TranscriptionController {
             localCorrectionGroupID: hasKnownAppContext ? resolution.group.id : nil,
             localCorrections: appState.localCorrectionExecutionSnapshot(),
             vocabularyCorrections: appState.vocabularyCorrections,
-            preferredTerms: appState.preferredTerms
+            preferredTerms: appState.preferredTerms(for: hasKnownAppContext ? resolution.group.id : nil)
         )
     }
 

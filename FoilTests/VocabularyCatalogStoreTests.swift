@@ -11,7 +11,7 @@ final class VocabularyCatalogStoreTests: XCTestCase {
             legacyLocalCorrectionsData: nil
         )
 
-        XCTAssertEqual(loaded.snapshot.schemaVersion, 2)
+        XCTAssertEqual(loaded.snapshot.schemaVersion, 3)
         XCTAssertEqual(loaded.snapshot.revision, 1)
         XCTAssertEqual(loaded.snapshot.vocabularyCorrections, [])
         XCTAssertEqual(loaded.snapshot.rules, [])
@@ -684,6 +684,201 @@ final class VocabularyCatalogStoreTests: XCTestCase {
         XCTAssertEqual(loaded.snapshot.vocabularyCorrections.count, 2)
         XCTAssertEqual(loaded.snapshot.rules.count, 2)
         XCTAssertEqual(loaded.snapshot.rules.last?.source, "codecs")
+    }
+
+    func testVersionTwoMigrationPreservesCorrectionsReceiptsAndPreferredTermMetadata() throws {
+        let fixture = try makeFixture()
+        let receipt = VocabularyAppliedProposalReceipt(proposalID: "already-applied", requestID: "request",
+            catalogRevision: 6, items: [], appliedAt: Date(timeIntervalSince1970: 10))
+        let old = VocabularyCatalogSnapshot(revision: 7, vocabularyCorrections: [correction()],
+            localCorrectionsEnabled: true, rules: [rule()], appliedProposalReceipts: [receipt],
+            legacySourceFingerprint: .init(vocabularyCorrectionsData: nil, localCorrectionsData: nil))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(old)) as? [String: Any])
+        json["schema_version"] = 2
+        json.removeValue(forKey: "vocabulary_terms")
+        let oldBytes = try JSONSerialization.data(withJSONObject: json, options: .sortedKeys)
+        let oldURL = fixture.directory.appendingPathComponent(VocabularyCatalogStore.previousFileName)
+        try oldBytes.write(to: oldURL)
+        let term = VocabularyTerm(term: "Supabase", note: "service",
+            createdAt: Date(timeIntervalSince1970: 10), updatedAt: Date(timeIntervalSince1970: 20))
+        let termBytes = try JSONEncoder().encode([term])
+        let migrated = try fixture.store.loadOrMigrate(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil,
+            legacyTermsData: termBytes, legacyPreferredTermsText: "Old fallback")
+        XCTAssertEqual(migrated.snapshot.schemaVersion, 3)
+        XCTAssertEqual(migrated.snapshot.revision, 7)
+        XCTAssertEqual(migrated.snapshot.vocabularyTerms, [term])
+        XCTAssertEqual(migrated.snapshot.vocabularyCorrections, old.vocabularyCorrections)
+        XCTAssertEqual(migrated.snapshot.rules, old.rules)
+        XCTAssertEqual(migrated.snapshot.appliedProposalReceipts, [receipt])
+        XCTAssertEqual(try Data(contentsOf: oldURL), oldBytes)
+        let reopened = try fixture.store.load(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil,
+            legacyTermsData: termBytes, legacyPreferredTermsText: "Old fallback")
+        XCTAssertEqual(reopened.snapshot, migrated.snapshot)
+        let v3Bytes = try Data(contentsOf: fixture.catalogURL)
+        try (oldBytes + Data(" ".utf8)).write(to: oldURL)
+        XCTAssertThrowsError(try fixture.store.loadOrMigrate(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil,
+            legacyTermsData: termBytes, legacyPreferredTermsText: "Old fallback")) {
+            XCTAssertEqual($0 as? VocabularyCatalogStoreError, .legacySourcesChanged)
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.catalogURL), v3Bytes)
+    }
+
+    func testPreferredTermsMigrationFallbackAndLegacyEditDetection() throws {
+        let fixture = try makeFixture()
+        let migrated = try fixture.store.loadOrMigrate(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil,
+            legacyPreferredTermsText: " Supabase\nSUPABASE\nC++\nC#\n")
+        XCTAssertEqual(migrated.snapshot.vocabularyTerms.map(\.term), ["Supabase", "C++", "C#"])
+        XCTAssertTrue(migrated.snapshot.vocabularyTerms.allSatisfy { $0.scopeID == nil })
+        let before = try Data(contentsOf: fixture.catalogURL)
+        XCTAssertThrowsError(try fixture.store.loadOrMigrate(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil,
+            legacyPreferredTermsText: "Changed")) {
+            XCTAssertEqual($0 as? VocabularyCatalogStoreError, .legacySourcesChanged)
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.catalogURL), before)
+        let corrupt = try makeFixture()
+        XCTAssertThrowsError(try corrupt.store.loadOrMigrate(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil,
+            legacyTermsData: Data("broken".utf8), legacyPreferredTermsText: "Must not hide corruption")) {
+            XCTAssertEqual($0 as? VocabularyCatalogStoreError, .unreadableLegacyTerms)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: corrupt.catalogURL.path))
+    }
+
+    func testPreferredTermIdentityIsUnicodeAwareAndPreservesPunctuation() {
+        XCTAssertEqual(PreferredTermPolicy.identity("CAFÉ"), PreferredTermPolicy.identity("Cafe\u{301}"))
+        XCTAssertNotEqual(PreferredTermPolicy.identity("C++"), PreferredTermPolicy.identity("C#"))
+        XCTAssertFalse(PreferredTermPolicy.validPhrase("bad\u{0000}term"))
+        XCTAssertFalse(PreferredTermPolicy.validPhrase(String(repeating: "a", count: 257)))
+        let global = VocabularyTerm(term: "Supabase")
+        let scoped = VocabularyTerm(term: "SUPABASE", scopeID: "agents")
+        XCTAssertTrue(PreferredTermPolicy.isValid([global, scoped]))
+        XCTAssertFalse(PreferredTermPolicy.isValid([global, VocabularyTerm(term: "supabase")]))
+        XCTAssertEqual(PreferredTermPolicy.effective([global, scoped], groupID: "other"), ["Supabase"])
+    }
+
+    func testLegacyLongAndTabTermsMigrateReloadAndDoNotBlockUnrelatedEdits() throws {
+        let fixture = try makeFixture()
+        let legacyTerms = [VocabularyTerm(term: String(repeating: "x", count: 285)),
+                           VocabularyTerm(term: "Project\tPhoenix")]
+        let bytes = try JSONEncoder().encode(legacyTerms)
+        let migrated = try fixture.store.loadOrMigrate(legacyVocabularyData: nil,
+            legacyLocalCorrectionsData: nil, legacyTermsData: bytes)
+        XCTAssertEqual(migrated.snapshot.vocabularyTerms, legacyTerms)
+        let newTerm = VocabularyTerm(term: "Supabase", scopeID: "agents")
+        let saved = try fixture.store.save(vocabularyCorrections: [correction()], vocabularyTerms: legacyTerms + [newTerm],
+            localCorrectionsEnabled: true, rules: [rule()], appliedProposalReceipts: [], expectedSnapshot: migrated.snapshot,
+            legacyVocabularyData: nil, legacyLocalCorrectionsData: nil, legacyTermsData: bytes)
+        let loaded = try fixture.store.load(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil, legacyTermsData: bytes)
+        XCTAssertEqual(loaded.snapshot.vocabularyTerms, legacyTerms + [newTerm])
+        XCTAssertTrue(loaded.snapshot.localCorrectionsEnabled)
+        XCTAssertEqual(loaded.snapshot.rules, [rule()])
+        XCTAssertThrowsError(try fixture.store.save(vocabularyCorrections: [correction()],
+            vocabularyTerms: saved.snapshot.vocabularyTerms + [VocabularyTerm(term: String(repeating: "y", count: 257))],
+            localCorrectionsEnabled: true, rules: [rule()], appliedProposalReceipts: [], expectedSnapshot: saved.snapshot,
+            legacyVocabularyData: nil, legacyLocalCorrectionsData: nil, legacyTermsData: bytes))
+        let removed = try fixture.store.save(vocabularyCorrections: [correction()], vocabularyTerms: [newTerm],
+            localCorrectionsEnabled: true, rules: [rule()], appliedProposalReceipts: [], expectedSnapshot: saved.snapshot,
+            legacyVocabularyData: nil, legacyLocalCorrectionsData: nil, legacyTermsData: bytes)
+        XCTAssertEqual(removed.snapshot.vocabularyTerms, [newTerm])
+    }
+
+    func testPreferredTermMigrationFailureDoesNotCreateAnEmptyCatalog() throws {
+        let fixture = try makeFixture(stagedWriter: { _, _ in throw SimulatedCatalogFailure() })
+        let data = try JSONEncoder().encode([VocabularyTerm(term: "Supabase")])
+        XCTAssertThrowsError(try fixture.store.loadOrMigrate(legacyVocabularyData: nil,
+            legacyLocalCorrectionsData: nil, legacyTermsData: data)) {
+            XCTAssertEqual($0 as? VocabularyCatalogStoreError, .writeFailed)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.catalogURL.path))
+        let recovered = try VocabularyCatalogStore(fileURL: fixture.catalogURL).loadOrMigrate(
+            legacyVocabularyData: nil, legacyLocalCorrectionsData: nil, legacyTermsData: data)
+        XCTAssertEqual(recovered.snapshot.vocabularyTerms.map(\.term), ["Supabase"])
+    }
+
+    func testTermSaveFailureAndDuplicateValidationLeaveCatalogUnchanged() throws {
+        let fixture = try makeFixture()
+        let initial = try fixture.store.loadOrMigrate(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil)
+        let before = try Data(contentsOf: fixture.catalogURL)
+        let term = VocabularyTerm(term: "Supabase", scopeID: "agents")
+        let failing = VocabularyCatalogStore(fileURL: fixture.catalogURL, committer: { _, _ in throw SimulatedCatalogFailure() })
+        XCTAssertThrowsError(try failing.save(vocabularyCorrections: [], vocabularyTerms: [term],
+            localCorrectionsEnabled: false, rules: [], appliedProposalReceipts: [], expectedSnapshot: initial.snapshot,
+            legacyVocabularyData: nil, legacyLocalCorrectionsData: nil)) {
+            XCTAssertEqual($0 as? VocabularyCatalogStoreError, .writeFailed)
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.catalogURL), before)
+        XCTAssertThrowsError(try fixture.store.save(vocabularyCorrections: [],
+            vocabularyTerms: [term, VocabularyTerm(term: "SUPABASE", scopeID: "agents")],
+            localCorrectionsEnabled: false, rules: [], appliedProposalReceipts: [], expectedSnapshot: initial.snapshot,
+            legacyVocabularyData: nil, legacyLocalCorrectionsData: nil)) {
+            XCTAssertEqual($0 as? VocabularyCatalogStoreError, .invalidCatalog)
+        }
+        XCTAssertEqual(try Data(contentsOf: fixture.catalogURL), before)
+        let saved = try fixture.store.save(vocabularyCorrections: [],
+            vocabularyTerms: [term, VocabularyTerm(term: "supabase")],
+            localCorrectionsEnabled: false, rules: [], appliedProposalReceipts: [], expectedSnapshot: initial.snapshot,
+            legacyVocabularyData: nil, legacyLocalCorrectionsData: nil)
+        let correctionSave = try fixture.store.save(vocabularyCorrections: [correction()],
+            localCorrectionsEnabled: true, rules: [rule()], appliedProposalReceipts: [], expectedSnapshot: saved.snapshot,
+            legacyVocabularyData: nil, legacyLocalCorrectionsData: nil)
+        XCTAssertEqual(correctionSave.snapshot.vocabularyTerms, saved.snapshot.vocabularyTerms)
+        XCTAssertEqual(PreferredTermPolicy.effective(correctionSave.snapshot.vocabularyTerms, groupID: "agents"), ["Supabase"])
+        XCTAssertEqual(PreferredTermPolicy.effective(correctionSave.snapshot.vocabularyTerms, groupID: nil), ["supabase"])
+    }
+
+    @MainActor
+    func testAppStateScopedTermsPersistAndGlobalEditingCannotEraseThem() throws {
+        let fixture = try makeFixture()
+        let name = "Foil.ScopedTermTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let state = AppState(localCorrectionStore: LocalCorrectionStore(fileURL: fixture.legacyLocalURL),
+            vocabularyCatalogStore: fixture.store, initialDefaultsOverride: defaults)
+        state.setCleanupGroups([CleanupGroup.defaultGroup(),
+            CleanupGroup(id: "agents", name: "Agents", sortOrder: 1, processingMode: .raw)])
+        let global = try XCTUnwrap(state.addVocabularyTerm("supabase"))
+        let scoped = try XCTUnwrap(state.addVocabularyTerm("Supabase", note: "Keep this", scopeID: "agents"))
+        let revision = state.localCorrectionSnapshot.revision
+        XCTAssertEqual(state.addVocabularyTerm("SUPABASE", scopeID: "agents")?.id, scoped.id)
+        XCTAssertEqual(state.localCorrectionSnapshot.revision, revision, "Duplicate add must not write")
+        XCTAssertEqual(state.preferredTerms, [global.term])
+        XCTAssertEqual(state.preferredTerms(for: "agents"), [scoped.term])
+        XCTAssertEqual(state.preferredTerms(for: "missing"), [global.term])
+        state.preferredTermsText = "Vercel\nC++\nC#"
+        XCTAssertEqual(state.vocabularyTerms.first(where: { $0.id == scoped.id }), scoped)
+        XCTAssertEqual(state.preferredTerms(for: "agents"), ["Vercel", "C++", "C#", "Supabase"])
+        XCTAssertFalse(state.setPreferredTermsText("Stale overwrite", scopeID: nil, expectedText: "supabase"))
+        XCTAssertEqual(state.preferredTerms, ["Vercel", "C++", "C#"])
+        XCTAssertNotNil(state.vocabularyTermPersistenceError)
+        XCTAssertNil(defaults.data(forKey: "transcriptCleanupVocabularyTerms"), "Atomic catalog must leave migration input untouched")
+        XCTAssertNil(defaults.persistentDomain(forName: name)?["transcriptCleanupPreferredTerms"])
+        let reopened = AppState(localCorrectionStore: LocalCorrectionStore(fileURL: fixture.legacyLocalURL),
+            vocabularyCatalogStore: fixture.store, initialDefaultsOverride: defaults)
+        XCTAssertEqual(reopened.vocabularyTerms, state.vocabularyTerms)
+        XCTAssertTrue(state.updateCleanupGroup(id: "agents") { $0.isEnabled = false })
+        XCTAssertEqual(state.preferredTerms(for: "agents"), ["Vercel", "C++", "C#"])
+        XCTAssertNil(state.addVocabularyTerm("Must not add", scopeID: "agents"))
+        XCTAssertTrue(state.deleteCleanupGroup(id: "agents"))
+        XCTAssertTrue(state.vocabularyTerms.contains { $0.id == scoped.id })
+        XCTAssertEqual(state.preferredTerms(for: "agents"), ["Vercel", "C++", "C#"])
+        XCTAssertTrue(state.setPreferredTermsText("", scopeID: "agents"), "Orphaned terms can still be removed")
+        XCTAssertFalse(state.vocabularyTerms.contains { $0.id == scoped.id })
+    }
+
+    @MainActor
+    func testAppStateTermCommitFailurePreservesMemoryAndDisk() throws {
+        let fixture = try makeFixture()
+        let initial = try fixture.store.loadOrMigrate(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil)
+        let before = try Data(contentsOf: fixture.catalogURL)
+        let failing = VocabularyCatalogStore(fileURL: fixture.catalogURL, committer: { _, _ in throw SimulatedCatalogFailure() })
+        let name = "Foil.FailedTermTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let state = AppState(localCorrectionStore: LocalCorrectionStore(fileURL: fixture.legacyLocalURL),
+            vocabularyCatalogStore: failing, initialDefaultsOverride: defaults)
+        XCTAssertNil(state.addVocabularyTerm("Supabase"))
+        XCTAssertEqual(state.vocabularyTerms, initial.snapshot.vocabularyTerms)
+        XCTAssertNotNil(state.vocabularyTermPersistenceError)
+        XCTAssertEqual(try Data(contentsOf: fixture.catalogURL), before)
     }
 
     private func makeFixture(

@@ -139,6 +139,9 @@ struct SettingsView: View {
     var usesFixedFrame: Bool
 
     @Environment(\.openWindow) private var openWindow
+    @State private var preferredTermScopeID = "global"
+    @State private var preferredTermDrafts: [String: String] = [:]
+    @State private var preferredTermBaselines: [String: String] = [:]
     @State private var selectedTab: Tab
     @State private var isShowingClearHistoryConfirmation = false
     @State private var launchAtLoginManager = LaunchAtLoginManager()
@@ -1753,12 +1756,65 @@ struct SettingsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Preferred terms")
-                TextEditor(text: $appState.preferredTermsText)
+                Picker("Terms apply in", selection: $preferredTermScopeID) {
+                    Text("Everywhere").tag("global")
+                    ForEach(appState.cleanupGroups) { group in
+                        Text(group.name + (group.isEnabled ? "" : " (off)")).tag(group.id)
+                    }
+                    ForEach(unavailableTermScopeIDs, id: \.self) { id in
+                        Text("Unavailable group (\(id.prefix(8)))").tag(id)
+                    }
+                }
+                .accessibilityIdentifier("settings.preferredTermsScope")
+                TextEditor(text: Binding(
+                    get: { preferredTermDrafts[preferredTermScopeID] ?? currentPreferredTermsText },
+                    set: {
+                        if preferredTermDrafts[preferredTermScopeID] == nil {
+                            preferredTermBaselines[preferredTermScopeID] = currentPreferredTermsText
+                        }
+                        preferredTermDrafts[preferredTermScopeID] = $0
+                    }
+                ))
                     .font(.body)
                     .frame(minHeight: 72)
                     .accessibilityIdentifier("settings.preferredTermsEditor")
+                HStack {
+                    Button("Save terms") {
+                        if appState.setPreferredTermsText(preferredTermDrafts[preferredTermScopeID] ?? currentPreferredTermsText,
+                                                          scopeID: preferredTermScopeID == "global" ? nil : preferredTermScopeID,
+                                                          expectedText: preferredTermBaselines[preferredTermScopeID]) {
+                            preferredTermDrafts.removeValue(forKey: preferredTermScopeID)
+                            preferredTermBaselines.removeValue(forKey: preferredTermScopeID)
+                        }
+                    }
+                    .disabled(preferredTermDrafts[preferredTermScopeID] == nil || preferredTermDrafts[preferredTermScopeID] == currentPreferredTermsText)
+                    .accessibilityIdentifier("settings.savePreferredTerms")
+                    if preferredTermDrafts[preferredTermScopeID] != nil {
+                        Button("Discard edits") {
+                            preferredTermDrafts.removeValue(forKey: preferredTermScopeID)
+                            preferredTermBaselines.removeValue(forKey: preferredTermScopeID)
+                            _ = appState.setPreferredTermsText(currentPreferredTermsText,
+                                                              scopeID: preferredTermScopeID == "global" ? nil : preferredTermScopeID)
+                        }
+                    }
+                }
+                Text("One term per line. Save after editing. Preferred terms guide Cleanup; they do not replace text in Raw mode. Global terms also apply in each enabled group.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let error = appState.vocabularyTermPersistenceError {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                        .accessibilityIdentifier("settings.preferredTermsError")
+                }
             }
         }
+    }
+
+    private var currentPreferredTermsText: String {
+        appState.preferredTermsText(scopeID: preferredTermScopeID == "global" ? nil : preferredTermScopeID)
+    }
+
+    private var unavailableTermScopeIDs: [String] {
+        let available = Set(appState.cleanupGroups.map(\.id))
+        return Set(appState.vocabularyTerms.compactMap(\.scopeID)).subtracting(available).sorted()
     }
 
     private func vocabularyHelpText(isCleanupEnabled: Bool) -> String {

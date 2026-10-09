@@ -594,11 +594,18 @@ final class TranscriptionControllerTests: XCTestCase {
             [localRule(id: "captured", source: "super base", replacement: "Captured", group: "terminal")],
             isEnabled: true
         )
+        XCTAssertNotNil(appState.addVocabularyTerm("GlobalName"))
+        XCTAssertNotNil(appState.addVocabularyTerm("TerminalName", scopeID: "terminal"))
+        XCTAssertEqual(controller.captureProcessingSnapshot(appContext: nil).preferredTerms, ["GlobalName"])
+        XCTAssertEqual(controller.captureProcessingSnapshot(appContext: CleanupAppContext(displayName: "Other app")).preferredTerms, ["GlobalName"])
         let replacementRule = localRule(id: "new", source: "super base", replacement: "New", group: nil)
         let capturedSnapshot = controller.captureProcessingSnapshot(
             appContext: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")
         )
+        XCTAssertEqual(capturedSnapshot.preferredTerms, ["GlobalName", "TerminalName"])
         XCTAssertTrue(appState.deleteCleanupGroup(id: "terminal"))
+        XCTAssertEqual(capturedSnapshot.preferredTerms, ["GlobalName", "TerminalName"], "An in-flight snapshot is immutable")
+        XCTAssertEqual(controller.captureProcessingSnapshot(appContext: CleanupAppContext(displayName: "Terminal", bundleIdentifier: "com.apple.Terminal")).preferredTerms, ["GlobalName"])
         let current = try appState.saveLocalCorrections(
             [replacementRule],
             isEnabled: true

@@ -606,26 +606,10 @@ final class AppState {
         didSet { Self.defaults.set(customSummaryPrompt, forKey: "customCleanupPrompt.summarize") }
     }
 
-    var preferredTermsText: String = "" {
-        didSet {
-            if isSynchronizingVocabularyText {
-                Self.defaults.set(preferredTermsText, forKey: "transcriptCleanupPreferredTerms")
-                return
-            }
-            let normalized = Self.normalizedPreferredTerms(from: preferredTermsText).joined(separator: "\n")
-            if preferredTermsText != normalized {
-                preferredTermsText = normalized
-                return
-            }
-            Self.defaults.set(preferredTermsText, forKey: "transcriptCleanupPreferredTerms")
-            isSynchronizingVocabularyText = true
-            vocabularyTerms = Self.vocabularyTerms(
-                from: Self.normalizedPreferredTerms(from: preferredTermsText),
-                preserving: vocabularyTerms
-            )
-            isSynchronizingVocabularyText = false
-            agentAccessReadModelDidChange?()
-        }
+    /// Compatibility editor for global terms. Scoped terms are never flattened into it.
+    var preferredTermsText: String {
+        get { preferredTermsText(scopeID: nil) }
+        set { _ = setPreferredTermsText(newValue, scopeID: nil) }
     }
 
     var vocabularyCorrections: [VocabularyCorrection] = [] {
@@ -650,23 +634,9 @@ final class AppState {
     private(set) var localCorrectionPersistenceError: String?
     private var compiledLocalCorrections = try! LocalCorrectionEngine.compile([])
 
-    var vocabularyTerms: [VocabularyTerm] = [] {
-        didSet {
-            Self.saveVocabularyTerms(vocabularyTerms)
-            guard !isSynchronizingVocabularyText else { return }
-            isSynchronizingVocabularyText = true
-            let text = Self.normalizedVocabularyTerms(vocabularyTerms).map(\.term).joined(separator: "\n")
-            if preferredTermsText != text {
-                preferredTermsText = text
-            } else {
-                Self.defaults.set(preferredTermsText, forKey: "transcriptCleanupPreferredTerms")
-            }
-            isSynchronizingVocabularyText = false
-            agentAccessReadModelDidChange?()
-        }
-    }
+    private(set) var vocabularyTerms: [VocabularyTerm] = []
+    private(set) var vocabularyTermPersistenceError: String?
 
-    private var isSynchronizingVocabularyText = false
     private var isSynchronizingCleanupGroups = false
 
     var cleanupGroups: [CleanupGroup] = [] {
@@ -946,8 +916,80 @@ final class AppState {
         selectedTranscriptCleanupProvider.id != .none
     }
 
-    var preferredTerms: [String] {
-        Self.normalizedVocabularyTerms(vocabularyTerms).map(\.term)
+    var preferredTerms: [String] { preferredTerms(for: nil) }
+
+    func preferredTerms(for groupID: String?) -> [String] {
+        let enabledGroup = groupID.flatMap { id in cleanupGroups.first { $0.id == id && $0.isEnabled }?.id }
+        return PreferredTermPolicy.effective(vocabularyTerms, groupID: enabledGroup)
+    }
+
+    func preferredTermsText(scopeID: String?) -> String {
+        vocabularyTerms.filter { $0.scopeID == scopeID }.map(\.term).joined(separator: "\n")
+    }
+
+    @discardableResult
+    func setPreferredTermsText(_ text: String, scopeID: String?, expectedText: String? = nil) -> Bool {
+        if let expectedText, expectedText != preferredTermsText(scopeID: scopeID) {
+            vocabularyTermPersistenceError = "Terms changed while you were editing. Keep a copy of your edits, then discard edits to reload the current terms."
+            return false
+        }
+        let existing = vocabularyTerms.filter { $0.scopeID == scopeID }
+        var seen = Set<String>()
+        let terms = text.components(separatedBy: .newlines).compactMap { line -> VocabularyTerm? in
+            let value = PreferredTermPolicy.normalized(line)
+            let identity = PreferredTermPolicy.identity(value)
+            guard !value.isEmpty, seen.insert(identity).inserted else { return nil }
+            if var old = existing.first(where: { PreferredTermPolicy.identity($0.term) == identity }) {
+                if old.term != value { old.term = value; old.updatedAt = Date() }
+                return old
+            }
+            return VocabularyTerm(term: value, scopeID: scopeID)
+        }
+        if terms == existing { return saveVocabularyTerms(vocabularyTerms) }
+        // An unavailable group stays editable for removing/moving old terms, but cannot gain new entries.
+        if let scopeID, !cleanupGroups.contains(where: { $0.id == scopeID && $0.isEnabled }),
+           terms.contains(where: { candidate in !existing.contains(candidate) }) {
+            vocabularyTermPersistenceError = "Choose an enabled Cleanup Group before adding or changing terms."
+            return false
+        }
+        return saveVocabularyTerms(vocabularyTerms.filter { $0.scopeID != scopeID } + terms)
+    }
+
+    @discardableResult
+    private func saveVocabularyTerms(_ terms: [VocabularyTerm]) -> Bool {
+        guard vocabularyCorrectionCoordinator == nil || vocabularyCorrectionCoordinator?.loadedCatalog != nil else {
+            vocabularyTermPersistenceError = "Vocabulary could not be loaded. Stored files were left unchanged; resolve the catalog error before editing terms."
+            return false
+        }
+        guard PreferredTermPolicy.validChanges(terms, from: vocabularyTerms) else {
+            vocabularyTermPersistenceError = "Enter distinct terms of up to 256 characters, without control characters."
+            return false
+        }
+        guard terms != vocabularyTerms else { vocabularyTermPersistenceError = nil; return true }
+        do {
+            if let vocabularyCorrectionCoordinator {
+                let loaded = try vocabularyCorrectionCoordinator.save(
+                    vocabularyCorrections: vocabularyCorrections,
+                    vocabularyTerms: terms,
+                    localCorrectionsEnabled: localCorrectionSnapshot.isEnabled,
+                    rules: localCorrectionSnapshot.rules
+                )
+                publishVocabularyCatalog(loaded)
+            } else {
+                // Unit-test/legacy fallback. Production always activates the atomic catalog.
+                let data = try JSONEncoder().encode(terms)
+                preferenceDefaults.set(data, forKey: Self.vocabularyTermsKey)
+                preferenceDefaults.set(terms.filter { $0.scopeID == nil }.map(\.term).joined(separator: "\n"),
+                                       forKey: "transcriptCleanupPreferredTerms")
+                vocabularyTerms = terms
+                agentAccessReadModelDidChange?()
+            }
+            vocabularyTermPersistenceError = nil
+            return true
+        } catch {
+            vocabularyTermPersistenceError = "Vocabulary terms could not be saved. Your previous terms are unchanged."
+            return false
+        }
     }
 
     var defaultCleanupGroup: CleanupGroup {
@@ -986,6 +1028,8 @@ final class AppState {
     }
 
     private func publishVocabularyCatalog(_ loaded: LoadedVocabularyCatalog) {
+        vocabularyTerms = loaded.snapshot.vocabularyTerms
+        vocabularyTermPersistenceError = nil
         vocabularyCorrections = loaded.snapshot.vocabularyCorrections
         localCorrectionSnapshot = LocalCorrectionSnapshot(
             revision: loaded.snapshot.revision,
@@ -1551,20 +1595,25 @@ final class AppState {
     }
 
     @discardableResult
-    func addVocabularyTerm(_ term: String, note: String? = nil) -> VocabularyTerm? {
-        let normalizedTerm = term.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedTerm.isEmpty else { return nil }
-        if let existing = vocabularyTerms.first(where: { $0.term.caseInsensitiveCompare(normalizedTerm) == .orderedSame }) {
-            return existing
+    func addVocabularyTerm(_ term: String, note: String? = nil, scopeID: String? = nil) -> VocabularyTerm? {
+        let normalizedTerm = PreferredTermPolicy.normalized(term)
+        guard PreferredTermPolicy.validPhrase(normalizedTerm) else {
+            vocabularyTermPersistenceError = "Enter a term of up to 256 characters, without control characters."
+            return nil
         }
-
-        let vocabularyTerm = VocabularyTerm(term: normalizedTerm, note: Self.normalizedOptionalText(note))
-        vocabularyTerms.append(vocabularyTerm)
-        return vocabularyTerm
+        if let scopeID, !cleanupGroups.contains(where: { $0.id == scopeID && $0.isEnabled }) {
+            vocabularyTermPersistenceError = "Choose an enabled Cleanup Group for this term."
+            return nil
+        }
+        if let existing = vocabularyTerms.first(where: {
+            $0.scopeID == scopeID && PreferredTermPolicy.identity($0.term) == PreferredTermPolicy.identity(normalizedTerm)
+        }) { return existing }
+        let vocabularyTerm = VocabularyTerm(term: normalizedTerm, note: Self.normalizedOptionalText(note), scopeID: scopeID)
+        return saveVocabularyTerms(vocabularyTerms + [vocabularyTerm]) ? vocabularyTerm : nil
     }
 
     func deleteVocabularyTerm(id: UUID) {
-        vocabularyTerms.removeAll { $0.id == id }
+        _ = saveVocabularyTerms(vocabularyTerms.filter { $0.id != id })
     }
 
     func customPrompt(for mode: TranscriptProcessingMode) -> String? {
@@ -2243,11 +2292,6 @@ final class AppState {
         customBulletPrompt = defaults.string(forKey: "customCleanupPrompt.bulletize") ?? ""
         customNumberedPrompt = defaults.string(forKey: "customCleanupPrompt.numbered") ?? ""
         customSummaryPrompt = defaults.string(forKey: "customCleanupPrompt.summarize") ?? ""
-        isSynchronizingVocabularyText = true
-        preferredTermsText = Self.normalizedPreferredTerms(
-            from: defaults.string(forKey: "transcriptCleanupPreferredTerms") ?? ""
-        ).joined(separator: "\n")
-        isSynchronizingVocabularyText = false
         let loadedVocabularyCorrections = Self.loadVocabularyCorrections()
         vocabularyCorrections = loadedVocabularyCorrections.corrections
         let isUnitTestHost = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -2264,14 +2308,17 @@ final class AppState {
             vocabularyCorrectionCoordinator = VocabularyCorrectionCoordinator(
                 store: catalogStore,
                 legacyVocabularyData: defaults.data(forKey: Self.vocabularyCorrectionsKey),
-                legacyLocalCorrectionsData: try? Data(contentsOf: self.localCorrectionStore.fileURL)
+                legacyLocalCorrectionsData: try? Data(contentsOf: self.localCorrectionStore.fileURL),
+                legacyTermsData: defaults.data(forKey: Self.vocabularyTermsKey),
+                legacyPreferredTermsText: defaults.string(forKey: "transcriptCleanupPreferredTerms")
             )
         }
         deletedVocabularyCorrectionUndo = Self.loadDeletedVocabularyCorrectionUndo()
-        let storedVocabularyTerms = Self.loadVocabularyTerms()
+        let storedVocabularyTerms = defaults.data(forKey: Self.vocabularyTermsKey)
+            .flatMap { try? JSONDecoder().decode([VocabularyTerm].self, from: $0) } ?? []
         vocabularyTerms = storedVocabularyTerms.isEmpty
             ? Self.vocabularyTerms(
-                from: Self.normalizedPreferredTerms(from: preferredTermsText),
+                from: Self.normalizedPreferredTerms(from: defaults.string(forKey: "transcriptCleanupPreferredTerms") ?? ""),
                 preserving: []
             )
             : storedVocabularyTerms
@@ -2358,6 +2405,10 @@ final class AppState {
                 localCorrectionPersistenceError = nil
             }
         } catch {
+            if vocabularyCorrectionCoordinator != nil {
+                vocabularyTerms = []
+                vocabularyTermPersistenceError = "Vocabulary could not be loaded. Stored files were left unchanged; resolve the catalog error before editing terms."
+            }
             localCorrectionSnapshot = LocalCorrectionSnapshot()
             compiledLocalCorrections = try! LocalCorrectionEngine.compile([])
             if error as? VocabularyCatalogStoreError == .legacySourcesChanged {
@@ -2537,21 +2588,6 @@ final class AppState {
         }
     }
 
-    private static func normalizedVocabularyTerms(_ terms: [VocabularyTerm]) -> [VocabularyTerm] {
-        var seen = Set<String>()
-        return terms.compactMap { term in
-            let trimmed = term.term.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return nil }
-            let key = trimmed.lowercased()
-            guard !seen.contains(key) else { return nil }
-            seen.insert(key)
-            var normalized = term
-            normalized.term = trimmed
-            normalized.note = normalizedOptionalText(term.note)
-            return normalized
-        }
-    }
-
     private static func loadVocabularyCorrections() -> (
         corrections: [VocabularyCorrection],
         canReconcile: Bool
@@ -2570,14 +2606,6 @@ final class AppState {
         return try? JSONDecoder().decode(DeletedVocabularyCorrectionUndo.self, from: data)
     }
 
-    private static func loadVocabularyTerms() -> [VocabularyTerm] {
-        guard let data = defaults.data(forKey: vocabularyTermsKey),
-              let terms = try? JSONDecoder().decode([VocabularyTerm].self, from: data) else {
-            return []
-        }
-        return normalizedVocabularyTerms(terms)
-    }
-
     private static func saveVocabularyCorrections(_ corrections: [VocabularyCorrection]) {
         guard let data = try? JSONEncoder().encode(normalizedVocabularyCorrections(corrections)) else { return }
         defaults.set(data, forKey: vocabularyCorrectionsKey)
@@ -2590,11 +2618,6 @@ final class AppState {
         }
         guard let data = try? JSONEncoder().encode(undo) else { return }
         defaults.set(data, forKey: deletedVocabularyCorrectionUndoKey)
-    }
-
-    private static func saveVocabularyTerms(_ terms: [VocabularyTerm]) {
-        guard let data = try? JSONEncoder().encode(normalizedVocabularyTerms(terms)) else { return }
-        defaults.set(data, forKey: vocabularyTermsKey)
     }
 
     private static func loadCleanupGroups(
