@@ -1436,8 +1436,18 @@ final class FoilUITests: XCTestCase {
     }
 
     func testPreferredTermsScopesSaveAndSurviveGlobalEditsAndRelaunch() {
+        func reveal(_ element: XCUIElement) {
+            XCTAssertTrue(element.waitForExistence(timeout: 3), app.debugDescription)
+            let scrollView = app.scrollViews["settings.root"]
+            for _ in 0..<8 {
+                if element.isHittable { return }
+                if element.frame.midY < scrollView.frame.midY { scrollView.swipeDown() }
+                else { scrollView.swipeUp() }
+            }
+            XCTAssertTrue(element.isHittable, app.debugDescription)
+        }
         func typeText(_ text: String, into element: XCUIElement) {
-            scrollSettingsUntilHittable(element)
+            reveal(element)
             element.click()
             element.typeKey("a", modifierFlags: .command)
             element.typeText(text)
@@ -1451,18 +1461,21 @@ final class FoilUITests: XCTestCase {
         let scope = app.popUpButtons["settings.preferredTermsScope"]
         let editor = app.textViews["settings.preferredTermsEditor"]
         let save = app.buttons["settings.savePreferredTerms"]
-        scrollSettingsUntilHittable(scope)
+        reveal(scope)
+        reveal(scope)
         scope.click()
         app.menuItems["Terms QA"].click()
         typeText("Supabase\nC++", into: editor)
-        scrollSettingsUntilHittable(save)
+        reveal(save)
         save.click()
         XCTAssertFalse(save.isEnabled, app.debugDescription)
+        reveal(scope)
         scope.click()
         app.menuItems["Everywhere"].click()
         typeText("Vercel", into: editor)
-        scrollSettingsUntilHittable(save)
+        reveal(save)
         save.click()
+        reveal(scope)
         scope.click()
         app.menuItems["Terms QA"].click()
         XCTAssertEqual(editor.value as? String, "Supabase\nC++")
@@ -1472,14 +1485,16 @@ final class FoilUITests: XCTestCase {
         add(screenshot)
         relaunchWithArguments(["--ui-testing", "--settings-tab-cleanup"])
         openSettingsPanel()
-        scrollSettingsUntilHittable(editor)
+        reveal(editor)
         XCTAssertEqual(editor.value as? String, "Vercel")
+        reveal(scope)
         scope.click()
         app.menuItems["Terms QA"].click()
         XCTAssertEqual(editor.value as? String, "Supabase\nC++")
         typeText("Supabase", into: editor)
-        scrollSettingsUntilHittable(save)
+        reveal(save)
         save.click()
+        reveal(scope)
         scope.click()
         app.menuItems["Everywhere"].click()
         XCTAssertEqual(editor.value as? String, "Vercel")
