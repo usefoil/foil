@@ -6,6 +6,16 @@ import XCTest
 final class VocabularyBatchTests: XCTestCase {
     private let scopes: [AgentAccessVocabularyScope] = [.init(id: "agents", name: "ChatGPT + Codex", isDefault: false, isEnabled: true)]
 
+    func testScopedReadTermsPreserveLegacyPolicyReceiptDigest() throws {
+        let model = AgentAccessVocabularyReadModel(scopes: [], terms: [], corrections: [], localCorrectionsEnabled: false,
+            scopedTerms: [.init(id: UUID().uuidString, term: "Supabase", note: nil, scopeID: "agents")])
+        // Frozen pre-v2 digest: existing pending v1 actions must survive the upgrade.
+        XCTAssertEqual(try AgentAccessPolicyBatchPlanner.digest(model: model, groups: []), "a4e9f16773dfc2f9563e0b7684a3cd21264aff0c8580d666abbd47dc8336ebbb")
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(model)) as? [String: Any])
+        XCTAssertNil(object["scopedTerms"])
+        XCTAssertEqual(model.scopedTerms.count, 1, "The v2 projection still retains scoped terms")
+    }
+
     func testMixedBatchCommitsTermsCorrectionsAndTypedReceiptTogether() throws {
         let fixture = try fixture()
         let request = batch("mixed", items: [term(), correction()])
