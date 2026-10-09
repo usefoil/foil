@@ -1,6 +1,8 @@
 # Agent-led Vocabulary setup and quick additions
 
-Status: implementation plan; no runtime changes made.
+Status: implementation in progress. Scoped term storage, migration, the Vocabulary
+scope editor, and main-branch transcription consumers are implemented. Mixed batch
+API/review, delegated term permissions, and agent workflow entry points remain.
 Baseline inspected: `d5a2ef3acbfe1a336fdab1c1c968968aba79730b` on the cleanup
 preferences branch. This is the next Vocabulary increment; post-transcript
 learning remains deferred.
@@ -95,7 +97,7 @@ clear, preview and submit without a redundant “shall I add this?” question.
 
 ## 3. Current implementation and the required foundation
 
-Inspection found:
+The planning baseline had:
 
 - `VocabularyTerm` has no scope. `AppState.vocabularyTerms` persists to UserDefaults
   and synchronizes a plain-text preferred-terms editor.
