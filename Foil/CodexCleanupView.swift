@@ -325,7 +325,7 @@ extension CodexCleanupRequest {
             let result = state.previewLocalCorrections(rule.source, activeGroupID: groupID)
             return result.replacementCount > 0 && result.text == rule.replacement
         }.map { Correction(source: $0.source, replacement: $0.replacement) } : []
-        return Self(text: text, terms: state.preferredTerms, corrections: corrections)
+        return Self(text: text, terms: state.preferredTerms(for: groupID), corrections: corrections)
     }
 
 }

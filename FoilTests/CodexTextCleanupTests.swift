@@ -347,8 +347,16 @@ final class CodexTextCleanupTests: XCTestCase {
             LocalCorrectionRule(id: "suppression:test", source: "cloud dock", replacement: "CloudDock", group: group.id, enabled: true, caseSensitive: false, suppressesGlobal: true)
         ]
         _ = try state.saveLocalCorrections(rules, isEnabled: true)
+        state.vocabularyTerms = [
+            .init(term: "Supabase"),
+            .init(term: "supabase", scopeID: group.id),
+            .init(term: "Vercel", scopeID: group.id),
+            .init(term: "OtherPrivateService", scopeID: "elsewhere")
+        ]
         let request = try CodexCleanupRequest.make(text: "hello", groupID: group.id, state: state)
         XCTAssertEqual(request.corrections, [.init(source: "orbit desk", replacement: "OrbitDesk")])
+        XCTAssertEqual(request.terms, ["supabase", "Vercel"])
+        XCTAssertEqual(try CodexCleanupRequest.make(text: "hello", groupID: CleanupGroup.defaultGroup().id, state: state).terms, ["Supabase"])
         _ = try state.setLocalCorrectionsEnabled(false)
         XCTAssertTrue(try CodexCleanupRequest.make(text: "hello", groupID: group.id, state: state).corrections.isEmpty)
         XCTAssertThrowsError(try CodexCleanupRequest.make(text: "hello", groupID: "deleted", state: state))
