@@ -1,8 +1,14 @@
-## Unreleased
+## [1.15.0](https://github.com/usefoil/foil/compare/v1.14.3...v1.15.0) (2026-10-17)
 
-- Let users apply reviewed Agent Access Vocabulary proposals through Foil's atomic local catalog while preserving the global corrections switch and original recovery text.
-- Add installed Foil/Foil Dev isolation, shutdown, signing, curl, and privacy smoke coverage plus a user guide for the copied Agent Access command.
-- Require dedicated Agent Access contract, performance, installed-app, complete-route, denied-apply, and UI coverage in pull-request and merge-queue CI.
+- Apply reviewed agent Vocabulary suggestions directly in Foil, with durable receipts and recovery after interrupted operations.
+- Review Vocabulary proposals and agent actions in a unified Agent Access inbox, with service status in the settings sidebar.
+- Grant paired agents scoped Vocabulary permissions, inspect exact app targets, and review batches of correction policy changes.
+- Create exact-app correction groups, move proposals between scopes, and define group exceptions to global corrections.
+- Enable optional punctuation variants for local corrections while protecting path-like text.
+- Join whisper.cpp segment breaks into natural local transcripts.
+- Make downloaded DMG checksum files verifiable from any directory.
+- Return the original receipt when an agent retries an already-applied Vocabulary proposal; reject changed payloads without rewriting stored state.
+- Make closure capture ownership explicit for warning-clean builds with newer Swift compilers.
 
 
 ## [1.14.3](https://github.com/usefoil/foil/compare/v1.14.2...v1.14.3) (2026-09-23)
