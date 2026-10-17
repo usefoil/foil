@@ -2071,7 +2071,7 @@ final class AgentAccessControllerTests: XCTestCase {
                 ? VocabularyCatalogStore(fileURL: root.appendingPathComponent(VocabularyCatalogStore.fileName))
                 : nil,
             agentAccessDefaults: defaults,
-            initialDefaultsOverride: initialDefaultsOverride
+            initialDefaultsOverride: initialDefaultsOverride ?? defaults
         )
     }
 

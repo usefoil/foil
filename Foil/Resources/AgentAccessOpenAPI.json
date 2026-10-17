@@ -34,7 +34,7 @@
     "/v2/vocabulary/preview": {
       "post": {
         "operationId": "previewVocabularyBatchV2",
-        "description": "Preview is read-only. Ordinary submissions require one review inside Foil. Delegated submissions require an unexpired exact-group bearer grant with add_preferred_terms for any term items. HTTP 202 means pending; poll status for applied. Same request ID and canonical payload replay the original record; changed payload returns 409.",
+        "description": "Evaluate a batch against the current Vocabulary state without saving a proposal or reserving its request_id. No bearer grant is required. Reusing a request_id with changed items produces a fresh preview. Validation issues are returned in the HTTP 200 preview body, not as submission conflicts.",
         "requestBody": {
           "required": true,
           "content": {
@@ -74,7 +74,7 @@
         },
         "responses": {
           "200": {
-            "description": "Preview or durable replay",
+            "description": "Read-only evaluation against the current Vocabulary state",
             "content": {
               "application/json": {
                 "schema": {
@@ -86,16 +86,10 @@
           "400": {
             "$ref": "#/components/responses/ErrorResponse"
           },
-          "403": {
-            "$ref": "#/components/responses/ErrorResponse"
-          },
-          "409": {
-            "$ref": "#/components/responses/ErrorResponse"
-          },
           "413": {
             "$ref": "#/components/responses/ErrorResponse"
           },
-          "429": {
+          "405": {
             "$ref": "#/components/responses/ErrorResponse"
           },
           "503": {

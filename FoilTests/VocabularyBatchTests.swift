@@ -176,6 +176,8 @@ final class VocabularyBatchTests: XCTestCase {
         }
         let body = try JSONEncoder().encode(batch("http", items: [term(), correction()]))
         XCTAssertEqual(call(.post, "/v2/vocabulary/preview", body).status, 200)
+        let changedPreview = try JSONEncoder().encode(batch("http", items: [.init(id: "changed", kind: .preferredTerm, term: "Vercel")]))
+        XCTAssertEqual(call(.post, "/v2/vocabulary/preview", changedPreview).status, 200)
         XCTAssertTrue(try fixture.inbox.records().isEmpty)
         let submitted = call(.post, "/v2/vocabulary/proposals", body)
         XCTAssertEqual(submitted.status, 202)
@@ -194,6 +196,49 @@ final class VocabularyBatchTests: XCTestCase {
         try Data("broken".utf8).write(to: fixture.directory.appendingPathComponent("batches.json"))
         XCTAssertThrowsError(try fixture.inbox.records())
         XCTAssertThrowsError(try submit(batch("corrupt", items: [term()]), fixture))
+    }
+
+    func testDelegatedTerminalReplaysReturnOKWithoutChangingStoredState() throws {
+        for terminalState in [AgentAccessProposalState.rejected, .discarded] {
+            let fixture = try fixture()
+            let router = VocabularyBatchHTTP(
+                store: fixture.inbox, model: { self.model(fixture) }, didChange: {},
+                delegatedSubmit: { request, token in
+                    XCTAssertEqual(token, "test-grant-token")
+                    return try fixture.inbox.submit(request, grantID: "test-grant") {
+                        try VocabularyBatchHTTP.validate(request, model: self.model(fixture))
+                    }.record
+                }
+            )
+            let request = AgentAccessHTTPRequest(
+                method: .post, path: "/v2/vocabulary/delegated-proposals",
+                headers: ["authorization": "Bearer test-grant-token"],
+                body: try JSONEncoder().encode(batch("terminal-replay", items: [term()]))
+            )
+            XCTAssertEqual(router.response(to: request, requestID: "first").status, 202)
+            let pending = try XCTUnwrap(fixture.inbox.records().first)
+            try fixture.inbox.transition(id: pending.id, to: terminalState)
+            let terminal = try fixture.inbox.record(id: pending.id)
+            let storedBytes = try Data(contentsOf: fixture.directory.appendingPathComponent("batches.json"))
+
+            let response = router.response(to: request, requestID: "retry")
+
+            XCTAssertEqual(response.status, 200)
+            XCTAssertEqual(response.reason, "OK")
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let replay = try decoder.decode(VocabularyBatchRecord.self, from: response.body)
+            XCTAssertEqual(replay.id, terminal.id)
+            XCTAssertEqual(replay.state, terminal.state)
+            XCTAssertEqual(replay.originalRequest, terminal.originalRequest)
+            XCTAssertEqual(replay.reviewedRequest, terminal.reviewedRequest)
+            XCTAssertEqual(replay.requestDigest, terminal.requestDigest)
+            XCTAssertEqual(replay.grantID, terminal.grantID)
+            XCTAssertEqual(replay.appliedItems, terminal.appliedItems)
+            XCTAssertEqual(replay.catalogRevision, terminal.catalogRevision)
+            XCTAssertEqual(try Data(contentsOf: fixture.directory.appendingPathComponent("batches.json")), storedBytes)
+            XCTAssertTrue(try XCTUnwrap(fixture.coordinator.loadedCatalog).snapshot.vocabularyTerms.isEmpty)
+        }
     }
 
     private struct Fixture {
