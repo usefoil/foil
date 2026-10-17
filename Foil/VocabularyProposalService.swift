@@ -30,12 +30,15 @@ final class VocabularyProposalService: @unchecked Sendable {
     }
 
     func submit(_ request: VocabularyProposalRequest) throws -> VocabularyProposalSubmission {
-        let model = readModelStore.snapshot()
-        let validated = try validate(request, against: model)
         do {
+            if let replay = try store.replay(for: request) { return replay }
+            let model = readModelStore.snapshot()
+            let validated = try validate(request, against: model)
             let result = try store.submit(validated, snapshotToken: try snapshotToken(for: model))
             if !result.wasReplay { didChange() }
             return result
+        } catch let error as VocabularyProposalServiceError {
+            throw error
         } catch VocabularyProposalStoreError.requestIDConflict {
             throw VocabularyProposalServiceError.requestConflict
         } catch VocabularyProposalStoreError.queueFull {

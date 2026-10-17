@@ -68,6 +68,19 @@ final class VocabularyProposalStore: @unchecked Sendable {
         return try decodeSnapshot().proposals.first { $0.id == id }
     }
 
+    func replay(for rawRequest: VocabularyProposalRequest) throws -> VocabularyProposalSubmission? {
+        lock.lock()
+        defer { lock.unlock() }
+        let request = rawRequest.canonicalized()
+        guard let existing = try decodeSnapshot().proposals.first(where: {
+            $0.requestID == request.requestID
+        }) else { return nil }
+        guard existing.requestHash == (try request.canonicalPayloadDigest()) else {
+            throw VocabularyProposalStoreError.requestIDConflict(request.requestID)
+        }
+        return VocabularyProposalSubmission(receipt: existing.receipt(), wasReplay: true)
+    }
+
     @discardableResult
     func submit(
         _ request: VocabularyProposalRequest,
