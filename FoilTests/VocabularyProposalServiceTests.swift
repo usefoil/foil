@@ -146,6 +146,30 @@ final class VocabularyProposalServiceTests: XCTestCase {
         }
     }
 
+    func testRejectedProposalReplaysAfterScopeRemovalWithoutReopeningOrWriting() throws {
+        let fixture = try makeFixture()
+        let original = VocabularyProposalRequest(
+            requestID: "removed-scope",
+            scope: .init(kind: "cleanup_group", id: "agents"),
+            corrections: [.init(spokenForms: ["orbit desk"], replacement: "OrbitDesk")]
+        )
+        let created = try fixture.service.submit(original)
+        let rejected = try fixture.service.transition(id: created.receipt.proposalID, to: .rejected)
+        fixture.readModelStore.update(.init(
+            scopes: [], terms: [], corrections: [], localCorrectionsEnabled: false
+        ))
+        let before = try Data(contentsOf: fixture.store.fileURL)
+        let replay = try fixture.service.submit(original)
+        XCTAssertTrue(replay.wasReplay)
+        XCTAssertEqual(replay.receipt, rejected)
+        XCTAssertEqual(try Data(contentsOf: fixture.store.fileURL), before)
+        XCTAssertThrowsError(try fixture.service.submit(VocabularyProposalRequest(
+            requestID: "new-removed-scope", scope: original.scope, corrections: original.corrections
+        ))) {
+            XCTAssertEqual($0 as? VocabularyProposalServiceError, .invalidScope)
+        }
+    }
+
     func testInvalidProposalsFailWithoutCreatingStore() throws {
         let fixture = try makeFixture()
         let tooMany = (0...AgentAccessLimits.standard.maximumCorrectionPairs).map {
@@ -311,6 +335,17 @@ final class VocabularyProposalServiceTests: XCTestCase {
         ))
         let proposal = try XCTUnwrap(fixture.store.proposal(id: submission.receipt.proposalID))
 
+        let before = try Data(contentsOf: fixture.store.fileURL)
+        let replay = try fixture.service.submit(request(id: "request-1"))
+        XCTAssertTrue(replay.wasReplay)
+        XCTAssertEqual(replay.receipt.state, .pending)
+        XCTAssertEqual(replay.receipt.proposalID, submission.receipt.proposalID)
+        XCTAssertEqual(try Data(contentsOf: fixture.store.fileURL), before)
+        XCTAssertThrowsError(try fixture.service.validateForApply(proposal)) { error in
+            guard case .validation(code: "correction_conflict", message: _) = error as? VocabularyProposalServiceError else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+        }
         let preview = fixture.service.preview(for: proposal)
 
         XCTAssertFalse(preview.valid)
