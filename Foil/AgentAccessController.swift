@@ -1076,7 +1076,8 @@ final class AgentAccessController {
                     isEnabled: $0.isEnabled
                 )
             },
-            terms: appState.vocabularyTerms.map {
+            // v1 cannot represent term scope. Keep its term projection global-only.
+            terms: appState.vocabularyTerms.filter { $0.scopeID == nil }.map {
                 AgentAccessVocabularyTerm(id: $0.id.uuidString.lowercased(), term: $0.term, note: $0.note)
             },
             corrections: appState.vocabularyCorrections.map { correction in

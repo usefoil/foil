@@ -343,6 +343,7 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled
               -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL
               -only-testing:FoilUITests/FoilUITests/testAgentAccessDefaultsOffCopiesCommandAndPersistsUntilDisabled
+              -only-testing:FoilUITests/FoilUITests/testPreferredTermsScopesSaveAndSurviveGlobalEditsAndRelaunch
           - shard: balanced-b
             tests: >-
               -only-testing:FoilUITests/FoilUITests/testProviderQAOpenAIWhisperPresetShowsCloudSettings

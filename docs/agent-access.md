@@ -44,6 +44,22 @@ the same Mac and able to access your user-owned Unix socket.
 Its correction guidance asks the agent to clarify uncertain spoken variants,
 case sensitivity, punctuation matching, and app scope with you before a change.
 
+## Preferred-term scope
+
+In Vocabulary settings, **Preferred terms → Terms apply in** selects Everywhere
+or a Cleanup Group. Enter one term per line, then **Save terms**. Switching groups
+keeps unsaved drafts while the view remains open; **Discard edits** restores that
+scope's saved list. Existing terms remain global after the storage upgrade.
+Global terms also apply within enabled groups; a group spelling wins for the same
+term identity. Missing or disabled groups never make their terms global. Terms
+from an unavailable group remain visible in the scope picker and can be removed.
+
+Preferred terms guide Cleanup; they do not create local replacements or affect
+Raw-mode output. Processing without a known app/group uses global terms only.
+The current v1 agent API still exposes global preferred terms and accepts
+correction proposals only. Scoped term additions through agents are the next
+contract increment; do not submit invented aliases or identity replacements.
+
 ## Pair an agent for scoped edits
 
 In **Agent Access -> Agent permissions**, enter a name, choose an enabled Cleanup

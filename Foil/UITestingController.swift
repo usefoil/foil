@@ -195,6 +195,9 @@ final class UITestingController {
             history.clear()
             _ = usageEventStore.deleteAll()
             _ = try? appState.saveLocalCorrections([], isEnabled: false)
+            for scopeID in Set(appState.vocabularyTerms.map(\.scopeID)) {
+                _ = appState.setPreferredTermsText("", scopeID: scopeID)
+            }
             appState.soundEffectsEnabled = true
             appState.keepOnClipboard = false
             appState.usageMetricsEnabled = true
