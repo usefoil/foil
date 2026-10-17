@@ -408,7 +408,7 @@ final class AgentAccessController {
 
     private func finishStart(generation expectedGeneration: UUID) {
         let proposalService = proposalService!
-        let normalActionSubmitter: AgentAccessContractRouter.ActionSubmitter = { [actionStore, proposalStore, proposalGate, readModelStore] request in
+        let normalActionSubmitter: AgentAccessContractRouter.ActionSubmitter = { [self, actionStore, proposalStore, proposalGate, readModelStore] request in
                 guard let result = try proposalGate.withPermit(expectedGeneration, operation: {
                     let validatedRequest = try request.validated()
                     // The original receipt is durable even if its proposal or
@@ -508,7 +508,7 @@ final class AgentAccessController {
                 try AgentAccessGrantScope.validate(grant, groups: readModelStore.snapshotWithRoutes().groups)
                 return grant
             },
-            delegatedProposalSubmitter: { [grantStore, proposalService, proposalGate, readModelStore] request, token in
+            delegatedProposalSubmitter: { [self, grantStore, proposalService, proposalGate, readModelStore] request, token in
                 let grant = try grantStore.authorize(token)
                 try AgentAccessGrantScope.validateProposal(
                     request, grant: grant, groups: readModelStore.snapshotWithRoutes().groups
@@ -529,7 +529,7 @@ final class AgentAccessController {
                 }
                 return submission
             },
-            delegatedActionSubmitter: { [grantStore, readModelStore] request, token in
+            delegatedActionSubmitter: { [self, grantStore, readModelStore] request, token in
                 let grant = try grantStore.authorize(token)
                 let validatedRequest = try request.validated()
                 let snapshot = readModelStore.snapshotWithRoutes()

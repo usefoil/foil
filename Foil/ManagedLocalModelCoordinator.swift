@@ -41,7 +41,7 @@ final class ManagedLocalModelCoordinator {
     }
 
     func installAndSelect(_ id: String) async throws {
-        try await perform { generation in
+        try await perform { [self] generation in
             let entry = try self.store.catalog.model(id)
             try await self.readStore()
             try Task.checkCancellation()
