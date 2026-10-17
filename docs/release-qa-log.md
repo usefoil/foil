@@ -28,6 +28,29 @@ publishing.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
 
+## v1.15.0 Agentic Vocabulary Candidate QA
+
+Date: 2026-10-17
+
+Scope: Vocabulary-only release candidate
+`a385f970c750b1e2941072f934f68d9ec72210cb`, preparing version `1.15.0`,
+production build `53`. Codex cleanup PRs #455/#456 remain excluded. This is
+candidate evidence, not a public release or Homebrew setup-readiness claim.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| Migration failure preserves usable existing Vocabulary without allowing uncommitted edits. | A failed v2-to-v3 write could erase preferred terms or disable valid enabled correction rules. | Injected staging failure reproduced both old failures. The regression now checks preserved terms/corrections/rules, actual `say super base` → `say Supabase` execution, unchanged v2/default bytes, blocked editing, healthy restart, and invalid legacy input failing closed. The complete non-live local run passed 1,016 XCTest cases with four existing skips and no failures, plus nine Swift Testing cases; 78 focused tests and a Debug warnings-as-errors build passed. Results: `/tmp/foil-vocabulary-release-qa.srGbOW/UnitTests-Recovery.xcresult`. | PASS: DETERMINISTIC |
+| Retrying terminal delegated batches does not suggest that apply is queued. | Rejected/discarded records could return HTTP 202 despite having no scheduled apply. | The HTTP regression checks 200/OK, matching terminal record fields, byte-identical inbox storage, and empty preferred terms. Direct replay-path inspection finds no catalog writer or apply callback; only pending work returns 202. Changed-content re-preview returns 200 without reserving a request ID. | PASS: DETERMINISTIC/INSPECTION |
+| The signed Release archive contains the intended Vocabulary source, not Codex cleanup. | A green workflow could package an older revision or the combined experimental dogfood build. | [QA run 39057919492](https://github.com/usefoil/foil/actions/runs/39057919492) checkout logs resolve the requested SHA to `a385f970c750b1e2941072f934f68d9ec72210cb`. Neither cleanup PR head is an ancestor; their implementation/control symbols are absent from source and the packaged executable. The packaged OpenAPI is byte-identical to the candidate resource, and the executable contains the new starter guidance and migration recovery warning. No embedded commit field exists, so revision provenance comes from workflow checkout logs, not app metadata. | PASS: SOURCE/ARTIFACT AUDIT |
+| Downloaded bytes retain the expected trust and identity. | Corrupt bytes, runner-specific checksum paths, missing notarization, or a wrong app identity could survive a successful upload. | Fresh download into `/tmp/foil-vocabulary-artifact.ANVatA`: untouched `shasum -a 256 -c` passed; DMG SHA-256 `afcb4c1b477b5e6d9c4a44fbba0299205c34b23abe15d23dae80bf6dc905daed`. DMG stapler and DMG/app Gatekeeper checks passed as `Notarized Developer ID`; mounted-app deep strict codesign passed with team `B3A6AN2HA4`. App identity is `com.neonwatty.Foil`, version `1.15.0`, architectures `x86_64 arm64`, with a 32-byte Sparkle public key. The QA builder intentionally uses run ID `39057919492` as its build number when no override is supplied; this is not a claim that production build 53 was archived. | PASS: NOTARIZED QA |
+| Candidate verification does not overstate production user-flow coverage. | Debug installed-smoke tests or experimental installed builds could be mistaken for the exact notarized Release app. | Candidate CI run [39057923373](https://github.com/usefoil/foil/actions/runs/39057923373) passed, including native Vocabulary scope/save/relaunch and mixed-review UI coverage, Agent Access contract/socket and installed Debug smoke checks. The notarized app was mounted and inspected, not installed or launched against the daily-driver preferences. Combined dogfood installations are not release proof. True fresh-user onboarding remains outstanding; no TCC reset was performed. | PASS: SCOPED; FRESH-USER FOLLOW-UP |
+
+Skips: live Groq excluded from local unit runs; managed-model network acceptance,
+two absent managed-model fixtures, and the dedicated correction performance gate
+remain their existing explicit skips. Current-account signed Release UI and true
+fresh-user production onboarding are not proven by this candidate artifact audit.
+Complete the applicable production setup rows below before claiming setup readiness.
+
 ## Post-v1.14.3 Agent-Managed Vocabulary Notarized QA
 
 Date: 2026-10-03
