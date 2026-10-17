@@ -700,6 +700,43 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(controlValueString(app.checkBoxes["settings.localCorrectionsEnabled"]), "0")
     }
 
+    func testMixedVocabularyBatchCanOmitAndApplyOnceThenSurviveRelaunch() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-agent-vocabulary-batch"])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        let starter = app.buttons["settings.agentAccess.repositoryStarter"]
+        XCTAssertTrue(starter.waitForExistence(timeout: 3), app.debugDescription)
+        scrollAppShellSettingsUntilHittable(starter)
+        clickElement(starter)
+        XCTAssertTrue(NSPasteboard.general.string(forType: .string)?.contains("repository_setup") == true)
+        let review = button(id: "settings.agentAccess.reviewVocabulary", fallbackLabel: "Review Vocabulary changes")
+        scrollAppShellSettingsUntilHittable(review)
+        clickElement(review)
+        let omit = app.buttons["agentBatches.omit.omit-vercel"]
+        XCTAssertTrue(omit.waitForExistence(timeout: 4), app.debugDescription)
+        scrollProposalReviewUntilHittable(omit)
+        clickElement(omit)
+        let apply = app.buttons["Apply selected"]
+        scrollProposalReviewUntilHittable(apply)
+        XCTAssertTrue(apply.isEnabled, app.debugDescription)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Mixed Vocabulary batch review"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        clickElement(apply)
+        XCTAssertTrue(apply.waitForNonExistence(timeout: 4), app.debugDescription)
+        clickElement(app.buttons["agentApprovals.done"])
+        XCTAssertTrue(selectAppShellSettingsPane(navID: "appShell.nav.settings.cleanup", timeout: 5), app.debugDescription)
+        let editor = app.textViews["settings.preferredTermsEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertEqual(editor.value as? String, "Supabase")
+        XCTAssertTrue(app.staticTexts["super base -> Supabase"].exists, app.debugDescription)
+        XCTAssertEqual(controlValueString(app.checkBoxes["settings.localCorrectionsEnabled"]), "0")
+        relaunchWithArguments(["--ui-testing", "--settings-tab-cleanup"])
+        openSettingsPanel()
+        XCTAssertTrue(editor.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertEqual(editor.value as? String, "Supabase")
+    }
+
     func testAgentActionRequiresVisibleFoilApproval() {
         relaunchWithArguments([
             "--ui-testing", "--reset-defaults", "--seed-agent-action"
@@ -1433,6 +1470,71 @@ final class FoilUITests: XCTestCase {
         attachment.name = "local-correction-disabled-after-relaunch"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    func testPreferredTermsScopesSaveAndSurviveGlobalEditsAndRelaunch() {
+        func reveal(_ element: XCUIElement) {
+            XCTAssertTrue(element.waitForExistence(timeout: 3), app.debugDescription)
+            let scrollView = app.scrollViews["settings.root"]
+            for _ in 0..<8 {
+                if element.isHittable { return }
+                if element.frame.midY < scrollView.frame.midY { scrollView.swipeDown() }
+                else { scrollView.swipeUp() }
+            }
+            XCTAssertTrue(element.isHittable, app.debugDescription)
+        }
+        func typeText(_ text: String, into element: XCUIElement) {
+            reveal(element)
+            element.click()
+            element.typeKey("a", modifierFlags: .command)
+            element.typeText(text)
+        }
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--settings-tab-cleanup"])
+        openSettingsPanel()
+        button(id: "settings.cleanupGroups.addGroupButton", fallbackLabel: "Add cleanup group").click()
+        let name = app.textFields["settings.cleanupGroups.nameField"]
+        XCTAssertTrue(name.waitForExistence(timeout: 3), app.debugDescription)
+        typeText("Terms QA", into: name)
+        let scope = app.popUpButtons["settings.preferredTermsScope"]
+        let editor = app.textViews["settings.preferredTermsEditor"]
+        let save = app.buttons["settings.savePreferredTerms"]
+        reveal(scope)
+        reveal(scope)
+        scope.click()
+        app.menuItems["Terms QA"].click()
+        typeText("Supabase\nC++", into: editor)
+        reveal(save)
+        save.click()
+        XCTAssertFalse(save.isEnabled, app.debugDescription)
+        reveal(scope)
+        scope.click()
+        app.menuItems["Everywhere"].click()
+        typeText("Vercel", into: editor)
+        reveal(save)
+        save.click()
+        reveal(scope)
+        scope.click()
+        app.menuItems["Terms QA"].click()
+        XCTAssertEqual(editor.value as? String, "Supabase\nC++")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Scoped preferred terms"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        relaunchWithArguments(["--ui-testing", "--settings-tab-cleanup"])
+        openSettingsPanel()
+        reveal(editor)
+        XCTAssertEqual(editor.value as? String, "Vercel")
+        reveal(scope)
+        scope.click()
+        app.menuItems["Terms QA"].click()
+        XCTAssertEqual(editor.value as? String, "Supabase\nC++")
+        typeText("Supabase", into: editor)
+        reveal(save)
+        save.click()
+        reveal(scope)
+        scope.click()
+        app.menuItems["Everywhere"].click()
+        XCTAssertEqual(editor.value as? String, "Vercel")
     }
 
     func testGlobalCorrectionExceptionPreviewUsesSelectedGroup() {

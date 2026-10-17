@@ -29,6 +29,7 @@ RUN_LIVE_GROQ_TESTS=0 xcodebuild test \
   -only-testing:FoilTests/AgentAccessHTTPTests \
   -only-testing:FoilTests/AgentAccessServerTests \
   -only-testing:FoilTests/VocabularyCatalogStoreTests \
+  -only-testing:FoilTests/VocabularyBatchTests \
   -only-testing:FoilTests/VocabularyProposalContractTests \
   -only-testing:FoilTests/VocabularyProposalServiceTests \
   -only-testing:FoilTests/VocabularyProposalStoreTests \

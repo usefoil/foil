@@ -16,15 +16,18 @@ struct VocabularyApprovalInboxView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if pendingProposals.isEmpty && pendingActions.isEmpty {
+                if pendingProposals.isEmpty && pendingActions.isEmpty && appState.agentAccessBatches.allSatisfy({ $0.state != .pending }) {
                     ContentUnavailableView(
-                        "No pending Vocabulary approvals",
+                        appState.agentAccessBatchErrorMessage == nil ? "No pending Vocabulary approvals" : "Vocabulary review unavailable",
                         systemImage: "checkmark.shield",
-                        description: Text("Agent requests to change Vocabulary will appear here.")
+                        description: Text(appState.agentAccessBatchErrorMessage ?? "Agent requests to change Vocabulary will appear here.")
                     )
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 16) {
+                            ForEach(appState.agentAccessBatches.filter { $0.state == .pending }) { record in
+                                VocabularyBatchReviewCard(appState: appState, record: record)
+                            }
                             if !pendingProposals.isEmpty {
                                 Text("Corrections").font(.headline)
                                 ForEach(pendingProposals) { proposal in
