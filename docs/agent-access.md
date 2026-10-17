@@ -228,3 +228,68 @@ cannot read their status while access is off. Closing Foil also stops the servic
 
 If the copied command cannot connect, confirm that Foil is open, Agent Access shows
 **Running**, and the command came from the same Foil or Foil Dev build you are using.
+
+## Repository setup and quick Vocabulary additions (v2)
+
+Agent Access has two copyable starters: **Set up from repositories** and **Add
+Vocabulary**. Both load `vocabulary_workflows` from `/v1/instructions`. The agent
+uses its own repository tools and configured model; Foil receives selected names
+and corrections, not repository contents. A local Codex process may use a hosted
+model. No additional model service runs inside Foil for discovery.
+
+Repository setup should inspect README/docs, direct manifests, and relevant
+imports, skipping generated/vendor files, lockfile inventories, binaries, and
+secret-bearing files. It presents a short shortlist with evidence in the agent
+conversation. A quick request such as “Add Supabase” creates a preferred spelling;
+“Correct super base to Supabase” creates an executable correction. No invented
+aliases or identity corrections are needed.
+
+Use `/v2/vocabulary` to read scoped terms and pending mixed batches. Preview with
+`POST /v2/vocabulary/preview`, then submit to `/v2/vocabulary/proposals`. Each request
+uses `schema_version: 2`, a stable `request_id`, one explicit `scope`, and 1–50 typed
+`items`. The existing 64 KiB body and 256 Unicode-scalar phrase limits apply. Each
+item has a unique client `id` and either `kind: preferred_term` with `term`, or
+`kind: correction` with the existing correction payload in `correction`.
+
+```json
+{
+  "schema_version": 2,
+  "request_id": "repository-setup-1",
+  "scope": {"kind": "cleanup_group", "id": "your-existing-group-id"},
+  "items": [
+    {"id": "supabase", "kind": "preferred_term", "term": "Supabase"},
+    {"id": "super-base", "kind": "correction", "correction": {
+      "spoken_forms": ["super base"], "replacement": "Supabase",
+      "case_sensitive": false, "match_punctuation_variants": false
+    }}
+  ]
+}
+```
+
+The unified Foil inbox displays exact scope and items. Users can edit or omit items
+and apply the selected batch in one action. Apply revalidates current Vocabulary:
+unrelated edits do not strand a proposal; real conflicts block the complete batch.
+Terms, executable corrections, and a typed receipt commit atomically.
+
+Preview reports `add`, `already_present`, `conflict`, or `invalid` per item. An
+identical global term already covers a group unless `independent_scope: true` is
+explicitly selected. Different spelling or note in the same scope is a conflict,
+not permission to overwrite. `C`, `C++`, and `C#` remain distinct. A fresh request
+containing only existing items produces an audit receipt without changing entry
+IDs or the Vocabulary revision. Reusing a request ID with changed content fails.
+
+Pairing has a separate **Allow adding preferred spellings** switch. Old grants
+remain correction-only. `/v1/access` lists the grant's current capabilities. Use
+`POST /v2/vocabulary/delegated-proposals` with its bearer token only when it covers
+all selected item kinds and the exact group. Foil rechecks capability, scope,
+routing, revocation, expiry, and service generation before saving. A chat claim of
+approval grants nothing. Global changes and group/routing changes still require
+Foil review. Turning cleanup or local corrections on is not a side effect of adding
+Vocabulary.
+
+Poll `GET /v2/vocabulary/proposals/{id}`. HTTP 202 is pending, not saved. Applied
+records include item IDs, entry IDs, added/already-present results, and the catalog
+revision. Mixed batches have a separate `agent-vocabulary-batches-v2.json` inbox;
+older correction-only clients cannot partially apply them. The v1 API retains its
+correction-only payload and global-only preferred-term reads. History, audio,
+credentials, clipboard, and repository-content access remain excluded.

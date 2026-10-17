@@ -275,6 +275,7 @@ final class AgentAccessController {
     private let proposalStore: VocabularyProposalStore
     private let actionStore: AgentAccessActionStore
     private let grantStore: AgentAccessGrantStore
+    private let batchStore: VocabularyBatchStore
     private var proposalService: VocabularyProposalService!
     private var server: AgentAccessServing?
     private var startupTask: Task<Void, Never>?
@@ -288,6 +289,7 @@ final class AgentAccessController {
         proposalStore: VocabularyProposalStore? = nil,
         actionStore: AgentAccessActionStore? = nil,
         grantStore: AgentAccessGrantStore? = nil,
+        batchStore: VocabularyBatchStore? = nil,
         startupDelayNanoseconds: UInt64 = 0,
         appURLForBundleID: @escaping (String) -> URL? = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) },
         serverFactory: @escaping ServerFactory = { paths, limits, handler in
@@ -301,6 +303,7 @@ final class AgentAccessController {
         self.proposalStore = proposalStore ?? VocabularyProposalStore(fileURL: paths.proposalStoreURL)
         self.actionStore = actionStore ?? AgentAccessActionStore(fileURL: paths.actionStoreURL)
         self.grantStore = grantStore ?? AgentAccessGrantStore(fileURL: paths.grantStoreURL)
+        self.batchStore = batchStore ?? VocabularyBatchStore(fileURL: paths.supportDirectory.appendingPathComponent("agent-vocabulary-batches-v2.json"))
         self.startupDelayNanoseconds = startupDelayNanoseconds
         self.appURLForBundleID = appURLForBundleID
         self.serverFactory = serverFactory
@@ -312,6 +315,9 @@ final class AgentAccessController {
                 Task { @MainActor in self?.refreshProposals() }
             }
         )
+        appState.agentAccessBatchRevisionDidRequest = { [weak self] id, request in self?.reviseBatch(id: id, request: request) }
+        appState.agentAccessBatchTransitionDidRequest = { [weak self] id, state in self?.transitionBatch(id: id, state: state) }
+        appState.agentAccessBatchApplyDidRequest = { [weak self] id, request in self?.applyBatch(id: id, reviewedRequest: request) }
         appState.agentAccessBootstrapCommand = AgentAccessInstructionsResponse.bootstrapCommand(
             socketPath: paths.socketURL.path
         )
@@ -333,8 +339,8 @@ final class AgentAccessController {
         appState.agentAccessActionDecisionDidRequest = { [weak self] id, approve in
             self?.decideAction(id: id, approve: approve)
         }
-        appState.agentAccessPairingDidRequest = { [weak self] name, groupID in
-            self?.pairAgent(name: name, groupID: groupID)
+        appState.agentAccessPairingDidRequest = { [weak self] name, groupID, allowPreferredTerms in
+            self?.pairAgent(name: name, groupID: groupID, allowPreferredTerms: allowPreferredTerms)
         }
         appState.agentAccessGrantRevokeDidRequest = { [weak self] id in
             self?.revokeGrant(id: id)
@@ -548,6 +554,28 @@ final class AgentAccessController {
                     )
                 }
                 return result
+            },
+            batchHandler: { [batchStore, readModelStore, proposalGate, grantStore, weak self] request, requestID in
+                proposalGate.withPermit(expectedGeneration) {
+                    VocabularyBatchHTTP(store: batchStore, model: { readModelStore.snapshot() }, didChange: {
+                        Task { @MainActor in self?.refreshBatches() }
+                    }, delegatedSubmit: { request, token in
+                        let grant = try grantStore.authorize(token)
+                        try AgentAccessGrantScope.validateBatch(request, grant: grant, groups: readModelStore.snapshotWithRoutes().groups)
+                        let result = try batchStore.submit(request, grantID: grant.id) {
+                            try VocabularyBatchHTTP.validate(request, model: readModelStore.snapshot())
+                        }
+                        guard result.record.grantID == grant.id,
+                              try result.record.reviewedRequest.digest() == request.digest() else {
+                            throw VocabularyBatchError.conflict("This request is awaiting a separate Foil review or was edited. Use its existing review flow.")
+                        }
+                        try grantStore.recordUse(grantID: grant.id, kind: "batch", objectID: result.record.id, requestDigest: result.record.requestDigest)
+                        if result.record.state == .pending {
+                            Task { @MainActor in self?.applyDelegatedBatch(id: result.record.id, token: token, digest: result.record.requestDigest, generation: expectedGeneration) }
+                        }
+                        return result.record
+                    }).response(to: request, requestID: requestID)
+                } ?? VocabularyBatchHTTP.unavailable(requestID: requestID)
             }
         )
         let candidate = serverFactory(paths, limits) { request in
@@ -596,8 +624,71 @@ final class AgentAccessController {
             Self.makeReadModel(from: appState), routingGroups: appState.cleanupGroups
         )
         refreshProposals()
+        refreshBatches()
         refreshActions()
         refreshGrants()
+    }
+
+    func refreshBatches() {
+        do {
+            try batchStore.reconcile(appState.appliedVocabularyProposalReceipts)
+            let records = try batchStore.records()
+            appState.agentAccessBatches = records.sorted { $0.createdAt > $1.createdAt }
+            let model = readModelStore.snapshot()
+            appState.agentAccessBatchPreviews = Dictionary(uniqueKeysWithValues: records.filter { $0.state == .pending }.map {
+                ($0.id, VocabularyBatchEvaluator.preview($0.reviewedRequest, model: model))
+            })
+            appState.agentAccessBatchErrorMessage = nil
+        } catch {
+            appState.agentAccessBatchErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func reviseBatch(id: String, request: VocabularyBatchRequest) {
+        do {
+            // A previous catalog commit may have outlived a failed inbox write.
+            // Recover its authoritative receipt before allowing any draft mutation.
+            try batchStore.reconcile(appState.appliedVocabularyProposalReceipts)
+            try batchStore.revise(id: id, request: request) {
+                try VocabularyBatchHTTP.validate(request, model: readModelStore.snapshot())
+            }
+            refreshBatches()
+        } catch {
+            refreshBatches()
+            appState.agentAccessBatchErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func transitionBatch(id: String, state: AgentAccessProposalState) {
+        do {
+            try batchStore.reconcile(appState.appliedVocabularyProposalReceipts)
+            try batchStore.transition(id: id, to: state)
+            refreshBatches()
+        } catch {
+            refreshBatches()
+            appState.agentAccessBatchErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func applyBatch(id: String, reviewedRequest: VocabularyBatchRequest) {
+        do {
+            try batchStore.reconcile(appState.appliedVocabularyProposalReceipts)
+            if try batchStore.record(id: id).state == .applied {
+                refreshReadModel()
+                return
+            }
+            try batchStore.revise(id: id, request: reviewedRequest) {
+                try VocabularyBatchHTTP.validate(reviewedRequest, model: readModelStore.snapshot())
+            }
+            try batchStore.apply(id: id) { record in try appState.applyReviewedVocabularyBatch(record) }
+            refreshReadModel()
+        } catch {
+            // The catalog receipt is authoritative even if inbox reconciliation failed after commit.
+            refreshReadModel()
+            appState.agentAccessBatchErrorMessage = appState.appliedVocabularyProposalReceipts.contains { $0.proposalID == id }
+                ? "Vocabulary was saved. Foil could not update the review receipt yet; reopen the inbox to retry."
+                : error.localizedDescription
+        }
     }
 
     func refreshGrants() {
@@ -615,7 +706,7 @@ final class AgentAccessController {
         }
     }
 
-    private func pairAgent(name: String, groupID: String) -> String? {
+    private func pairAgent(name: String, groupID: String, allowPreferredTerms: Bool) -> String? {
         do {
             guard appState.agentAccessEnabled,
                   appState.agentAccessPresentationState == .running,
@@ -630,7 +721,7 @@ final class AgentAccessController {
             guard verified.groupExclusiveToRequestedPaths == true else {
                 throw AgentAccessGrantError.invalidScope
             }
-            let (grant, token) = try grantStore.create(name: name, groupID: groupID, appPaths: paths)
+            let (grant, token) = try grantStore.create(name: name, groupID: groupID, appPaths: paths, allowPreferredTerms: allowPreferredTerms)
             refreshGrants()
             DiagnosticLog.write("AgentAccess.grants: paired grant_id=\(grant.id)")
             return SettingsView.AgentAccessCopy.pairedPrompt(
@@ -652,6 +743,30 @@ final class AgentAccessController {
         } catch {
             appState.agentAccessGrantErrorMessage = error.localizedDescription
             DiagnosticLog.write("AgentAccess.grants: revoke_failed")
+        }
+    }
+
+    private func applyDelegatedBatch(id: String, token: String, digest: String, generation: UUID) {
+        guard lifecycleGeneration == generation, appState.agentAccessEnabled else { return }
+        defer { refreshReadModel() }
+        do {
+            try batchStore.apply(id: id) { record in
+                guard record.state == .pending, record.requestDigest == digest,
+                      try record.reviewedRequest.digest() == digest else {
+                    throw VocabularyBatchError.conflict("The reviewed content differs from the delegated request.")
+                }
+                return try appState.applyReviewedVocabularyBatch(record) {
+                    guard self.lifecycleGeneration == generation, self.appState.agentAccessEnabled else { throw AgentAccessGrantError.unauthorized }
+                    let grant = try self.grantStore.authorize(token)
+                    guard record.grantID == grant.id,
+                          try self.grantStore.load().uses.contains(where: { $0.grantID == grant.id && $0.objectKind == "batch" && $0.objectID == id && $0.requestDigest == digest }) else {
+                        throw AgentAccessGrantError.unauthorized
+                    }
+                    try AgentAccessGrantScope.validateBatch(record.reviewedRequest, grant: grant, groups: self.appState.cleanupGroups)
+                }
+            }
+        } catch {
+            DiagnosticLog.write("AgentAccess.batches: delegated_batch_not_applied batch_id=\(id)")
         }
     }
 
@@ -737,6 +852,18 @@ final class AgentAccessController {
     }
 
     #if DEBUG
+    func seedVocabularyBatchForUITesting() {
+        let request = VocabularyBatchRequest(requestID: "ui-batch-\(UUID().uuidString)", scope: .init(kind: "global", id: "global"), items: [
+            .init(id: "supabase", kind: .preferredTerm, term: "Supabase"),
+            .init(id: "omit-vercel", kind: .preferredTerm, term: "Vercel"),
+            .init(id: "super-base", kind: .correction, correction: .init(spokenForms: ["super base"], replacement: "Supabase"))
+        ])
+        do {
+            _ = try batchStore.submit(request) { try VocabularyBatchHTTP.validate(request, model: readModelStore.snapshot()) }
+            refreshBatches()
+        } catch { appState.agentAccessBatchErrorMessage = error.localizedDescription }
+    }
+
     func seedAgentActionForUITesting() {
         do {
             _ = try actionStore.submit(.init(
@@ -1099,7 +1226,10 @@ final class AgentAccessController {
             },
             localCorrectionsEnabled: appState.localCorrectionSnapshot.isEnabled,
             suppressionRules: appState.localCorrectionSnapshot.rules.filter(\.suppressesGlobal),
-            catalogRules: appState.localCorrectionSnapshot.rules
+            catalogRules: appState.localCorrectionSnapshot.rules,
+            scopedTerms: appState.vocabularyTerms.map {
+                .init(id: $0.id.uuidString.lowercased(), term: $0.term, note: $0.note, scopeID: $0.scopeID)
+            }
         )
     }
 }

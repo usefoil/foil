@@ -625,6 +625,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             },
             onSeedAgentVocabularyProposal: { [weak self] in
                 #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--seed-agent-vocabulary-batch") {
+                    self?.agentAccessController?.seedVocabularyBatchForUITesting()
+                }
                 if ProcessInfo.processInfo.arguments.contains("--seed-agent-action") {
                     self?.agentAccessController?.seedAgentActionForUITesting()
                 }

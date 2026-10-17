@@ -700,6 +700,43 @@ final class FoilUITests: XCTestCase {
         XCTAssertEqual(controlValueString(app.checkBoxes["settings.localCorrectionsEnabled"]), "0")
     }
 
+    func testMixedVocabularyBatchCanOmitAndApplyOnceThenSurviveRelaunch() {
+        relaunchWithArguments(["--ui-testing", "--reset-defaults", "--seed-agent-vocabulary-batch"])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        let starter = app.buttons["settings.agentAccess.repositoryStarter"]
+        XCTAssertTrue(starter.waitForExistence(timeout: 3), app.debugDescription)
+        scrollAppShellSettingsUntilHittable(starter)
+        clickElement(starter)
+        XCTAssertTrue(NSPasteboard.general.string(forType: .string)?.contains("repository_setup") == true)
+        let review = button(id: "settings.agentAccess.reviewVocabulary", fallbackLabel: "Review Vocabulary changes")
+        scrollAppShellSettingsUntilHittable(review)
+        clickElement(review)
+        let omit = app.buttons["agentBatches.omit.omit-vercel"]
+        XCTAssertTrue(omit.waitForExistence(timeout: 4), app.debugDescription)
+        scrollProposalReviewUntilHittable(omit)
+        clickElement(omit)
+        let apply = app.buttons["Apply selected"]
+        scrollProposalReviewUntilHittable(apply)
+        XCTAssertTrue(apply.isEnabled, app.debugDescription)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Mixed Vocabulary batch review"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        clickElement(apply)
+        XCTAssertTrue(apply.waitForNonExistence(timeout: 4), app.debugDescription)
+        clickElement(app.buttons["agentApprovals.done"])
+        XCTAssertTrue(selectAppShellSettingsPane(navID: "appShell.nav.settings.cleanup", timeout: 5), app.debugDescription)
+        let editor = app.textViews["settings.preferredTermsEditor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertEqual(editor.value as? String, "Supabase")
+        XCTAssertTrue(app.staticTexts["super base -> Supabase"].exists, app.debugDescription)
+        XCTAssertEqual(controlValueString(app.checkBoxes["settings.localCorrectionsEnabled"]), "0")
+        relaunchWithArguments(["--ui-testing", "--settings-tab-cleanup"])
+        openSettingsPanel()
+        XCTAssertTrue(editor.waitForExistence(timeout: 3), app.debugDescription)
+        XCTAssertEqual(editor.value as? String, "Supabase")
+    }
+
     func testAgentActionRequiresVisibleFoilApproval() {
         relaunchWithArguments([
             "--ui-testing", "--reset-defaults", "--seed-agent-action"

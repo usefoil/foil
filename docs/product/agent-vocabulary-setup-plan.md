@@ -1,8 +1,11 @@
 # Agent-led Vocabulary setup and quick additions
 
 Status: implementation in progress. Scoped term storage, migration, the Vocabulary
-scope editor, and main-branch transcription consumers are implemented. Mixed batch
-API/review, delegated term permissions, and agent workflow entry points remain.
+scope editor, and main-branch transcription consumers are implemented in PR457
+(all CI checks green). Mixed batch API/review, explicit delegated term permissions,
+and live repository/quick-add instructions are implemented on the follow-up branch;
+verification and installed dogfood remain in progress. The Codex experiment
+consumer still needs integration with PR455/456 before updating Foil Dev.
 Baseline inspected: `d5a2ef3acbfe1a336fdab1c1c968968aba79730b` on the cleanup
 preferences branch. This is the next Vocabulary increment; post-transcript
 learning remains deferred.

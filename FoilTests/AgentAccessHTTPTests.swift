@@ -157,8 +157,16 @@ final class AgentAccessHTTPTests: XCTestCase {
             "propose_vocabulary_corrections", "get_vocabulary_proposal_status",
             "request_vocabulary_action", "get_vocabulary_action_status",
             "get_paired_agent_access", "submit_delegated_vocabulary_proposal",
-            "submit_delegated_correction_policies"
+            "submit_delegated_correction_policies",
+            "list_scoped_vocabulary_v2", "preview_vocabulary_batch_v2",
+            "propose_vocabulary_batch_v2", "get_vocabulary_batch_status_v2",
+            "submit_delegated_vocabulary_batch_v2"
         ])
+        XCTAssertEqual(decoded.vocabularyWorkflows.schemaVersion, 2)
+        XCTAssertEqual(decoded.vocabularyWorkflows.maximumItems, 50)
+        XCTAssertEqual(decoded.vocabularyWorkflows.routes["propose"], "/v2/vocabulary/proposals")
+        XCTAssertTrue(decoded.vocabularyWorkflows.repositorySetup.joined().contains("Do not build"))
+        XCTAssertTrue(decoded.vocabularyWorkflows.quickAddition.joined().contains("HTTP 202 means pending"))
         XCTAssertEqual(decoded.limits, .standard)
         XCTAssertTrue(decoded.bootstrapCommand.contains("--unix-socket"))
         XCTAssertTrue(decoded.bootstrapCommand.contains("/tmp/Foil Test/agent-v1.sock"))
@@ -205,7 +213,9 @@ final class AgentAccessHTTPTests: XCTestCase {
             "/v1/vocabulary/proposals/{proposal_id}",
             "/v1/vocabulary/actions", "/v1/vocabulary/actions/{action_id}",
             "/v1/access", "/v1/vocabulary/delegated-proposals",
-            "/v1/vocabulary/delegated-actions"
+            "/v1/vocabulary/delegated-actions",
+            "/v2/vocabulary", "/v2/vocabulary/preview", "/v2/vocabulary/proposals",
+            "/v2/vocabulary/proposals/{id}", "/v2/vocabulary/delegated-proposals"
         ])
         let limits = try XCTUnwrap(object["x-foil-limits"] as? [String: Any])
         XCTAssertEqual(limits["maximum_header_bytes"] as? Int, AgentAccessLimits.standard.maximumHeaderBytes)
@@ -226,7 +236,8 @@ final class AgentAccessHTTPTests: XCTestCase {
             "TargetVerificationRequest", "TargetVerificationResponse",
             "EffectivePreviewRequest", "EffectivePreviewResponse", "CorrectionPolicy",
             "ActionRequest", "ActionResponse", "GrantStatusResponse",
-            "ErrorResponse"
+            "ErrorResponse", "VocabularyBatchRequest", "VocabularyBatchPreview",
+            "VocabularyBatchRecord", "VocabularyV2Response", "VocabularyWorkflows"
         ] {
             XCTAssertNotNil(schemas[schema], "Missing schema \(schema)")
         }
@@ -253,13 +264,17 @@ final class AgentAccessHTTPTests: XCTestCase {
             ("/v1/vocabulary/actions/{action_id}", "get"),
             ("/v1/access", "get"),
             ("/v1/vocabulary/delegated-proposals", "post"),
-            ("/v1/vocabulary/delegated-actions", "post")
+            ("/v1/vocabulary/delegated-actions", "post"),
+            ("/v2/vocabulary", "get"), ("/v2/vocabulary/preview", "post"),
+            ("/v2/vocabulary/proposals", "post"),
+            ("/v2/vocabulary/proposals/{id}", "get"),
+            ("/v2/vocabulary/delegated-proposals", "post")
         ] {
             let pathItem = try XCTUnwrap(paths[path] as? [String: Any])
             let operation = try XCTUnwrap(pathItem[method] as? [String: Any])
             let responses = try XCTUnwrap(operation["responses"] as? [String: Any])
             let successCode = path == "/v1/vocabulary/proposals" || path == "/v1/vocabulary/actions"
-                ? "201" : path.contains("delegated-") ? "202" : "200"
+                ? "201" : path.contains("delegated-") || path == "/v2/vocabulary/proposals" ? "202" : "200"
             let success = try XCTUnwrap(responses[successCode] as? [String: Any])
             XCTAssertNotNil(success["content"], "Missing 200 response schema for \(method.uppercased()) \(path)")
         }

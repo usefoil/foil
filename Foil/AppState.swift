@@ -396,6 +396,12 @@ final class AppState {
     var agentAccessPresentationState: AgentAccessPresentationState = .off
     var agentAccessErrorMessage: String?
     var agentAccessBootstrapCommand = ""
+    var agentAccessBatches: [VocabularyBatchRecord] = []
+    var agentAccessBatchPreviews: [String: VocabularyBatchPreview] = [:]
+    var agentAccessBatchErrorMessage: String?
+    @ObservationIgnored var agentAccessBatchRevisionDidRequest: ((String, VocabularyBatchRequest) -> Void)?
+    @ObservationIgnored var agentAccessBatchApplyDidRequest: ((String, VocabularyBatchRequest) -> Void)?
+    @ObservationIgnored var agentAccessBatchTransitionDidRequest: ((String, AgentAccessProposalState) -> Void)?
     var agentAccessProposals: [VocabularyProposal] = []
     var agentAccessProposalPreviews: [String: AgentAccessPreviewResponse] = [:]
     var agentAccessStaleProposalIDs: Set<String> = []
@@ -412,7 +418,7 @@ final class AppState {
         agentAccessProposals.lazy.filter { $0.state == .pending }.count
     }
     var agentAccessPendingApprovalCount: Int {
-        agentAccessPendingProposalCount + agentAccessPendingActionCount
+        agentAccessPendingProposalCount + agentAccessPendingActionCount + agentAccessBatches.filter { $0.state == .pending }.count
     }
     var appliedVocabularyProposalReceipts: [VocabularyAppliedProposalReceipt] {
         vocabularyCorrectionCoordinator?.loadedCatalog?.snapshot.appliedProposalReceipts ?? []
@@ -423,7 +429,7 @@ final class AppState {
     @ObservationIgnored var agentAccessProposalTransitionDidRequest: ((String, AgentAccessProposalState) -> Void)?
     @ObservationIgnored var agentAccessProposalApplyDidRequest: ((String) -> Void)?
     @ObservationIgnored var agentAccessActionDecisionDidRequest: ((String, Bool) -> Void)?
-    @ObservationIgnored var agentAccessPairingDidRequest: ((String, String) -> String?)?
+    @ObservationIgnored var agentAccessPairingDidRequest: ((String, String, Bool) -> String?)?
     @ObservationIgnored var agentAccessGrantRevokeDidRequest: ((String) -> Void)?
     var canStartAgentAccess: Bool { agentAccessPreferenceDidChange != nil }
 
@@ -452,8 +458,8 @@ final class AppState {
         agentAccessActionDecisionDidRequest?(id, approve)
     }
 
-    func pairAgentForVocabularyEdits(name: String, groupID: String) -> String? {
-        agentAccessPairingDidRequest?(name, groupID)
+    func pairAgentForVocabularyEdits(name: String, groupID: String, allowPreferredTerms: Bool = false) -> String? {
+        agentAccessPairingDidRequest?(name, groupID, allowPreferredTerms)
     }
 
     func revokeAgentAccessGrant(id: String) {
@@ -1057,6 +1063,15 @@ final class AppState {
     }
 
     @discardableResult
+    func applyReviewedVocabularyBatch(_ record: VocabularyBatchRecord, authorize: () throws -> Void = {}) throws -> VocabularyAppliedProposalReceipt {
+        guard let vocabularyCorrectionCoordinator else { throw VocabularyCorrectionCoordinatorError.notActivated }
+        let result = try vocabularyCorrectionCoordinator.applyBatch(record, scopes: cleanupGroups.map {
+            .init(id: $0.id, name: $0.name, isDefault: $0.isDefault, isEnabled: $0.isEnabled)
+        }, authorize: authorize)
+        publishVocabularyCatalog(result.loaded)
+        return result.receipt
+    }
+
     func applyReviewedVocabularyProposal(
         _ proposal: VocabularyProposal,
         currentSnapshotToken: String

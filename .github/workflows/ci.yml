@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
@@ -352,6 +353,7 @@ jobs:
               -only-testing:FoilUITests/FoilUITests/testMicrophoneDeniedShowsOpenSettingsAction
               -only-testing:FoilUITests/FoilUITests/testAgentAccessStartupErrorFailsClosedInSettings
               -only-testing:FoilUITests/FoilUITests/testAgentActionRequiresVisibleFoilApproval
+              -only-testing:FoilUITests/FoilUITests/testMixedVocabularyBatchCanOmitAndApplyOnceThenSurviveRelaunch
           - shard: balanced-c
             tests: >-
               -only-testing:FoilUITests/FoilUITests/testProviderQALocalWhisperSetupHelperShowsModelCommands
