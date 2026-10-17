@@ -2405,17 +2405,25 @@ final class AppState {
                 localCorrectionPersistenceError = nil
             }
         } catch {
-            if vocabularyCorrectionCoordinator != nil {
-                vocabularyTerms = []
-                vocabularyTermPersistenceError = "Vocabulary could not be loaded. Stored files were left unchanged; resolve the catalog error before editing terms."
-            }
-            localCorrectionSnapshot = LocalCorrectionSnapshot()
-            compiledLocalCorrections = try! LocalCorrectionEngine.compile([])
-            if error as? VocabularyCatalogStoreError == .legacySourcesChanged {
-                vocabularyCorrections = []
-                localCorrectionPersistenceError = "Vocabulary changed in an older Foil version. Both copies were left unchanged; reconcile them before using local corrections."
+            if error as? VocabularyCatalogStoreError == .writeFailed,
+               let recovered = try? vocabularyCorrectionCoordinator?.readOnlyMigrationRecovery() {
+                publishVocabularyCatalog(recovered)
+                let message = "Vocabulary migration could not be saved. Existing terms and corrections remain available; resolve the catalog error and restart Foil before editing Vocabulary."
+                vocabularyTermPersistenceError = message
+                localCorrectionPersistenceError = message
             } else {
-                localCorrectionPersistenceError = "Local corrections could not be read, so they are off. The existing file was left unchanged."
+                if vocabularyCorrectionCoordinator != nil {
+                    vocabularyTerms = []
+                    vocabularyTermPersistenceError = "Vocabulary could not be loaded. Stored files were left unchanged; resolve the catalog error before editing terms."
+                }
+                localCorrectionSnapshot = LocalCorrectionSnapshot()
+                compiledLocalCorrections = try! LocalCorrectionEngine.compile([])
+                if error as? VocabularyCatalogStoreError == .legacySourcesChanged {
+                    vocabularyCorrections = []
+                    localCorrectionPersistenceError = "Vocabulary changed in an older Foil version. Both copies were left unchanged; reconcile them before using local corrections."
+                } else {
+                    localCorrectionPersistenceError = "Local corrections could not be read, so they are off. The existing file was left unchanged."
+                }
             }
         }
     }

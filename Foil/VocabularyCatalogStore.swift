@@ -194,7 +194,8 @@ final class VocabularyCatalogStore: @unchecked Sendable {
         legacyVocabularyData: Data?,
         legacyLocalCorrectionsData: Data?,
         legacyTermsData: Data? = nil,
-        legacyPreferredTermsText: String? = nil
+        legacyPreferredTermsText: String? = nil,
+        readOnlyMigration: Bool = false
     ) throws -> LoadedVocabularyCatalog {
         lock.lock()
         defer { lock.unlock() }
@@ -245,7 +246,7 @@ final class VocabularyCatalogStore: @unchecked Sendable {
         guard Self.isValid(snapshot) else {
             throw VocabularyCatalogStoreError.invalidCatalog
         }
-        try persist(snapshot)
+        if !readOnlyMigration { try persist(snapshot) }
         return LoadedVocabularyCatalog(snapshot: snapshot, compiledLocalCorrections: compiled)
     }
 
