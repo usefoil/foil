@@ -37,7 +37,8 @@ struct VocabularyBatchHTTP {
                     guard let token = request.bearerToken, let delegatedSubmit else { throw AgentAccessGrantError.unauthorized }
                     let record = try delegatedSubmit(decoded, token)
                     didChange()
-                    return try .json(status: record.state == .applied ? 200 : 202, reason: "Accepted", requestID: requestID, value: record)
+                    let pending = record.state == .pending
+                    return try .json(status: pending ? 202 : 200, reason: pending ? "Accepted" : "OK", requestID: requestID, value: record)
                 }
                 let result = try store.submit(decoded) {
                     try Self.validate(decoded, model: model())
