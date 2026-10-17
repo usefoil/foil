@@ -3,6 +3,9 @@
 - Apply reviewed agent Vocabulary suggestions directly in Foil, with durable receipts and recovery after interrupted operations.
 - Review Vocabulary proposals and agent actions in a unified Agent Access inbox, with service status in the settings sidebar.
 - Grant paired agents scoped Vocabulary permissions, inspect exact app targets, and review batches of correction policy changes.
+- Set up Vocabulary from repository suggestions or quick additions using the copied agent workflows, with preferred spellings and corrections in one review.
+- Save preferred spellings globally or for a Cleanup Group, preserving existing Vocabulary during migration and keeping other groups' terms out of transcription requests.
+- Apply mixed Vocabulary batches atomically with scoped paired permissions, durable receipts, and duplicate-free retries.
 - Create exact-app correction groups, move proposals between scopes, and define group exceptions to global corrections.
 - Enable optional punctuation variants for local corrections while protecting path-like text.
 - Join whisper.cpp segment breaks into natural local transcripts.
