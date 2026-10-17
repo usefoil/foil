@@ -49,6 +49,18 @@ final class VocabularyCorrectionCoordinator {
         return loaded
     }
 
+    /// Revalidate the old catalog for execution only after a migration write failure.
+    /// Do not activate mutations: no v3 catalog has been durably committed.
+    func readOnlyMigrationRecovery() throws -> LoadedVocabularyCatalog {
+        try store.loadOrMigrate(
+            legacyVocabularyData: legacyVocabularyData,
+            legacyLocalCorrectionsData: legacyLocalCorrectionsData,
+            legacyTermsData: legacyTermsData,
+            legacyPreferredTermsText: legacyPreferredTermsText,
+            readOnlyMigration: true
+        )
+    }
+
     @discardableResult
     func save(
         vocabularyCorrections: [VocabularyCorrection],

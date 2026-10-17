@@ -865,6 +865,63 @@ final class VocabularyCatalogStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testAppStateMigrationWriteFailurePreservesValidatedLegacyTermsReadOnly() throws {
+        let fixture = try makeFixture(stagedWriter: { _, _ in throw SimulatedCatalogFailure() })
+        let name = "Foil.FailedTermMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let terms = [VocabularyTerm(term: "Supabase"), VocabularyTerm(term: "Vercel")]
+        let bytes = try JSONEncoder().encode(terms)
+        defaults.set(bytes, forKey: "transcriptCleanupVocabularyTerms")
+        let old = VocabularyCatalogSnapshot(revision: 7, vocabularyCorrections: [correction()],
+            localCorrectionsEnabled: true, rules: [rule(group: nil)], appliedProposalReceipts: [],
+            legacySourceFingerprint: .init(vocabularyCorrectionsData: nil, localCorrectionsData: nil))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(old)) as? [String: Any])
+        json["schema_version"] = 2
+        json.removeValue(forKey: "vocabulary_terms")
+        let oldBytes = try JSONSerialization.data(withJSONObject: json, options: .sortedKeys)
+        let oldURL = fixture.directory.appendingPathComponent(VocabularyCatalogStore.previousFileName)
+        try oldBytes.write(to: oldURL)
+        let state = AppState(localCorrectionStore: LocalCorrectionStore(fileURL: fixture.legacyLocalURL),
+            vocabularyCatalogStore: fixture.store, initialDefaultsOverride: defaults)
+        XCTAssertEqual(state.vocabularyTerms, terms)
+        XCTAssertEqual(state.preferredTermsText, "Supabase\nVercel")
+        XCTAssertEqual(state.vocabularyCorrections, old.vocabularyCorrections)
+        XCTAssertEqual(state.localCorrectionSnapshot.rules, old.rules)
+        let execution = state.localCorrectionExecutionSnapshot()
+        XCTAssertEqual(LocalCorrectionEngine.correct("say super base", activeGroup: nil,
+            enabled: execution.enabled, compiled: execution.compiled).text, "say Supabase")
+        XCTAssertNotNil(state.vocabularyTermPersistenceError)
+        XCTAssertNil(state.addVocabularyTerm("GitHub"), "Editing must fail closed until migration succeeds")
+        XCTAssertEqual(state.vocabularyTerms, terms)
+        XCTAssertEqual(defaults.data(forKey: "transcriptCleanupVocabularyTerms"), bytes)
+        XCTAssertEqual(try Data(contentsOf: oldURL), oldBytes)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.catalogURL.path))
+        let reopened = AppState(localCorrectionStore: LocalCorrectionStore(fileURL: fixture.legacyLocalURL),
+            vocabularyCatalogStore: VocabularyCatalogStore(fileURL: fixture.catalogURL), initialDefaultsOverride: defaults)
+        XCTAssertEqual(reopened.vocabularyTerms, terms)
+        XCTAssertNil(reopened.vocabularyTermPersistenceError)
+    }
+
+    @MainActor
+    func testAppStateInvalidLegacyTermsDoNotUseMigrationFallback() throws {
+        let fixture = try makeFixture(stagedWriter: { _, _ in throw SimulatedCatalogFailure() })
+        let name = "Foil.InvalidTermMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let term = VocabularyTerm(term: "Supabase")
+        let bytes = try JSONEncoder().encode([term, term])
+        defaults.set(bytes, forKey: "transcriptCleanupVocabularyTerms")
+        let state = AppState(localCorrectionStore: LocalCorrectionStore(fileURL: fixture.legacyLocalURL),
+            vocabularyCatalogStore: fixture.store, initialDefaultsOverride: defaults)
+        XCTAssertTrue(state.vocabularyTerms.isEmpty)
+        XCTAssertNotNil(state.vocabularyTermPersistenceError)
+        XCTAssertNil(state.addVocabularyTerm("GitHub"))
+        XCTAssertEqual(defaults.data(forKey: "transcriptCleanupVocabularyTerms"), bytes)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.catalogURL.path))
+    }
+
+    @MainActor
     func testAppStateTermCommitFailurePreservesMemoryAndDisk() throws {
         let fixture = try makeFixture()
         let initial = try fixture.store.loadOrMigrate(legacyVocabularyData: nil, legacyLocalCorrectionsData: nil)
