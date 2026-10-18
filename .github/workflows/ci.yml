@@ -116,6 +116,21 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
 
+      - name: Validate unit test result gate
+        run: node --test scripts/ci/tests/unit-test-result.test.mjs
+
+      - name: Record managed loopback hostname resolution
+        run: |
+          python3 - <<'PY'
+          import socket
+          for host in ("transcribe.foil.localhost", "localhost", "127.0.0.1"):
+              try:
+                  addresses = sorted({entry[4][0] for entry in socket.getaddrinfo(host, None)})
+                  print(f"{host}: {addresses}")
+              except OSError as error:
+                  print(f"{host}: resolution failed: {error}")
+          PY
+
       - name: Run tests
         id: run-tests
         env:
@@ -147,21 +162,21 @@ jobs:
           wait $WATCHDOG_PID 2>/dev/null
           set -e
 
-          # Check xcresult for actual test failures
-          if [ -d TestResults.xcresult ]; then
-            SUMMARY=$(xcrun xcresulttool get test-results summary \
-              --path TestResults.xcresult --compact 2>/dev/null || echo "")
-            if echo "$SUMMARY" | grep -q '"result" : "Failed"'; then
-              echo "::error::Test failures found in results bundle"
-              echo "$SUMMARY" | head -50
-              exit 1
-            fi
-            echo "All tests passed per results bundle"
-            exit 0
+          # A bundle can exist after failed or interrupted execution. Never
+          # override xcodebuild's failure, even if its summary looks successful.
+          if [ "$TEST_EXIT" -ne 0 ]; then
+            echo "::error::xcodebuild exited with $TEST_EXIT"
+            exit "$TEST_EXIT"
           fi
-
-          # No bundle — use raw exit code
-          exit $TEST_EXIT
+          if [ ! -d TestResults.xcresult ]; then
+            echo "::error::Missing test results bundle"
+            exit 1
+          fi
+          SUMMARY_FILE="$(mktemp)"
+          trap 'rm -f "$SUMMARY_FILE"' EXIT
+          xcrun xcresulttool get test-results summary \
+            --path TestResults.xcresult --compact > "$SUMMARY_FILE"
+          node scripts/ci/verify-unit-test-result.mjs "$TEST_EXIT" "$SUMMARY_FILE"
 
       - name: Test summary
         if: always()
