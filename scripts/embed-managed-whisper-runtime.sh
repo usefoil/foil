@@ -55,6 +55,7 @@ test "$(lipo -archs "$helper" | tr ' ' '\n' | sort | tr '\n' ' ')" = 'arm64 x86_
 for architecture in arm64 x86_64; do
   otool -arch "$architecture" -l "$helper" | awk '/LC_BUILD_VERSION/{found=1} found && /minos/{if ($2 != "14.0") exit 1; ok=1; exit} END {if (!ok) exit 1}'
   otool -arch "$architecture" -l "$helper" | /usr/bin/grep -q '__ggml_metallib'
+  otool -arch "$architecture" -l "$helper" | /usr/bin/grep -q '__foil_metallib'
   otool -arch "$architecture" -L "$helper" | tail -n +2 | while IFS= read -r dependency; do
     case "$dependency" in
       *'/System/Library/'*|*'/usr/lib/'*) ;;

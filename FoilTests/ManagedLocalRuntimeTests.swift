@@ -1,8 +1,64 @@
 import CryptoKit
+import Darwin
 import XCTest
 @testable import Foil
 
 final class ManagedLocalRuntimeTests: XCTestCase {
+    #if DEBUG
+    func testStartupTracePipeNeverEmitsSecretsAndCapsItsOutput() async throws {
+        let capture = StartupTraceCapture()
+        let trace = ManagedLocalStartupTrace(output: { capture.append($0) })
+        let descriptor = dup(trace.pipe.fileHandleForWriting.fileDescriptor)
+        XCTAssertGreaterThanOrEqual(descriptor, 0)
+        let child = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        trace.didLaunch(pid: 1234)
+        let secret = String(repeating: "b", count: 64)
+        let bytes = "GET /\(secret)/health\nmodel: /private/fixture.bin\n"
+            + "FOIL_STARTUP_STAGE model_begin \(secret)\n"
+            + String(repeating: "FOIL_STARTUP_STAGE backend_ready\n", count: 60)
+        try child.write(contentsOf: Data(bytes.utf8))
+        try child.close()
+        for _ in 0..<100 where capture.lines.count < 32 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        trace.report(.exit(9, 1))
+        XCTAssertEqual(capture.lines.count, 32)
+        XCTAssertTrue(capture.lines.allSatisfy {
+            $0.hasPrefix("[ManagedLocalStartup] pid=1234 elapsed_ms=")
+                && ($0.hasSuffix("stage=launched\n") || $0.hasSuffix("stage=backend_ready\n"))
+        })
+        XCTAssertFalse(capture.lines.joined().contains(secret))
+        XCTAssertFalse(capture.lines.joined().contains("/private/"))
+    }
+
+    func testStartupTraceDecodesOnlyCompleteAllowlistedStages() {
+        var decoder = ManagedLocalStartupTraceDecoder()
+        XCTAssertTrue(decoder.consume(Data("FOIL_STARTUP_STA".utf8)).isEmpty)
+        XCTAssertEqual(decoder.consume(Data("GE backend_begin\n".utf8)), [.backendBegin])
+        for stage in ManagedLocalStartupTraceDecoder.Stage.allCases {
+            XCTAssertEqual(decoder.consume(Data("FOIL_STARTUP_STAGE \(stage.rawValue)\n".utf8)), [stage])
+        }
+        XCTAssertEqual(decoder.consume(Data("ggml_metal_library_init: using embedded metal library\n".utf8)), [.metalCompileBegin])
+        XCTAssertEqual(decoder.consume(Data("ggml_metal_library_init: loaded embedded precompiled Metal library\n".utf8)), [.metalPrecompiledReady])
+        XCTAssertEqual(decoder.consume(Data("ggml_metal_library_compile_all: loaded 20 libraries from embedded data in 25.123 sec (max single = 25.100 sec)\n".utf8)), [.metalCompileReady])
+    }
+
+    func testStartupTraceDiscardsPathsTokensUnknownAndOversizedLines() {
+        var decoder = ManagedLocalStartupTraceDecoder()
+        let secret = String(repeating: "a", count: 64)
+        let noise = "GET /\(secret)/health\nmodel: /private/fixture.bin\n"
+            + "FOIL_STARTUP_STAGE model_begin \(secret)\n"
+            + "FOIL_STARTUP_STAGE unknown\n"
+            + "ggml_metal_library_init: using embedded metal library /private/secret\n"
+            + "ggml_metal_library_compile_all: loaded 20 libraries from embedded data in /private/secret sec (max single = 25.100 sec)\n"
+            + "ggml_metal_library_compile_all: loaded 20 libraries from embedded data in 25.123 sec (max single = 25.100 sec) /private/secret\n"
+            + String(repeating: "x", count: 100_000) + "FOIL_STARTUP_STAGE model_begin\n"
+        XCTAssertTrue(decoder.consume(Data(noise.utf8)).isEmpty)
+        XCTAssertEqual(decoder.consume(Data("FOIL_STARTUP_STAGE bound\n".utf8)), [.bound])
+    }
+
+    #endif
+
     func testCancelledHashingStopsBeforeAcceptingModel() async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: url) }
@@ -48,3 +104,12 @@ final class ManagedLocalRuntimeTests: XCTestCase {
         XCTAssertFalse(ManagedLocalHealth.matches(exact, session: id, modelSHA256: String(repeating: "b", count: 64), pid: 123))
     }
 }
+
+#if DEBUG
+private final class StartupTraceCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+    var lines: [String] { lock.withLock { storage } }
+    func append(_ line: String) { lock.withLock { storage.append(line) } }
+}
+#endif

@@ -43,10 +43,19 @@ a fresh private empty directory. Child output is discarded so request paths and
 tokens do not enter application logs. Only a token-free display address and
 generic errors are exposed; provider settings never contain a token.
 
-The native client resolves the actual hostname, rejects any resolution other
-than `127.0.0.1` or `::1`, and uses Network.framework with the loopback interface
-required and proxies bypassed. This interface constraint remains effective if
-name resolution changes between validation and connection. The bounded HTTP/1.1
+Debug builds can opt into `FOIL_MANAGED_STARTUP_TRACE=1` for startup diagnosis.
+The parent drains helper stderr but emits only allowlisted lifecycle stage names,
+child PID/status, and monotonic elapsed milliseconds, capped at 32 events per
+child. Arbitrary stderr, paths, request tokens, and transcript text are discarded.
+Release builds continue to discard helper output; tracing does not change the
+startup deadline, health/ownership checks, or transport policy.
+
+The native client connects directly to numeric IPv4 loopback (`127.0.0.1`),
+matching the owned helper's bind address, while retaining the exact dedicated
+`transcribe.foil.localhost` URL namespace and HTTP Host header. It never asks DNS
+to resolve that hostname: operating-system differences or changed DNS answers
+cannot redirect the connection. Network.framework still requires the loopback
+interface and bypasses proxies. The bounded HTTP/1.1
 client requests connection close and accepts unambiguous Content-Length framing.
 It rejects redirects and transfer encoding instead of following another URL.
 
@@ -91,8 +100,16 @@ native-host optimization, OpenMP, CUDA/HIP/MUSA, Vulkan, RPC, SYCL, OpenCL,
 OpenVINO, WebGPU, and CoreML are disabled. CPU, Accelerate, and embedded Metal
 are enabled. Intel AVX, AVX2, BMI2, FMA, F16C, SSE4.2, and AVX512 are explicitly
 disabled; the x86_64 slice uses the baseline target instead of the build host's
-instruction set. Metal kernels are embedded as source in `__ggml_metallib` and
-compiled by the system at runtime without external resource downloads.
+instruction set. Builds require Xcode's Metal compiler. The build compiles all
+kernel sources for macOS 14 / Metal 3.1 into separate plain and BF16 libraries,
+then embeds both in `__foil_metallib` inside each signed helper slice. Ordinary
+Metal devices select the matching compiled library directly from those bytes;
+a load failure is not retried from an external shader resource. This removes
+source compilation from their model-startup deadline. The optional Metal 4
+tensor path remains upstream's runtime-compiled path, using the original source
+embedded in `__ggml_metallib`; it is not claimed to have precompiled coverage.
+Neither path downloads shader resources or reads an ambient shader-directory
+override. The 30-second deadline and all ownership checks remain unchanged.
 
 Embedding rejects missing/malformed runtime metadata, hash/patch/commit drift,
 non-universal binaries, incorrect minimum OS, missing Metal resources, and
@@ -121,12 +138,25 @@ speech, and parent-EOF checks. The synthetic transcript was “the quick brown f
 jumps over the lazy dog.”
 
 Swift tests exercise model replacement/corruption, unready provider isolation,
-native audio conversion and cleanup, actual hostname transport, redirect/framing
+native audio conversion and cleanup, pinned loopback transport with the exact Host, redirect/framing
 rejection, real AAC-to-transcript, failed candidate rollback, cancellation,
 supersession, timeout, and occupied-port ownership. Packaging tests reject corrupt,
 stale-provenance, thin, malformed, and missing artifacts. These tests establish
 only the scenarios that have passing execution receipts; fixture tests do not
 establish fresh-user GUI installation or offline relaunch acceptance.
+
+Hosted CI additionally runs the real helper smoke with
+`FOIL_REQUIRE_PRECOMPILED_METAL=1`, both with default GPU capabilities and with
+BF16 disabled to exercise the plain library. It requires successful synthetic
+transcription, an exact precompiled-library load marker, and an opt-in marker
+emitted after a successful nonempty Metal graph submission from that child.
+Library discovery alone, CPU-only execution, or source-compilation fallback
+cannot satisfy this gate. The smoke drains stderr, retains only these two
+marker booleans, and never publishes raw child output. Graph submission alone
+does not claim every operation ran on the GPU; the real transcript must also pass.
+CI also forces an unavailable GPU index (`WHISPER_ARG_DEVICE=999`): the helper
+can still discover Metal and transcribe through CPU, but the smoke must reject
+that successful transcript specifically for lacking a Metal graph submission.
 
 ## Managed model service (T003)
 

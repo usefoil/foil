@@ -28,6 +28,189 @@ publishing.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
 
+## v1.15.0 CI Build/Test Phase Isolation
+
+Date: 2026-10-18
+
+The evidence-only head `2a35a15` failed
+[CI 39141289761](https://github.com/usefoil/foil/actions/runs/39141289761),
+unit job `117716122802`. The repaired fail-closed gate correctly rejected exit
+143. Raw log `final-docs-head-hosted-unit.log` records approximately 341 seconds
+of cold build/setup, then 1,020 XCTest cases (four existing skips, zero failures)
+and nine Swift tests in approximately 78 seconds. The combined 420-second
+watchdog interrupted xcodebuild during finalization; no orderly success or
+structural verification followed, and the downstream Metal controls did not run.
+The first managed helper reached health in 545 ms and integration tests passed;
+this is not evidence of a recurrence of the earlier runtime compilation stall.
+The log does not attribute all build/setup time to shader compilation.
+
+The follow-up separates fail-closed `build-for-testing` (bounded at eight
+minutes) from `test-without-building`, preserving the same derived products,
+scheme, configuration, destination, test selection and coverage. Test execution
+retains its 420/480-second TERM/KILL watchdog; the entire job remains bounded at
+15 minutes and managed startup remains bounded at 30 seconds. Build errors stop
+before test acceptance; nonzero test exit, incomplete bundles or zero execution
+remain failures. No test retry or new skip was added. The new phase-isolation
+regression fails against the prior workflow and passes after the split; all 26
+Node result/build/workflow regressions pass. Receipts:
+`unit-phase-regression-before.log` and `unit-phase-regression-after.log` in
+`/tmp/foil-vocabulary-release-qa.srGbOW`.
+
+The failing run is not counted as a pass. Release acceptance still requires
+actual-head hosted build, native test exit zero, structural executed-test
+verification, both Metal positives and CPU-negative control, and all protected
+checks; the PR body records that latest execution evidence. The split does not
+change application, helper, resource or native-build bytes, so the exact signed
+artifact checks below remain applicable to those bytes, not a substitute for
+the CI workflow check.
+
+## v1.15.0 Managed Metal Startup Repair
+
+Date: 2026-10-18
+
+Scope: application/tests/build source
+`536a6e0f5e10722dcad673bf8bd6f3a5c4ada264`, version `1.15.0` build `53`,
+release-prep PR #459. The human authorized fixing the shared CI gate and
+managed-local hosted failures. The scheduled task remains paused. Codex cleanup
+#455/#456 stays excluded; no public tag, release, or Homebrew update was made.
+The earlier hold entries below preserve the failed-candidate chronology;
+this section records the superseding repair evidence. Actual-head protected checks and the
+merge queue must still pass before merge; these receipts do not authorize
+publication by themselves.
+
+| Claim | Strongest realistic failure mode | Primary evidence | Result |
+| --- | --- | --- | --- |
+| Failed unit execution cannot become green. | Compact or malformed JSON, zero executed tests, or an interrupted xcodebuild could be accepted. | Gate-only run [39129946365](https://github.com/usefoil/foil/actions/runs/39129946365) reproduced 21 failures and exit 65, now correctly failed. The validator preserves nonzero native status and requires structural passing/executed results. The combined Node gate, Metal-build, and workflow contracts pass 25 tests. | PASS: FAILURE DETECTION |
+| Cold helper startup no longer waits for ordinary Metal source compilation. | A passing retry could hide the same pre-bind stall. | Bounded trace run [39138354130](https://github.com/usefoil/foil/actions/runs/39138354130), job `117707456570`, shows four children reaching `metal_compile_begin` in 51–68 ms, then the unchanged 30-second deadline without compile-complete/model-returned/bind/health markers. Pinned source compiles 20 libraries before listening. The repair builds plain/BF16 libraries for macOS 14 / Metal 3.1 and embeds them in each signed helper slice. Independent cold hosted runs on `a6a493a` and `536a6e0` reached first health at 226 ms and 546 ms respectively. No test skip, startup-timeout increase, or retry-only fix was added. | PASS: HOSTED TRACE / SOURCE |
+| The acceptance gate proves more than library discovery or a CPU transcript. | Metal could load during discovery, then Whisper could select CPU and still transcribe successfully. | Fresh validation reproduced that false-positive path with `WHISPER_ARG_DEVICE=999`; the accepted finding was fixed. Final-source [CI 39140185099](https://github.com/usefoil/foil/actions/runs/39140185099), unit job `117712860026`, passes real default and BF16-disabled transcription, requiring both precompiled-load and successful nonempty Metal graph-submission markers plus child EOF. The forced CPU-only transcript is rejected specifically for missing graph submission. Graph submission does not claim every operation ran on GPU. | PASS: POSITIVES AND NEGATIVE CONTROL |
+| Shared tests retain the transport, identity, and Vocabulary behavior. | Focused shader success could mask adjacent failures or weakened ownership. | That raw job records 1,020 XCTest cases, four existing skips, zero failures, nine passing Swift Testing cases, `TEST SUCCEEDED`, and structural verification of 1,025 passing tests/native exit zero. Numeric IPv4 loopback retains the dedicated logical URL/Host, required loopback interface, no proxy/redirect fallback, and token/session/model/PID checks. Evidence: `precompiled-metal-final-hosted-unit.log`. | PASS: HOSTED UNIT EXECUTION |
+| The exact signed Release artifact contains the repaired helper and intended Vocabulary source. | A stale source/build, corrupt download, missing trust, shader packaging loss, or included cleanup work could survive a green workflow. | [Notarized QA 39140193875](https://github.com/usefoil/foil/actions/runs/39140193875) checks out exact `536a6e0`, explicitly `1.15.0 (53)`. Fresh download `/tmp/foil-precompiled-final-artifact.NkSLNN` passes its untouched sidecar; DMG SHA-256 `bb79e406d722e679871f778428d173b18a0200903f60d2404b33a9c64bdfc220`. Stapler, DMG/app Gatekeeper and deep strict codesign pass. Bundle id `com.neonwatty.Foil`, team `B3A6AN2HA4`, universal app/helper, helper minimum macOS 14, both embedded compiled-shader sections, and 32-byte Sparkle key are verified. Packaged OpenAPI matches source; starter/recovery strings are present; cleanup implementation/control symbols and Release-parent trace symbols are absent. Checkout logs, not an embedded commit field, establish source provenance. | PASS: NOTARIZED ARTIFACT AUDIT |
+| The packaged helper can actually load and submit through its shaders on this Mac. | Hosted Debug tests could pass while the signed Release helper or another architecture fails. | The helper was executed directly from the read-only DMG with private fixture directories, not by launching the app GUI. Default and BF16-disabled native runs and x86_64 under already-installed Rosetta pass exact identity, rejected routes, precompiled-load plus Metal graph submission, the expected synthetic transcript, and parent-EOF shutdown. A forced CPU-only run transcribes correctly but is rejected for the exact missing-graph reason. The image was detached after the tests. | PASS: SIGNED HELPER / LOCAL AND ROSETTA |
+
+Evidence directory: `/tmp/foil-vocabulary-release-qa.srGbOW`. Final-source files
+include `precompiled-metal-final-hosted-unit.log`,
+`precompiled-metal-final-notarized.log`,
+`precompiled-metal-final-artifact-verification.log`, and
+`precompiled-metal-final-release-helper-{default,plain,rosetta,cpu-negative}.log`.
+Standalone repeat receipts are `final-artifact-standalone-receipt.log` and
+`final-artifact-invocation-{default,plain,rosetta,cpu-negative}.log`; the saved
+`verify-final-artifact-receipt.sh` records the exact mounted helper path/digest,
+mode, command, exit status, bundle metadata, packaged OpenAPI comparison, and
+parent-symbol checks alongside their results.
+The older `a6a493a` full CI [39139440237](https://github.com/usefoil/foil/actions/runs/39139440237)
+and notarized artifact are separate valid intermediate receipts, not substitutes
+for the final graph-marker/CPU-negative-control proof.
+Full repaired-source CI `39140185099` also passes the warnings-as-errors build,
+Agent Access contract and installed-app smoke, snapshots, all four focused UI
+shards, and aggregate gate. The full raw run is `precompiled-metal-final-ci.log`.
+
+Review: the installed PR Review Toolkit was repeated against exact base
+`74740c712cee09e62fbc3131511f7cdda4c55724` for correctness, tests,
+contracts/security, silent failures, and docs/comments. Every accepted finding
+was independently validated and fixed, including the CPU-only false positive;
+the complete repaired-source review is clean. Native `codex review` remains
+unavailable because configured `gpt-6-sol` is unsupported for this account; the
+toolkit-permitted focused review used the independently available exact diff.
+Review is not a claim of defect freedom.
+
+Residual scope: the optional Metal 4 tensor path is unchanged and is not claimed
+precompiled. Rosetta is not native Intel hardware proof; physical macOS 14,
+Metal 4 hardware, current-account signed Release UI, and true fresh-user
+onboarding remain unverified. The main notarized app was not installed or
+launched against daily-driver preferences; only its helper was executed with
+synthetic input. No TCC reset or Homebrew setup-readiness claim was made. This
+Mac lacks Xcode's Metal compiler component, so no cold local precompiled-shader
+build is claimed; actual shader compilation is proven by the hosted builds.
+The local source-compiled graph-marker control was explicitly diagnostic,
+not precompiled-shader evidence. Existing live Groq/network/absent-fixture skips
+remain separate from the passing deterministic unit receipt.
+
+## v1.15.0 Release-Prep CI And Loopback Repair
+
+Date: 2026-10-18
+
+Scope: release-prep PR #459, version `1.15.0`, build `53`. The scheduled
+follow-up is paused at the human's request. Codex cleanup PRs #455/#456 remain
+excluded. CI gate repair `7c4badc23d5f5880015c885c2fa42f098ade7079` and
+managed transport repair `196b832` supersede the earlier candidate below;
+its notarized artifact does not contain the transport repair.
+
+**RELEASE HOLD:** final-head refresh [39131073744](https://github.com/usefoil/foil/actions/runs/39131073744)
+did not pass. Its Unit Tests job reports repeated numeric-loopback connection
+refusals, coordinator cleanup error, two managed-provider startup `timedOut`
+failures, and watchdog interruption with exit 143. The earlier complete hosted
+pass below is valid but does not establish reliable startup. No retries, skips,
+or increased timeouts have been used to mask this result. Primary evidence:
+`final-head-hosted-unit.log` in the evidence directory. Root cause remains under
+investigation; PR #459 stays draft.
+
+Independent correctness review localized the failure to pre-bind helper startup:
+the owned child stays running while connections are refused, and the patched
+helper initializes backends/model before binding. Existing stdout/stderr is
+discarded, so backend loading, model/GPU initialization, and scheduling cannot
+yet be distinguished. The next diagnostic needs bounded sanitized helper
+output, termination status, and monotonic stage timestamps through listen-ready,
+with CPU/RSS sampling if needed. This is not evidence for a timeout increase.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| The hosted unit gate cannot turn failed execution into success. | A compact failure summary, malformed/missing result, timeout, or zero executed tests could be accepted. | All five Node gate regressions pass, including the workflow wiring contract that failed before repair. The gate preserves nonzero process status, requires a bundle, and structurally requires `Passed`, zero failures, and executed passing tests. The existing workflow-contract suite also passes 16 tests. Hosted gate-only run [39129946365](https://github.com/usefoil/foil/actions/runs/39129946365) reproduces 1,016 XCTest cases with 21 failures (12 unexpected), `TEST FAILED`, and process exit 65; the Unit Tests job now correctly fails. Raw job log: `hosted-gate-red.log` in the evidence directory. | PASS: LOCAL/HOSTED FAILURE DETECTION |
+| Managed transport uses only the helper's owned loopback endpoint and retains the logical Host/security contract. | Resolver behavior could block startup, or a transport change could connect elsewhere or violate the helper's Host/identity checks. | The new numeric-endpoint regression failed with the prior hostname endpoint. The fix uses `NWEndpoint.Host.ipv4(.loopback)` matching the helper's `127.0.0.1` bind, with the exact dedicated URL/Host, required loopback interface, no proxies/redirects, and token/session/PID/model identity checks unchanged. All 36 focused managed-local tests pass with two existing fixture skips. Real Ruby/helper smoke passes exact identity, unauthorized routes, transcription, and parent EOF. | PASS: LOCAL |
+| The repaired source retains whole-suite and packaging behavior. | Focused success could hide unrelated regressions or missing/corrupt packaged helper resources. | Full local non-live suite: 1,017 XCTest cases, four existing skips, zero failures, plus nine Swift Testing cases. Debug warnings-as-errors build passes. Managed packaging rejects missing/corrupt/stale/thin/malformed resources; release-script defaults/checksum tests pass. Evidence: `/tmp/foil-vocabulary-release-qa.srGbOW/ReleasePrep-Fixed.xcresult`, `managed-runtime-fixed.log`, `managed-shell-smoke.log`, `managed-packaging-fixed.log`, and `release-script-fixed.log`. | PASS: LOCAL |
+| Hosted execution passes with the repaired production transport, not a skipped test or optimistic badge. | The prior failures could persist despite local success or be hidden by a weakened gate. | [CI 39130459140](https://github.com/usefoil/foil/actions/runs/39130459140), Unit Tests job `117684460452`, records 1,017 XCTest cases, four existing skips, zero failures, nine passing Swift Testing cases, `TEST SUCCEEDED`, and structural verification of 1,022 passing tests with process exit zero. The previously failing coordinator test explicitly passes. `hosted-runtime-fixed.log` preserves the raw evidence. Its checkout combines `7badf63` with base `74740c7`; only changelog/QA docs differ from notarized source `196b832`. | PASS: HOSTED UNIT EXECUTION |
+| The fresh signed Release artifact binds the repaired source to intended production metadata. | An old source revision, wrong build number, corrupt download, or missing trust could survive upload. | [Notarized QA 39130430999](https://github.com/usefoil/foil/actions/runs/39130430999) checks out exact `196b832f5ae409616a0fa08926e94e5e3f7b393c` and verifies `1.15.0 (53)`. Fresh download `/tmp/foil-release-1-15-artifact.druY1D` passes its untouched sidecar; DMG SHA-256 `57ab96be5192877aabd78c5bfac522844bd2744cff77e23203186824bba94fb2`. Stapler, DMG/app Gatekeeper, and deep strict codesign pass. Identity is `com.neonwatty.Foil`, team `B3A6AN2HA4`, app/helper universal `x86_64 arm64`, and a 32-byte Sparkle key. Packaged OpenAPI matches source; starter/recovery strings are present and cleanup implementation/control symbols absent. Checkout/build and local trust logs are `repaired-notarized-qa.log` and `repaired-artifact-verification.log`. | PASS: FRESH NOTARIZED ARTIFACT |
+
+Review: native `codex review` could not run because the configured `gpt-6-sol`
+is unsupported for this account. The toolkit's independent focused review used
+the available exact base/diff (`74740c712cee09e62fbc3131511f7cdda4c55724`)
+for correctness, tests, contracts/security, silent failures, and comments/docs;
+no high-confidence candidates were found. This is not a claim of defect freedom.
+Fresh independent validation also confirmed raw hosted unit results, source
+equivalence, checkout provenance, checksum, signing/notarization, and exclusion.
+
+Gate-only run `39129946365` records `transcribe.foil.localhost` resolution failing with
+`nodename nor servname provided, or not known`, while `localhost` resolves to
+`127.0.0.1`/`::1` and numeric IPv4 resolves to `127.0.0.1`. This identifies the
+rejected hostname dependency behind the `unsafeAddress` failures. The separate
+coordinator cleanup test passed in `39130459140`, then failed again in
+`39131073744`; its underlying root cause is not established.
+
+The false-green gate and fresh artifact trust are verified above, but the newer
+hosted startup failures reinstate the release hold. Do not merge until those
+failures are diagnosed/repaired and required checks and merge-queue gates pass.
+No public tag/release or Homebrew update was performed. The notarized app was
+mounted read-only for inspection, not installed or launched against daily-driver
+preferences. Current-account signed Release UI and true fresh-user onboarding
+remain unverified; no TCC reset was performed.
+
+## v1.15.0 Agentic Vocabulary Candidate QA
+
+Date: 2026-10-17
+
+Scope: Vocabulary-only release candidate
+`a385f970c750b1e2941072f934f68d9ec72210cb`, preparing version `1.15.0`,
+production build `53`. Codex cleanup PRs #455/#456 remain excluded. This is
+candidate evidence, not a public release or Homebrew setup-readiness claim.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| Migration failure preserves usable existing Vocabulary without allowing uncommitted edits. | A failed v2-to-v3 write could erase preferred terms or disable valid enabled correction rules. | Injected staging failure reproduced both old failures. The regression now checks preserved terms/corrections/rules, actual `say super base` → `say Supabase` execution, unchanged v2/default bytes, blocked editing, healthy restart, and invalid legacy input failing closed. The complete non-live local run passed 1,016 XCTest cases with four existing skips and no failures, plus nine Swift Testing cases; 78 focused tests and a Debug warnings-as-errors build passed. Results: `/tmp/foil-vocabulary-release-qa.srGbOW/UnitTests-Recovery.xcresult`. | PASS: DETERMINISTIC |
+| Retrying terminal delegated batches does not suggest that apply is queued. | Rejected/discarded records could return HTTP 202 despite having no scheduled apply. | The HTTP regression checks 200/OK, matching terminal record fields, byte-identical inbox storage, and empty preferred terms. Direct replay-path inspection finds no catalog writer or apply callback; only pending work returns 202. Changed-content re-preview returns 200 without reserving a request ID. | PASS: DETERMINISTIC/INSPECTION |
+| The signed Release archive contains the intended Vocabulary source, not Codex cleanup. | A green workflow could package an older revision or the combined experimental dogfood build. | [QA run 39057919492](https://github.com/usefoil/foil/actions/runs/39057919492) checkout logs resolve the requested SHA to `a385f970c750b1e2941072f934f68d9ec72210cb`. Neither cleanup PR head is an ancestor; their implementation/control symbols are absent from source and the packaged executable. The packaged OpenAPI is byte-identical to the candidate resource, and the executable contains the new starter guidance and migration recovery warning. No embedded commit field exists, so revision provenance comes from workflow checkout logs, not app metadata. | PASS: SOURCE/ARTIFACT AUDIT |
+| Downloaded bytes retain the expected trust and identity. | Corrupt bytes, runner-specific checksum paths, missing notarization, or a wrong app identity could survive a successful upload. | Fresh download into `/tmp/foil-vocabulary-artifact.ANVatA`: untouched `shasum -a 256 -c` passed; DMG SHA-256 `afcb4c1b477b5e6d9c4a44fbba0299205c34b23abe15d23dae80bf6dc905daed`. DMG stapler and DMG/app Gatekeeper checks passed as `Notarized Developer ID`; mounted-app deep strict codesign passed with team `B3A6AN2HA4`. App identity is `com.neonwatty.Foil`, version `1.15.0`, architectures `x86_64 arm64`, with a 32-byte Sparkle public key. The QA builder intentionally uses run ID `39057919492` as its build number when no override is supplied; this is not a claim that production build 53 was archived. | PASS: NOTARIZED QA |
+| Hosted verification reports actual failures rather than trusting the job badge. | CI could report success despite a failed unit suite, and Debug smoke or experimental installations could be mistaken for exact signed Release user-flow proof. | Candidate run [39057923373](https://github.com/usefoil/foil/actions/runs/39057923373) reported green jobs, but its raw Unit Tests log records 1,016 tests with 21 failures (12 unexpected), including managed-local coordinator/provider/runtime failures, and `TEST FAILED`. The pre-existing workflow searches compact xcresult JSON for a spaced failure string, misses the failure, and exits zero. Native Vocabulary UI, Agent Access contract/socket and installed Debug smoke jobs reported success separately; they do not erase the failed unit suite. The independent local unit pass above is a separate receipt. The notarized app was mounted and inspected, not installed or launched against daily-driver preferences. Combined dogfood installations are not Release proof. | BLOCKED: HOSTED UNIT FAILURES / FALSE-GREEN GATE |
+
+Release prep is held until the hosted test gate and underlying failures are
+resolved and reverified. Do not use the green CI badge as approval to merge or
+publish. True fresh-user onboarding and current-account signed Release UI remain
+unverified; no TCC reset was performed.
+
+Skips: live Groq excluded from local unit runs; managed-model network acceptance,
+two absent managed-model fixtures, and the dedicated correction performance gate
+remain their existing explicit skips. Current-account signed Release UI and true
+fresh-user production onboarding are not proven by this candidate artifact audit.
+Complete the applicable production setup rows below before claiming setup readiness.
+
 ## Post-v1.14.3 Agent-Managed Vocabulary Notarized QA
 
 Date: 2026-10-03

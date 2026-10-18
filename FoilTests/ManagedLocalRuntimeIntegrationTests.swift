@@ -226,9 +226,26 @@ final class ManagedLocalRuntimeIntegrationTests: XCTestCase {
     }
 
     func testUnsafeNamespaceIsRejectedBeforeConnecting() async throws {
-        let request = URLRequest(url: URL(string: "http://example.com:1234/private-token/health")!)
-        do { _ = try await ManagedLocalHTTP().data(for: request); XCTFail("Unsafe endpoint accepted") }
-        catch { XCTAssertEqual(error as? ManagedLocalError, .unsafeAddress) }
+        for endpoint in [
+            "http://example.com:1234/private-token/health",
+            "http://127.0.0.1:1234/private-token/health",
+            "http://transcribe.foil.localhost.example.com:1234/private-token/health",
+            "https://transcribe.foil.localhost:1234/private-token/health",
+            "http://user@transcribe.foil.localhost:1234/private-token/health",
+            "http://transcribe.foil.localhost:1234/private-token/health?redirect=external",
+        ] {
+            let request = URLRequest(url: try XCTUnwrap(URL(string: endpoint)))
+            do { _ = try await ManagedLocalHTTP().data(for: request); XCTFail("Unsafe endpoint accepted: \(endpoint)") }
+            catch { XCTAssertEqual(error as? ManagedLocalError, .unsafeAddress) }
+        }
+    }
+
+    func testManagedHTTPUsesNumericIPv4LoopbackWithoutDNS() {
+        guard case .ipv4(let address) = ManagedLocalHTTP.connectionHost else {
+            XCTFail("The managed helper must use a numeric loopback endpoint, not DNS")
+            return
+        }
+        XCTAssertEqual(address, .loopback)
     }
 
     func testRedirectAndAmbiguousFramingAreRejected() async throws {

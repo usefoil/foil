@@ -18,6 +18,31 @@ const step = (job, id) => {
 }
 const always = value => assert.match(value, /^(?:\$\{\{\s*)?always\(\)(?:\s*\}\})?$/)
 
+test("unit cold build is fail-closed and separate from the unchanged test watchdog", () => {
+  const job = ciWorkflow().jobs["unit-tests"]
+  const build = job.steps.find(value => value.name === "Build unit test bundle")
+  const run = step(job, "run-tests")
+  assert.ok(build, "cold compilation must not consume the test execution watchdog")
+  assert.ok(job.steps.indexOf(build) < job.steps.indexOf(run))
+  assert.equal(job["timeout-minutes"], 15)
+  assert.equal(build["timeout-minutes"], 8)
+  assert.match(build.run, /xcodebuild build-for-testing/)
+  assert.match(run.run, /xcodebuild test-without-building/)
+  assert.doesNotMatch(build.run, /set \+e|continue-on-error|\|\| true|WATCHDOG_PID|&\s*$/m)
+  assert.equal(build["continue-on-error"], undefined)
+  for (const command of [build.run, run.run]) {
+    for (const flag of ["-scheme Foil", "-configuration Debug", "-derivedDataPath UnitDerivedData",
+      "-destination 'platform=macOS'", "-only-testing:FoilTests",
+      "-skip-testing:FoilTests/LiveGroqIntegrationTests", "-enableCodeCoverage YES"]) {
+      assert.ok(command.includes(flag), `both phases must retain ${flag}`)
+    }
+  }
+  assert.match(run.run, /sleep 420 && kill -TERM \$XCODE_PID/)
+  assert.match(run.run, /sleep 60\s+&& kill -9\s+\$XCODE_PID/)
+  assert.match(run.run, /if \[ "\$TEST_EXIT" -ne 0 \]; then[\s\S]*exit "\$TEST_EXIT"/)
+  assert.match(run.run, /node scripts\/ci\/verify-unit-test-result\.mjs "\$TEST_EXIT" "\$SUMMARY_FILE"/)
+})
+
 test("persistent self-hosted Mac workflows require manual dispatch", () => {
   const workflows = new URL("../../../.github/workflows/", import.meta.url)
   for (const name of fs.readdirSync(workflows).filter(value => value.endsWith(".yml"))) {

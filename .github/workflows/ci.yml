@@ -116,16 +116,48 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
 
+      - name: Validate unit test result gate
+        run: node --test scripts/ci/tests/unit-test-result.test.mjs scripts/ci/tests/managed-metal-build.test.mjs
+
+      - name: Record managed loopback hostname resolution
+        run: |
+          python3 - <<'PY'
+          import socket
+          for host in ("transcribe.foil.localhost", "localhost", "127.0.0.1"):
+              try:
+                  addresses = sorted({entry[4][0] for entry in socket.getaddrinfo(host, None)})
+                  print(f"{host}: {addresses}")
+              except OSError as error:
+                  print(f"{host}: resolution failed: {error}")
+          PY
+
+      - name: Build unit test bundle
+        timeout-minutes: 8
+        run: |
+          # Cold Swift/native/Metal compilation has its own bounded phase.
+          # A build failure must stop the job before any test result is accepted.
+          xcodebuild build-for-testing \
+            -scheme Foil \
+            -configuration Debug \
+            -derivedDataPath UnitDerivedData \
+            -destination 'platform=macOS' \
+            -only-testing:FoilTests \
+            -skip-testing:FoilTests/LiveGroqIntegrationTests \
+            -enableCodeCoverage YES
+
       - name: Run tests
         id: run-tests
         env:
           RUN_LIVE_GROQ_TESTS: "0"
+          TEST_RUNNER_FOIL_MANAGED_STARTUP_TRACE: "1"
         run: |
+          # Time test execution separately from the already completed cold build.
           # Run xcodebuild in background so we can send SIGTERM (graceful) on timeout
           # instead of relying on step timeout's SIGKILL (which corrupts xcresult)
-          xcodebuild test \
+          xcodebuild test-without-building \
             -scheme Foil \
             -configuration Debug \
+            -derivedDataPath UnitDerivedData \
             -destination 'platform=macOS' \
             -only-testing:FoilTests \
             -skip-testing:FoilTests/LiveGroqIntegrationTests \
@@ -147,21 +179,40 @@ jobs:
           wait $WATCHDOG_PID 2>/dev/null
           set -e
 
-          # Check xcresult for actual test failures
-          if [ -d TestResults.xcresult ]; then
-            SUMMARY=$(xcrun xcresulttool get test-results summary \
-              --path TestResults.xcresult --compact 2>/dev/null || echo "")
-            if echo "$SUMMARY" | grep -q '"result" : "Failed"'; then
-              echo "::error::Test failures found in results bundle"
-              echo "$SUMMARY" | head -50
-              exit 1
-            fi
-            echo "All tests passed per results bundle"
-            exit 0
+          # A bundle can exist after failed or interrupted execution. Never
+          # override xcodebuild's failure, even if its summary looks successful.
+          if [ "$TEST_EXIT" -ne 0 ]; then
+            echo "::error::xcodebuild exited with $TEST_EXIT"
+            exit "$TEST_EXIT"
           fi
+          if [ ! -d TestResults.xcresult ]; then
+            echo "::error::Missing test results bundle"
+            exit 1
+          fi
+          SUMMARY_FILE="$(mktemp)"
+          trap 'rm -f "$SUMMARY_FILE"' EXIT
+          xcrun xcresulttool get test-results summary \
+            --path TestResults.xcresult --compact > "$SUMMARY_FILE"
+          node scripts/ci/verify-unit-test-result.mjs "$TEST_EXIT" "$SUMMARY_FILE"
 
-          # No bundle — use raw exit code
-          exit $TEST_EXIT
+      - name: Verify real precompiled Metal transcription
+        env:
+          FOIL_REQUIRE_PRECOMPILED_METAL: "1"
+        run: |
+          bash scripts/test-managed-whisper-runtime.sh --app UnitDerivedData/Build/Products/Debug/Foil.app
+          GGML_METAL_BF16_DISABLE=1 bash scripts/test-managed-whisper-runtime.sh --app UnitDerivedData/Build/Products/Debug/Foil.app
+          # Device discovery can load Metal before Whisper selects a backend.
+          # Prove a successful CPU-only transcript cannot satisfy this gate.
+          set +e
+          WHISPER_ARG_DEVICE=999 bash scripts/test-managed-whisper-runtime.sh --app UnitDerivedData/Build/Products/Debug/Foil.app > CPUFallbackControl.log 2>&1
+          CONTROL_EXIT=$?
+          set -e
+          if [ "$CONTROL_EXIT" -ne 1 ]; then
+            echo "::error::CPU-only negative control did not fail as expected"
+            exit 1
+          fi
+          grep -Fq 'Transcription did not submit a Metal graph' CPUFallbackControl.log
+          echo 'PASS: successful CPU-only transcription was rejected by the Metal gate'
 
       - name: Test summary
         if: always()

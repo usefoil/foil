@@ -23,20 +23,43 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
   token = SecureRandom.hex(32)
   session = SecureRandom.uuid
   read_pipe, write_pipe = IO.pipe
+  require_precompiled = ENV['FOIL_REQUIRE_PRECOMPILED_METAL'] == '1'
+  shader_read, shader_write = IO.pipe if require_precompiled
+  precompiled_used = false
+  metal_graph_used = false
+  shader_reader = nil
   executable = ENV['FOIL_RUNTIME_ARCH'] == 'x86_64' ? ['/usr/bin/arch', '-x86_64', runtime] : [runtime]
-  pid = Process.spawn({'FOIL_SESSION_ID'=>session, 'FOIL_MODEL_SHA256'=>hash, 'FOIL_MANAGED_TOKEN'=>token}, *executable,
+  pid = Process.spawn({'FOIL_SESSION_ID'=>session, 'FOIL_MODEL_SHA256'=>hash, 'FOIL_MANAGED_TOKEN'=>token,
+    'FOIL_MANAGED_STARTUP_TRACE'=>(require_precompiled ? '1' : nil)}, *executable,
     '-m', model, '--host', '127.0.0.1', '--port', port.to_s, '--request-path', "/#{token}",
     '--inference-path', '/v1/audio/transcriptions', '--public', dir,
-    :in=>read_pipe, :out=>File::NULL, :err=>File::NULL)
+    :in=>read_pipe, :out=>File::NULL, :err=>(shader_write || File::NULL))
   read_pipe.close
+  shader_write.close if shader_write
+  if require_precompiled
+    shader_reader = Thread.new do
+      shader_read.each_line("\n", 4096) do |line|
+        precompiled_used = true if line == "ggml_metal_library_init: loaded embedded precompiled Metal library\n"
+        metal_graph_used = true if line == "FOIL_STARTUP_STAGE metal_graph_submitted\n"
+      end
+    end
+  end
+  # Keep the helper's virtual Host while matching the app's numeric loopback route.
+  # Do not depend on the OS resolving arbitrary .localhost subdomains.
+  def managed_http(port)
+    Net::HTTP.new('127.0.0.1', port, nil)
+  end
+  def host_header(port)
+    {'Host' => "transcribe.foil.localhost:#{port}"}
+  end
   begin
     response = nil
     300.times do
       begin
-        http = Net::HTTP.new('transcribe.foil.localhost', port, nil)
+        http = managed_http(port)
         http.open_timeout = 1
         http.read_timeout = 1
-        response = http.get("/#{token}/health")
+        response = http.get("/#{token}/health", host_header(port))
         break if response.code == '200'
       rescue SystemCallError, Timeout::Error
       end
@@ -46,7 +69,7 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
     expected = {'status'=>'ok', 'service'=>'foil-whisper', 'session'=>session, 'model_sha256'=>hash, 'pid'=>pid}
     raise 'Health did not prove current child and model identity' unless JSON.parse(response.body) == expected
     ['/health', '/wrong/health', "/#{token}/load", '/'].each do |path|
-      status = Net::HTTP.new('transcribe.foil.localhost', port, nil).get(path).code
+      status = managed_http(port).get(path, host_header(port)).code
       raise 'Unauthorized route accepted' unless ['403', '404'].include?(status)
     end
     speech = File.join(dir, 'speech.aiff')
@@ -56,10 +79,10 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
     boundary = SecureRandom.hex(16)
     body = "--#{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\nContent-Type: audio/wav\r\n\r\n".b
     body << File.binread(wav) << "\r\n--#{boundary}\r\nContent-Disposition: form-data; name=\"response_format\"\r\n\r\njson\r\n--#{boundary}--\r\n"
-    request = Net::HTTP::Post.new("/#{token}/v1/audio/transcriptions")
+    request = Net::HTTP::Post.new("/#{token}/v1/audio/transcriptions", host_header(port))
     request['Content-Type'] = "multipart/form-data; boundary=#{boundary}"
     request.body = body
-    http = Net::HTTP.new('transcribe.foil.localhost', port, nil)
+    http = managed_http(port)
     http.read_timeout = 120
     transcript_response = http.request(request)
     raise 'Real transcription failed' unless transcript_response.code == '200'
@@ -73,6 +96,12 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
       sleep 0.05
     end
     pid = nil
+    if require_precompiled
+      raise 'Shader diagnostic pipe did not close' unless shader_reader.join(5)
+      raise 'Transcription did not use embedded precompiled Metal' unless precompiled_used
+      raise 'Transcription did not submit a Metal graph' unless metal_graph_used
+      puts 'PASS: embedded precompiled Metal loaded and a nonempty Metal graph submitted'
+    end
     puts 'PASS: exact identity, unauthorized routes, real transcript, parent EOF'
   ensure
     write_pipe.close unless write_pipe.closed?
@@ -80,6 +109,8 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
       Process.kill('KILL', pid) rescue nil
       Process.waitpid(pid) rescue nil
     end
+    shader_reader.join(5) if shader_reader
+    shader_read.close if shader_read && !shader_read.closed?
   end
 end
 RUBY

@@ -22,6 +22,10 @@ prepare_fixture() {
   test "$(stat -f %z "$fixture")" = "$(field fixture_size)"
 }
 if [[ "${1:-}" = --fixture-only ]]; then prepare_fixture; exit 0; fi
+if ! xcrun -sdk macosx metal --version >/dev/null 2>&1; then
+  echo 'Managed runtime builds require the Xcode Metal compiler. Install the Metal Toolchain component in Xcode before rebuilding.' >&2
+  exit 1
+fi
 if [[ ! -f "$cache/tools/cmake.tar.gz" ]]; then
   curl -fL "$(field cmake_url)" -o "$cache/tools/cmake.tar.gz"
 fi
@@ -46,7 +50,7 @@ for architecture in arm64 x86_64; do
     -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_OSX_ARCHITECTURES="$architecture" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DBUILD_SHARED_LIBS=OFF -DGGML_STATIC=ON \
     -DGGML_NATIVE=OFF -DGGML_BACKEND_DL=OFF -DGGML_CPU=ON -DGGML_CCACHE=OFF \
-    -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON -DGGML_ACCELERATE=ON \
+    -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON -DFOIL_METAL_PRECOMPILE=ON -DGGML_ACCELERATE=ON \
     -DGGML_OPENMP=OFF -DGGML_OPENMP_FETCH=OFF -DGGML_BLAS=OFF \
     -DGGML_CUDA=OFF -DGGML_MUSA=OFF -DGGML_HIP=OFF -DGGML_VULKAN=OFF \
     -DGGML_RPC=OFF -DGGML_SYCL=OFF -DGGML_OPENCL=OFF -DGGML_OPENVINO=OFF \

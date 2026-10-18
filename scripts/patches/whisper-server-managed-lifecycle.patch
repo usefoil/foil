@@ -1,5 +1,5 @@
 diff --git a/examples/server/server.cpp b/examples/server/server.cpp
-index b745f4d7..2a170d90 100644
+index b745f4d7..506ca8c5 100644
 --- a/examples/server/server.cpp
 +++ b/examples/server/server.cpp
 @@ -19,6 +19,7 @@
@@ -10,7 +10,7 @@ index b745f4d7..2a170d90 100644
  #if defined (_WIN32)
  #include <windows.h>
  #endif
-@@ -639,6 +640,22 @@ void get_req_parameters(const Request & req, whisper_params & params)
+@@ -639,7 +640,32 @@ void get_req_parameters(const Request & req, whisper_params & params)
  }  // namespace
 
  int main(int argc, char ** argv) {
@@ -23,6 +23,13 @@ index b745f4d7..2a170d90 100644
 +        return value.size() == 64 && value.find_first_not_of("0123456789abcdef") == std::string::npos;
 +    };
 +    if (!hexadecimal(foil_token) || !hexadecimal(foil_model) || foil_session.size() != 36) return 2;
++    const bool foil_trace_enabled = std::getenv("FOIL_MANAGED_STARTUP_TRACE") != nullptr;
++    auto foil_trace = [&](const char * stage) {
++        if (foil_trace_enabled) {
++            fprintf(stderr, "FOIL_STARTUP_STAGE %s\n", stage);
++            fflush(stderr);
++        }
++    };
 +    unsetenv("FOIL_MANAGED_TOKEN");
 +    // The app alone owns the write end. EOF also handles death during model loading.
 +    std::thread([] {
@@ -30,10 +37,13 @@ index b745f4d7..2a170d90 100644
 +        while (::read(STDIN_FILENO, &byte, 1) > 0) {}
 +        _exit(0);
 +    }).detach();
++    foil_trace("backend_begin");
      ggml_backend_load_all();
++    foil_trace("backend_ready");
 
      whisper_params params;
-@@ -650,6 +667,9 @@ int main(int argc, char ** argv) {
+     server_params sparams;
+@@ -650,6 +676,9 @@ int main(int argc, char ** argv) {
          whisper_print_usage(argc, argv, params, sparams);
          return 1;
      }
@@ -43,7 +53,7 @@ index b745f4d7..2a170d90 100644
 
      if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1) {
          fprintf(stderr, "error: unknown language '%s'\n", params.language.c_str());
-@@ -721,6 +741,22 @@ int main(int argc, char ** argv) {
+@@ -721,9 +750,27 @@ int main(int argc, char ** argv) {
      }
 
      std::unique_ptr<httplib::Server> svr = std::make_unique<httplib::Server>();
@@ -65,8 +75,23 @@ index b745f4d7..2a170d90 100644
 +    });
      std::atomic<server_state> state{SERVER_STATE_LOADING_MODEL};
 
++    foil_trace("model_begin");
      struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
-@@ -1218,7 +1254,8 @@ int main(int argc, char ** argv) {
++    foil_trace("model_returned");
+
+     if (ctx == nullptr) {
+         fprintf(stderr, "error: failed to initialize whisper context\n");
+@@ -731,7 +778,9 @@ int main(int argc, char ** argv) {
+     }
+
+     // initialize openvino encoder. this has no effect on whisper.cpp builds that don't have OpenVINO configured
++    foil_trace("openvino_begin");
+     whisper_ctx_init_openvino_encoder(ctx, nullptr, params.openvino_encode_device.c_str(), nullptr);
++    foil_trace("openvino_ready");
+     state.store(SERVER_STATE_READY);
+
+
+@@ -1218,7 +1267,8 @@ int main(int argc, char ** argv) {
      svr->Get(sparams.request_path + "/health", [&](const Request &, Response &res){
          server_state current_state = state.load();
          if (current_state == SERVER_STATE_READY) {
@@ -76,7 +101,7 @@ index b745f4d7..2a170d90 100644
              res.set_content(health_response, "application/json");
          } else {
              res.set_content("{\"status\":\"loading model\"}", "application/json");
-@@ -1244,7 +1281,7 @@ int main(int argc, char ** argv) {
+@@ -1244,7 +1294,7 @@ int main(int argc, char ** argv) {
          if (res.status == 400) {
              res.set_content("Invalid request", "text/plain");
          } else if (res.status != 500) {
@@ -85,3 +110,148 @@ index b745f4d7..2a170d90 100644
              res.status = 404;
          }
      });
+@@ -1253,6 +1303,7 @@ int main(int argc, char ** argv) {
+     svr->set_read_timeout(sparams.read_timeout);
+     svr->set_write_timeout(sparams.write_timeout);
+
++    foil_trace("bind_begin");
+     if (!svr->bind_to_port(sparams.hostname, sparams.port))
+     {
+         fprintf(stderr, "\ncouldn't bind to server socket: hostname=%s port=%d\n\n",
+@@ -1260,6 +1311,7 @@ int main(int argc, char ** argv) {
+         return 1;
+     }
+
++    foil_trace("bound");
+     // Set the base directory for serving static files
+     svr->set_base_dir(sparams.public_path);
+
+@@ -1300,5 +1352,6 @@ int main(int argc, char ** argv) {
+     });
+
+     svr->wait_until_ready();
++    foil_trace("listen_ready");
+
+     t.join();
+diff --git a/ggml/src/ggml-metal/CMakeLists.txt b/ggml/src/ggml-metal/CMakeLists.txt
+index a661e710..b7e31911 100644
+--- a/ggml/src/ggml-metal/CMakeLists.txt
++++ b/ggml/src/ggml-metal/CMakeLists.txt
+@@ -113,6 +113,51 @@ if (GGML_METAL_EMBED_LIBRARY)
+     endforeach()
+
+     target_sources(ggml-metal PRIVATE ${METALLIB_EMBED_ASM_FILES})
++
++    option(FOIL_METAL_PRECOMPILE "Embed build-time-compiled Metal libraries" OFF)
++    if (FOIL_METAL_PRECOMPILE)
++        add_compile_definitions(FOIL_METAL_PRECOMPILE)
++        set(FOIL_METAL_SDK "${CMAKE_OSX_SYSROOT}")
++        if (NOT FOIL_METAL_SDK)
++            set(FOIL_METAL_SDK macosx)
++        endif()
++        set(FOIL_METAL_LIBRARIES "")
++        foreach(variant plain bf16)
++            set(FOIL_METAL_DEFINES "")
++            if (variant STREQUAL bf16)
++                list(APPEND FOIL_METAL_DEFINES -DGGML_METAL_HAS_BF16)
++            endif()
++            set(FOIL_METAL_AIR_FILES "")
++            foreach(src ${METALLIB_KERNEL_SOURCES})
++                get_filename_component(kind ${src} NAME_WE)
++                set(AIR "${CMAKE_CURRENT_BINARY_DIR}/autogenerated/foil-${variant}-${kind}.air")
++                list(APPEND FOIL_METAL_AIR_FILES "${AIR}")
++                add_custom_command(
++                    OUTPUT "${AIR}"
++                    COMMAND xcrun -sdk ${FOIL_METAL_SDK} metal -O3
++                            -mmacosx-version-min=14.0 -std=metal3.1 ${FOIL_METAL_DEFINES}
++                            -I "${CMAKE_CURRENT_SOURCE_DIR}" -I "${CMAKE_CURRENT_SOURCE_DIR}/.."
++                            -c "${CMAKE_CURRENT_SOURCE_DIR}/${src}" -o "${AIR}"
++                    DEPENDS ${src} ${METALLIB_COMMON} ggml-metal-impl.h
++                            kernels/common.h kernels/dequantize.h kernels/quantize.h
++                    VERBATIM
++                )
++            endforeach()
++            set(LIB "${CMAKE_CURRENT_BINARY_DIR}/autogenerated/foil-${variant}.metallib")
++            list(APPEND FOIL_METAL_LIBRARIES "${LIB}")
++            add_custom_command(
++                OUTPUT "${LIB}"
++                COMMAND xcrun -sdk ${FOIL_METAL_SDK} metallib ${FOIL_METAL_AIR_FILES} -o "${LIB}"
++                DEPENDS ${FOIL_METAL_AIR_FILES}
++                VERBATIM
++            )
++            set(ASM "${CMAKE_CURRENT_BINARY_DIR}/autogenerated/foil-${variant}.s")
++            file(WRITE "${ASM}" ".section __DATA,__foil_metallib\n.globl _foil_metallib_${variant}_start\n_foil_metallib_${variant}_start:\n.incbin \"${LIB}\"\n.globl _foil_metallib_${variant}_end\n_foil_metallib_${variant}_end:\n")
++            target_sources(ggml-metal PRIVATE "${ASM}")
++        endforeach()
++        add_custom_target(foil-metal-libraries DEPENDS ${FOIL_METAL_LIBRARIES})
++        add_dependencies(ggml-metal foil-metal-libraries)
++    endif()
+ else()
+     # copy header files to bin directory
+     configure_file(../ggml-common.h  ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/ggml-common.h     COPYONLY)
+diff --git a/ggml/src/ggml-metal/ggml-metal-device.m b/ggml/src/ggml-metal/ggml-metal-device.m
+index e20a4e89..fd9b3399 100644
+--- a/ggml/src/ggml-metal/ggml-metal-device.m
++++ b/ggml/src/ggml-metal/ggml-metal-device.m
+@@ -449,6 +449,32 @@ ggml_metal_library_t ggml_metal_library_init(ggml_metal_device_t dev) {
+ #endif
+
+ #if GGML_METAL_EMBED_LIBRARY
++#if FOIL_METAL_PRECOMPILE
++    // Keep the optional Metal 4 tensor path unchanged. Ordinary Metal devices
++    // load build-time-compiled, signed bytes rather than compiling 20 sources
++    // on the critical model-startup path. Separate variants preserve BF16 support.
++    if (!ggml_metal_device_get_props(dev)->has_tensor) {
++        extern const char foil_metallib_plain_start[], foil_metallib_plain_end[];
++        extern const char foil_metallib_bf16_start[], foil_metallib_bf16_end[];
++        const bool bf16 = ggml_metal_device_get_props(dev)->has_bfloat;
++        const char * start = bf16 ? foil_metallib_bf16_start : foil_metallib_plain_start;
++        const char * end = bf16 ? foil_metallib_bf16_end : foil_metallib_plain_end;
++        // The bytes belong to this signed executable and outlive the library.
++        dispatch_data_t data = dispatch_data_create(start, end - start,
++            dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{});
++        NSError * error = nil;
++        res->objs[0] = [device newLibraryWithData:data error:&error];
++        dispatch_release(data);
++        if (!res->objs[0]) {
++            GGML_LOG_ERROR("%s: failed to load embedded precompiled Metal library\n", __func__);
++            ggml_metal_library_free(res);
++            return NULL;
++        }
++        res->single_library = true;
++        GGML_LOG_INFO("%s: loaded embedded precompiled Metal library\n", __func__);
++        return res;
++    }
++#endif
+     GGML_LOG_INFO("%s: using embedded metal library\n", __func__);
+
+     // start/end symbols emitted by CMake (see CMakeLists.txt), one pair per kind
+diff --git a/ggml/src/ggml-metal/ggml-metal.cpp b/ggml/src/ggml-metal/ggml-metal.cpp
+index 3bd6abd0..aab1998d 100644
+--- a/ggml/src/ggml-metal/ggml-metal.cpp
++++ b/ggml/src/ggml-metal/ggml-metal.cpp
+@@ -10,6 +10,7 @@
+
+ #include <mutex>
+ #include <string>
++#include <cstdlib>
+
+ #define GGML_METAL_NAME "MTL"
+ #define GGML_METAL_MAX_DEVICES 16
+@@ -542,7 +543,15 @@ static bool ggml_backend_metal_cpy_tensor_async(ggml_backend_t backend_src, ggml
+ static enum ggml_status ggml_backend_metal_graph_compute(ggml_backend_t backend, ggml_cgraph * cgraph) {
+     ggml_metal_t ctx = (ggml_metal_t)backend->context;
+
+-    return ggml_metal_graph_compute(ctx, cgraph);
++    const auto result = ggml_metal_graph_compute(ctx, cgraph);
++    static std::once_flag foil_graph_trace;
++    if (result == GGML_STATUS_SUCCESS && ggml_graph_n_nodes(cgraph) > 0 &&
++        std::getenv("FOIL_MANAGED_STARTUP_TRACE") != nullptr) {
++        std::call_once(foil_graph_trace, [] {
++            GGML_LOG_INFO("FOIL_STARTUP_STAGE metal_graph_submitted\n");
++        });
++    }
++    return result;
+ }
+
+ static void ggml_backend_metal_event_record(ggml_backend_t backend, ggml_backend_event_t event) {
