@@ -23,12 +23,24 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
   token = SecureRandom.hex(32)
   session = SecureRandom.uuid
   read_pipe, write_pipe = IO.pipe
+  require_precompiled = ENV['FOIL_REQUIRE_PRECOMPILED_METAL'] == '1'
+  shader_read, shader_write = IO.pipe if require_precompiled
+  precompiled_used = false
+  shader_reader = nil
   executable = ENV['FOIL_RUNTIME_ARCH'] == 'x86_64' ? ['/usr/bin/arch', '-x86_64', runtime] : [runtime]
   pid = Process.spawn({'FOIL_SESSION_ID'=>session, 'FOIL_MODEL_SHA256'=>hash, 'FOIL_MANAGED_TOKEN'=>token}, *executable,
     '-m', model, '--host', '127.0.0.1', '--port', port.to_s, '--request-path', "/#{token}",
     '--inference-path', '/v1/audio/transcriptions', '--public', dir,
-    :in=>read_pipe, :out=>File::NULL, :err=>File::NULL)
+    :in=>read_pipe, :out=>File::NULL, :err=>(shader_write || File::NULL))
   read_pipe.close
+  shader_write.close if shader_write
+  if require_precompiled
+    shader_reader = Thread.new do
+      shader_read.each_line("\n", 4096) do |line|
+        precompiled_used = true if line == "ggml_metal_library_init: loaded embedded precompiled Metal library\n"
+      end
+    end
+  end
   # Keep the helper's virtual Host while matching the app's numeric loopback route.
   # Do not depend on the OS resolving arbitrary .localhost subdomains.
   def managed_http(port)
@@ -81,6 +93,11 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
       sleep 0.05
     end
     pid = nil
+    if require_precompiled
+      raise 'Shader diagnostic pipe did not close' unless shader_reader.join(5)
+      raise 'Transcription did not use embedded precompiled Metal' unless precompiled_used
+      puts 'PASS: embedded precompiled Metal used, not CPU or source-compilation fallback'
+    end
     puts 'PASS: exact identity, unauthorized routes, real transcript, parent EOF'
   ensure
     write_pipe.close unless write_pipe.closed?
@@ -88,6 +105,8 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
       Process.kill('KILL', pid) rescue nil
       Process.waitpid(pid) rescue nil
     end
+    shader_reader.join(5) if shader_reader
+    shader_read.close if shader_read && !shader_read.closed?
   end
 end
 RUBY

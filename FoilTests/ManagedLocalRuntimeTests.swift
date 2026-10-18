@@ -39,6 +39,7 @@ final class ManagedLocalRuntimeTests: XCTestCase {
             XCTAssertEqual(decoder.consume(Data("FOIL_STARTUP_STAGE \(stage.rawValue)\n".utf8)), [stage])
         }
         XCTAssertEqual(decoder.consume(Data("ggml_metal_library_init: using embedded metal library\n".utf8)), [.metalCompileBegin])
+        XCTAssertEqual(decoder.consume(Data("ggml_metal_library_init: loaded embedded precompiled Metal library\n".utf8)), [.metalPrecompiledReady])
         XCTAssertEqual(decoder.consume(Data("ggml_metal_library_compile_all: loaded 20 libraries from embedded data in 25.123 sec (max single = 25.100 sec)\n".utf8)), [.metalCompileReady])
     }
 

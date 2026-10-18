@@ -185,6 +185,7 @@ struct ManagedLocalStartupTraceDecoder {
         case openvinoBegin = "openvino_begin", openvinoReady = "openvino_ready"
         case bindBegin = "bind_begin", bound, listenReady = "listen_ready"
         case metalCompileBegin = "metal_compile_begin", metalCompileReady = "metal_compile_ready"
+        case metalPrecompiledReady = "metal_precompiled_ready"
     }
     private var line = Data()
     private var discarded = false
@@ -196,6 +197,8 @@ struct ManagedLocalStartupTraceDecoder {
                 if !discarded, let text = String(data: line, encoding: .utf8) {
                     if text == "ggml_metal_library_init: using embedded metal library" {
                         stages.append(.metalCompileBegin)
+                    } else if text == "ggml_metal_library_init: loaded embedded precompiled Metal library" {
+                        stages.append(.metalPrecompiledReady)
                     } else if text.range(of: #"^ggml_metal_library_compile_all: loaded 20 libraries from embedded data in [0-9]+\.[0-9]{3} sec \(max single = [0-9]+\.[0-9]{3} sec\)$"#,
                                          options: .regularExpression) != nil {
                         stages.append(.metalCompileReady)

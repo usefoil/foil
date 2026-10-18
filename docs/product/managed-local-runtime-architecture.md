@@ -100,8 +100,16 @@ native-host optimization, OpenMP, CUDA/HIP/MUSA, Vulkan, RPC, SYCL, OpenCL,
 OpenVINO, WebGPU, and CoreML are disabled. CPU, Accelerate, and embedded Metal
 are enabled. Intel AVX, AVX2, BMI2, FMA, F16C, SSE4.2, and AVX512 are explicitly
 disabled; the x86_64 slice uses the baseline target instead of the build host's
-instruction set. Metal kernels are embedded as source in `__ggml_metallib` and
-compiled by the system at runtime without external resource downloads.
+instruction set. Builds require Xcode's Metal compiler. The build compiles all
+kernel sources for macOS 14 / Metal 3.1 into separate plain and BF16 libraries,
+then embeds both in `__foil_metallib` inside each signed helper slice. Ordinary
+Metal devices select the matching compiled library directly from those bytes;
+a load failure is not retried from an external shader resource. This removes
+source compilation from their model-startup deadline. The optional Metal 4
+tensor path remains upstream's runtime-compiled path, using the original source
+embedded in `__ggml_metallib`; it is not claimed to have precompiled coverage.
+Neither path downloads shader resources or reads an ambient shader-directory
+override. The 30-second deadline and all ownership checks remain unchanged.
 
 Embedding rejects missing/malformed runtime metadata, hash/patch/commit drift,
 non-universal binaries, incorrect minimum OS, missing Metal resources, and
@@ -136,6 +144,13 @@ supersession, timeout, and occupied-port ownership. Packaging tests reject corru
 stale-provenance, thin, malformed, and missing artifacts. These tests establish
 only the scenarios that have passing execution receipts; fixture tests do not
 establish fresh-user GUI installation or offline relaunch acceptance.
+
+Hosted CI additionally runs the real helper smoke with
+`FOIL_REQUIRE_PRECOMPILED_METAL=1`, both with default GPU capabilities and with
+BF16 disabled to exercise the plain library. It requires successful synthetic
+transcription and an exact precompiled-library load marker from that child;
+CPU or source-compilation fallback cannot satisfy this gate. The smoke drains
+stderr, retains only the marker boolean, and never publishes raw child output.
 
 ## Managed model service (T003)
 
