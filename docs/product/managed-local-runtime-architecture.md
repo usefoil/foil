@@ -43,10 +43,12 @@ a fresh private empty directory. Child output is discarded so request paths and
 tokens do not enter application logs. Only a token-free display address and
 generic errors are exposed; provider settings never contain a token.
 
-The native client resolves the actual hostname, rejects any resolution other
-than `127.0.0.1` or `::1`, and uses Network.framework with the loopback interface
-required and proxies bypassed. This interface constraint remains effective if
-name resolution changes between validation and connection. The bounded HTTP/1.1
+The native client connects directly to numeric IPv4 loopback (`127.0.0.1`),
+matching the owned helper's bind address, while retaining the exact dedicated
+`transcribe.foil.localhost` URL namespace and HTTP Host header. It never asks DNS
+to resolve that hostname: operating-system differences or changed DNS answers
+cannot redirect the connection. Network.framework still requires the loopback
+interface and bypasses proxies. The bounded HTTP/1.1
 client requests connection close and accepts unambiguous Content-Length framing.
 It rejects redirects and transfer encoding instead of following another URL.
 
@@ -121,7 +123,7 @@ speech, and parent-EOF checks. The synthetic transcript was “the quick brown f
 jumps over the lazy dog.”
 
 Swift tests exercise model replacement/corruption, unready provider isolation,
-native audio conversion and cleanup, actual hostname transport, redirect/framing
+native audio conversion and cleanup, pinned loopback transport with the exact Host, redirect/framing
 rejection, real AAC-to-transcript, failed candidate rollback, cancellation,
 supersession, timeout, and occupied-port ownership. Packaging tests reject corrupt,
 stale-provenance, thin, malformed, and missing artifacts. These tests establish

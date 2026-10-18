@@ -69,38 +69,20 @@ enum ManagedLocalHealth {
     }
 }
 
-/// This client resolves the requested hostname through Network.framework, constrains
-/// the connection to the loopback interface, bypasses proxies, and never follows redirects.
+/// This client pins the owned helper to numeric IPv4 loopback, preserves its dedicated
+/// HTTP Host, constrains the interface, bypasses proxies, and never follows redirects.
 /// It accepts the helper's bounded Content-Length responses only.
 final class ManagedLocalHTTP: @unchecked Sendable {
     static let hostname = "transcribe.foil.localhost"
+    static let connectionHost: NWEndpoint.Host = .ipv4(.loopback)
     private let queue = DispatchQueue(label: "com.usefoil.managed-http")
     private var connection: NWConnection?
     private var continuation: CheckedContinuation<(Data, URLResponse), Error>?
     private var received = Data()
     private var cancelled = false
 
-    static func validateResolution() throws {
-        var result: UnsafeMutablePointer<addrinfo>?
-        guard getaddrinfo(hostname, nil, nil, &result) == 0, let first = result else {
-            throw ManagedLocalError.unsafeAddress
-        }
-        defer { freeaddrinfo(first) }
-        var item: UnsafeMutablePointer<addrinfo>? = first
-        while let current = item {
-            var name = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            guard getnameinfo(current.pointee.ai_addr, current.pointee.ai_addrlen,
-                              &name, socklen_t(name.count), nil, 0, NI_NUMERICHOST) == 0,
-                  ["127.0.0.1", "::1"].contains(String(cString: name)) else {
-                throw ManagedLocalError.unsafeAddress
-            }
-            item = current.pointee.ai_next
-        }
-    }
-
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         try Task.checkCancellation()
-        try Self.validateResolution()
         guard let url = request.url, url.scheme == "http", url.host == Self.hostname,
               let portNumber = url.port, let port = NWEndpoint.Port(rawValue: UInt16(exactly: portNumber) ?? 0),
               portNumber > 0, url.query == nil, url.user == nil, url.password == nil else {
@@ -114,7 +96,7 @@ final class ManagedLocalHTTP: @unchecked Sendable {
                     let parameters = NWParameters.tcp
                     parameters.requiredInterfaceType = .loopback
                     parameters.preferNoProxies = true
-                    let connection = NWConnection(host: NWEndpoint.Host(Self.hostname), port: port, using: parameters)
+                    let connection = NWConnection(host: Self.connectionHost, port: port, using: parameters)
                     self.connection = connection
                     connection.stateUpdateHandler = { state in
                         switch state {
@@ -279,7 +261,6 @@ final class ManagedLocalRuntime {
             let validation = Task.detached(priority: .utility) {
                 try model.revalidate()
                 try Self.verifyHelper(helperURL)
-                try ManagedLocalHTTP.validateResolution()
             }
             try await withTaskCancellationHandler { try await validation.value } onCancel: { validation.cancel() }
             for _ in 0..<3 {

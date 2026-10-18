@@ -29,14 +29,22 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
     '--inference-path', '/v1/audio/transcriptions', '--public', dir,
     :in=>read_pipe, :out=>File::NULL, :err=>File::NULL)
   read_pipe.close
+  # Keep the helper's virtual Host while matching the app's numeric loopback route.
+  # Do not depend on the OS resolving arbitrary .localhost subdomains.
+  def managed_http(port)
+    Net::HTTP.new('127.0.0.1', port, nil)
+  end
+  def host_header(port)
+    {'Host' => "transcribe.foil.localhost:#{port}"}
+  end
   begin
     response = nil
     300.times do
       begin
-        http = Net::HTTP.new('transcribe.foil.localhost', port, nil)
+        http = managed_http(port)
         http.open_timeout = 1
         http.read_timeout = 1
-        response = http.get("/#{token}/health")
+        response = http.get("/#{token}/health", host_header(port))
         break if response.code == '200'
       rescue SystemCallError, Timeout::Error
       end
@@ -46,7 +54,7 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
     expected = {'status'=>'ok', 'service'=>'foil-whisper', 'session'=>session, 'model_sha256'=>hash, 'pid'=>pid}
     raise 'Health did not prove current child and model identity' unless JSON.parse(response.body) == expected
     ['/health', '/wrong/health', "/#{token}/load", '/'].each do |path|
-      status = Net::HTTP.new('transcribe.foil.localhost', port, nil).get(path).code
+      status = managed_http(port).get(path, host_header(port)).code
       raise 'Unauthorized route accepted' unless ['403', '404'].include?(status)
     end
     speech = File.join(dir, 'speech.aiff')
@@ -56,10 +64,10 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
     boundary = SecureRandom.hex(16)
     body = "--#{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\nContent-Type: audio/wav\r\n\r\n".b
     body << File.binread(wav) << "\r\n--#{boundary}\r\nContent-Disposition: form-data; name=\"response_format\"\r\n\r\njson\r\n--#{boundary}--\r\n"
-    request = Net::HTTP::Post.new("/#{token}/v1/audio/transcriptions")
+    request = Net::HTTP::Post.new("/#{token}/v1/audio/transcriptions", host_header(port))
     request['Content-Type'] = "multipart/form-data; boundary=#{boundary}"
     request.body = body
-    http = Net::HTTP.new('transcribe.foil.localhost', port, nil)
+    http = managed_http(port)
     http.read_timeout = 120
     transcript_response = http.request(request)
     raise 'Real transcription failed' unless transcript_response.code == '200'
