@@ -26,9 +26,11 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
   require_precompiled = ENV['FOIL_REQUIRE_PRECOMPILED_METAL'] == '1'
   shader_read, shader_write = IO.pipe if require_precompiled
   precompiled_used = false
+  metal_graph_used = false
   shader_reader = nil
   executable = ENV['FOIL_RUNTIME_ARCH'] == 'x86_64' ? ['/usr/bin/arch', '-x86_64', runtime] : [runtime]
-  pid = Process.spawn({'FOIL_SESSION_ID'=>session, 'FOIL_MODEL_SHA256'=>hash, 'FOIL_MANAGED_TOKEN'=>token}, *executable,
+  pid = Process.spawn({'FOIL_SESSION_ID'=>session, 'FOIL_MODEL_SHA256'=>hash, 'FOIL_MANAGED_TOKEN'=>token,
+    'FOIL_MANAGED_STARTUP_TRACE'=>(require_precompiled ? '1' : nil)}, *executable,
     '-m', model, '--host', '127.0.0.1', '--port', port.to_s, '--request-path', "/#{token}",
     '--inference-path', '/v1/audio/transcriptions', '--public', dir,
     :in=>read_pipe, :out=>File::NULL, :err=>(shader_write || File::NULL))
@@ -38,6 +40,7 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
     shader_reader = Thread.new do
       shader_read.each_line("\n", 4096) do |line|
         precompiled_used = true if line == "ggml_metal_library_init: loaded embedded precompiled Metal library\n"
+        metal_graph_used = true if line == "FOIL_STARTUP_STAGE metal_graph_submitted\n"
       end
     end
   end
@@ -96,7 +99,8 @@ Dir.mktmpdir('foil-runtime-', File.join(Dir.pwd, '.research')) do |dir|
     if require_precompiled
       raise 'Shader diagnostic pipe did not close' unless shader_reader.join(5)
       raise 'Transcription did not use embedded precompiled Metal' unless precompiled_used
-      puts 'PASS: embedded precompiled Metal used, not CPU or source-compilation fallback'
+      raise 'Transcription did not submit a Metal graph' unless metal_graph_used
+      puts 'PASS: embedded precompiled Metal loaded and a nonempty Metal graph submitted'
     end
     puts 'PASS: exact identity, unauthorized routes, real transcript, parent EOF'
   ensure

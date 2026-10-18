@@ -226,3 +226,32 @@ index e20a4e89..fd9b3399 100644
      GGML_LOG_INFO("%s: using embedded metal library\n", __func__);
 
      // start/end symbols emitted by CMake (see CMakeLists.txt), one pair per kind
+diff --git a/ggml/src/ggml-metal/ggml-metal.cpp b/ggml/src/ggml-metal/ggml-metal.cpp
+index 3bd6abd0..aab1998d 100644
+--- a/ggml/src/ggml-metal/ggml-metal.cpp
++++ b/ggml/src/ggml-metal/ggml-metal.cpp
+@@ -10,6 +10,7 @@
+
+ #include <mutex>
+ #include <string>
++#include <cstdlib>
+
+ #define GGML_METAL_NAME "MTL"
+ #define GGML_METAL_MAX_DEVICES 16
+@@ -542,7 +543,15 @@ static bool ggml_backend_metal_cpy_tensor_async(ggml_backend_t backend_src, ggml
+ static enum ggml_status ggml_backend_metal_graph_compute(ggml_backend_t backend, ggml_cgraph * cgraph) {
+     ggml_metal_t ctx = (ggml_metal_t)backend->context;
+
+-    return ggml_metal_graph_compute(ctx, cgraph);
++    const auto result = ggml_metal_graph_compute(ctx, cgraph);
++    static std::once_flag foil_graph_trace;
++    if (result == GGML_STATUS_SUCCESS && ggml_graph_n_nodes(cgraph) > 0 &&
++        std::getenv("FOIL_MANAGED_STARTUP_TRACE") != nullptr) {
++        std::call_once(foil_graph_trace, [] {
++            GGML_LOG_INFO("FOIL_STARTUP_STAGE metal_graph_submitted\n");
++        });
++    }
++    return result;
+ }
+
+ static void ggml_backend_metal_event_record(ggml_backend_t backend, ggml_backend_event_t event) {

@@ -148,9 +148,15 @@ establish fresh-user GUI installation or offline relaunch acceptance.
 Hosted CI additionally runs the real helper smoke with
 `FOIL_REQUIRE_PRECOMPILED_METAL=1`, both with default GPU capabilities and with
 BF16 disabled to exercise the plain library. It requires successful synthetic
-transcription and an exact precompiled-library load marker from that child;
-CPU or source-compilation fallback cannot satisfy this gate. The smoke drains
-stderr, retains only the marker boolean, and never publishes raw child output.
+transcription, an exact precompiled-library load marker, and an opt-in marker
+emitted after a successful nonempty Metal graph submission from that child.
+Library discovery alone, CPU-only execution, or source-compilation fallback
+cannot satisfy this gate. The smoke drains stderr, retains only these two
+marker booleans, and never publishes raw child output. Graph submission alone
+does not claim every operation ran on the GPU; the real transcript must also pass.
+CI also forces an unavailable GPU index (`WHISPER_ARG_DEVICE=999`): the helper
+can still discover Metal and transcribe through CPU, but the smoke must reject
+that successful transcript specifically for lacking a Metal graph submission.
 
 ## Managed model service (T003)
 

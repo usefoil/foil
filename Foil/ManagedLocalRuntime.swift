@@ -186,6 +186,7 @@ struct ManagedLocalStartupTraceDecoder {
         case bindBegin = "bind_begin", bound, listenReady = "listen_ready"
         case metalCompileBegin = "metal_compile_begin", metalCompileReady = "metal_compile_ready"
         case metalPrecompiledReady = "metal_precompiled_ready"
+        case metalGraphSubmitted = "metal_graph_submitted"
     }
     private var line = Data()
     private var discarded = false
