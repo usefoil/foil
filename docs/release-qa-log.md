@@ -38,6 +38,23 @@ excluded. CI gate repair `7c4badc23d5f5880015c885c2fa42f098ade7079` and
 managed transport repair `196b832` supersede the earlier candidate below;
 its notarized artifact does not contain the transport repair.
 
+**RELEASE HOLD:** final-head refresh [39131073744](https://github.com/usefoil/foil/actions/runs/39131073744)
+did not pass. Its Unit Tests job reports repeated numeric-loopback connection
+refusals, coordinator cleanup error, two managed-provider startup `timedOut`
+failures, and watchdog interruption with exit 143. The earlier complete hosted
+pass below is valid but does not establish reliable startup. No retries, skips,
+or increased timeouts have been used to mask this result. Primary evidence:
+`final-head-hosted-unit.log` in the evidence directory. Root cause remains under
+investigation; PR #459 stays draft.
+
+Independent correctness review localized the failure to pre-bind helper startup:
+the owned child stays running while connections are refused, and the patched
+helper initializes backends/model before binding. Existing stdout/stderr is
+discarded, so backend loading, model/GPU initialization, and scheduling cannot
+yet be distinguished. The next diagnostic needs bounded sanitized helper
+output, termination status, and monotonic stage timestamps through listen-ready,
+with CPU/RSS sampling if needed. This is not evidence for a timeout increase.
+
 | Claim | Strongest realistic failure mode | Evidence | Result |
 | --- | --- | --- | --- |
 | The hosted unit gate cannot turn failed execution into success. | A compact failure summary, malformed/missing result, timeout, or zero executed tests could be accepted. | All five Node gate regressions pass, including the workflow wiring contract that failed before repair. The gate preserves nonzero process status, requires a bundle, and structurally requires `Passed`, zero failures, and executed passing tests. The existing workflow-contract suite also passes 16 tests. Hosted gate-only run [39129946365](https://github.com/usefoil/foil/actions/runs/39129946365) reproduces 1,016 XCTest cases with 21 failures (12 unexpected), `TEST FAILED`, and process exit 65; the Unit Tests job now correctly fails. Raw job log: `hosted-gate-red.log` in the evidence directory. | PASS: LOCAL/HOSTED FAILURE DETECTION |
@@ -54,15 +71,16 @@ no high-confidence candidates were found. This is not a claim of defect freedom.
 Fresh independent validation also confirmed raw hosted unit results, source
 equivalence, checkout provenance, checksum, signing/notarization, and exclusion.
 
-The same hosted run records `transcribe.foil.localhost` resolution failing with
+Gate-only run `39129946365` records `transcribe.foil.localhost` resolution failing with
 `nodename nor servname provided, or not known`, while `localhost` resolves to
 `127.0.0.1`/`::1` and numeric IPv4 resolves to `127.0.0.1`. This identifies the
 rejected hostname dependency behind the `unsafeAddress` failures. The separate
-coordinator cleanup error did not reproduce in the repaired hosted run; its
-earlier root cause is not established.
+coordinator cleanup test passed in `39130459140`, then failed again in
+`39131073744`; its underlying root cause is not established.
 
-The false-green/unit/artifact blockers above are verified repaired. Do not merge
-until all remaining required contract/UI checks and merge-queue gates pass.
+The false-green gate and fresh artifact trust are verified above, but the newer
+hosted startup failures reinstate the release hold. Do not merge until those
+failures are diagnosed/repaired and required checks and merge-queue gates pass.
 No public tag/release or Homebrew update was performed. The notarized app was
 mounted read-only for inspection, not installed or launched against daily-driver
 preferences. Current-account signed Release UI and true fresh-user onboarding
