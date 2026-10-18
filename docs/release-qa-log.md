@@ -28,6 +28,40 @@ publishing.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
 
+## v1.15.0 Release-Prep CI And Loopback Repair
+
+Date: 2026-10-18
+
+Scope: release-prep PR #459, version `1.15.0`, build `53`. The scheduled
+follow-up is paused at the human's request. Codex cleanup PRs #455/#456 remain
+excluded. CI gate repair `7c4badc23d5f5880015c885c2fa42f098ade7079` and
+managed transport repair `196b832` supersede the earlier candidate below;
+its notarized artifact does not contain the transport repair.
+
+| Claim | Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- | --- |
+| The hosted unit gate cannot turn failed execution into success. | A compact failure summary, malformed/missing result, timeout, or zero executed tests could be accepted. | All five Node gate regressions pass, including the workflow wiring contract that failed before repair. The gate preserves nonzero process status, requires a bundle, and structurally requires `Passed`, zero failures, and executed passing tests. The existing workflow-contract suite also passes 16 tests. Hosted gate-only run [39129946365](https://github.com/usefoil/foil/actions/runs/39129946365) reproduces 1,016 XCTest cases with 21 failures (12 unexpected), `TEST FAILED`, and process exit 65; the Unit Tests job now correctly fails. Raw job log: `hosted-gate-red.log` in the evidence directory. | PASS: LOCAL/HOSTED FAILURE DETECTION |
+| Managed transport uses only the helper's owned loopback endpoint and retains the logical Host/security contract. | Resolver behavior could block startup, or a transport change could connect elsewhere or violate the helper's Host/identity checks. | The new numeric-endpoint regression failed with the prior hostname endpoint. The fix uses `NWEndpoint.Host.ipv4(.loopback)` matching the helper's `127.0.0.1` bind, with the exact dedicated URL/Host, required loopback interface, no proxies/redirects, and token/session/PID/model identity checks unchanged. All 36 focused managed-local tests pass with two existing fixture skips. Real Ruby/helper smoke passes exact identity, unauthorized routes, transcription, and parent EOF. | PASS: LOCAL |
+| The repaired source retains whole-suite and packaging behavior. | Focused success could hide unrelated regressions or missing/corrupt packaged helper resources. | Full local non-live suite: 1,017 XCTest cases, four existing skips, zero failures, plus nine Swift Testing cases. Debug warnings-as-errors build passes. Managed packaging rejects missing/corrupt/stale/thin/malformed resources; release-script defaults/checksum tests pass. Evidence: `/tmp/foil-vocabulary-release-qa.srGbOW/ReleasePrep-Fixed.xcresult`, `managed-runtime-fixed.log`, `managed-shell-smoke.log`, `managed-packaging-fixed.log`, and `release-script-fixed.log`. | PASS: LOCAL |
+
+Review: native `codex review` could not run because the configured `gpt-6-sol`
+is unsupported for this account. The toolkit's independent focused review used
+the available exact base/diff (`74740c712cee09e62fbc3131511f7cdda4c55724`)
+for correctness, tests, contracts/security, silent failures, and comments/docs;
+no high-confidence candidates were found. This is not a claim of defect freedom.
+
+The same hosted run records `transcribe.foil.localhost` resolution failing with
+`nodename nor servname provided, or not known`, while `localhost` resolves to
+`127.0.0.1`/`::1` and numeric IPv4 resolves to `127.0.0.1`. This identifies the
+rejected hostname dependency behind the `unsafeAddress` failures. The separate
+coordinator cleanup error is not yet explained; only a fresh repaired hosted
+run can establish whether it persists.
+
+Release hold remains until fresh hosted test evidence and a fresh exact-source
+notarized artifact are verified. No public tag/release or Homebrew update was
+performed. Current-account signed Release UI and true fresh-user onboarding
+remain unverified; no TCC reset was performed.
+
 ## v1.15.0 Agentic Vocabulary Candidate QA
 
 Date: 2026-10-17

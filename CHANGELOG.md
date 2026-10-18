@@ -1,4 +1,4 @@
-## [1.15.0](https://github.com/usefoil/foil/compare/v1.14.3...v1.15.0) (2026-10-17)
+## [1.15.0](https://github.com/usefoil/foil/compare/v1.14.3...v1.15.0) (2026-10-18)
 
 - Apply reviewed agent Vocabulary suggestions directly in Foil, with durable receipts and recovery after interrupted operations.
 - Review Vocabulary proposals and agent actions in a unified Agent Access inbox, with service status in the settings sidebar.
@@ -12,6 +12,7 @@
 - Make downloaded DMG checksum files verifiable from any directory.
 - Return the original receipt when an agent retries an already-applied Vocabulary proposal; reject changed payloads without rewriting stored state.
 - Make closure capture ownership explicit for warning-clean builds with newer Swift compilers.
+- Connect the managed local transcription helper directly over IPv4 loopback, preserving its private session and required Host checks without depending on local hostname resolution.
 
 
 ## [1.14.3](https://github.com/usefoil/foil/compare/v1.14.2...v1.14.3) (2026-09-23)
