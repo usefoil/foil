@@ -131,15 +131,30 @@ jobs:
                   print(f"{host}: resolution failed: {error}")
           PY
 
+      - name: Build unit test bundle
+        timeout-minutes: 8
+        run: |
+          # Cold Swift/native/Metal compilation has its own bounded phase.
+          # A build failure must stop the job before any test result is accepted.
+          xcodebuild build-for-testing \
+            -scheme Foil \
+            -configuration Debug \
+            -derivedDataPath UnitDerivedData \
+            -destination 'platform=macOS' \
+            -only-testing:FoilTests \
+            -skip-testing:FoilTests/LiveGroqIntegrationTests \
+            -enableCodeCoverage YES
+
       - name: Run tests
         id: run-tests
         env:
           RUN_LIVE_GROQ_TESTS: "0"
           TEST_RUNNER_FOIL_MANAGED_STARTUP_TRACE: "1"
         run: |
+          # Time test execution separately from the already completed cold build.
           # Run xcodebuild in background so we can send SIGTERM (graceful) on timeout
           # instead of relying on step timeout's SIGKILL (which corrupts xcresult)
-          xcodebuild test \
+          xcodebuild test-without-building \
             -scheme Foil \
             -configuration Debug \
             -derivedDataPath UnitDerivedData \

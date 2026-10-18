@@ -28,6 +28,42 @@ publishing.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
 
+## v1.15.0 CI Build/Test Phase Isolation
+
+Date: 2026-10-18
+
+The evidence-only head `2a35a15` failed
+[CI 39141289761](https://github.com/usefoil/foil/actions/runs/39141289761),
+unit job `117716122802`. The repaired fail-closed gate correctly rejected exit
+143. Raw log `final-docs-head-hosted-unit.log` records approximately 341 seconds
+of cold build/setup, then 1,020 XCTest cases (four existing skips, zero failures)
+and nine Swift tests in approximately 78 seconds. The combined 420-second
+watchdog interrupted xcodebuild during finalization; no orderly success or
+structural verification followed, and the downstream Metal controls did not run.
+The first managed helper reached health in 545 ms and integration tests passed;
+this is not evidence of a recurrence of the earlier runtime compilation stall.
+The log does not attribute all build/setup time to shader compilation.
+
+The follow-up separates fail-closed `build-for-testing` (bounded at eight
+minutes) from `test-without-building`, preserving the same derived products,
+scheme, configuration, destination, test selection and coverage. Test execution
+retains its 420/480-second TERM/KILL watchdog; the entire job remains bounded at
+15 minutes and managed startup remains bounded at 30 seconds. Build errors stop
+before test acceptance; nonzero test exit, incomplete bundles or zero execution
+remain failures. No test retry or new skip was added. The new phase-isolation
+regression fails against the prior workflow and passes after the split; all 26
+Node result/build/workflow regressions pass. Receipts:
+`unit-phase-regression-before.log` and `unit-phase-regression-after.log` in
+`/tmp/foil-vocabulary-release-qa.srGbOW`.
+
+The failing run is not counted as a pass. Release acceptance still requires
+actual-head hosted build, native test exit zero, structural executed-test
+verification, both Metal positives and CPU-negative control, and all protected
+checks; the PR body records that latest execution evidence. The split does not
+change application, helper, resource or native-build bytes, so the exact signed
+artifact checks below remain applicable to those bytes, not a substitute for
+the CI workflow check.
+
 ## v1.15.0 Managed Metal Startup Repair
 
 Date: 2026-10-18
