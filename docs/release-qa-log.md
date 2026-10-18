@@ -43,23 +43,29 @@ its notarized artifact does not contain the transport repair.
 | The hosted unit gate cannot turn failed execution into success. | A compact failure summary, malformed/missing result, timeout, or zero executed tests could be accepted. | All five Node gate regressions pass, including the workflow wiring contract that failed before repair. The gate preserves nonzero process status, requires a bundle, and structurally requires `Passed`, zero failures, and executed passing tests. The existing workflow-contract suite also passes 16 tests. Hosted gate-only run [39129946365](https://github.com/usefoil/foil/actions/runs/39129946365) reproduces 1,016 XCTest cases with 21 failures (12 unexpected), `TEST FAILED`, and process exit 65; the Unit Tests job now correctly fails. Raw job log: `hosted-gate-red.log` in the evidence directory. | PASS: LOCAL/HOSTED FAILURE DETECTION |
 | Managed transport uses only the helper's owned loopback endpoint and retains the logical Host/security contract. | Resolver behavior could block startup, or a transport change could connect elsewhere or violate the helper's Host/identity checks. | The new numeric-endpoint regression failed with the prior hostname endpoint. The fix uses `NWEndpoint.Host.ipv4(.loopback)` matching the helper's `127.0.0.1` bind, with the exact dedicated URL/Host, required loopback interface, no proxies/redirects, and token/session/PID/model identity checks unchanged. All 36 focused managed-local tests pass with two existing fixture skips. Real Ruby/helper smoke passes exact identity, unauthorized routes, transcription, and parent EOF. | PASS: LOCAL |
 | The repaired source retains whole-suite and packaging behavior. | Focused success could hide unrelated regressions or missing/corrupt packaged helper resources. | Full local non-live suite: 1,017 XCTest cases, four existing skips, zero failures, plus nine Swift Testing cases. Debug warnings-as-errors build passes. Managed packaging rejects missing/corrupt/stale/thin/malformed resources; release-script defaults/checksum tests pass. Evidence: `/tmp/foil-vocabulary-release-qa.srGbOW/ReleasePrep-Fixed.xcresult`, `managed-runtime-fixed.log`, `managed-shell-smoke.log`, `managed-packaging-fixed.log`, and `release-script-fixed.log`. | PASS: LOCAL |
+| Hosted execution passes with the repaired production transport, not a skipped test or optimistic badge. | The prior failures could persist despite local success or be hidden by a weakened gate. | [CI 39130459140](https://github.com/usefoil/foil/actions/runs/39130459140), Unit Tests job `117684460452`, records 1,017 XCTest cases, four existing skips, zero failures, nine passing Swift Testing cases, `TEST SUCCEEDED`, and structural verification of 1,022 passing tests with process exit zero. The previously failing coordinator test explicitly passes. `hosted-runtime-fixed.log` preserves the raw evidence. Its checkout combines `7badf63` with base `74740c7`; only changelog/QA docs differ from notarized source `196b832`. | PASS: HOSTED UNIT EXECUTION |
+| The fresh signed Release artifact binds the repaired source to intended production metadata. | An old source revision, wrong build number, corrupt download, or missing trust could survive upload. | [Notarized QA 39130430999](https://github.com/usefoil/foil/actions/runs/39130430999) checks out exact `196b832f5ae409616a0fa08926e94e5e3f7b393c` and verifies `1.15.0 (53)`. Fresh download `/tmp/foil-release-1-15-artifact.druY1D` passes its untouched sidecar; DMG SHA-256 `57ab96be5192877aabd78c5bfac522844bd2744cff77e23203186824bba94fb2`. Stapler, DMG/app Gatekeeper, and deep strict codesign pass. Identity is `com.neonwatty.Foil`, team `B3A6AN2HA4`, app/helper universal `x86_64 arm64`, and a 32-byte Sparkle key. Packaged OpenAPI matches source; starter/recovery strings are present and cleanup implementation/control symbols absent. Checkout/build and local trust logs are `repaired-notarized-qa.log` and `repaired-artifact-verification.log`. | PASS: FRESH NOTARIZED ARTIFACT |
 
 Review: native `codex review` could not run because the configured `gpt-6-sol`
 is unsupported for this account. The toolkit's independent focused review used
 the available exact base/diff (`74740c712cee09e62fbc3131511f7cdda4c55724`)
 for correctness, tests, contracts/security, silent failures, and comments/docs;
 no high-confidence candidates were found. This is not a claim of defect freedom.
+Fresh independent validation also confirmed raw hosted unit results, source
+equivalence, checkout provenance, checksum, signing/notarization, and exclusion.
 
 The same hosted run records `transcribe.foil.localhost` resolution failing with
 `nodename nor servname provided, or not known`, while `localhost` resolves to
 `127.0.0.1`/`::1` and numeric IPv4 resolves to `127.0.0.1`. This identifies the
 rejected hostname dependency behind the `unsafeAddress` failures. The separate
-coordinator cleanup error is not yet explained; only a fresh repaired hosted
-run can establish whether it persists.
+coordinator cleanup error did not reproduce in the repaired hosted run; its
+earlier root cause is not established.
 
-Release hold remains until fresh hosted test evidence and a fresh exact-source
-notarized artifact are verified. No public tag/release or Homebrew update was
-performed. Current-account signed Release UI and true fresh-user onboarding
+The false-green/unit/artifact blockers above are verified repaired. Do not merge
+until all remaining required contract/UI checks and merge-queue gates pass.
+No public tag/release or Homebrew update was performed. The notarized app was
+mounted read-only for inspection, not installed or launched against daily-driver
+preferences. Current-account signed Release UI and true fresh-user onboarding
 remain unverified; no TCC reset was performed.
 
 ## v1.15.0 Agentic Vocabulary Candidate QA
