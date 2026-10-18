@@ -1,5 +1,5 @@
 diff --git a/examples/server/server.cpp b/examples/server/server.cpp
-index b745f4d7..2a170d90 100644
+index b745f4d7..506ca8c5 100644
 --- a/examples/server/server.cpp
 +++ b/examples/server/server.cpp
 @@ -19,6 +19,7 @@
@@ -10,7 +10,7 @@ index b745f4d7..2a170d90 100644
  #if defined (_WIN32)
  #include <windows.h>
  #endif
-@@ -639,6 +640,22 @@ void get_req_parameters(const Request & req, whisper_params & params)
+@@ -639,7 +640,32 @@ void get_req_parameters(const Request & req, whisper_params & params)
  }  // namespace
 
  int main(int argc, char ** argv) {
@@ -23,6 +23,13 @@ index b745f4d7..2a170d90 100644
 +        return value.size() == 64 && value.find_first_not_of("0123456789abcdef") == std::string::npos;
 +    };
 +    if (!hexadecimal(foil_token) || !hexadecimal(foil_model) || foil_session.size() != 36) return 2;
++    const bool foil_trace_enabled = std::getenv("FOIL_MANAGED_STARTUP_TRACE") != nullptr;
++    auto foil_trace = [&](const char * stage) {
++        if (foil_trace_enabled) {
++            fprintf(stderr, "FOIL_STARTUP_STAGE %s\n", stage);
++            fflush(stderr);
++        }
++    };
 +    unsetenv("FOIL_MANAGED_TOKEN");
 +    // The app alone owns the write end. EOF also handles death during model loading.
 +    std::thread([] {
@@ -30,10 +37,13 @@ index b745f4d7..2a170d90 100644
 +        while (::read(STDIN_FILENO, &byte, 1) > 0) {}
 +        _exit(0);
 +    }).detach();
++    foil_trace("backend_begin");
      ggml_backend_load_all();
++    foil_trace("backend_ready");
 
      whisper_params params;
-@@ -650,6 +667,9 @@ int main(int argc, char ** argv) {
+     server_params sparams;
+@@ -650,6 +676,9 @@ int main(int argc, char ** argv) {
          whisper_print_usage(argc, argv, params, sparams);
          return 1;
      }
@@ -43,7 +53,7 @@ index b745f4d7..2a170d90 100644
 
      if (params.language != "auto" && whisper_lang_id(params.language.c_str()) == -1) {
          fprintf(stderr, "error: unknown language '%s'\n", params.language.c_str());
-@@ -721,6 +741,22 @@ int main(int argc, char ** argv) {
+@@ -721,9 +750,27 @@ int main(int argc, char ** argv) {
      }
 
      std::unique_ptr<httplib::Server> svr = std::make_unique<httplib::Server>();
@@ -65,8 +75,23 @@ index b745f4d7..2a170d90 100644
 +    });
      std::atomic<server_state> state{SERVER_STATE_LOADING_MODEL};
 
++    foil_trace("model_begin");
      struct whisper_context * ctx = whisper_init_from_file_with_params(params.model.c_str(), cparams);
-@@ -1218,7 +1254,8 @@ int main(int argc, char ** argv) {
++    foil_trace("model_returned");
+
+     if (ctx == nullptr) {
+         fprintf(stderr, "error: failed to initialize whisper context\n");
+@@ -731,7 +778,9 @@ int main(int argc, char ** argv) {
+     }
+
+     // initialize openvino encoder. this has no effect on whisper.cpp builds that don't have OpenVINO configured
++    foil_trace("openvino_begin");
+     whisper_ctx_init_openvino_encoder(ctx, nullptr, params.openvino_encode_device.c_str(), nullptr);
++    foil_trace("openvino_ready");
+     state.store(SERVER_STATE_READY);
+
+
+@@ -1218,7 +1267,8 @@ int main(int argc, char ** argv) {
      svr->Get(sparams.request_path + "/health", [&](const Request &, Response &res){
          server_state current_state = state.load();
          if (current_state == SERVER_STATE_READY) {
@@ -76,7 +101,7 @@ index b745f4d7..2a170d90 100644
              res.set_content(health_response, "application/json");
          } else {
              res.set_content("{\"status\":\"loading model\"}", "application/json");
-@@ -1244,7 +1281,7 @@ int main(int argc, char ** argv) {
+@@ -1244,7 +1294,7 @@ int main(int argc, char ** argv) {
          if (res.status == 400) {
              res.set_content("Invalid request", "text/plain");
          } else if (res.status != 500) {
@@ -85,3 +110,26 @@ index b745f4d7..2a170d90 100644
              res.status = 404;
          }
      });
+@@ -1253,6 +1303,7 @@ int main(int argc, char ** argv) {
+     svr->set_read_timeout(sparams.read_timeout);
+     svr->set_write_timeout(sparams.write_timeout);
+
++    foil_trace("bind_begin");
+     if (!svr->bind_to_port(sparams.hostname, sparams.port))
+     {
+         fprintf(stderr, "\ncouldn't bind to server socket: hostname=%s port=%d\n\n",
+@@ -1260,6 +1311,7 @@ int main(int argc, char ** argv) {
+         return 1;
+     }
+
++    foil_trace("bound");
+     // Set the base directory for serving static files
+     svr->set_base_dir(sparams.public_path);
+
+@@ -1300,5 +1352,6 @@ int main(int argc, char ** argv) {
+     });
+
+     svr->wait_until_ready();
++    foil_trace("listen_ready");
+
+     t.join();

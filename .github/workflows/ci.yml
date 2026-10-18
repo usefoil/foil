@@ -135,6 +135,7 @@ jobs:
         id: run-tests
         env:
           RUN_LIVE_GROQ_TESTS: "0"
+          TEST_RUNNER_FOIL_MANAGED_STARTUP_TRACE: "1"
         run: |
           # Run xcodebuild in background so we can send SIGTERM (graceful) on timeout
           # instead of relying on step timeout's SIGKILL (which corrupts xcresult)

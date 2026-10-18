@@ -176,6 +176,100 @@ final class ManagedLocalHTTP: @unchecked Sendable {
     }
 }
 
+#if DEBUG
+/// Diagnostic decoding accepts only fixed stage names, never raw helper output.
+struct ManagedLocalStartupTraceDecoder {
+    enum Stage: String, CaseIterable {
+        case backendBegin = "backend_begin", backendReady = "backend_ready"
+        case modelBegin = "model_begin", modelReturned = "model_returned"
+        case openvinoBegin = "openvino_begin", openvinoReady = "openvino_ready"
+        case bindBegin = "bind_begin", bound, listenReady = "listen_ready"
+    }
+    private var line = Data()
+    private var discarded = false
+
+    mutating func consume(_ bytes: Data) -> [Stage] {
+        var stages: [Stage] = []
+        for byte in bytes {
+            if byte == 10 {
+                if !discarded, let text = String(data: line, encoding: .utf8),
+                   text.hasPrefix("FOIL_STARTUP_STAGE "),
+                   let stage = Stage(rawValue: String(text.dropFirst(19))) {
+                    stages.append(stage)
+                }
+                line.removeAll(keepingCapacity: true); discarded = false
+            } else if line.count < 80 && !discarded {
+                line.append(byte)
+            } else {
+                line.removeAll(keepingCapacity: true); discarded = true
+            }
+        }
+        return stages
+    }
+}
+
+final class ManagedLocalStartupTrace: @unchecked Sendable {
+    enum Event { case healthReady, deadline, stop, launchFailed, exit(Int32, Int) }
+    let pipe = Pipe()
+    private let lock = NSLock()
+    private let started = DispatchTime.now().uptimeNanoseconds
+    private var decoder = ManagedLocalStartupTraceDecoder()
+    private var pid: Int32?
+    private var pending: [ManagedLocalStartupTraceDecoder.Stage] = []
+    private var remaining = 32
+    private let output: @Sendable (String) -> Void
+
+    init(output: @escaping @Sendable (String) -> Void = {
+        FileHandle.standardError.write(Data($0.utf8))
+    }) {
+        self.output = output
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let bytes = handle.availableData
+            if bytes.isEmpty { handle.readabilityHandler = nil; return }
+            guard let self else { return }
+            self.lock.withLock {
+                for stage in self.decoder.consume(bytes) {
+                    if self.pid != nil { self.emit(stage.rawValue) }
+                    else if self.pending.count < 16 { self.pending.append(stage) }
+                }
+            }
+        }
+    }
+
+    func didLaunch(pid: Int32) {
+        lock.withLock {
+            self.pid = pid
+            emit("launched")
+            for stage in pending { emit(stage.rawValue) }
+            pending.removeAll()
+        }
+        try? pipe.fileHandleForWriting.close()
+    }
+
+    func report(_ event: Event) {
+        lock.withLock {
+            switch event {
+            case .healthReady: emit("health_ready")
+            case .deadline: emit("deadline")
+            case .stop: emit("stop")
+            case .launchFailed: emit("launch_failed")
+            case let .exit(status, reason): emit("exit status=\(status) reason=\(reason)")
+            }
+        }
+    }
+
+    private func emit(_ stage: String) {
+        guard remaining > 0 else { return }
+        remaining -= 1
+        let milliseconds = (DispatchTime.now().uptimeNanoseconds - started) / 1_000_000
+        let message = "[ManagedLocalStartup] pid=\(pid ?? 0) elapsed_ms=\(milliseconds) stage=\(stage)\n"
+        output(message)
+    }
+
+    deinit { pipe.fileHandleForReading.readabilityHandler = nil }
+}
+#endif
+
 final class ManagedLocalSession: Equatable, @unchecked Sendable {
     let id: UUID
     let model: ManagedLocalModel
@@ -186,6 +280,9 @@ final class ManagedLocalSession: Equatable, @unchecked Sendable {
     let port: Int
     private let lock = NSLock()
     private var stopped = false
+    #if DEBUG
+    var startupTrace: ManagedLocalStartupTrace?
+    #endif
     var displayAddress: String { "http://\(ManagedLocalHTTP.hostname):\(port)" }
     var isRunning: Bool { lock.withLock { !stopped && process.isRunning } }
     static func == (lhs: ManagedLocalSession, rhs: ManagedLocalSession) -> Bool { lhs === rhs }
@@ -222,6 +319,9 @@ final class ManagedLocalSession: Equatable, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         guard !stopped else { return }
         stopped = true
+        #if DEBUG
+        startupTrace?.report(.stop)
+        #endif
         try? lifetime.fileHandleForWriting.close()
         if process.isRunning { process.terminate() }
         try? FileManager.default.removeItem(at: directory)
@@ -280,6 +380,9 @@ final class ManagedLocalRuntime {
                     if healthy {
                         try Task.checkCancellation()
                         guard self.generation == generation else { candidate.stop(); throw CancellationError() }
+                        #if DEBUG
+                        candidate.startupTrace?.report(.healthReady)
+                        #endif
                         // No suspension between durable selection and activation. A
                         // failed atomic write leaves the previous session untouched.
                         try beforeCommit()
@@ -294,6 +397,9 @@ final class ManagedLocalRuntime {
                     }
                     try await Task.sleep(nanoseconds: 100_000_000)
                 }
+                #if DEBUG
+                if Date() >= deadline && !collision { candidate.startupTrace?.report(.deadline) }
+                #endif
                 candidate.stop()
                 if pending?.id == candidate.id { pending = nil }
                 guard self.generation == generation else { throw CancellationError() }
@@ -347,14 +453,36 @@ final class ManagedLocalRuntime {
             "FOIL_MODEL_SHA256": model.sha256, "PATH": "/usr/bin:/bin"]
         process.standardInput = lifetime
         process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
-        process.terminationHandler = { [weak self] _ in
+        #if DEBUG
+        let trace = ProcessInfo.processInfo.environment["FOIL_MANAGED_STARTUP_TRACE"] == "1"
+            ? ManagedLocalStartupTrace() : nil
+        if let trace {
+            candidate.startupTrace = trace
+            process.environment?["FOIL_MANAGED_STARTUP_TRACE"] = "1"
+            process.standardError = trace.pipe
+        }
+        #endif
+        process.terminationHandler = { [weak self] child in
+            #if DEBUG
+            trace?.report(.exit(child.terminationStatus, Int(child.terminationReason.rawValue)))
+            #endif
             Task { @MainActor in
                 guard let self, self.session?.id == id else { return }
                 self.session = nil; self.state = .failed("The managed local runtime exited.")
             }
         }
-        do { try process.run(); try lifetime.fileHandleForReading.close() }
-        catch { candidate.stop(); throw ManagedLocalError.startupFailed }
+        do {
+            try process.run()
+            #if DEBUG
+            trace?.didLaunch(pid: process.processIdentifier)
+            #endif
+            try lifetime.fileHandleForReading.close()
+        } catch {
+            #if DEBUG
+            trace?.report(.launchFailed)
+            #endif
+            candidate.stop(); throw ManagedLocalError.startupFailed
+        }
         return candidate
     }
 

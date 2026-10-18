@@ -43,6 +43,13 @@ a fresh private empty directory. Child output is discarded so request paths and
 tokens do not enter application logs. Only a token-free display address and
 generic errors are exposed; provider settings never contain a token.
 
+Debug builds can opt into `FOIL_MANAGED_STARTUP_TRACE=1` for startup diagnosis.
+The parent drains helper stderr but emits only allowlisted lifecycle stage names,
+child PID/status, and monotonic elapsed milliseconds, capped at 32 events per
+child. Arbitrary stderr, paths, request tokens, and transcript text are discarded.
+Release builds continue to discard helper output; tracing does not change the
+startup deadline, health/ownership checks, or transport policy.
+
 The native client connects directly to numeric IPv4 loopback (`127.0.0.1`),
 matching the owned helper's bind address, while retaining the exact dedicated
 `transcribe.foil.localhost` URL namespace and HTTP Host header. It never asks DNS
