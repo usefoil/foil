@@ -184,6 +184,7 @@ struct ManagedLocalStartupTraceDecoder {
         case modelBegin = "model_begin", modelReturned = "model_returned"
         case openvinoBegin = "openvino_begin", openvinoReady = "openvino_ready"
         case bindBegin = "bind_begin", bound, listenReady = "listen_ready"
+        case metalCompileBegin = "metal_compile_begin", metalCompileReady = "metal_compile_ready"
     }
     private var line = Data()
     private var discarded = false
@@ -192,13 +193,19 @@ struct ManagedLocalStartupTraceDecoder {
         var stages: [Stage] = []
         for byte in bytes {
             if byte == 10 {
-                if !discarded, let text = String(data: line, encoding: .utf8),
-                   text.hasPrefix("FOIL_STARTUP_STAGE "),
-                   let stage = Stage(rawValue: String(text.dropFirst(19))) {
-                    stages.append(stage)
+                if !discarded, let text = String(data: line, encoding: .utf8) {
+                    if text == "ggml_metal_library_init: using embedded metal library" {
+                        stages.append(.metalCompileBegin)
+                    } else if text.range(of: #"^ggml_metal_library_compile_all: loaded 20 libraries from embedded data in [0-9]+\.[0-9]{3} sec \(max single = [0-9]+\.[0-9]{3} sec\)$"#,
+                                         options: .regularExpression) != nil {
+                        stages.append(.metalCompileReady)
+                    } else if text.hasPrefix("FOIL_STARTUP_STAGE "),
+                              let stage = Stage(rawValue: String(text.dropFirst(19))) {
+                        stages.append(stage)
+                    }
                 }
                 line.removeAll(keepingCapacity: true); discarded = false
-            } else if line.count < 80 && !discarded {
+            } else if line.count < 160 && !discarded {
                 line.append(byte)
             } else {
                 line.removeAll(keepingCapacity: true); discarded = true

@@ -38,6 +38,8 @@ final class ManagedLocalRuntimeTests: XCTestCase {
         for stage in ManagedLocalStartupTraceDecoder.Stage.allCases {
             XCTAssertEqual(decoder.consume(Data("FOIL_STARTUP_STAGE \(stage.rawValue)\n".utf8)), [stage])
         }
+        XCTAssertEqual(decoder.consume(Data("ggml_metal_library_init: using embedded metal library\n".utf8)), [.metalCompileBegin])
+        XCTAssertEqual(decoder.consume(Data("ggml_metal_library_compile_all: loaded 20 libraries from embedded data in 25.123 sec (max single = 25.100 sec)\n".utf8)), [.metalCompileReady])
     }
 
     func testStartupTraceDiscardsPathsTokensUnknownAndOversizedLines() {
@@ -46,6 +48,9 @@ final class ManagedLocalRuntimeTests: XCTestCase {
         let noise = "GET /\(secret)/health\nmodel: /private/fixture.bin\n"
             + "FOIL_STARTUP_STAGE model_begin \(secret)\n"
             + "FOIL_STARTUP_STAGE unknown\n"
+            + "ggml_metal_library_init: using embedded metal library /private/secret\n"
+            + "ggml_metal_library_compile_all: loaded 20 libraries from embedded data in /private/secret sec (max single = 25.100 sec)\n"
+            + "ggml_metal_library_compile_all: loaded 20 libraries from embedded data in 25.123 sec (max single = 25.100 sec) /private/secret\n"
             + String(repeating: "x", count: 100_000) + "FOIL_STARTUP_STAGE model_begin\n"
         XCTAssertTrue(decoder.consume(Data(noise.utf8)).isEmpty)
         XCTAssertEqual(decoder.consume(Data("FOIL_STARTUP_STAGE bound\n".utf8)), [.bound])
