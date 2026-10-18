@@ -28,6 +28,67 @@ publishing.
 - App-level live Groq provider QA remains `make test-provider-qa-live`; live
   local transcription remains `make test-local-transcription-e2e`.
 
+## v1.15.0 Managed Metal Startup Repair
+
+Date: 2026-10-18
+
+Scope: application/tests/build source
+`536a6e0f5e10722dcad673bf8bd6f3a5c4ada264`, version `1.15.0` build `53`,
+release-prep PR #459. The human authorized fixing the shared CI gate and
+managed-local hosted failures. The scheduled task remains paused. Codex cleanup
+#455/#456 stays excluded; no public tag, release, or Homebrew update was made.
+The earlier hold entries below preserve the failed-candidate chronology;
+this section records the superseding repair evidence. Actual-head protected checks and the
+merge queue must still pass before merge; these receipts do not authorize
+publication by themselves.
+
+| Claim | Strongest realistic failure mode | Primary evidence | Result |
+| --- | --- | --- | --- |
+| Failed unit execution cannot become green. | Compact or malformed JSON, zero executed tests, or an interrupted xcodebuild could be accepted. | Gate-only run [39129946365](https://github.com/usefoil/foil/actions/runs/39129946365) reproduced 21 failures and exit 65, now correctly failed. The validator preserves nonzero native status and requires structural passing/executed results. The combined Node gate, Metal-build, and workflow contracts pass 25 tests. | PASS: FAILURE DETECTION |
+| Cold helper startup no longer waits for ordinary Metal source compilation. | A passing retry could hide the same pre-bind stall. | Bounded trace run [39138354130](https://github.com/usefoil/foil/actions/runs/39138354130), job `117707456570`, shows four children reaching `metal_compile_begin` in 51–68 ms, then the unchanged 30-second deadline without compile-complete/model-returned/bind/health markers. Pinned source compiles 20 libraries before listening. The repair builds plain/BF16 libraries for macOS 14 / Metal 3.1 and embeds them in each signed helper slice. Independent cold hosted runs on `a6a493a` and `536a6e0` reached first health at 226 ms and 546 ms respectively. No test skip, startup-timeout increase, or retry-only fix was added. | PASS: HOSTED TRACE / SOURCE |
+| The acceptance gate proves more than library discovery or a CPU transcript. | Metal could load during discovery, then Whisper could select CPU and still transcribe successfully. | Fresh validation reproduced that false-positive path with `WHISPER_ARG_DEVICE=999`; the accepted finding was fixed. Final-source [CI 39140185099](https://github.com/usefoil/foil/actions/runs/39140185099), unit job `117712860026`, passes real default and BF16-disabled transcription, requiring both precompiled-load and successful nonempty Metal graph-submission markers plus child EOF. The forced CPU-only transcript is rejected specifically for missing graph submission. Graph submission does not claim every operation ran on GPU. | PASS: POSITIVES AND NEGATIVE CONTROL |
+| Shared tests retain the transport, identity, and Vocabulary behavior. | Focused shader success could mask adjacent failures or weakened ownership. | That raw job records 1,020 XCTest cases, four existing skips, zero failures, nine passing Swift Testing cases, `TEST SUCCEEDED`, and structural verification of 1,025 passing tests/native exit zero. Numeric IPv4 loopback retains the dedicated logical URL/Host, required loopback interface, no proxy/redirect fallback, and token/session/model/PID checks. Evidence: `precompiled-metal-final-hosted-unit.log`. | PASS: HOSTED UNIT EXECUTION |
+| The exact signed Release artifact contains the repaired helper and intended Vocabulary source. | A stale source/build, corrupt download, missing trust, shader packaging loss, or included cleanup work could survive a green workflow. | [Notarized QA 39140193875](https://github.com/usefoil/foil/actions/runs/39140193875) checks out exact `536a6e0`, explicitly `1.15.0 (53)`. Fresh download `/tmp/foil-precompiled-final-artifact.NkSLNN` passes its untouched sidecar; DMG SHA-256 `bb79e406d722e679871f778428d173b18a0200903f60d2404b33a9c64bdfc220`. Stapler, DMG/app Gatekeeper and deep strict codesign pass. Bundle id `com.neonwatty.Foil`, team `B3A6AN2HA4`, universal app/helper, helper minimum macOS 14, both embedded compiled-shader sections, and 32-byte Sparkle key are verified. Packaged OpenAPI matches source; starter/recovery strings are present; cleanup implementation/control symbols and Release-parent trace symbols are absent. Checkout logs, not an embedded commit field, establish source provenance. | PASS: NOTARIZED ARTIFACT AUDIT |
+| The packaged helper can actually load and submit through its shaders on this Mac. | Hosted Debug tests could pass while the signed Release helper or another architecture fails. | The helper was executed directly from the read-only DMG with private fixture directories, not by launching the app GUI. Default and BF16-disabled native runs and x86_64 under already-installed Rosetta pass exact identity, rejected routes, precompiled-load plus Metal graph submission, the expected synthetic transcript, and parent-EOF shutdown. A forced CPU-only run transcribes correctly but is rejected for the exact missing-graph reason. The image was detached after the tests. | PASS: SIGNED HELPER / LOCAL AND ROSETTA |
+
+Evidence directory: `/tmp/foil-vocabulary-release-qa.srGbOW`. Final-source files
+include `precompiled-metal-final-hosted-unit.log`,
+`precompiled-metal-final-notarized.log`,
+`precompiled-metal-final-artifact-verification.log`, and
+`precompiled-metal-final-release-helper-{default,plain,rosetta,cpu-negative}.log`.
+Standalone repeat receipts are `final-artifact-standalone-receipt.log` and
+`final-artifact-invocation-{default,plain,rosetta,cpu-negative}.log`; the saved
+`verify-final-artifact-receipt.sh` records the exact mounted helper path/digest,
+mode, command, exit status, bundle metadata, packaged OpenAPI comparison, and
+parent-symbol checks alongside their results.
+The older `a6a493a` full CI [39139440237](https://github.com/usefoil/foil/actions/runs/39139440237)
+and notarized artifact are separate valid intermediate receipts, not substitutes
+for the final graph-marker/CPU-negative-control proof.
+Full repaired-source CI `39140185099` also passes the warnings-as-errors build,
+Agent Access contract and installed-app smoke, snapshots, all four focused UI
+shards, and aggregate gate. The full raw run is `precompiled-metal-final-ci.log`.
+
+Review: the installed PR Review Toolkit was repeated against exact base
+`74740c712cee09e62fbc3131511f7cdda4c55724` for correctness, tests,
+contracts/security, silent failures, and docs/comments. Every accepted finding
+was independently validated and fixed, including the CPU-only false positive;
+the complete repaired-source review is clean. Native `codex review` remains
+unavailable because configured `gpt-6-sol` is unsupported for this account; the
+toolkit-permitted focused review used the independently available exact diff.
+Review is not a claim of defect freedom.
+
+Residual scope: the optional Metal 4 tensor path is unchanged and is not claimed
+precompiled. Rosetta is not native Intel hardware proof; physical macOS 14,
+Metal 4 hardware, current-account signed Release UI, and true fresh-user
+onboarding remain unverified. The main notarized app was not installed or
+launched against daily-driver preferences; only its helper was executed with
+synthetic input. No TCC reset or Homebrew setup-readiness claim was made. This
+Mac lacks Xcode's Metal compiler component, so no cold local precompiled-shader
+build is claimed; actual shader compilation is proven by the hosted builds.
+The local source-compiled graph-marker control was explicitly diagnostic,
+not precompiled-shader evidence. Existing live Groq/network/absent-fixture skips
+remain separate from the passing deterministic unit receipt.
+
 ## v1.15.0 Release-Prep CI And Loopback Repair
 
 Date: 2026-10-18

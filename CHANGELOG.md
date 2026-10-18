@@ -13,6 +13,7 @@
 - Return the original receipt when an agent retries an already-applied Vocabulary proposal; reject changed payloads without rewriting stored state.
 - Make closure capture ownership explicit for warning-clean builds with newer Swift compilers.
 - Connect the managed local transcription helper directly over IPv4 loopback, preserving its private session and required Host checks without depending on local hostname resolution.
+- Precompile the managed helper's ordinary Metal shaders during the build so cold model startup does not wait for runtime source compilation; preserve the existing optional Metal 4 tensor path.
 
 
 ## [1.14.3](https://github.com/usefoil/foil/compare/v1.14.2...v1.14.3) (2026-09-23)
