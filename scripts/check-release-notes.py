@@ -12,9 +12,10 @@ from pathlib import Path
 
 
 FIRST_BUNDLED_VERSION = "1.13.5"
-CHANGELOG_ENTRY = re.compile(r"^## \[(\d+\.\d+\.\d+)\].*\((\d{4}-\d{2}-\d{2})\)$", re.M)
+VERSION = r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?"
+CHANGELOG_ENTRY = re.compile(rf"^## \[({VERSION})\].*\((\d{{4}}-\d{{2}}-\d{{2}})\)$", re.M)
 SWIFT_ENTRY = re.compile(
-    r'ReleaseNote\(\s*title:\s*"(?P<version>\d+\.\d+\.\d+)",\s*'
+    rf'ReleaseNote\(\s*title:\s*"(?P<version>{VERSION})",\s*'
     r'date:\s*"(?P<date>[^"]+)",\s*highlights:\s*\[(?P<highlights>.*?)\]\s*\)',
     re.S,
 )
@@ -26,6 +27,7 @@ def check(root: Path, expected_version: str | None) -> list[str]:
     changelog = (root / "CHANGELOG.md").read_text()
     swift = (root / "Foil/ReleaseNotes.swift").read_text()
     project = (root / "project.yml").read_text()
+    xcode_project = (root / "Foil.xcodeproj/project.pbxproj").read_text()
     package_version = json.loads((root / "package.json").read_text())["version"]
 
     releases = CHANGELOG_ENTRY.findall(changelog)
@@ -62,10 +64,11 @@ def check(root: Path, expected_version: str | None) -> list[str]:
 
     current_version = expected_versions[0]
     project_versions = set(re.findall(r'MARKETING_VERSION:\s*"([^"]+)"', project))
-    if package_version != current_version or project_versions != {current_version}:
+    xcode_versions = set(re.findall(r"MARKETING_VERSION\s*=\s*([^;]+);", xcode_project))
+    if package_version != current_version or project_versions != {current_version} or xcode_versions != {current_version}:
         errors.append(
             f"Latest release {current_version} must match package.json ({package_version}) "
-            f"and project.yml ({sorted(project_versions)})"
+            f"project.yml ({sorted(project_versions)}), and Foil.xcodeproj ({sorted(xcode_versions)})"
         )
     if expected_version and expected_version != current_version:
         errors.append(f"Requested release {expected_version} does not match {current_version}")
