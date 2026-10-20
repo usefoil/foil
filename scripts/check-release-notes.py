@@ -19,7 +19,7 @@ SWIFT_ENTRY = re.compile(
     r'date:\s*"(?P<date>[^"]+)",\s*highlights:\s*\[(?P<highlights>.*?)\]\s*\)',
     re.S,
 )
-SWIFT_HIGHLIGHT = re.compile(r'^\s*"(?:[^"\\]|\\.)+"\s*,?\s*$', re.M)
+SWIFT_HIGHLIGHT = re.compile(r'^\s*"((?:[^"\\]|\\.)*)"\s*,?\s*$', re.M)
 
 
 def without_swift_comments(source: str) -> str:
@@ -107,8 +107,9 @@ def check(root: Path, expected_version: str | None) -> list[str]:
                 actual_date = "invalid date"
             if actual_date != dates[version]:
                 errors.append(f"{version} date is {actual_date}; CHANGELOG.md says {dates[version]}")
-        if not SWIFT_HIGHLIGHT.search(note["highlights"]):
-            errors.append(f"{version} has no user-facing highlight")
+        highlights = SWIFT_HIGHLIGHT.findall(note["highlights"])
+        if not highlights or any(not highlight.strip() for highlight in highlights):
+            errors.append(f"{version} has an empty user-facing highlight")
 
     current_version = expected_versions[0]
     project_versions = set(re.findall(r'MARKETING_VERSION:\s*"([^"]+)"', project))
