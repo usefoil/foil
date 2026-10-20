@@ -6,23 +6,22 @@ publishing.
 
 ## Current Public Install Status
 
-- Current public release: Foil `v1.15.0` build `53`.
+- Current public release: Foil `v1.15.1` build `54`.
 - Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
 - Verified command:
   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
   then `brew install --cask foil`.
-- Manual fallback: GitHub release asset `Foil-1.15.0-macos.dmg`; the GitHub asset digest matches the public cask SHA-256.
-- Public cask status: `Casks/foil.rb` version `1.15.0`, SHA-256 `f6206bc863e65178d58dcd6c4c2509ce1d7882e77d1546ec2c876e0ebd756d7b`, matching the GitHub release DMG digest.
-- Release/cask metadata verified on 2026-10-20 with `gh release view v1.15.0 --repo usefoil/foil --json assets,publishedAt` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
-- Latest recorded public cask extraction smoke is the v1.14.3 `REQUIRED_COMMIT=12844530abc01a19fb2fd5857380a06f1e4952f8 make check-production-permissions-cask` run recorded below; current v1.15.0 cask extraction was not repeated for this note correction.
+- Manual fallback: [GitHub release v1.15.1](https://github.com/usefoil/foil/releases/tag/v1.15.1), asset `Foil-1.15.1-macos.dmg`.
+- Public cask status: `Casks/foil.rb` version `1.15.1`, SHA-256 `ed095a3f5bd5def5bad6da3f8f6419abc778c74fc9f025f08db3d544a2d70154`, matching the public DMG, its `.sha256` file, and GitHub asset digest.
+- Release/cask metadata and a disposable public-cask extraction were verified on 2026-10-20; see the v1.15.1 record below.
 - Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; earlier current-account and release checks do not replace that row. Use `docs/fresh-machine-homebrew-onboarding-smoke.md`.
 
-## v1.15.1 What's New Patch Candidate
+## v1.15.1 What's New Patch and Release
 
 Date: 2026-10-20
 
-Claim: Foil 1.15.1 (build 54) will show user-readable notes for every release
-from 1.13.5 through 1.15.1, and future release prep will reject missing notes.
+Foil 1.15.1 (build 54) shows user-readable notes for every release from 1.13.5
+through 1.15.1. Future release prep rejects missing or mismatched notes.
 
 | Strongest realistic failure mode | Evidence | Result |
 | --- | --- | --- |
@@ -30,17 +29,33 @@ from 1.13.5 through 1.15.1, and future release prep will reject missing notes.
 | The patch's version or build metadata differs from the visible note. | `python3 scripts/check-release-notes.py --expected-version 1.15.1`, `make build-warnings-as-errors`, and inspection of the built Debug app's Info.plist and lead note confirm version 1.15.1, build 54, and the new note. | PASS: LOCAL BUILD |
 | The new Release gate blocks a fresh manual rebuild of an older tag that lacks the checker. | `v1.15.0` has no `scripts/check-release-notes.py`; the workflow explicitly permits tags before 1.15.1 through the legacy branch and fails if a 1.15.1-or-newer tag lacks the checker. | PASS: WORKFLOW CONTRACT |
 | A compiled note is present but What's New does not render it in the app. | Local focused XCUITest built, but this Mac's UI runner timed out while enabling automation mode. [PR CI 39454266194](https://github.com/usefoil/foil/actions/runs/39454266194), hosted `balanced-a`, executed `testSettingsWhatsNewShowsCurrentVersionAndUpdateControl` with eight tests and zero failures. | PASS: HOSTED UI |
-| A fast exiting local server loses its sanitized startup detail. | [First merge-queue CI 39456107471](https://github.com/usefoil/foil/actions/runs/39456107471) failed `testLocalWhisperServerEarlyExitReturnsBoundedSanitizedStartupDetail`: the process exited 7, but readiness returned `processExited(nil)`. The stderr reader could miss output written just before exit. The repair drains available stderr under the buffer lock on exit while continuing to discard output after readiness. The exact early-exit test passed 20 local iterations before the final post-readiness adjustment; the warning-clean build passed after it. Final hosted unit and queue checks are pending; the failed run is not counted as a pass. | PENDING: REPAIRED HOSTED CI |
-| The signed candidate lacks the new note or trust metadata. | [Notarized QA 39454308973](https://github.com/usefoil/foil/actions/runs/39454308973) checked out exact pre-repair commit `634306e`, and its untouched DMG sidecar, stapler, DMG/app Gatekeeper, and deep strict codesign passed. The mounted app contained the 1.15.1 note and Sparkle key. The QA workflow used its run ID as build number. A new signed QA build is needed for the repaired source. | PASS: INTERMEDIATE ARTIFACT; FINAL PENDING |
+| A fast exiting local server loses its sanitized startup detail. | [First merge-queue CI 39456107471](https://github.com/usefoil/foil/actions/runs/39456107471) failed `testLocalWhisperServerEarlyExitReturnsBoundedSanitizedStartupDetail`: the process exited 7, but readiness returned `processExited(nil)`. The repair drains available stderr under the buffer lock on exit while continuing to discard output after readiness. [Final PR CI 39459047042](https://github.com/usefoil/foil/actions/runs/39459047042) and [second merge-queue CI 39460652255](https://github.com/usefoil/foil/actions/runs/39460652255) passed both the early-exit and post-readiness cases, with 1,020 XCTest cases, four existing skips, and zero failures in the hosted unit suite. The failed run is not counted as a pass. | PASS: REPAIRED HOSTED CI |
+| The signed candidate lacks the new note or trust metadata. | [Final-source Notarized QA 39459076636](https://github.com/usefoil/foil/actions/runs/39459076636) checked out exact PR head `e4e7ed92b403367bc91d3173d67118ebd406a46a`. The untouched QA DMG sidecar matched SHA-256 `d34c5107c4145e9de3fe93905e5e76d1e42b419810082dde072a48610cbdcc3f`; stapler, DMG/app Gatekeeper, and deep strict codesign passed. The mounted app was version 1.15.1 build 54, contained the new notes and Sparkle key. | PASS: FINAL-SOURCE SIGNED QA |
 
-This candidate is not published. Record the exact merged commit, protected CI,
-tag, notarized DMG and checksum, appcast, Homebrew cask, and installed-app QA
-here before treating 1.15.1 as the public release.
+The release-prep [PR #461](https://github.com/usefoil/foil/pull/461) merged at
+`ee735bdab6208337712eb7d559b16a1448e69371` after the protected checks and
+merge queue passed. Tag `v1.15.1` points to that exact commit. The public
+[Release workflow 39462336528](https://github.com/usefoil/foil/actions/runs/39462336528)
+passed the tagged checkout, bundled note check, build, Apple notarization,
+asset upload, notarization validation, signed Sparkle feed generation, Homebrew
+cask update, and cleanup.
 
-Local `make test` and the follow-up focused two-case repetition stalled in this
-Mac's Xcode test runner before an XCTest result was emitted, so they were stopped.
-They are not counted as passes; the repaired hosted unit suite must close that
-gap.
+| Public-release failure mode | Evidence | Result |
+| --- | --- | --- |
+| Published bytes differ from the checksum or cask. | Downloaded `Foil-1.15.1-macos.dmg` SHA-256 is `ed095a3f5bd5def5bad6da3f8f6419abc778c74fc9f025f08db3d544a2d70154`, identical to the untouched `.sha256` asset, GitHub asset digest, and public `mean-weasel/homebrew-foil/Casks/foil.rb`. | PASS |
+| The public app is unsigned, unnotarized, or the wrong version. | `xcrun stapler validate` and DMG Gatekeeper pass. The read-only mounted app is `com.neonwatty.Foil` version 1.15.1 build 54, has a Sparkle public key, and passes app Gatekeeper plus deep strict `codesign` validation. The DMG contains `Foil.app`, the Applications link, and `.background/dmg-background.png`; it was detached after inspection. | PASS |
+| The update feed points to another file or lacks a signature. | Downloaded `appcast.xml` parses with `xmllint`, points to the exact 1.15.1 DMG, declares build 54, version 1.15.1, matching 26,039,924-byte length, and contains `sparkle:edSignature` and `sparkle:length`. The release workflow verified the signature before upload. | PASS |
+| Homebrew serves an older release or a different build. | `REQUIRED_COMMIT=ee735bdab6208337712eb7d559b16a1448e69371 make check-production-permissions-cask` fetched cask 1.15.1 into `/tmp/foil-release-apps` without touching `/Applications`. It verified tag ancestry, bundle version/build, 32-byte Sparkle key, Developer ID, notarized Gatekeeper acceptance, and deep strict signing with zero warnings. | PASS |
+
+The public GitHub release summary was corrected after publication to state the
+actual 1.13.5–1.15.1 coverage. The matching changelog wording is corrected in
+the follow-up documentation PR; the tagged source remains immutable.
+
+Local `make test` and a focused two-case repetition stalled in this Mac's Xcode
+test runner before an XCTest result was emitted, so they were stopped and are
+not counted as passes. Final hosted unit and protected merge-queue runs closed
+that execution gap. The disposable public-cask check does not replace a fresh
+user's onboarding/permission walkthrough or a visual Finder presentation check.
 
 ## Test Command Policy
 
