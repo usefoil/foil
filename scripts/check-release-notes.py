@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""Keep the bundled What's New list aligned with the release changelog."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from datetime import datetime
+from pathlib import Path
+
+
+FIRST_BUNDLED_VERSION = "1.13.5"
+VERSION = r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?"
+CHANGELOG_ENTRY = re.compile(rf"^## \[({VERSION})\].*\((\d{{4}}-\d{{2}}-\d{{2}})\)$", re.M)
+SWIFT_ENTRY = re.compile(
+    rf'ReleaseNote\(\s*title:\s*"(?P<version>{VERSION})",\s*'
+    r'date:\s*"(?P<date>[^"]+)",\s*highlights:\s*\[(?P<highlights>.*?)\]\s*\)',
+    re.S,
+)
+SWIFT_HIGHLIGHT = re.compile(r'^\s*"((?:[^"\\]|\\.)*)"\s*,?\s*$', re.M)
+
+
+def without_swift_comments(source: str) -> str:
+    """Remove line and nested block comments while leaving string contents intact."""
+    result: list[str] = []
+    index = 0
+    block_depth = 0
+    in_line_comment = False
+    in_string = False
+    while index < len(source):
+        character = source[index]
+        pair = source[index : index + 2]
+        if in_line_comment:
+            if character == "\n":
+                in_line_comment = False
+            result.append("\n" if character == "\n" else " ")
+        elif block_depth:
+            if pair == "/*":
+                block_depth += 1
+                result.extend("  ")
+                index += 1
+            elif pair == "*/":
+                block_depth -= 1
+                result.extend("  ")
+                index += 1
+            else:
+                result.append("\n" if character == "\n" else " ")
+        elif in_string:
+            result.append(character)
+            if character == "\\" and index + 1 < len(source):
+                index += 1
+                result.append(source[index])
+            elif character == '"':
+                in_string = False
+        elif pair == "//":
+            in_line_comment = True
+            result.extend("  ")
+            index += 1
+        elif pair == "/*":
+            block_depth = 1
+            result.extend("  ")
+            index += 1
+        else:
+            result.append(character)
+            if character == '"':
+                in_string = True
+        index += 1
+    return "".join(result)
+
+
+def check(root: Path, expected_version: str | None) -> list[str]:
+    errors: list[str] = []
+    changelog = (root / "CHANGELOG.md").read_text()
+    swift = without_swift_comments((root / "Foil/ReleaseNotes.swift").read_text())
+    project = (root / "project.yml").read_text()
+    xcode_project = (root / "Foil.xcodeproj/project.pbxproj").read_text()
+    package_version = json.loads((root / "package.json").read_text())["version"]
+
+    releases = CHANGELOG_ENTRY.findall(changelog)
+    versions = [version for version, _ in releases]
+    if FIRST_BUNDLED_VERSION not in versions:
+        return [f"CHANGELOG.md has no {FIRST_BUNDLED_VERSION} baseline"]
+    releases = releases[: versions.index(FIRST_BUNDLED_VERSION) + 1]
+    expected_versions = [version for version, _ in releases]
+    if len(expected_versions) != len(set(expected_versions)):
+        errors.append("CHANGELOG.md has duplicate release versions")
+
+    recent = list(re.finditer(
+        r"^    static let recent: \[ReleaseNote\] = \[[ \t]*\n(?P<body>.*?)^    \][ \t]*$",
+        swift,
+        re.M | re.S,
+    ))
+    if len(recent) != 1:
+        return ["Could not locate the rendered ReleaseNotes.recent list in Foil/ReleaseNotes.swift"]
+    recent_swift = recent[0]["body"]
+    notes = list(SWIFT_ENTRY.finditer(recent_swift))
+    if len(notes) != len(re.findall(r"\bReleaseNote\(", recent_swift)):
+        errors.append("Could not parse every ReleaseNote in ReleaseNotes.recent")
+    actual_versions = [note["version"] for note in notes]
+    if actual_versions != expected_versions:
+        errors.append(
+            "What's New versions must match CHANGELOG.md from newest through "
+            f"{FIRST_BUNDLED_VERSION}: expected {expected_versions}, got {actual_versions}"
+        )
+
+    dates = dict(releases)
+    for note in notes:
+        version = note["version"]
+        if version in dates:
+            try:
+                actual_date = datetime.strptime(note["date"], "%B %d, %Y").date().isoformat()
+            except ValueError:
+                actual_date = "invalid date"
+            if actual_date != dates[version]:
+                errors.append(f"{version} date is {actual_date}; CHANGELOG.md says {dates[version]}")
+        highlights = SWIFT_HIGHLIGHT.findall(note["highlights"])
+        # Escape-only strings such as "\\n" render as blank even though their source is not empty.
+        visible_text = [re.sub(r"\\u\{[0-9A-Fa-f]+\}|\\.", "", highlight).strip() for highlight in highlights]
+        if not highlights or any(not text for text in visible_text):
+            errors.append(f"{version} has an empty user-facing highlight")
+
+    current_version = expected_versions[0]
+    project_versions = set(re.findall(r'MARKETING_VERSION:\s*"([^"]+)"', project))
+    xcode_versions = set(re.findall(r"MARKETING_VERSION\s*=\s*([^;]+);", xcode_project))
+    if package_version != current_version or project_versions != {current_version} or xcode_versions != {current_version}:
+        errors.append(
+            f"Latest release {current_version} must match package.json ({package_version}) "
+            f"project.yml ({sorted(project_versions)}), and Foil.xcodeproj ({sorted(xcode_versions)})"
+        )
+    if expected_version and expected_version != current_version:
+        errors.append(f"Requested release {expected_version} does not match {current_version}")
+    return errors
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
+    parser.add_argument("--expected-version")
+    args = parser.parse_args()
+    try:
+        errors = check(args.root, args.expected_version)
+    except (OSError, KeyError, json.JSONDecodeError) as error:
+        errors = [str(error)]
+    if errors:
+        for error in errors:
+            print(f"Release notes check failed: {error}", file=sys.stderr)
+        return 1
+    print("Bundled What's New covers every release through the current version.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

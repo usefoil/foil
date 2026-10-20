@@ -68,6 +68,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate bundled release notes
+        run: |
+          python3 scripts/check-release-notes.py
+          python3 -m unittest discover -s tests -p test_release_notes_check.py
+
       - name: Detect app-impacting changes
         id: detect
         run: bash .github/scripts/app-ci-required.sh
@@ -391,6 +396,7 @@ jobs:
             tests: >-
               -only-testing:FoilUITests/FoilUITests/testMicrophoneUnknownShowsCheckAction
               -only-testing:FoilUITests/FoilUITests/testMovedPreferencesLiveInSettingsPanes
+              -only-testing:FoilUITests/FoilUITests/testSettingsWhatsNewShowsCurrentVersionAndUpdateControl
               -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled
               -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL

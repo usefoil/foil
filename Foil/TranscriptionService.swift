@@ -1,4 +1,5 @@
 import AVFAudio
+import Darwin
 import Foundation
 
 protocol TranscriptionTransport {
@@ -569,6 +570,36 @@ private final class LocalWhisperStartupOutputBuffer: @unchecked Sendable {
         }
     }
 
+    func drainAvailableData(from handle: FileHandle) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let descriptor = handle.fileDescriptor
+        let flags = fcntl(descriptor, F_GETFL)
+        guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) >= 0 else { return }
+        defer { _ = fcntl(descriptor, F_SETFL, flags) }
+
+        var bytes = [UInt8](repeating: 0, count: 4_096)
+        // Drain after a fast exit too; a readability callback may not have run yet.
+        for _ in 0..<64 {
+            let count = bytes.withUnsafeMutableBytes { buffer in
+                Darwin.read(descriptor, buffer.baseAddress, buffer.count)
+            }
+            if count > 0 {
+                if isCapturing {
+                    data.append(contentsOf: bytes.prefix(count))
+                    if data.count > maximumBytes {
+                        data.removeFirst(data.count - maximumBytes)
+                    }
+                }
+            } else if count < 0 && errno == EINTR {
+                continue
+            } else {
+                break
+            }
+        }
+    }
+
     func stopCapturing(clear: Bool) {
         lock.lock()
         defer { lock.unlock() }
@@ -687,7 +718,7 @@ final class LocalWhisperServerController {
         let errorPipe = Pipe()
         let outputBuffer = LocalWhisperStartupOutputBuffer(maximumBytes: Self.maximumStartupOutputBytes)
         errorPipe.fileHandleForReading.readabilityHandler = { handle in
-            outputBuffer.append(handle.availableData)
+            outputBuffer.drainAvailableData(from: handle)
         }
         // The server is intentionally headless. stdout is discarded, while stderr is
         // continuously drained. Only a bounded startup tail is retained until the
@@ -697,11 +728,14 @@ final class LocalWhisperServerController {
         serverProcess.terminationHandler = { [weak self, weak serverProcess, weak errorPipe] terminatedProcess in
             Task { @MainActor in
                 guard let self, let serverProcess, self.process === serverProcess else { return }
+                errorPipe?.fileHandleForReading.readabilityHandler = nil
+                if let errorHandle = errorPipe?.fileHandleForReading {
+                    outputBuffer.drainAvailableData(from: errorHandle)
+                }
                 self.lastStartupFailureDetail = outputBuffer.sanitizedSummary(
                     maximumCharacters: Self.maximumStartupFailureDetailCharacters
                 )
                 outputBuffer.stopCapturing(clear: false)
-                errorPipe?.fileHandleForReading.readabilityHandler = nil
                 self.process = nil
                 self.standardInputPipe = nil
                 self.standardErrorPipe = nil
@@ -779,7 +813,7 @@ final class LocalWhisperServerController {
             }
             await Task.yield()
             if !isProcessRunning {
-                return .processExited(startupFailureDetail)
+                return .processExited(exitedProcessDetail())
             }
             let now = monotonicTime()
             if now >= effectiveDeadline { return .timedOut }
@@ -792,8 +826,16 @@ final class LocalWhisperServerController {
             }
         }
         if Task.isCancelled { return .cancelled }
-        if !isProcessRunning { return .processExited(startupFailureDetail) }
+        if !isProcessRunning { return .processExited(exitedProcessDetail()) }
         return .timedOut
+    }
+
+    private func exitedProcessDetail() -> String? {
+        if let errorHandle = standardErrorPipe?.fileHandleForReading {
+            errorHandle.readabilityHandler = nil
+            startupOutputBuffer?.drainAvailableData(from: errorHandle)
+        }
+        return startupFailureDetail
     }
 
     var startupFailureDetail: String? {

@@ -50,6 +50,16 @@ jobs:
             exit 1
           fi
 
+      - name: Validate bundled release notes
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -f scripts/check-release-notes.py ]; then
+            python3 scripts/check-release-notes.py --expected-version "$VERSION"
+          else
+            python3 -c 'import os, sys; version = tuple(map(int, os.environ["VERSION"].split("-")[0].split("."))); sys.exit("Current release tag is missing the release notes checker") if version >= (1, 15, 1) else print("Legacy release tag predates release-note validation")'
+          fi
+
       - name: Ensure GitHub release exists
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

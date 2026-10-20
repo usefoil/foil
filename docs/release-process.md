@@ -28,8 +28,9 @@ verified against the signed DMG.
    make prepare-release VERSION=1.12.2 BUILD=34 NOTES=/path/to/release-notes.md
    ```
 
-3. Review `CHANGELOG.md`, `package.json`, `package-lock.json`, and `Foil.xcodeproj/project.pbxproj`.
-4. Open a PR and merge it through the queue after CI is green.
+3. Add a short, user-facing entry for the new version at the top of `ReleaseNotes.recent` in `Foil/ReleaseNotes.swift`. Include every release, including patch releases that only fix a user-visible bug.
+4. Run `python3 scripts/check-release-notes.py` and review `CHANGELOG.md`, `Foil/ReleaseNotes.swift`, `package.json`, `package-lock.json`, and `Foil.xcodeproj/project.pbxproj`. CI checks that the bundled list covers every changelog release since 1.13.5, with matching dates and current version. The Release workflow repeats the check before it publishes a GitHub release.
+5. Open a PR and merge it through the queue after CI is green.
 
 ## Tag the Merged Commit
 
