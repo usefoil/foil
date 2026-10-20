@@ -108,7 +108,9 @@ def check(root: Path, expected_version: str | None) -> list[str]:
             if actual_date != dates[version]:
                 errors.append(f"{version} date is {actual_date}; CHANGELOG.md says {dates[version]}")
         highlights = SWIFT_HIGHLIGHT.findall(note["highlights"])
-        if not highlights or any(not highlight.strip() for highlight in highlights):
+        # Escape-only strings such as "\\n" render as blank even though their source is not empty.
+        visible_text = [re.sub(r"\\u\{[0-9A-Fa-f]+\}|\\.", "", highlight).strip() for highlight in highlights]
+        if not highlights or any(not text for text in visible_text):
             errors.append(f"{version} has an empty user-facing highlight")
 
     current_version = expected_versions[0]

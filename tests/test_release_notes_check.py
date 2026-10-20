@@ -55,6 +55,14 @@ class ReleaseNotesCheckTests(unittest.TestCase):
         path.write_text(source.replace(original, '" "'))
         self.assertTrue(any("1.14.1 has an empty" in error for error in check(self.root, None)))
 
+    def test_escaped_blank_highlight_is_rejected(self):
+        path = self.root / "Foil/ReleaseNotes.swift"
+        source = path.read_text()
+        original = '"Fixed startup of advanced external whisper.cpp servers when Foil is opened outside Terminal, with clearer FFmpeg setup guidance."'
+        self.assertIn(original, source)
+        path.write_text(source.replace(original, r'"\n"'))
+        self.assertTrue(any("1.14.1 has an empty" in error for error in check(self.root, None)))
+
     def test_supported_prerelease_can_pass(self):
         version = "99.0.0-rc.1"
         changelog = self.root / "CHANGELOG.md"
