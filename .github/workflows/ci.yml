@@ -396,6 +396,7 @@ jobs:
             tests: >-
               -only-testing:FoilUITests/FoilUITests/testMicrophoneUnknownShowsCheckAction
               -only-testing:FoilUITests/FoilUITests/testMovedPreferencesLiveInSettingsPanes
+              -only-testing:FoilUITests/FoilUITests/testSettingsWhatsNewShowsCurrentVersionAndUpdateControl
               -only-testing:FoilUITests/FoilUITests/testSimulatedRecordingUsesCurrentAppPasteWhenAsyncIsOff
               -only-testing:FoilUITests/FoilUITests/testFloatingStatusAutoHidesAfterSuccessWhenEnabled
               -only-testing:FoilUITests/FoilUITests/testHelpButtonTargetsCanonicalTroubleshootingURL
