@@ -17,6 +17,14 @@ struct ReleaseNote: Equatable, Identifiable {
 enum ReleaseNotes {
     static let recent: [ReleaseNote] = [
         ReleaseNote(
+            title: "1.15.1",
+            date: "October 20, 2026",
+            highlights: [
+                "Catch up on every release since June with clear notes in What's New.",
+                "Release checks now help keep these notes current with future app updates."
+            ]
+        ),
+        ReleaseNote(
             title: "1.15.0",
             date: "October 18, 2026",
             highlights: [

@@ -1,3 +1,9 @@
+## [1.15.1](https://github.com/usefoil/foil/compare/v1.15.0...v1.15.1) (2026-10-20)
+
+- Update What's New with clear notes for every release from 1.13.8 through 1.15.0.
+- Add release checks to keep the in-app notes aligned with the changelog and app version.
+
+
 ## [1.15.0](https://github.com/usefoil/foil/compare/v1.14.3...v1.15.0) (2026-10-18)
 
 - Apply reviewed agent Vocabulary suggestions directly in Foil, with durable receipts and recovery after interrupted operations.
