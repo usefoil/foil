@@ -68,6 +68,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate bundled release notes
+        run: python3 scripts/check-release-notes.py
+
       - name: Detect app-impacting changes
         id: detect
         run: bash .github/scripts/app-ci-required.sh

@@ -11,6 +11,9 @@ Prepares an intentional Foil release PR by updating:
   - package.json/package-lock.json version
   - CHANGELOG.md with release notes
 
+After preparing, add a short user-facing entry for VERSION to
+Foil/ReleaseNotes.swift and run scripts/check-release-notes.py.
+
 After the PR merges through the merge queue, create and push the tag manually:
   git tag vVERSION
   git push origin vVERSION
@@ -83,4 +86,4 @@ mv "$CHANGELOG_NEXT" CHANGELOG.md
 rm -f "$CHANGELOG_ENTRY"
 
 echo "Prepared Foil $VERSION ($BUILD_NUMBER)."
-echo "Review CHANGELOG.md, then open a PR and merge through the queue before tagging v$VERSION."
+echo "Add Foil/ReleaseNotes.swift entry for $VERSION, run scripts/check-release-notes.py, then review and merge the release PR before tagging v$VERSION."

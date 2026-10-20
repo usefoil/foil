@@ -50,6 +50,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate bundled release notes
+        run: python3 scripts/check-release-notes.py --expected-version "${{ inputs.version }}"
+
       - name: Ensure GitHub release exists
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
