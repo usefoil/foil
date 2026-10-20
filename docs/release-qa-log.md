@@ -6,16 +6,34 @@ publishing.
 
 ## Current Public Install Status
 
-- Current public release: Foil `v1.14.3` build `52`.
+- Current public release: Foil `v1.15.0` build `53`.
 - Primary install path: Homebrew tap `mean-weasel/foil`, backed by public tap repository `mean-weasel/homebrew-foil`.
 - Verified command:
   `brew tap mean-weasel/foil https://github.com/mean-weasel/homebrew-foil`
   then `brew install --cask foil`.
-- Manual fallback: GitHub release asset `Foil-1.14.3-macos.dmg`, verified against `Foil-1.14.3-macos.dmg.sha256` and the release asset digest.
-- Public cask status: `Casks/foil.rb` version `1.14.3`, SHA-256 `4921a970436f1cf09205f95e1765a838b02b7c04df22921c4c122c9885cdc158`, matching the GitHub release DMG digest.
-- Release/cask metadata verified on 2026-09-23 with `gh release view --repo usefoil/foil` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
-- Latest recorded public cask extraction smoke is the v1.14.3 `REQUIRED_COMMIT=12844530abc01a19fb2fd5857380a06f1e4952f8 make check-production-permissions-cask` run recorded below.
-- Remaining external smoke for v1.14.3: run a true fresh-machine or disposable fresh-user onboarding walkthrough; earlier current-account and release checks do not replace that row. Use `docs/fresh-machine-homebrew-onboarding-smoke.md`.
+- Manual fallback: GitHub release asset `Foil-1.15.0-macos.dmg`; the GitHub asset digest matches the public cask SHA-256.
+- Public cask status: `Casks/foil.rb` version `1.15.0`, SHA-256 `f6206bc863e65178d58dcd6c4c2509ce1d7882e77d1546ec2c876e0ebd756d7b`, matching the GitHub release DMG digest.
+- Release/cask metadata verified on 2026-10-20 with `gh release view v1.15.0 --repo usefoil/foil --json assets,publishedAt` and `gh api repos/mean-weasel/homebrew-foil/contents/Casks/foil.rb`.
+- Latest recorded public cask extraction smoke is the v1.14.3 `REQUIRED_COMMIT=12844530abc01a19fb2fd5857380a06f1e4952f8 make check-production-permissions-cask` run recorded below; current v1.15.0 cask extraction was not repeated for this note correction.
+- Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; earlier current-account and release checks do not replace that row. Use `docs/fresh-machine-homebrew-onboarding-smoke.md`.
+
+## v1.15.1 What's New Patch Candidate
+
+Date: 2026-10-20
+
+Claim: Foil 1.15.1 (build 54) will show user-readable notes for every release
+from 1.13.5 through 1.15.1, and future release prep will reject missing notes.
+
+| Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- |
+| A release constructor exists elsewhere in Swift, so a source scan passes while the dashboard omits it. | `ReleaseNotes.recent` is the list rendered by `SettingsView`; the checker now scopes to that list. A regression moves 1.15.1 into another valid array and verifies rejection. Seven checker tests pass. An actual Swift runtime evaluation matched all 15 changelog versions in order. | PASS: SOURCE AND RUNTIME |
+| The patch's version or build metadata differs from the visible note. | `python3 scripts/check-release-notes.py --expected-version 1.15.1`, `make build-warnings-as-errors`, and inspection of the built Debug app's Info.plist and lead note confirm version 1.15.1, build 54, and the new note. | PASS: LOCAL BUILD |
+| The new Release gate blocks a fresh manual rebuild of an older tag that lacks the checker. | `v1.15.0` has no `scripts/check-release-notes.py`; the workflow explicitly permits tags before 1.15.1 through the legacy branch and fails if a 1.15.1-or-newer tag lacks the checker. | PASS: WORKFLOW CONTRACT |
+| A compiled note is present but What's New does not render it in the app. | Local focused XCUITest built, but this Mac's UI runner timed out while enabling automation mode. Hosted CI and signed release QA remain to be recorded. | PENDING: HOSTED UI / RELEASE QA |
+
+This candidate is not published. Record the exact merged commit, protected CI,
+tag, notarized DMG and checksum, appcast, Homebrew cask, and installed-app QA
+here before treating 1.15.1 as the public release.
 
 ## Test Command Policy
 

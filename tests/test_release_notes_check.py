@@ -42,6 +42,21 @@ class ReleaseNotesCheckTests(unittest.TestCase):
         path.write_text(source[:start] + "/*" + source[start:end] + "*/" + source[end:])
         self.assertTrue(any("1.14.3" in error for error in check(self.root, None)))
 
+    def test_note_outside_rendered_list_is_missing(self):
+        path = self.root / "Foil/ReleaseNotes.swift"
+        source = path.read_text()
+        start = source.index('        ReleaseNote(\n            title: "1.15.1"')
+        end = source.index('        ReleaseNote(\n            title: "1.15.0"', start)
+        entry = source[start:end].rstrip().rstrip(",")
+        source = source[:start] + source[end:]
+        source = source.replace(
+            "    static let recent: [ReleaseNote] = [\n",
+            f"    static let misplaced: [ReleaseNote] = [\n{entry}\n    ]\n"
+            "    static let recent: [ReleaseNote] = [\n",
+        )
+        path.write_text(source)
+        self.assertTrue(any("1.15.1" in error for error in check(self.root, None)))
+
     def test_xcode_build_version_must_match(self):
         path = self.root / "Foil.xcodeproj/project.pbxproj"
         path.write_text(path.read_text().replace(f"MARKETING_VERSION = {self.current_version};", "MARKETING_VERSION = 0.0.0;"))

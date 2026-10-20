@@ -87,9 +87,17 @@ def check(root: Path, expected_version: str | None) -> list[str]:
     if len(expected_versions) != len(set(expected_versions)):
         errors.append("CHANGELOG.md has duplicate release versions")
 
-    notes = list(SWIFT_ENTRY.finditer(swift))
-    if len(notes) != len(re.findall(r"\bReleaseNote\(", swift)):
-        errors.append("Could not parse every ReleaseNote in Foil/ReleaseNotes.swift")
+    recent = list(re.finditer(
+        r"^    static let recent: \[ReleaseNote\] = \[[ \t]*\n(?P<body>.*?)^    \][ \t]*$",
+        swift,
+        re.M | re.S,
+    ))
+    if len(recent) != 1:
+        return ["Could not locate the rendered ReleaseNotes.recent list in Foil/ReleaseNotes.swift"]
+    recent_swift = recent[0]["body"]
+    notes = list(SWIFT_ENTRY.finditer(recent_swift))
+    if len(notes) != len(re.findall(r"\bReleaseNote\(", recent_swift)):
+        errors.append("Could not parse every ReleaseNote in ReleaseNotes.recent")
     actual_versions = [note["version"] for note in notes]
     if actual_versions != expected_versions:
         errors.append(
