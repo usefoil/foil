@@ -22,3 +22,4 @@ out. For small docs or config edits, one strong failure mode is enough.
 - [ ] I inspected the diff for unrelated churn.
 - [ ] I recorded skipped checks with the reason, risk, and follow-up.
 - [ ] If I changed repo-level agent guidance, I inspected `AGENTS.md`.
+- [ ] If this prepares a release, a person reviewed the new What's New entry for clear user-facing wording and checked its version, date, and claims against the changelog; I recorded that review above.

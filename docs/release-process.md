@@ -30,7 +30,8 @@ verified against the signed DMG.
 
 3. Add a short, user-facing entry for the new version at the top of `ReleaseNotes.recent` in `Foil/ReleaseNotes.swift`. Include every release, including patch releases that only fix a user-visible bug.
 4. Run `python3 scripts/check-release-notes.py` and review `CHANGELOG.md`, `Foil/ReleaseNotes.swift`, `package.json`, `package-lock.json`, and `Foil.xcodeproj/project.pbxproj`. CI checks that the bundled list covers every changelog release since 1.13.5, with matching dates and current version. The Release workflow repeats the check before it publishes a GitHub release.
-5. Open a PR and merge it through the queue after CI is green.
+5. Open a release PR. Have the release owner or another human reviewer read the new What's New entry as an app user: say what changed and why it helps, avoid implementation jargon, and check that the version, date, and claims agree with the changelog. Record the review in the PR's acceptance evidence. The automated check covers presence and metadata, not whether the wording is understandable.
+6. Merge the PR through the queue after CI is green and the wording review is recorded.
 
 ## Tag the Merged Commit
 
