@@ -22,10 +22,58 @@ SWIFT_ENTRY = re.compile(
 SWIFT_HIGHLIGHT = re.compile(r'^\s*"(?:[^"\\]|\\.)+"\s*,?\s*$', re.M)
 
 
+def without_swift_comments(source: str) -> str:
+    """Remove line and nested block comments while leaving string contents intact."""
+    result: list[str] = []
+    index = 0
+    block_depth = 0
+    in_line_comment = False
+    in_string = False
+    while index < len(source):
+        character = source[index]
+        pair = source[index : index + 2]
+        if in_line_comment:
+            if character == "\n":
+                in_line_comment = False
+            result.append("\n" if character == "\n" else " ")
+        elif block_depth:
+            if pair == "/*":
+                block_depth += 1
+                result.extend("  ")
+                index += 1
+            elif pair == "*/":
+                block_depth -= 1
+                result.extend("  ")
+                index += 1
+            else:
+                result.append("\n" if character == "\n" else " ")
+        elif in_string:
+            result.append(character)
+            if character == "\\" and index + 1 < len(source):
+                index += 1
+                result.append(source[index])
+            elif character == '"':
+                in_string = False
+        elif pair == "//":
+            in_line_comment = True
+            result.extend("  ")
+            index += 1
+        elif pair == "/*":
+            block_depth = 1
+            result.extend("  ")
+            index += 1
+        else:
+            result.append(character)
+            if character == '"':
+                in_string = True
+        index += 1
+    return "".join(result)
+
+
 def check(root: Path, expected_version: str | None) -> list[str]:
     errors: list[str] = []
     changelog = (root / "CHANGELOG.md").read_text()
-    swift = (root / "Foil/ReleaseNotes.swift").read_text()
+    swift = without_swift_comments((root / "Foil/ReleaseNotes.swift").read_text())
     project = (root / "project.yml").read_text()
     xcode_project = (root / "Foil.xcodeproj/project.pbxproj").read_text()
     package_version = json.loads((root / "package.json").read_text())["version"]

@@ -69,7 +69,9 @@ jobs:
           fetch-depth: 0
 
       - name: Validate bundled release notes
-        run: python3 scripts/check-release-notes.py
+        run: |
+          python3 scripts/check-release-notes.py
+          python3 -m unittest discover -s tests -p test_release_notes_check.py
 
       - name: Detect app-impacting changes
         id: detect
