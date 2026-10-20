@@ -67,6 +67,30 @@ final class FoilUITests: XCTestCase {
         DistributedNotificationCenter.default().removeObserver(self)
     }
 
+    func testCodexCleanupExampleAndCancellation() {
+        launchApp(arguments: ["--ui-testing", "--reset-defaults", "--mock-codex-cleanup"])
+        openAppShellSettings(navID: "appShell.nav.settings.agentAccess")
+        button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
+        XCTAssertTrue(elementExists(id: "codexCleanup.disclosure", timeout: 3), app.debugDescription)
+        let run = button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex")
+        XCTAssertFalse(run.isEnabled)
+        button(id: "codexCleanup.example", fallbackLabel: "Load example").click()
+        XCTAssertTrue(run.isEnabled)
+        run.click()
+        let copy = button(id: "codexCleanup.copy", fallbackLabel: "Copy result")
+        let completed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: copy)
+        XCTAssertEqual(XCTWaiter.wait(for: [completed], timeout: 8), .completed, app.debugDescription)
+        XCTAssertTrue(app.staticTexts["We put the Supabase credentials in the Vercel environment."].exists, app.debugDescription)
+        run.click()
+        button(id: "codexCleanup.cancel", fallbackLabel: "Cancel").click()
+        XCTAssertTrue(run.waitForExistence(timeout: 3))
+        XCTAssertFalse(copy.isEnabled, "Cancelled work must not expose a prior or late result")
+        button(id: "codexCleanup.done", fallbackLabel: "Done").click()
+        button(id: "settings.agentAccess.tryCleanup", fallbackLabel: "Try transcript cleanup").click()
+        XCTAssertFalse(button(id: "codexCleanup.copy", fallbackLabel: "Copy result").isEnabled)
+        XCTAssertFalse(button(id: "codexCleanup.run", fallbackLabel: "Clean up with Codex").isEnabled)
+    }
+
     func testControlCenterShowsSeededReadyState() {
         let state = waitForUITestStateSnapshot { $0.sessionTitle == "Ready" }
         XCTAssertEqual(state?.statusText, "Ready")
