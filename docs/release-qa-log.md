@@ -29,11 +29,18 @@ from 1.13.5 through 1.15.1, and future release prep will reject missing notes.
 | A release constructor exists elsewhere in Swift, so a source scan passes while the dashboard omits it. | `ReleaseNotes.recent` is the list rendered by `SettingsView`; the checker now scopes to that list. A regression moves 1.15.1 into another valid array and verifies rejection. Seven checker tests pass. An actual Swift runtime evaluation matched all 15 changelog versions in order. | PASS: SOURCE AND RUNTIME |
 | The patch's version or build metadata differs from the visible note. | `python3 scripts/check-release-notes.py --expected-version 1.15.1`, `make build-warnings-as-errors`, and inspection of the built Debug app's Info.plist and lead note confirm version 1.15.1, build 54, and the new note. | PASS: LOCAL BUILD |
 | The new Release gate blocks a fresh manual rebuild of an older tag that lacks the checker. | `v1.15.0` has no `scripts/check-release-notes.py`; the workflow explicitly permits tags before 1.15.1 through the legacy branch and fails if a 1.15.1-or-newer tag lacks the checker. | PASS: WORKFLOW CONTRACT |
-| A compiled note is present but What's New does not render it in the app. | Local focused XCUITest built, but this Mac's UI runner timed out while enabling automation mode. Hosted CI and signed release QA remain to be recorded. | PENDING: HOSTED UI / RELEASE QA |
+| A compiled note is present but What's New does not render it in the app. | Local focused XCUITest built, but this Mac's UI runner timed out while enabling automation mode. [PR CI 39454266194](https://github.com/usefoil/foil/actions/runs/39454266194), hosted `balanced-a`, executed `testSettingsWhatsNewShowsCurrentVersionAndUpdateControl` with eight tests and zero failures. | PASS: HOSTED UI |
+| A fast exiting local server loses its sanitized startup detail. | [First merge-queue CI 39456107471](https://github.com/usefoil/foil/actions/runs/39456107471) failed `testLocalWhisperServerEarlyExitReturnsBoundedSanitizedStartupDetail`: the process exited 7, but readiness returned `processExited(nil)`. The stderr reader could miss output written just before exit. The repair drains available stderr under the buffer lock on exit while continuing to discard output after readiness. The exact early-exit test passed 20 local iterations before the final post-readiness adjustment; the warning-clean build passed after it. Final hosted unit and queue checks are pending; the failed run is not counted as a pass. | PENDING: REPAIRED HOSTED CI |
+| The signed candidate lacks the new note or trust metadata. | [Notarized QA 39454308973](https://github.com/usefoil/foil/actions/runs/39454308973) checked out exact pre-repair commit `634306e`, and its untouched DMG sidecar, stapler, DMG/app Gatekeeper, and deep strict codesign passed. The mounted app contained the 1.15.1 note and Sparkle key. The QA workflow used its run ID as build number. A new signed QA build is needed for the repaired source. | PASS: INTERMEDIATE ARTIFACT; FINAL PENDING |
 
 This candidate is not published. Record the exact merged commit, protected CI,
 tag, notarized DMG and checksum, appcast, Homebrew cask, and installed-app QA
 here before treating 1.15.1 as the public release.
+
+Local `make test` and the follow-up focused two-case repetition stalled in this
+Mac's Xcode test runner before an XCTest result was emitted, so they were stopped.
+They are not counted as passes; the repaired hosted unit suite must close that
+gap.
 
 ## Test Command Policy
 
