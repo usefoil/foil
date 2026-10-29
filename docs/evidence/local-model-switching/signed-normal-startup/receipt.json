@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "scenario": "signed-normal-startup-smoke",
+  "status": "partial-microphone-transcript-pending",
+  "sourceCommit": "715a652",
+  "bundleIdentifier": "com.neonwatty.Foil.Dev",
+  "signingIdentity": "Foil Local Code Signing",
+  "deepStrictSignatureVerified": true,
+  "designatedRequirementMatchesInstalledApp": true,
+  "appPath": "/tmp/foil-model-switch-signed/Build/Products/Debug/Foil Dev.app",
+  "isolatedStateRoot": "/tmp/foil-model-switch-normal-startup-20261029",
+  "uiTesting": false,
+  "seededModelOrTranscript": false,
+  "productionPermissionsRetained": true,
+  "productionInstallerRetained": true,
+  "productionAutomaticRestorationRetained": true,
+  "accessibilityObserved": "granted",
+  "microphoneObserved": "granted",
+  "initialAppPID": 80187,
+  "baseServerPID": 80261,
+  "baseHealthReadyMilliseconds": 216,
+  "switch": {
+    "from": "base.en",
+    "to": "tiny.en",
+    "serverPID": 80632,
+    "healthReadyMilliseconds": 214,
+    "oldServerExited": true
+  },
+  "normalQuit": {
+    "appExited": true,
+    "ownedServerExited": true
+  },
+  "relaunch": {
+    "appPID": 80721,
+    "serverPID": 80722,
+    "selectedID": "tiny.en",
+    "activeID": "tiny.en",
+    "healthReadyMilliseconds": 109,
+    "restoreButtonClicked": false,
+    "ownedConnectionValidation": "passed"
+  },
+  "microphoneCapture": {
+    "input": "MacBook Air Microphone",
+    "output": "MacBook Air Speakers",
+    "conversionErrors": 0,
+    "controlledTranscriptVerified": false,
+    "speakerMuted": true,
+    "reason": "Speaker playback could not reach microphone while output was muted; awaiting user speech or permission to temporarily unmute."
+  }
+}

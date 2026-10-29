@@ -103,3 +103,35 @@ artifacts rather than presented as unobstructed visual proof. The protected
 SecurityAgent UI cannot be dismissed through the available computer-use tool;
 no credentials were entered or keychain permissions changed. Controls and live
 switch/restore actions passed automated GUI checks separately.
+
+## Normally signed app: switching and automatic startup
+
+Follow-up smoke used a fresh FoilDev build signed with `Foil Local Code Signing`,
+the same certificate and exact designated requirement as the installed
+`/Applications/Foil Dev.app`. Deep/strict signature verification succeeded.
+Launch used only `--managed-local-gui-acceptance` plus its isolated storage root;
+there was no `--ui-testing`, no seed flags, no direct installer invocation, and
+no suppression of normal startup restoration or permission checks.
+
+Through visible UI, Base English was downloaded and activated, then Tiny English
+was downloaded and selected. The previous Base child exited normally after the
+switch. Normal Cmd-Q stopped both the app and its owned Tiny child. Relaunch with
+the same storage root created a different app PID and helper PID, restored
+`tiny.en` automatically, and passed owned-session health in 109 ms. No Restore
+button or model-selection action was used on relaunch. Home and Settings both
+reported Selected/Active Tiny English, and Test connection independently reported
+“Owned local session ready.” See `signed-normal-startup/receipt.json`, signing
+output, and startup traces for exact identities and timing.
+
+This closes the automatic-restoration gap in the earlier UI-testing proof. It is
+local certificate signing evidence, not notarized distribution-build evidence.
+
+**Remaining microphone check:** real Accessibility and Microphone permission
+were observed granted; normal microphone capture produced buffers with zero
+conversion errors and used the real local provider (`mock=false`). The built-in
+speakers were muted (`kAudioDevicePropertyMute == 1`), so system-synthesized speech
+could not reach the microphone; the app correctly returned no recognizable
+speech. No controlled spoken transcript was observed. The full smoke remains
+partial until the user supplies the phrase or approves temporarily unmuting the
+speakers and restoring mute afterward. No global audio settings, TCC records,
+keychain access rules, or production model/history storage were changed.
