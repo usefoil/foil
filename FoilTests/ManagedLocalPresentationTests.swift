@@ -2,6 +2,17 @@ import XCTest
 @testable import Foil
 
 final class ManagedLocalPresentationTests: XCTestCase {
+    func testLargerModelSizesAndLanguageGuidance() throws {
+        let catalog = try ManagedLocalModelCatalog.bundled()
+        XCTAssertEqual(ManagedLocalPresentation.name(for: "tiny.en"), "Tiny English")
+        XCTAssertEqual(ManagedLocalPresentation.name(for: "small"), "Small Multilingual")
+        XCTAssertEqual(ManagedLocalPresentation.name(for: "medium.en"), "Medium English")
+        XCTAssertEqual(ManagedLocalPresentation.name(for: "large-v3-turbo"), "Large V3 Turbo")
+        XCTAssertEqual(ManagedLocalPresentation.downloadSize(for: try catalog.model("large-v3")), "3095 MB")
+        XCTAssertTrue(ManagedLocalPresentation.guidance(for: "small.en").contains("English only"))
+        XCTAssertTrue(ManagedLocalPresentation.guidance(for: "large-v3").contains("highest memory"))
+    }
+
     func testCatalogPresentationUsesPinnedSizesAndSeparatesTemporarySpace() throws {
         let catalog = try ManagedLocalModelCatalog.bundled()
         let english = try catalog.model("base.en")

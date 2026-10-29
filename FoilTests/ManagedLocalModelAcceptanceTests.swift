@@ -4,6 +4,53 @@ import XCTest
 
 @MainActor
 final class ManagedLocalModelAcceptanceTests: XCTestCase {
+    func testLiveTinyToBaseSwitchTranscribesAndReusesInstalledModelsOffline() async throws {
+        guard ProcessInfo.processInfo.environment["FOIL_RUN_MODEL_SWITCH_ACCEPTANCE"] == "1" else {
+            throw XCTSkip("Opt in with TEST_RUNNER_FOIL_RUN_MODEL_SWITCH_ACCEPTANCE=1 for real Tiny/Base downloads and transcription")
+        }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("foil-size-switch-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let runtime = ManagedLocalRuntime()
+        defer { runtime.stop() }
+        let store = try ManagedLocalModelStore(root: root)
+        let coordinator = ManagedLocalModelCoordinator(runtime: runtime, store: store)
+        try await coordinator.installAndSelect("tiny.en")
+        XCTAssertEqual(coordinator.activeID, "tiny.en")
+        let tinyText = try await transcript(session: XCTUnwrap(runtime.session), root: root)
+        weak var original = runtime.session
+        let originalPID = try listenerPID(port: XCTUnwrap(original).port)
+        let originalSessionID = try XCTUnwrap(original).id
+        try await coordinator.installAndSelect("base.en")
+        XCTAssertEqual(coordinator.activeID, "base.en")
+        XCTAssertEqual(coordinator.selectedID, "base.en")
+        XCTAssertNotEqual(runtime.session?.id, originalSessionID)
+        XCTAssertNil(original, "Switching should release the old session when no transcription retains it")
+        let deadline = Date().addingTimeInterval(5)
+        while kill(originalPID, 0) == 0, Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+        XCTAssertEqual(kill(originalPID, 0), -1, "The previous server must exit after switching")
+        let baseText = try await transcript(session: XCTUnwrap(runtime.session), root: root)
+        for text in [tinyText, baseText] { XCTAssertTrue(text.lowercased().contains("quick brown fox"), text) }
+        runtime.stop()
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [OfflineModelNetworkTrap.self]
+        OfflineModelNetworkTrap.requests = 0
+        let offline = ManagedLocalModelCoordinator(runtime: runtime,
+            store: try ManagedLocalModelStore(root: root, configuration: configuration))
+        try await offline.restore()
+        XCTAssertEqual(offline.activeID, "base.en")
+        try await offline.installAndSelect("tiny.en")
+        XCTAssertEqual(offline.activeID, "tiny.en")
+        XCTAssertEqual(offline.selectedID, "tiny.en")
+        XCTAssertEqual(OfflineModelNetworkTrap.requests, 0)
+        let offlineText = try await transcript(session: XCTUnwrap(runtime.session), root: root)
+        XCTAssertTrue(offlineText.lowercased().contains("quick brown fox"), offlineText)
+        let attachment = XCTAttachment(string: "Tiny: \(tinyText)\nBase after switch: \(baseText)\nTiny offline: \(offlineText)\nOld PID exited: \(originalPID)\nModel download requests during offline reuse: \(OfflineModelNetworkTrap.requests)")
+        attachment.name = "live-model-size-switch-evidence"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testProductionInstallSwitchAndOfflineReconstruction() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let scenario = environment["FOIL_MODELS_SCENARIO"],

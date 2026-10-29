@@ -78,7 +78,10 @@ endpoint. Unassigned apps stay fast and direct with raw transcripts by default.
 - **On this Mac — managed** downloads only the model you choose, verifies its
   pinned size and SHA-256, and runs Foil's bundled runtime on the loopback-only
   `transcribe.foil.localhost` service. Installed models remain selectable and
-  work after relaunch without internet access.
+  work after relaunch without internet access. Use **Model size** in Settings
+  to choose Tiny, Base, Small, Medium, Large V3 Turbo, or Large V3, then
+  **Install and use** to download and switch after its server is healthy.
+  See [installing and switching local models](docs/local-model-switching.md).
 - **External local server — advanced** uses an OpenAI-compatible server that you
   install and manage, defaulting to `http://127.0.0.1:8080/v1`. Settings keeps
   the copyable whisper.cpp build, FFmpeg install, model-download, and launch

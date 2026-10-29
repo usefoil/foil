@@ -65,6 +65,91 @@ final class ManagedLocalSetupUITests: XCTestCase {
         attachScreenshot(name: "managed-local-settings-english")
     }
 
+    func testSettingsModelChoiceUpdatesInstallActionWithoutDownloading() {
+        launchSettings()
+        chooseModel("Tiny English")
+        XCTAssertTrue(text(app.buttons["managedLocal.installRecommended"]).contains("Install and use Tiny English"))
+        XCTAssertTrue(text(app.staticTexts["managedLocal.modelSizes"]).contains("78 MB"))
+        XCTAssertFalse(app.progressIndicators["managedLocal.downloadProgress"].exists)
+        chooseModel("Large V3")
+        XCTAssertTrue(text(app.buttons["managedLocal.installRecommended"]).contains("Install and use Large V3"))
+        XCTAssertTrue(text(app.staticTexts["managedLocal.modelSizes"]).contains("3095 MB"))
+        XCTAssertTrue(text(app.staticTexts["managedLocal.modelGuidance"]).contains("highest memory"))
+        XCTAssertFalse(app.progressIndicators["managedLocal.downloadProgress"].exists)
+        attachScreenshot(name: "managed-local-settings-model-sizes")
+    }
+
+    func testMultilingualSettingsOnlyOffersMultilingualModels() {
+        launchSettings(language: "--seed-managed-language-multilingual")
+        let picker = app.popUpButtons["managedLocal.modelPicker"]
+        picker.click()
+        XCTAssertFalse(app.menuItems["Tiny English"].exists)
+        XCTAssertFalse(app.menuItems["Medium English"].exists)
+        XCTAssertTrue(app.menuItems["Tiny Multilingual"].exists)
+        app.menuItems["Tiny Multilingual"].click()
+        XCTAssertTrue(text(app.buttons["managedLocal.installRecommended"]).contains("Tiny Multilingual"))
+        XCTAssertFalse(app.progressIndicators["managedLocal.downloadProgress"].exists)
+    }
+
+    func testLiveSettingsInstallSwitchAndRestore() throws {
+        guard ProcessInfo.processInfo.environment["FOIL_RUN_MODEL_SWITCH_ACCEPTANCE"] == "1" else {
+            throw XCTSkip("Opt in with TEST_RUNNER_FOIL_RUN_MODEL_SWITCH_ACCEPTANCE=1; downloads Tiny English and Base English")
+        }
+        let sessionID = "model-switch-\(UUID().uuidString)"
+        launchSettings(sessionID: sessionID)
+        chooseModel("Tiny English")
+        app.buttons["managedLocal.installRecommended"].click()
+        XCTAssertTrue(waitForText("Active: Tiny English", in: app.staticTexts["managedLocal.statusDetail"], timeout: 180), app.debugDescription)
+        XCTAssertFalse(app.buttons["managedLocal.installRecommended"].isEnabled)
+        attachScreenshot(name: "live-tiny-installed-ready")
+
+        chooseModel("Base English")
+        app.buttons["managedLocal.installRecommended"].click()
+        XCTAssertTrue(waitForText("Active: Base English", in: app.staticTexts["managedLocal.statusDetail"], timeout: 180), app.debugDescription)
+        attachScreenshot(name: "live-base-switched-ready")
+
+        chooseModel("Tiny English")
+        XCTAssertTrue(text(app.buttons["managedLocal.installRecommended"]).contains("Use Tiny English"))
+        app.buttons["managedLocal.installRecommended"].click()
+        XCTAssertTrue(waitForText("Selected: Tiny English · Active: Tiny English", in: app.staticTexts["managedLocal.statusDetail"], timeout: 40), app.debugDescription)
+        app.terminate()
+        launchSettings(sessionID: sessionID, reset: false)
+        // UI testing suppresses automatic startup restoration. Reenter managed
+        // mode to reconstruct the saved inventory, then exercise explicit Restore.
+        let mode = app.popUpButtons["settings.transcriptionProviderPicker"]
+        mode.click()
+        app.menuItems["Groq"].click()
+        mode.click()
+        app.menuItems["On this Mac — managed"].click()
+        let restore = app.buttons["managedLocal.restore"]
+        XCTAssertTrue(restore.waitForExistence(timeout: 5), app.debugDescription)
+        restore.click()
+        XCTAssertTrue(waitForText("Selected: Tiny English · Active: Tiny English", in: app.staticTexts["managedLocal.statusDetail"], timeout: 40), app.debugDescription)
+        XCTAssertTrue(text(app.popUpButtons["managedLocal.modelPicker"]).contains("Tiny English"))
+        attachScreenshot(name: "live-tiny-restored-after-relaunch")
+    }
+
+    private func launchSettings(language: String = "--seed-managed-language-english",
+                                sessionID: String = UUID().uuidString, reset: Bool = true) {
+        app = XCUIApplication()
+        app.launchArguments = ["--ui-testing", "--seed-setup-ready", "--seed-managed-local",
+                               language, "--show-app-shell"]
+        if reset { app.launchArguments.append("--reset-defaults") }
+        app.launchEnvironment["FOIL_UITEST_SESSION_ID"] = sessionID
+        app.launch()
+        let tab = app.descendants(matching: .any)["appShell.nav.settings.transcription"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 6), app.debugDescription)
+        tab.click()
+        XCTAssertTrue(app.popUpButtons["managedLocal.modelPicker"].waitForExistence(timeout: 5), app.debugDescription)
+    }
+
+    private func chooseModel(_ name: String) {
+        let picker = app.popUpButtons["managedLocal.modelPicker"]
+        XCTAssertTrue(picker.isEnabled)
+        picker.click()
+        app.menuItems[name].click()
+    }
+
     func testDownloadingFixtureCancelsThroughProductionBindingAndExposesRetry() {
         app = XCUIApplication()
         app.launchArguments = [
@@ -133,7 +218,9 @@ final class ManagedLocalSetupUITests: XCTestCase {
     }
 
     private func attachScreenshot(name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        let onboarding = app.windows["Welcome to Foil"]
+        let window = onboarding.exists ? onboarding : app.windows["Foil"]
+        let attachment = XCTAttachment(screenshot: window.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)

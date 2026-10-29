@@ -3,6 +3,45 @@ import XCTest
 
 @MainActor
 final class ManagedLocalModelCoordinatorTests: XCTestCase {
+    func testFailedStartupAndCancelledSwitchPreserveDurableAndActiveModel() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let tiny = try ManagedLocalModelCatalog.bundled().model("tiny.en")
+        let invalid = ManagedLocalModelCatalog.Model(id: "invalid-fixture", filename: "invalid.bin", bytes: 3,
+            sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+        let store = try ManagedLocalModelStore(root: root, catalog: .init(models: [tiny, invalid]))
+        let source = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "ggml-tiny.en", withExtension: "bin"))
+        try FileManager.default.copyItem(at: source, to: store.installationURL(tiny))
+        try Data("abc".utf8).write(to: store.installationURL(invalid))
+        let runtime = ManagedLocalRuntime()
+        defer { runtime.stop() }
+        let coordinator = ManagedLocalModelCoordinator(runtime: runtime, store: store)
+        try await coordinator.installAndSelect("tiny.en")
+        let original = try XCTUnwrap(runtime.session)
+        do { try await coordinator.installAndSelect(invalid.id); XCTFail("Invalid Whisper model became active") }
+        catch { XCTAssertEqual(error as? ManagedLocalError, .startupFailed) }
+        XCTAssertEqual(coordinator.activeID, "tiny.en")
+        XCTAssertEqual(coordinator.selectedID, "tiny.en")
+        XCTAssertEqual(runtime.session?.id, original.id)
+        let beforeCancellation = try Data(contentsOf: root.appendingPathComponent("inventory.json"))
+        let switching = Task { try await coordinator.installAndSelect("tiny.en") }
+        let deadline = Date().addingTimeInterval(10)
+        while coordinator.state != .starting("tiny.en"), Date() < deadline {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTAssertEqual(coordinator.state, .starting("tiny.en"))
+        coordinator.cancel()
+        do { try await switching.value; XCTFail("Cancelled switch succeeded") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertEqual(coordinator.state, .cancelled)
+        XCTAssertEqual(runtime.session?.id, original.id)
+        XCTAssertEqual(coordinator.selectedID, "tiny.en")
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("inventory.json")), beforeCancellation)
+        let healthy = try await original.health()
+        XCTAssertTrue(healthy)
+    }
+
     func testMissingOfflineSelectionFailsWithoutChangingDurableChoice() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

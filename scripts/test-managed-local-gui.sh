@@ -127,7 +127,7 @@ def validated_model(value, context):
     require(isinstance(value, dict), f"{context} must be an object")
     exact_keys(value, ["id", "catalogBytes", "catalogSHA256", "downloadedBytes",
                        "installedBytes", "catalogVerified"], context)
-    require(value["id"] in ["base.en", "base"], f"{context}.id must be a managed catalog ID")
+    require(value["id"] in load_catalog(), f"{context}.id must be a managed catalog ID")
     require(type(value["catalogBytes"]) is int and value["catalogBytes"] > 0,
             f"{context}.catalogBytes must be a positive integer")
     require(isinstance(value["catalogSHA256"], str)
@@ -228,8 +228,8 @@ def clean(value):
     switch = value["switch"]
     require(isinstance(switch, dict), "switch must be an object")
     exact_keys(switch, ["fromModelID", "toModelID", "activeModelID", "succeeded"], "switch")
-    require(switch["fromModelID"] in ["base.en", "base"]
-            and switch["toModelID"] in ["base.en", "base"]
+    require(switch["fromModelID"] in load_catalog()
+            and switch["toModelID"] in load_catalog()
             and switch["fromModelID"] != switch["toModelID"],
             "switch must name two different managed catalog models")
     require(switch["fromModelID"] == model["id"]
