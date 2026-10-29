@@ -1,8 +1,6 @@
 name: E2E Groq API Tests
 
 on:
-  merge_group:
-    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '0 6 * * 1'  # Weekly on Monday at 6am UTC

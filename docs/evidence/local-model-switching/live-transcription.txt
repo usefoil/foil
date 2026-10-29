@@ -1,0 +1,5 @@
+Tiny: the quick brown fox jumps over the lazy dog.
+Base after switch: the quick brown fox jumps over the lazy dog.
+Tiny offline: the quick brown fox jumps over the lazy dog.
+Old PID exited: 74343
+Model download requests during offline reuse: 0

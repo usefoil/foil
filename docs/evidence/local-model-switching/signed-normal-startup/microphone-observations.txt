@@ -1,0 +1,24 @@
+Manual CUA observation, 2026-10-29, normal certificate-signed Foil Dev.
+No --ui-testing, model/transcript seeds, or direct installer calls.
+
+1. Launch 82753 automatically restored Tiny English using helper 82754.
+   Production onboarding practice recorded MacBook Air Microphone while
+   /usr/bin/say -r 155 played the controlled fox phrase through the speakers.
+   CUA AX onboarding.practiceTranscript showed:
+   The quick brown fox jumps over the lazy dog.
+   The UI also showed Transcription worked.
+2. Visible Settings picker/Use switched to installed Base English, helper 82882.
+   Tiny helper 82754 exited status 0. The same production practice recording
+   and speaker phrase showed the identical transcript and Transcription worked.
+3. Cmd-Q ended app 82753 and helper 82882; both PIDs were verified absent.
+   Relaunch 83076 automatically started Base helper 83077 (health 109 ms).
+   Durable inventory: selectedID base.en; installed base.en, tiny.en.
+   No Restore action was used. No microphone transcript is claimed for 83076.
+4. Extra external TextEdit paste probe did not start recording through CUA.
+   The document stayed empty and was closed. This is an unverified paste check.
+5. Test app 83076 was terminated for cleanup; owned helper 83077 exited.
+   Original /Applications/Foil Dev.app was relaunched. No installed binary was
+   replaced. Existing external whisper-server 18804 was left running.
+
+Read-only CoreAudio before/after: default output device 72, scalar volume
+0.5625, mute 0. The user enabled output; the agent changed no audio settings.

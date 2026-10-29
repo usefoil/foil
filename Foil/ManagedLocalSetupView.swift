@@ -5,6 +5,7 @@ struct ManagedLocalSetupView: View {
 
     @Bindable var appState: AppState
     var context: Context = .settings
+    @State private var chosenModelID: String?
     @State private var lastRequestedID: String?
     @State private var actionError: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -50,7 +51,19 @@ struct ManagedLocalSetupView: View {
             .disabled(isBusy)
 
             if let recommendation {
-                recommendationCard(recommendation)
+                if context == .settings {
+                    Picker("Model size", selection: Binding(
+                        get: { selectedModel?.id ?? recommendation.id },
+                        set: { chosenModelID = $0 }
+                    )) {
+                        ForEach(availableModels, id: \.id) { model in
+                            Text(ManagedLocalPresentation.name(for: model.id)).tag(model.id)
+                        }
+                    }
+                    .disabled(isBusy)
+                    .accessibilityIdentifier("managedLocal.modelPicker")
+                }
+                recommendationCard(context == .settings ? (selectedModel ?? recommendation) : recommendation)
             } else {
                 Text("Choose your language needs before Foil recommends a model.")
                     .font(.caption)
@@ -80,11 +93,20 @@ struct ManagedLocalSetupView: View {
         .accessibilityIdentifier("managedLocal.setup")
     }
 
+    private var availableModels: [ManagedLocalModelCatalog.Model] {
+        catalog?.models(for: appState.managedDictationLanguage) ?? []
+    }
+
+    private var selectedModel: ManagedLocalModelCatalog.Model? {
+        let preferredID = chosenModelID ?? coordinator?.selectedID
+        return availableModels.first { $0.id == preferredID } ?? recommendation
+    }
+
     @ViewBuilder
     private func recommendationCard(_ model: ManagedLocalModelCatalog.Model) -> some View {
         let installed = coordinator?.installed.contains { $0.id == model.id } == true
         VStack(alignment: .leading, spacing: 6) {
-            Text("Recommended: \(ManagedLocalPresentation.name(for: model.id))")
+            Text("\(model.id == recommendation?.id ? "Recommended: " : "")\(ManagedLocalPresentation.name(for: model.id))")
                 .font(.callout.weight(.semibold))
                 .accessibilityIdentifier("managedLocal.recommendation")
             Text("Download and installed size: \(ManagedLocalPresentation.downloadSize(for: model)). During installation Foil also needs \(ManagedLocalPresentation.temporarySpace(for: model)) temporary space (\(ManagedLocalPresentation.requiredSpace(for: model)) total free space).")
@@ -92,13 +114,24 @@ struct ManagedLocalSetupView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("managedLocal.modelSizes")
-            Button(installed ? "Use \(ManagedLocalPresentation.name(for: model.id))" : "Install \(ManagedLocalPresentation.name(for: model.id))") {
+            Text(ManagedLocalPresentation.guidance(for: model.id))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("managedLocal.modelGuidance")
+            Button(installed ? "Use \(ManagedLocalPresentation.name(for: model.id))" : "Install and use \(ManagedLocalPresentation.name(for: model.id))") {
                 install(model.id)
             }
             .buttonStyle(.borderedProminent)
             .tint(FoilTheme.deepTeal)
             .disabled(isBusy || coordinator?.activeID == model.id)
             .accessibilityIdentifier("managedLocal.installRecommended")
+            if context == .settings {
+                Text("Foil starts and checks the selected model’s server before switching. Your current model stays available if installation or startup fails.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(10)
         .background(FoilTheme.sidebarBackground, in: RoundedRectangle(cornerRadius: 8))
@@ -206,6 +239,7 @@ struct ManagedLocalSetupView: View {
     }
 
     private func install(_ id: String) {
+        if context == .settings { chosenModelID = id }
         lastRequestedID = id
         actionError = nil
         Task { @MainActor in

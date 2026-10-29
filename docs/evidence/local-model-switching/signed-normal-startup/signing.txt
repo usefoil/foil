@@ -1,0 +1,11 @@
+Executable=/private/tmp/foil-model-switch-signed/Build/Products/Debug/Foil Dev.app/Contents/MacOS/Foil Dev
+Identifier=com.neonwatty.Foil.Dev
+Format=app bundle with Mach-O thin (arm64)
+CodeDirectory v=20400 size=431 flags=0x0(none) hashes=3+7 location=embedded
+Signature size=1708
+Authority=Foil Local Code Signing
+Signed Time=Oct 29, 2026 at 3:21:02 PM
+Info.plist entries=26
+TeamIdentifier=not set
+Sealed Resources version=2 rules=13 files=10
+Internal requirements count=1 size=100

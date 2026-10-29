@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "scenario": "signed-normal-startup-smoke",
+  "status": "passed",
+  "sourceCommit": "715a652533d00513ff8041c58281a94877d12da8",
+  "bundleIdentifier": "com.neonwatty.Foil.Dev",
+  "signingIdentity": "Foil Local Code Signing",
+  "deepStrictSignatureVerified": true,
+  "designatedRequirementMatchesInstalledApp": true,
+  "appPath": "/tmp/foil-model-switch-signed/Build/Products/Debug/Foil Dev.app",
+  "isolatedStateRoot": "/tmp/foil-model-switch-normal-startup-20261029",
+  "uiTesting": false,
+  "seededModelOrTranscript": false,
+  "productionPermissionsRetained": true,
+  "productionInstallerRetained": true,
+  "productionAutomaticRestorationRetained": true,
+  "accessibilityObserved": "granted",
+  "microphoneObserved": "granted",
+  "initialAppPID": 80187,
+  "baseServerPID": 80261,
+  "baseHealthReadyMilliseconds": 216,
+  "switch": {
+    "from": "base.en",
+    "to": "tiny.en",
+    "serverPID": 80632,
+    "healthReadyMilliseconds": 214,
+    "oldServerExited": true
+  },
+  "normalQuit": {
+    "appExited": true,
+    "ownedServerExited": true
+  },
+  "relaunch": {
+    "appPID": 80721,
+    "serverPID": 80722,
+    "selectedID": "tiny.en",
+    "activeID": "tiny.en",
+    "healthReadyMilliseconds": 109,
+    "restoreButtonClicked": false,
+    "ownedConnectionValidation": "passed"
+  },
+  "scope": "Manual signed-app model switching, automatic restoration, and controlled microphone transcription; not the scripted clean/offline GUI acceptance wrapper.",
+  "priorMutedAttempt": {
+    "input": "MacBook Air Microphone",
+    "output": "MacBook Air Speakers",
+    "conversionErrors": 0,
+    "controlledTranscriptVerified": false,
+    "speakerMuted": true,
+    "reason": "Speaker playback could not reach microphone while output was muted; awaiting user speech or permission to temporarily unmute."
+  },
+  "microphoneRetry": {
+    "userReportedSpeakersEnabled": true,
+    "observedOutputVolumeScalar": 0.5625,
+    "observedOutputMuted": false,
+    "agentChangedGlobalAudioState": false,
+    "phrase": "The quick brown fox jumps over the lazy dog.",
+    "normalMicrophonePath": true,
+    "transcriptSeeded": false,
+    "mock": false,
+    "transcriptObservation": "CUA accessibility tree, onboarding.practiceTranscript in normal production practice UI",
+    "tinyAfterAutomaticRestore": {
+      "appPID": 82753,
+      "serverPID": 82754,
+      "healthReadyMilliseconds": 109,
+      "restoreButtonClicked": false,
+      "capturedBuffers": 80,
+      "capturedFrames": 128000,
+      "conversionErrors": 0,
+      "transcript": "The quick brown fox jumps over the lazy dog.",
+      "cleanupFailed": false
+    },
+    "switchToBase": {
+      "from": "tiny.en",
+      "to": "base.en",
+      "serverPID": 82882,
+      "healthReadyMilliseconds": 677,
+      "oldServerExited": true,
+      "oldServerExitStatus": 0,
+      "capturedBuffers": 96,
+      "capturedFrames": 153600,
+      "conversionErrors": 0,
+      "transcript": "The quick brown fox jumps over the lazy dog.",
+      "cleanupFailed": false
+    },
+    "normalQuit": {
+      "method": "Cmd-Q",
+      "appPID": 82753,
+      "serverPID": 82882,
+      "appExited": true,
+      "ownedServerExited": true
+    },
+    "baseRelaunch": {
+      "appPID": 83076,
+      "serverPID": 83077,
+      "selectedID": "base.en",
+      "healthReadyMilliseconds": 109,
+      "restoreButtonClicked": false,
+      "hotkeyMonitorStarted": true,
+      "microphoneTranscriptAfterThisRelaunchVerified": false
+    }
+  },
+  "externalPasteCheck": {
+    "status": "unverified",
+    "reason": "CUA rejects modifier-only Super_R; Super_R+a produced no recording callback and the controlled blank TextEdit document remained empty. No application paste success is claimed."
+  },
+  "cleanup": {
+    "testAppAndOwnedHelperExited": true,
+    "installedAppRestored": true,
+    "existingExternalWhisperServerPID": 18804,
+    "existingExternalWhisperServerUntouched": true,
+    "restoredInstalledAppPID": 83578
+  }
+}

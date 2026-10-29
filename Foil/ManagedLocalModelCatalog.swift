@@ -15,6 +15,10 @@ struct ManagedLocalModelCatalog: Sendable {
         }
     }
     static let revision = "5359861c739e955e79d9a303bcbc70fb988958b1"
+    static let supportedIDs = [
+        "tiny.en", "tiny", "base.en", "base", "small.en", "small",
+        "medium.en", "medium", "large-v3-turbo", "large-v3"
+    ]
     let models: [Model]
 
     static func bundled() throws -> Self {
@@ -23,7 +27,7 @@ struct ManagedLocalModelCatalog: Sendable {
             throw ManagedLocalError.modelIntegrity
         }
         let document = try JSONDecoder().decode(Document.self, from: Data(contentsOf: url))
-        guard document.revision == revision, document.models.map(\.id) == ["base.en", "base"],
+        guard document.revision == revision, document.models.map(\.id) == Self.supportedIDs,
               document.models.allSatisfy({ model in
                   model.filename == "ggml-\(model.id).bin" && model.bytes > 0
                       && model.sha256.count == 64
@@ -37,6 +41,14 @@ struct ManagedLocalModelCatalog: Sendable {
         case .unanswered: nil
         case .englishOnly: try? model("base.en")
         case .multilingual: try? model("base")
+        }
+    }
+
+    func models(for language: ManagedDictationLanguage) -> [Model] {
+        switch language {
+        case .unanswered: []
+        case .englishOnly: models
+        case .multilingual: models.filter { !$0.id.hasSuffix(".en") }
         }
     }
 

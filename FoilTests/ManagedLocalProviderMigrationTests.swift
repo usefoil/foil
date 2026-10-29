@@ -176,7 +176,7 @@ final class ManagedLocalProviderMigrationTests: XCTestCase {
         guard case .succeeded(let message) = state.providerConnectionTestState else {
             return XCTFail("Owned managed session must validate despite preserved invalid external URL: \(state.providerConnectionTestState)")
         }
-        XCTAssertTrue(message.contains("tiny.en"), message)
+        XCTAssertTrue(message.contains("Tiny English"), message)
         XCTAssertFalse(message.contains("whisper-1"), message)
         XCTAssertFalse(message.contains("token"), message)
         XCTAssertEqual(transport.calls, 0)

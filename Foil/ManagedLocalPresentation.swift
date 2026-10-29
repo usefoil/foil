@@ -14,10 +14,32 @@ enum ManagedLocalPresentation {
 
     static func name(for id: String) -> String {
         switch id {
+        case "tiny.en": "Tiny English"
+        case "tiny": "Tiny Multilingual"
         case "base.en": "Base English"
         case "base": "Base Multilingual"
+        case "small.en": "Small English"
+        case "small": "Small Multilingual"
+        case "medium.en": "Medium English"
+        case "medium": "Medium Multilingual"
+        case "large-v3-turbo": "Large V3 Turbo"
+        case "large-v3": "Large V3"
         default: id
         }
+    }
+
+    static func guidance(for id: String) -> String {
+        let scope = id.hasSuffix(".en") ? "English only." : "Multilingual, including English."
+        let performance: String
+        switch id {
+        case "tiny", "tiny.en": performance = "Fastest and lowest memory use; lower accuracy."
+        case "base", "base.en": performance = "A balance of speed, accuracy, and memory use."
+        case "small", "small.en": performance = "Better accuracy with more memory and slower transcription."
+        case "medium", "medium.en": performance = "Higher accuracy; needs substantial memory and more startup time."
+        case "large-v3-turbo": performance = "Large-model accuracy with faster transcription than Large V3; needs substantial memory."
+        default: performance = "Highest standard Large V3 accuracy; slowest and highest memory use."
+        }
+        return "\(scope) \(performance)"
     }
 
     static func downloadSize(for model: ManagedLocalModelCatalog.Model) -> String {

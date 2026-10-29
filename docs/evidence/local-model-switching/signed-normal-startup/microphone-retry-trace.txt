@@ -1,0 +1,51 @@
+2026-10-29 15:33:45.696 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: accessibilityTrusted=true
+2026-10-29 15:33:45.700 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: microphone=authorized
+2026-10-29 15:33:45.819 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: accessibilityTrusted=true
+2026-10-29 15:33:45.819 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: microphone=authorized
+2026-10-29 15:33:45.824 Foil Dev[82753:31416531] [Foil Dev] HotkeyMonitor: start succeeded
+[ManagedLocalStartup] pid=82754 elapsed_ms=0 stage=launched
+[ManagedLocalStartup] pid=82754 elapsed_ms=6 stage=backend_begin
+[ManagedLocalStartup] pid=82754 elapsed_ms=6 stage=backend_ready
+[ManagedLocalStartup] pid=82754 elapsed_ms=7 stage=model_begin
+[ManagedLocalStartup] pid=82754 elapsed_ms=37 stage=metal_precompiled_ready
+[ManagedLocalStartup] pid=82754 elapsed_ms=101 stage=model_returned
+[ManagedLocalStartup] pid=82754 elapsed_ms=101 stage=openvino_begin
+[ManagedLocalStartup] pid=82754 elapsed_ms=101 stage=openvino_ready
+[ManagedLocalStartup] pid=82754 elapsed_ms=101 stage=bind_begin
+[ManagedLocalStartup] pid=82754 elapsed_ms=101 stage=bound
+[ManagedLocalStartup] pid=82754 elapsed_ms=102 stage=listen_ready
+[ManagedLocalStartup] pid=82754 elapsed_ms=109 stage=health_ready
+2026-10-29 15:33:51.121 Foil Dev[82753:31416531] [Foil Dev] AudioRecorder: recording route input=MacBook Air Microphone(id=79, transport=Built-in, sampleRate=48000) output=MacBook Air Speakers(id=72, transport=Built-in, sampleRate=48000)
+2026-10-29 15:33:59.256 Foil Dev[82753:31416537] [Foil Dev] audioRecorder: captured buffers=80 frames=128000 conversionErrors=0 format=m4a
+2026-10-29 15:33:59.299 Foil Dev[82753:31416531] [Foil Dev] TranscriptionController: mock=false
+[ManagedLocalStartup] pid=82754 elapsed_ms=13310 stage=metal_graph_submitted
+2026-10-29 15:33:59.441 Foil Dev[82753:31416531] [Foil Dev] AppDelegate: transcriptionController didTranscribe textLength=44 cleanupFailed=false
+[ManagedLocalStartup] pid=82882 elapsed_ms=0 stage=launched
+[ManagedLocalStartup] pid=82882 elapsed_ms=7 stage=backend_begin
+[ManagedLocalStartup] pid=82882 elapsed_ms=7 stage=backend_ready
+[ManagedLocalStartup] pid=82882 elapsed_ms=7 stage=model_begin
+[ManagedLocalStartup] pid=82882 elapsed_ms=61 stage=metal_precompiled_ready
+[ManagedLocalStartup] pid=82882 elapsed_ms=149 stage=model_returned
+[ManagedLocalStartup] pid=82882 elapsed_ms=150 stage=openvino_begin
+[ManagedLocalStartup] pid=82882 elapsed_ms=150 stage=openvino_ready
+[ManagedLocalStartup] pid=82882 elapsed_ms=150 stage=bind_begin
+[ManagedLocalStartup] pid=82882 elapsed_ms=150 stage=bound
+[ManagedLocalStartup] pid=82882 elapsed_ms=150 stage=listen_ready
+[ManagedLocalStartup] pid=82882 elapsed_ms=677 stage=health_ready
+[ManagedLocalStartup] pid=82754 elapsed_ms=48374 stage=stop
+[ManagedLocalStartup] pid=82754 elapsed_ms=48380 stage=exit status=0 reason=1
+2026-10-29 15:35:34.363 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: accessibilityTrusted=true
+2026-10-29 15:35:34.363 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: microphone=authorized
+2026-10-29 15:35:40.175 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: accessibilityTrusted=true
+2026-10-29 15:35:40.175 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: microphone=authorized
+2026-10-29 15:35:43.691 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: accessibilityTrusted=true
+2026-10-29 15:35:43.691 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: microphone=authorized
+2026-10-29 15:35:49.609 Foil Dev[82753:31416531] [Foil Dev] AudioRecorder: recording route input=MacBook Air Microphone(id=79, transport=Built-in, sampleRate=48000) output=MacBook Air Speakers(id=72, transport=Built-in, sampleRate=48000)
+2026-10-29 15:35:59.338 Foil Dev[82753:31418677] [Foil Dev] audioRecorder: captured buffers=96 frames=153600 conversionErrors=0 format=m4a
+2026-10-29 15:35:59.377 Foil Dev[82753:31416531] [Foil Dev] TranscriptionController: mock=false
+[ManagedLocalStartup] pid=82882 elapsed_ms=85699 stage=metal_graph_submitted
+2026-10-29 15:35:59.609 Foil Dev[82753:31416531] [Foil Dev] AppDelegate: transcriptionController didTranscribe textLength=44 cleanupFailed=false
+2026-10-29 15:36:05.225 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: accessibilityTrusted=true
+2026-10-29 15:36:05.226 Foil Dev[82753:31416531] [Foil Dev] SetupHealth: microphone=authorized
+2026-10-29 15:36:05.342 Foil Dev[82753:31416531] [Foil Dev] AgentAccess.lifecycle: off
+[ManagedLocalStartup] pid=82882 elapsed_ms=91621 stage=stop
