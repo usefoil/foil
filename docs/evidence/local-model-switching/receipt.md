@@ -159,3 +159,20 @@ Cleanup stopped the isolated app and its owned helper and relaunched the origina
 installed Foil Dev. The pre-existing external whisper-server remained untouched.
 No global audio settings, TCC records, keychain access rules, or production
 model/history storage were changed.
+
+## Merge-queue Groq policy
+
+The first merge-group run's live Groq tests failed because every audio format
+received HTTP 401 (`invalidApiKey`); see
+[run 40969546335](https://github.com/usefoil/foil/actions/runs/40969546335).
+The PR was removed from the queue while that failure was investigated. The user
+then explicitly requested removing Groq tests from the merge queue. Accordingly,
+`e2e.yml` retains its weekly schedule and manual dispatch and no longer subscribes
+to `merge_group`. Its jobs, provider tests, credentials, and failure handling are
+unchanged. The OpenAI merge-group workflow and required `CI Gate` are unchanged.
+
+Validation parses both the base and updated YAML: only the `merge_group` event is
+removed, while the remaining events and entire job definitions match the base.
+This is a requested trigger-policy change, not a passing Groq test result or a
+repair of the rejected CI credential. Fresh PR and merge-group verification must
+complete for the updated head before the merged-code QA artifact is built.
