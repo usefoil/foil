@@ -1,0 +1,17 @@
+2026-10-29 15:36:08.669 Foil Dev[83076:31419249] [Foil Dev] HotkeyMonitor: start succeeded
+2026-10-29 15:36:08.670 Foil Dev[83076:31419249] [Foil Dev] SetupHealth: accessibilityTrusted=true
+2026-10-29 15:36:08.673 Foil Dev[83076:31419249] [Foil Dev] SetupHealth: microphone=authorized
+[ManagedLocalStartup] pid=83077 elapsed_ms=0 stage=launched
+[ManagedLocalStartup] pid=83077 elapsed_ms=7 stage=backend_begin
+[ManagedLocalStartup] pid=83077 elapsed_ms=7 stage=backend_ready
+[ManagedLocalStartup] pid=83077 elapsed_ms=7 stage=model_begin
+[ManagedLocalStartup] pid=83077 elapsed_ms=30 stage=metal_precompiled_ready
+[ManagedLocalStartup] pid=83077 elapsed_ms=102 stage=model_returned
+[ManagedLocalStartup] pid=83077 elapsed_ms=102 stage=openvino_begin
+[ManagedLocalStartup] pid=83077 elapsed_ms=102 stage=openvino_ready
+[ManagedLocalStartup] pid=83077 elapsed_ms=102 stage=bind_begin
+[ManagedLocalStartup] pid=83077 elapsed_ms=102 stage=bound
+[ManagedLocalStartup] pid=83077 elapsed_ms=103 stage=listen_ready
+[ManagedLocalStartup] pid=83077 elapsed_ms=109 stage=health_ready
+2026-10-29 15:36:51.235 Foil Dev[83076:31419249] [Foil Dev] SetupHealth: accessibilityTrusted=true
+2026-10-29 15:36:51.235 Foil Dev[83076:31419249] [Foil Dev] SetupHealth: microphone=authorized

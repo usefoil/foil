@@ -126,12 +126,36 @@ output, and startup traces for exact identities and timing.
 This closes the automatic-restoration gap in the earlier UI-testing proof. It is
 local certificate signing evidence, not notarized distribution-build evidence.
 
-**Remaining microphone check:** real Accessibility and Microphone permission
-were observed granted; normal microphone capture produced buffers with zero
-conversion errors and used the real local provider (`mock=false`). The built-in
-speakers were muted (`kAudioDevicePropertyMute == 1`), so system-synthesized speech
-could not reach the microphone; the app correctly returned no recognizable
-speech. No controlled spoken transcript was observed. The full smoke remains
-partial until the user supplies the phrase or approves temporarily unmuting the
-speakers and restoring mute afterward. No global audio settings, TCC records,
-keychain access rules, or production model/history storage were changed.
+**Microphone retry completed:** after the user enabled the speakers, read-only
+CoreAudio checks showed volume 0.5625 and mute 0. No audio settings were changed
+by the agent. A normal relaunch automatically restored Tiny English (app 82753,
+helper 82754, health 109 ms). Production onboarding practice captured the built-in
+microphone while `say -r 155` played the controlled fox phrase through the built-in
+speakers. The visible practice transcript was exactly “The quick brown fox jumps
+over the lazy dog.” The trace records 80 buffers, zero conversion errors,
+`mock=false`, and real Metal inference by that restored Tiny helper.
+
+Visible Settings controls then switched to installed Base English (helper 82882,
+health 677 ms). Tiny helper 82754 exited with status 0. The same real microphone
+practice produced the identical phrase using Base, with 96 buffers, zero conversion
+errors, `mock=false`, and Metal inference in the new helper. This rules out a
+healthy-looking switch with an unusable replacement model or requests still going
+to the retired Tiny process. Cmd-Q stopped app 82753 and owned Base helper 82882;
+both were verified absent. Relaunch created app 83076 and Base helper 83077,
+which reached health in 109 ms without Restore. Its durable selection was `base.en`.
+No microphone transcript is claimed for this last Base relaunch; the after-restore
+microphone proof above used Tiny.
+
+See `signed-normal-startup/microphone-observations.txt`,
+`microphone-retry-trace.txt`, and `base-relaunch-trace.txt`. These are manual smoke
+receipts, not a run of the stricter clean-install/offline GUI acceptance wrapper.
+The already documented rejecting-URLProtocol runtime test supplies the offline
+proof. The extra global-shortcut/TextEdit paste probe remains unverified: CUA
+rejects modifier-only Right Command, and its attempted chord did not start
+recording. The blank test document was closed; no external-paste success is
+claimed. Cross-app routing code was not changed by this feature.
+
+Cleanup stopped the isolated app and its owned helper and relaunched the original
+installed Foil Dev. The pre-existing external whisper-server remained untouched.
+No global audio settings, TCC records, keychain access rules, or production
+model/history storage were changed.
