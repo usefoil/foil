@@ -39,7 +39,7 @@ struct ManagedLocalModelCatalog: Sendable {
     func recommendation(for language: ManagedDictationLanguage) -> Model? {
         switch language {
         case .unanswered: nil
-        case .englishOnly: try? model("base.en")
+        case .englishOnly: try? model("medium.en")
         case .multilingual: try? model("base")
         }
     }

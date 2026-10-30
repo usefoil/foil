@@ -3,7 +3,9 @@
 In **Settings → Transcription**, select **On this Mac — managed**.
 Choose your dictation languages, then use **Model size** to choose a model.
 English dictation can use all models; other or multiple languages only offers
-multilingual models. Base remains the recommendation during first-run setup.
+multilingual models. First-run setup recommends Medium English for English-only
+dictation and Base Multilingual for other or multiple languages. Existing saved
+model selections are preserved.
 
 Settings offers Tiny, Base, Small, and Medium in English-only and multilingual
 variants, plus multilingual Large V3 Turbo and Large V3. Each choice shows its

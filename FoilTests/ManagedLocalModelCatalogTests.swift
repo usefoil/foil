@@ -16,7 +16,7 @@ final class ManagedLocalModelCatalogTests: XCTestCase {
     func testLanguageIntentDoesNotDefaultToEnglish() throws {
         let catalog = try ManagedLocalModelCatalog.bundled()
         XCTAssertNil(catalog.recommendation(for: .unanswered))
-        XCTAssertEqual(catalog.recommendation(for: .englishOnly)?.id, "base.en")
+        XCTAssertEqual(catalog.recommendation(for: .englishOnly)?.id, "medium.en")
         XCTAssertEqual(catalog.recommendation(for: .multilingual)?.id, "base")
         XCTAssertEqual(try catalog.model("base").downloadURL.absoluteString,
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.bin")
