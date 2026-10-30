@@ -17,6 +17,14 @@ struct ReleaseNote: Equatable, Identifiable {
 enum ReleaseNotes {
     static let recent: [ReleaseNote] = [
         ReleaseNote(
+            title: "1.16.0",
+            date: "October 29, 2026",
+            highlights: [
+                "Install and switch local model sizes directly in Settings.",
+                "Medium English becomes the default for new English-only setups; existing selections stay intact."
+            ]
+        ),
+        ReleaseNote(
             title: "1.15.1",
             date: "October 20, 2026",
             highlights: [
