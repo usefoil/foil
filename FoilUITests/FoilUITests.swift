@@ -1742,6 +1742,9 @@ final class FoilUITests: XCTestCase {
         let versionValue = app.staticTexts.matching(versionPredicate).firstMatch
         XCTAssertTrue(versionValue.waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(button(id: "settings.whatsNew.checkForUpdatesButton", fallbackLabel: "Check for Updates…").exists)
+        XCTAssertTrue(staticTextLabelOrValueContaining("1.16.0").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Install and switch local model sizes directly in Settings.").waitForExistence(timeout: 2), app.debugDescription)
+        XCTAssertTrue(staticTextLabelOrValueContaining("Medium English becomes the default for new English-only setups").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("1.15.1").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Catch up on every release since June").waitForExistence(timeout: 2), app.debugDescription)
         XCTAssertTrue(staticTextLabelOrValueContaining("Release notes are bundled with Foil").waitForExistence(timeout: 2), app.debugDescription)

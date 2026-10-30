@@ -1,3 +1,9 @@
+## [1.16.0](https://github.com/usefoil/foil/compare/v1.15.1...v1.16.0) (2026-10-29)
+
+- Install and switch local model sizes directly in Settings.
+- Medium English becomes the default for new English-only setups; existing selections stay intact.
+
+
 ## [1.15.1](https://github.com/usefoil/foil/compare/v1.15.0...v1.15.1) (2026-10-20)
 
 - Update What's New with clear notes for every release from 1.13.5 through 1.15.1.

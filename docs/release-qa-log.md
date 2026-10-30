@@ -16,6 +16,41 @@ publishing.
 - Release/cask metadata and a disposable public-cask extraction were verified on 2026-10-20; see the v1.15.1 record below.
 - Remaining external smoke: run a true fresh-machine or disposable fresh-user onboarding walkthrough; earlier current-account and release checks do not replace that row. Use `docs/fresh-machine-homebrew-onboarding-smoke.md`.
 
+## v1.16.0 Release Candidate
+
+Date: 2026-10-29. Intended public version/build: `1.16.0 (55)`.
+This prepares the already-merged model-size controls and Medium English default;
+no public tag, release, updater feed, or Homebrew change has been made.
+
+The release owner approved the proposed version/build and these two highlights
+in this chat with “Great - do this now.” The changelog and bundled entry use the
+same approved wording:
+
+- Install and switch local model sizes directly in Settings.
+- Medium English becomes the default for new English-only setups; existing selections stay intact.
+
+The bundled date is October 29, 2026, matching the changelog and the operator's
+America/Phoenix date. The automated checker verifies metadata agreement; the
+release PR presents this date with the approved copy for final human review
+before queueing, as required by `docs/release-process.md`.
+
+| Strongest realistic failure mode | Evidence | Result |
+| --- | --- | --- |
+| One target, package manifest, or lockfile retains the old version/build. | `python3 scripts/check-release-notes.py --expected-version 1.16.0`; direct inspection of all Xcode and project-spec configurations; built Debug Info.plist reports 1.16.0 (55). Parsed old/new package locks are equal after removing only root version fields. | PASS: LOCAL |
+| Bundled notes have the right metadata but the app omits the new release or still shows stale copy. | The actual Swift `ReleaseNotes.swift` compiled with a probe that checks the lead entry's exact approved highlights and date. `testSettingsWhatsNewShowsCurrentVersionAndUpdateControl` passes with added 1.16.0 and both highlight assertions, retaining older-note checks. | PASS: COMPILED AND UI |
+| Release prep changes existing local-model behavior or does not include the requested default. | Full non-live unit suite plus What's New and Medium English onboarding GUI checks: 1,030 passed, five intentional skips, zero failures. Result: `/tmp/foil-release-1.16.0/ReleasePrep.xcresult`. App build with Swift warnings as errors passes. | PASS: LOCAL |
+| Release packaging uses wrong defaults or emits a nonportable checksum/appcast. | `bash scripts/test-build-notarized-qa-dmg.sh` passes its real injected-public-key build, default/override checks, portable checksum verification, and appcast signature contract. | PASS: LOCAL |
+| Local ad hoc validation is mistaken for a signed distribution candidate. | A fresh Developer ID/notarized QA build must use this release-prep commit and explicit 1.16.0 / 55 overrides; artifact identity, untouched checksum, notarization, and source provenance will be recorded separately. | PENDING: HOSTED QA |
+
+The five skipped unit cases are the two opt-in real-download runtime acceptances,
+two provisioned-model fixture checks, and the Release-only correction performance
+gate. Live Groq tests were explicitly excluded. Existing model/runtime evidence
+is in `docs/evidence/local-model-switching/receipt.md`; this metadata-and-copy
+change did not repeat live microphone capture or real model downloads. The
+existing fresh-user/TCC walkthrough remains unverified; neither these fixture
+GUI checks nor artifact trust checks establish Homebrew setup readiness. No
+production app, privacy permission, or Keychain access rule was changed.
+
 ## v1.15.1 What's New Patch and Release
 
 Date: 2026-10-20
