@@ -19,17 +19,17 @@ final class ManagedLocalSetupUITests: XCTestCase {
         XCTAssertFalse(app.secureTextFields.firstMatch.exists)
     }
 
-    func testEnglishLanguageShowsPinnedBaseEnglishSizesWithoutStartingDownload() {
+    func testEnglishLanguageShowsPinnedMediumEnglishSizesWithoutStartingDownload() {
         launch(languageArgument: "--seed-managed-language-english")
         openConfigurationStep()
 
         XCTAssertTrue(app.staticTexts["managedLocal.recommendation"].waitForExistence(timeout: 3), app.debugDescription)
-        XCTAssertTrue(text(app.staticTexts["managedLocal.recommendation"]).contains("Base English"))
+        XCTAssertTrue(text(app.staticTexts["managedLocal.recommendation"]).contains("Medium English"))
         let sizes = app.staticTexts["managedLocal.modelSizes"]
         XCTAssertTrue(sizes.waitForExistence(timeout: 2), app.debugDescription)
-        XCTAssertTrue(text(sizes).contains("148 MB"), text(sizes))
+        XCTAssertTrue(text(sizes).contains("1534 MB"), text(sizes))
         XCTAssertTrue(text(sizes).contains("67 MB temporary"), text(sizes))
-        XCTAssertTrue(text(sizes).contains("215 MB total"), text(sizes))
+        XCTAssertTrue(text(sizes).contains("1601 MB total"), text(sizes))
         XCTAssertTrue(app.buttons["managedLocal.installRecommended"].isEnabled)
         XCTAssertFalse(app.progressIndicators["managedLocal.downloadProgress"].exists)
         attachScreenshot(name: "managed-local-onboarding-light-english")
@@ -60,7 +60,10 @@ final class ManagedLocalSetupUITests: XCTestCase {
 
         XCTAssertTrue(app.popUpButtons["settings.transcriptionProviderPicker"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.popUpButtons["managedLocal.languagePicker"].waitForExistence(timeout: 3))
+        XCTAssertTrue(text(app.popUpButtons["managedLocal.modelPicker"]).contains("Medium English"))
+        XCTAssertTrue(text(app.buttons["managedLocal.installRecommended"]).contains("Install and use Medium English"))
         XCTAssertTrue(app.buttons["managedLocal.installRecommended"].isEnabled)
+        XCTAssertFalse(app.progressIndicators["managedLocal.downloadProgress"].exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] %@", "CMake")).firstMatch.exists)
         attachScreenshot(name: "managed-local-settings-english")
     }
